@@ -2,7 +2,19 @@ import asyncio
 from typing import List, Dict, Any
 from playwright.async_api import async_playwright
 import re
+import openai
 
+compress_labels = {}
+current_compressed_label = 0
+
+
+
+def get_compressed_label(role):
+    global current_compressed_label
+    if role not in compress_labels:
+        compress_labels[role] = current_compressed_label
+        current_compressed_label += 1
+    return compress_labels[role]
 
 def parse_accessibility_tree(node, depth=0):
     if not node or 'role' not in node:
@@ -10,17 +22,21 @@ def parse_accessibility_tree(node, depth=0):
 
     indent = "\t" * depth
     role = node.get('role', '')
+    compressed_role = get_compressed_label(role)  # Get compressed label
     name = node.get('name', '')
     node_str = f"{indent}[{role}] {repr(name)}"
+    compressed_node_str = f"{indent}[{compressed_role}] {repr(name)}"
 
     node_str += "\n"
+    compressed_node_str += "\n"
 
     # Recursively process children
     for child in node.get('children', []):
-        child_str = parse_accessibility_tree(child, depth + 1)
+        child_str, compressed_child_str = parse_accessibility_tree(child, depth + 1)
         node_str += child_str
+        compressed_node_str += compressed_child_str
 
-    return node_str
+    return node_str, compressed_node_str
 
 
 
@@ -57,23 +73,34 @@ async def fetch_accessibility_tree(url, browser):
     await page.goto(url)
 
     accessibility_snapshot = await page.accessibility.snapshot()
-    tree_str = parse_accessibility_tree(accessibility_snapshot)
-    clean_tree_str = clean_accessibility_tree(tree_str)
+    tree_str, compressed_tree = parse_accessibility_tree(accessibility_snapshot)
+    # clean_tree_str = clean_accessibility_tree(tree_str)
 
     await page.close()
-    return clean_tree_str, tree_str
+    return tree_str, compressed_tree
 
 async def process_children(url):
     async with async_playwright() as p:
         browser = await p.chromium.launch()
         links = await fetch_links(url, browser)
-        clean_tree_str, tree_str = await fetch_accessibility_tree(target_url, browser)
+        # tree_str = await fetch_accessibility_tree(url, browser)
+        children_trees = []
 
         for link in links:
             try:
                 print(f"Fetching accessibility tree for: {link}")
-                clean_tree_str, tree_str = await fetch_accessibility_tree(link, browser)
-                print(f"Clean Accessibility tree for {link}:\n{clean_tree_str}")
+                tree_str, compressed_tree = await fetch_accessibility_tree(link, browser)
+                embedding = openai.Embedding.create(
+                    model="text-embedding-ada-002",
+                    input=tree_str
+                )
+                '''
+                
+                Compressed tree makes longer embeddings
+                
+                '''
+                print(embedding)
+                # children_trees.append(tree_str)
                 break
             except Exception as e:
                 print(f"Error fetching {link}: {e}")
@@ -82,7 +109,7 @@ async def process_children(url):
         await browser.close()
 async def main():
     target_url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770'  # Replace with your target URL
-    process_children(target_url
+    await process_children(target_url)
 
 
 asyncio.run(main())
