@@ -142,8 +142,6 @@ async def fetch_links(url, browser):
 
         if href and (href.startswith('http') or href.startswith('https')):
             valid_links.append(href)
-        else:
-            print(f"Invalid link: {href}")
 
     await page.close()
     return valid_links
@@ -182,6 +180,9 @@ async def do_scrape_bfs():
                                             children=None)
                     parent_node.add_child(child_node)
                     scrape_queue.append(child_node)
+                    print("one down!")
+                    print(len(all_seen_links))
+                    print(scrape_queue)
                 except Exception as e:
                     print(f"Error fetching {link}: {e}")
 
