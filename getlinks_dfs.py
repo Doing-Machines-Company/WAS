@@ -211,7 +211,7 @@ async def do_scrape(start_link):
             file.write(repr(tree_str))
         functionality = await interpret_functionality(tree_str)
         # print(functionality)
-        # print("TONK")
+        print("TONK")
         '''
         add first one to tree
         def __init__(self, url, private, acc_tree, parent=None, children=None):
@@ -225,7 +225,8 @@ async def do_scrape(start_link):
     return root
 
 async def main():
-    target_url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770'
+    # target_url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770'
+    target_url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/pre-baked-gingerbread-house-kit-value-pack-17-oz-pack-of-2-total-34-oz.html'
     print(await do_scrape(target_url))
 
 

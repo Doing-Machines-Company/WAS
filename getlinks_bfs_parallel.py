@@ -54,7 +54,7 @@ async def load_few_shot_examples(filename):
 
 async def interpret_functionality(tree_str):
     response = client.chat.completions.create(
-        model="gpt-4",
+        model="gpt-4-1106-preview",
         messages=[
             {"role": "system",
              "content": "You are an autonomous intelligent agent tasked with analyzing web pages in-depth. Your primary task is to provide a brief and exhaustive evaluation of the web page's overall purpose, without considering the purpose of outgoing links."},
@@ -72,7 +72,7 @@ async def interpret_functionality(tree_str):
              "content": f"Describe what can be done on this web page based on this accessibility tree:\n{tree_str}\nDo not include any information about what it links to, only what can be done on this page. Provide an exhaustive list of functionalities, keeping descriptions brief."}
         ],
         temperature=0.0,
-        max_tokens=200
+        max_tokens=250
     )
     return response.choices[0].message.content
 
