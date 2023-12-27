@@ -137,8 +137,6 @@ async def fetch_links(url, browser):
 
         if href and (href.startswith('http') or href.startswith('https')):
             valid_links.append(href)
-        else:
-            print(f"Invalid link: {href}")
 
     await page.close()
     return valid_links
@@ -207,7 +205,13 @@ async def do_scrape(start_link):
     async with async_playwright() as p:
         browser = await p.chromium.launch()
         tree_str, compressed_tree = await fetch_accessibility_tree(start_link, browser)
-        functionality = interpret_functionality(tree_str)
+
+        file_name = "output.txt"
+        with open(file_name, 'w') as file:
+            file.write(repr(tree_str))
+        functionality = await interpret_functionality(tree_str)
+        # print(functionality)
+        # print("TONK")
         '''
         add first one to tree
         def __init__(self, url, private, acc_tree, parent=None, children=None):
@@ -221,7 +225,7 @@ async def do_scrape(start_link):
     return root
 
 async def main():
-    target_url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770'  # Replace with your target URL
+    target_url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770'
     print(await do_scrape(target_url))
 
 

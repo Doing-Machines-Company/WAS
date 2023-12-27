@@ -17,6 +17,9 @@ compress_labels = {}
 current_compressed_label = 0
 scrape_queue = []
 
+# start_url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770'
+start_url = 'https://jchencxh.com/'
+
 
 async def interpret_functionality(tree_str):
     response = client.chat.completions.create(
@@ -47,7 +50,17 @@ async def simplify_functionality(fun_str):
         ]
     )
 
+'''
 
+We have Agent
+
+Agent traverses this tree
+
+Finds a good path based on private and public descriptions
+
+Uses that path in actuality to traverse website
+
+'''
 class WebPageNode:
     def __init__(self, url, private, acc_tree, parent=None, children=None):
         self.url = url
@@ -133,16 +146,22 @@ def clean_accessibility_tree(tree_str: str) -> str:  # Further cleaning perhaps 
 
 
 async def fetch_links(url, browser):
+    global start_url
     page = await browser.new_page()
     await page.goto(url)
     links = await page.query_selector_all('a')
     valid_links = []
     for link in links:
         href = await link.get_attribute('href')
+        print("HREF: ")
+        print(href)
 
-        if href and (href.startswith('http') or href.startswith('https')):
+        # if href and (href.startswith('http') or href.startswith('https')):
+        if href and (href.startswith(start_url)):
             valid_links.append(href)
 
+    print("VALID")
+    print(valid_links)
     await page.close()
     return valid_links
 
@@ -180,9 +199,6 @@ async def do_scrape_bfs():
                                             children=None)
                     parent_node.add_child(child_node)
                     scrape_queue.append(child_node)
-                    print("one down!")
-                    print(len(all_seen_links))
-                    print(scrape_queue)
                 except Exception as e:
                     print(f"Error fetching {link}: {e}")
 
@@ -191,7 +207,7 @@ async def do_scrape_bfs():
 
 
 async def main():
-    start_url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770'
+    global start_url
     async with async_playwright() as p:
         browser = await p.chromium.launch()
         tree_str, _ = await fetch_accessibility_tree(start_url, browser)
@@ -206,7 +222,7 @@ async def main():
         await browser.close()
 
     await do_scrape_bfs()
-    print(all_seen_links)
+    # print(all_seen_links)
 
 
 asyncio.run(main())
