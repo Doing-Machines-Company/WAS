@@ -1,42 +1,85 @@
 import asyncio
-from typing import List, Dict, Any
 from playwright.async_api import async_playwright
 import re
 from openai import OpenAI
 import os
+from urllib.parse import urlparse, urlunparse
+import json
 
 api_key = os.getenv('OPENAI_API_KEY')
-
 
 client = OpenAI(api_key=api_key)
 # from openai.embeddings_utils import get_embedding, cosine_similarity
 
 
+all_processed_links = set()
 all_seen_links = set()
 compress_labels = {}
 current_compressed_label = 0
 scrape_queue = []
+CONCURRENT_BROWSERS = 150
+BATCH_SIZE = 5
+np = 0
 
-# start_url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770'
-start_url = 'https://jchencxh.com/'
+all_nodes = []
+
+start_url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770'
+# start_url = 'https://www.jchencxh.com/'
+parsed_start_url = urlparse(start_url)
+start_domain = parsed_start_url.netloc
+start_scheme = parsed_start_url.scheme
+
+
+def url_depth(url):
+    parsed = urlparse(url)
+    return parsed.path.count('/')
+
+
+async def normalize_url(url):
+    parsed_url = urlparse(url)
+    scheme = parsed_url.scheme if parsed_url.scheme else 'http'
+    netloc = parsed_url.netloc
+    # if not netloc.startswith('www.'):
+    #     netloc = 'www.' + netloc
+    normalized_url = urlunparse(
+        (scheme, netloc, parsed_url.path, parsed_url.params, parsed_url.query, parsed_url.fragment))
+    return normalized_url
+
+
+async def is_same_domain(url):
+    parsed_url = urlparse(url)
+    return (parsed_url.netloc == start_domain or
+            parsed_url.netloc == start_domain.replace('www.', '') or
+            parsed_url.netloc == 'www.' + start_domain) and \
+        parsed_url.scheme in [start_scheme, 'http', 'https']
+
+
+async def load_few_shot_examples(filename):
+    with open(filename, 'r') as file:
+        return json.load(file)
 
 
 async def interpret_functionality(tree_str):
     response = client.chat.completions.create(
-        model="gpt-4",
+        model="gpt-4-1106-preview",
         messages=[
             {"role": "system",
-             "content": "You are an autonomous intelligent agent tasked with analyzing web pages in-depth. Your primary task is to provide a detailed evaluation of the web page's overall purpose."},
+             "content": "You are an autonomous intelligent agent tasked with analyzing web pages in-depth. Your primary task is to provide a brief and exhaustive evaluation of the web page's overall purpose, without considering the purpose of outgoing links."},
             {"role": "system",
              "content": "You will be given a page's accessibility tree. This is a simplified representation of the webpage, providing key information."},
             {"role": "system",
-             "content": "You are to provide very brief and concise descriptions of all functionalities of a web page. Do not include any details about what the web page links to. Do not include any details about links or buttons. Only describe what can be done on the page."},
+             "content": "You are to provide very brief and concise descriptions of all functionalities of a web page. Do not include any details about what the web page links to. Do not include any details about links, or what those links may do. Only describe what can be done on the page without going to another link."},
             {"role": "system",
              "content": "Give your answer in the format of quoted descriptions in a list format enclosed within square brackets, like this: \n ['Descrition here', 'another description here']"},
+            # {"role": "user",
+            #  "content": "Accessibility Tree Example 1:\n[Accessibility tree details...]\nWhat can be done on this page:\n['Functionality 1', 'Functionality 2']"},
+            # {"role": "user",
+            #  "content": "Accessibility Tree Example 2:\n[Accessibility tree details...]\nWhat can be done on this page:\n['Functionality A', 'Functionality B']"},
             {"role": "user",
              "content": f"Describe what can be done on this web page based on this accessibility tree:\n{tree_str}\nDo not include any information about what it links to, only what can be done on this page. Provide an exhaustive list of functionalities, keeping descriptions brief."}
         ],
-        temperature=0.0
+        temperature=0.0,
+        max_tokens=250
     )
     return response.choices[0].message.content
 
@@ -50,25 +93,15 @@ async def simplify_functionality(fun_str):
         ]
     )
 
-'''
 
-We have Agent
-
-Agent traverses this tree
-
-Finds a good path based on private and public descriptions
-
-Uses that path in actuality to traverse website
-
-'''
 class WebPageNode:
     def __init__(self, url, private, acc_tree, parent=None, children=None):
         self.url = url
         self.private = private
+        self.public = private
         self.parent = parent
         self.acc_tree = acc_tree
         self.children = children if children is not None else []
-        self.public = private
 
     def add_child(self, child_node):
         child_node.parent = self  # Set this node as the parent of the child
@@ -97,8 +130,15 @@ class WebPageNode:
             yield current_node
             nodes.extend(current_node.children)
 
+    def __str__(self):
+        parent_url = self.parent.url if self.parent else 'None'
+        children_urls = ', '.join([child.url for child in self.children])
+        return (f"WebPageNode(URL: {self.url}, Private: {self.private}, "
+                f"Public: {self.public}, Parent URL: {parent_url}, "
+                f"Children URLs: [{children_urls}]")
 
-def get_compressed_label(role): # Not really good for tokenization, produces more tokens for embedding
+
+def get_compressed_label(role):  # Not really good for tokenization, produces more tokens for embedding
     global current_compressed_label
     if role not in compress_labels:
         compress_labels[role] = current_compressed_label
@@ -129,7 +169,7 @@ def parse_accessibility_tree(node, depth=0):
     return node_str, compressed_node_str
 
 
-def clean_accessibility_tree(tree_str: str) -> str:  # Further cleaning perhaps good later on
+def clean_accessibility_tree(tree_str):  # Further cleaning perhaps good later on
     clean_lines = []
     for line in tree_str.split("\n"):
         if "text" in line.lower():  # Changed from "statictext" to "text"
@@ -146,22 +186,17 @@ def clean_accessibility_tree(tree_str: str) -> str:  # Further cleaning perhaps 
 
 
 async def fetch_links(url, browser):
-    global start_url
     page = await browser.new_page()
     await page.goto(url)
     links = await page.query_selector_all('a')
     valid_links = []
     for link in links:
         href = await link.get_attribute('href')
-        print("HREF: ")
-        print(href)
+        if href:
+            normalized_href = await normalize_url(href)
+            if await is_same_domain(normalized_href):
+                valid_links.append(normalized_href)
 
-        # if href and (href.startswith('http') or href.startswith('https')):
-        if href and (href.startswith(start_url)):
-            valid_links.append(href)
-
-    print("VALID")
-    print(valid_links)
     await page.close()
     return valid_links
 
@@ -172,57 +207,70 @@ async def fetch_accessibility_tree(url, browser):
 
     accessibility_snapshot = await page.accessibility.snapshot()
     tree_str, compressed_tree = parse_accessibility_tree(accessibility_snapshot)
-    # clean_tree_str = clean_accessibility_tree(tree_str)
-
     await page.close()
     return tree_str, compressed_tree
 
 
-async def do_scrape_bfs():
-    async with async_playwright() as p:
-        browser = await p.chromium.launch()
+async def process_node(node, browser):
+    global np
+    global all_processed_links
+    global scrape_queue
+    url = node.url
+    links = await fetch_links(url, browser)
 
-        while scrape_queue:
-            parent_node = scrape_queue.pop(0)
-            parent_url = parent_node.url
+    new_links = list(set(links).difference(all_processed_links))
+    all_seen_links.update(new_links)
 
-            links = await fetch_links(parent_url, browser)
-            new_links = list(set(links).difference(all_seen_links))
+    curr_depth = url_depth(url)
+    new_links_depths = [url_depth(link) for link in new_links if url_depth(link) >= curr_depth]
+    to_search_depth = min(new_links_depths) if new_links_depths else 0
+    min_depth_links = [link for link in new_links if url_depth(link) == to_search_depth and link.startswith(url)] # We are assuming other links have better parents
 
-            all_seen_links.update(new_links)
-            for link in new_links:
-                try:
-                    tree_str, _ = await fetch_accessibility_tree(link, browser)
-                    # functionality = interpret_functionality(tree_str)
-                    functionality = "tonk"
-                    child_node = WebPageNode(url=link, private=functionality, acc_tree=tree_str, parent=parent_node,
-                                            children=None)
-                    parent_node.add_child(child_node)
-                    scrape_queue.append(child_node)
-                except Exception as e:
-                    print(f"Error fetching {link}: {e}")
+    all_processed_links.update(min_depth_links)
 
-        await browser.close()
+    for link in min_depth_links:
+        tree_str, _ = await fetch_accessibility_tree(link, browser)
+        # functionality = await interpret_functionality(tree_str)
+        functionality = "tonk"
+        child_node = WebPageNode(url=link, private=functionality, acc_tree=tree_str, parent=node, children=None)
+        all_nodes.append(child_node)
+        np += 1
+        print(np)
+        node.add_child(child_node)
+        scrape_queue.append(child_node)
 
-
+    print(f"SANITY PROCESSED LINKS LENGTH: {len(all_processed_links)}")
+    print(f"SANITY SEEN LINKS LENGTH: {len(all_seen_links)}")
 
 async def main():
+    global np
     global start_url
+    global scrape_queue
+    start_url = await normalize_url(start_url)
+
     async with async_playwright() as p:
         browser = await p.chromium.launch()
         tree_str, _ = await fetch_accessibility_tree(start_url, browser)
         # functionality = await interpret_functionality(tree_str)
         functionality = "tonk"
-        '''
-                add first one to tree
-                def __init__(self, url, private, acc_tree, parent=None, children=None):
-        '''
         root_node = WebPageNode(url=start_url, private=functionality, acc_tree=tree_str, parent=None, children=None)
+        np += 1
+        print(np)
+        all_nodes.append(root_node)
         scrape_queue.append(root_node)
+        while scrape_queue:
+            node = scrape_queue.pop(0)
+            await process_node(node, browser)
+            print(f"Processed: {node.url}")
+            print(f"Queue Length: {len(scrape_queue)}")
+
+        print(f"ALL SEEN LINKS LENGTH: {len(all_seen_links)}")
+        print(f"ALL PROCESSED LINKS LENGTH: {len(all_processed_links)}")
+
+        print(f"ALL NODES LENGTH: {len(all_nodes)}")
+
         await browser.close()
 
-    await do_scrape_bfs()
-    # print(all_seen_links)
 
 
 asyncio.run(main())

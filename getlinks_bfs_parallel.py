@@ -14,30 +14,36 @@ client = OpenAI(api_key=api_key)
 # from openai.embeddings_utils import get_embedding, cosine_similarity
 
 
+all_processed_links = set()
 all_seen_links = set()
 compress_labels = {}
 current_compressed_label = 0
 scrape_queue = []
-CONCURRENT_BROWSERS = 30
-BATCH_SIZE = 10
+CONCURRENT_BROWSERS = 150
+BATCH_SIZE = 5
 np = 0
 
 all_nodes = []
 
-# start_url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770'
-start_url = 'https://www.jchencxh.com/'
+
+start_url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770'
+# start_url = 'https://www.jchencxh.com/'
 parsed_start_url = urlparse(start_url)
 start_domain = parsed_start_url.netloc
 start_scheme = parsed_start_url.scheme
 
+
+def url_depth(url):
+    parsed = urlparse(url)
+    return parsed.path.count('/')
 
 
 async def normalize_url(url):
     parsed_url = urlparse(url)
     scheme = parsed_url.scheme if parsed_url.scheme else 'http'
     netloc = parsed_url.netloc
-    if not netloc.startswith('www.'):
-        netloc = 'www.' + netloc
+    # if not netloc.startswith('www.'):
+    #     netloc = 'www.' + netloc
     normalized_url = urlunparse((scheme, netloc, parsed_url.path, parsed_url.params, parsed_url.query, parsed_url.fragment))
     return normalized_url
 
@@ -64,10 +70,10 @@ async def interpret_functionality(tree_str):
              "content": "You are to provide very brief and concise descriptions of all functionalities of a web page. Do not include any details about what the web page links to. Do not include any details about links, or what those links may do. Only describe what can be done on the page without going to another link."},
             {"role": "system",
              "content": "Give your answer in the format of quoted descriptions in a list format enclosed within square brackets, like this: \n ['Descrition here', 'another description here']"},
-            {"role": "user",
-             "content": "Accessibility Tree Example 1:\n[Accessibility tree details...]\nWhat can be done on this page:\n['Functionality 1', 'Functionality 2']"},
-            {"role": "user",
-             "content": "Accessibility Tree Example 2:\n[Accessibility tree details...]\nWhat can be done on this page:\n['Functionality A', 'Functionality B']"},
+            # {"role": "user",
+            #  "content": "Accessibility Tree Example 1:\n[Accessibility tree details...]\nWhat can be done on this page:\n['Functionality 1', 'Functionality 2']"},
+            # {"role": "user",
+            #  "content": "Accessibility Tree Example 2:\n[Accessibility tree details...]\nWhat can be done on this page:\n['Functionality A', 'Functionality B']"},
             {"role": "user",
              "content": f"Describe what can be done on this web page based on this accessibility tree:\n{tree_str}\nDo not include any information about what it links to, only what can be done on this page. Provide an exhaustive list of functionalities, keeping descriptions brief."}
         ],
@@ -163,7 +169,7 @@ def parse_accessibility_tree(node, depth=0):
     return node_str, compressed_node_str
 
 
-def clean_accessibility_tree(tree_str: str) -> str:  # Further cleaning perhaps good later on
+def clean_accessibility_tree(tree_str):  # Further cleaning perhaps good later on
     clean_lines = []
     for line in tree_str.split("\n"):
         if "text" in line.lower():  # Changed from "statictext" to "text"
@@ -207,24 +213,41 @@ async def fetch_accessibility_tree(url, browser):
 
 async def process_node(node, browser):
     global np
-    global all_seen_links
+    global all_processed_links
     global scrape_queue
     url = node.url
     links = await fetch_links(url, browser)
-    new_links = list(set(links).difference(all_seen_links))
+
+    new_links = list(set(links).difference(all_processed_links))
     all_seen_links.update(new_links)
 
-    for link in new_links:
+    curr_depth = url_depth(url)
+
+    new_links_depths = [url_depth(link) for link in new_links if url_depth(link) >= curr_depth]
+
+    to_search_depth = min(new_links_depths) if new_links_depths else 0
+
+    min_depth_links = [link for link in new_links if url_depth(link) == to_search_depth and link.startswith(url)]
+
+    '''
+    
+    Complete logic here
+    
+    '''
+    all_processed_links.update(min_depth_links)
+    print(f"SANITY PROCESSED LINKS LENGTH: {len(all_processed_links)}")
+    print(f"SANITY SEEN LINKS LENGTH: {len(all_seen_links)}")
+
+    for link in min_depth_links:
         tree_str, _ = await fetch_accessibility_tree(link, browser)
-        functionality = await interpret_functionality(tree_str)
-        # functionality = "tonk"
+        # functionality = await interpret_functionality(tree_str)
+        functionality = "tonk"
         child_node = WebPageNode(url=link, private=functionality, acc_tree=tree_str, parent=node, children=None)
         all_nodes.append(child_node)
         np += 1
         print(np)
         node.add_child(child_node)
         scrape_queue.append(child_node)
-
 
 async def process_batch(batch, browser):
     tasks = [asyncio.create_task(process_node(node, browser)) for node in batch]
@@ -235,15 +258,20 @@ async def do_scrape_bfs():
     global scrape_queue
     async with async_playwright() as p:
         browsers = [await p.chromium.launch() for _ in range(CONCURRENT_BROWSERS)]
-        try:
-            while scrape_queue:
-                for browser in browsers:
-                    if scrape_queue:
-                        batch = [scrape_queue.pop(0) for _ in range(min(BATCH_SIZE, len(scrape_queue)))]
-                        await process_batch(batch, browser)
-        finally:
+
+        while scrape_queue:
             for browser in browsers:
-                await browser.close()
+                if scrape_queue:
+                    batch = [scrape_queue.pop(0) for _ in range(min(BATCH_SIZE, len(scrape_queue)))]
+                    await process_batch(batch, browser)
+                    print("ONE DONE!")
+                    print(np)
+                    print(f"ALL SEEN LINKS LENGTH: {len(all_seen_links)}")
+                    print(f"ALL PROCESSED LINKS LENGTH: {len(all_processed_links)}")
+
+        print("FINISHED???")
+        for browser in browsers:
+            await browser.close()
 
 
 async def main():
@@ -255,8 +283,8 @@ async def main():
     async with async_playwright() as p:
         browser = await p.chromium.launch()
         tree_str, _ = await fetch_accessibility_tree(start_url, browser)
-        functionality = await interpret_functionality(tree_str)
-        # functionality = "tonk"
+        # functionality = await interpret_functionality(tree_str)
+        functionality = "tonk"
         '''
                 add first one to tree
                 def __init__(self, url, private, acc_tree, parent=None, children=None):
@@ -268,9 +296,8 @@ async def main():
         await browser.close()
 
     all_seen_links.add(start_url)
+    all_processed_links.add(start_url)
     await do_scrape_bfs()
-    for node in all_nodes:
-        print(node)
 
 
 asyncio.run(main())
