@@ -126,6 +126,12 @@ def clean_accessibility_tree(tree_str: str) -> str: # Further cleaning perhaps g
 
     return "\n".join(clean_lines)
 
+async def fetch_html(url, browser):
+    page = await browser.new_page()
+    await page.goto(url)
+    html_content = await page.content()
+    await page.close()
+    return html_content
 
 async def fetch_links(url, browser):
     page = await browser.new_page()
@@ -166,11 +172,6 @@ async def process_children(links, browser):
                     print(f"Fetching accessibility tree for: {link}")
                     tree_str, compressed_tree = await fetch_accessibility_tree(link, browser)
                     # embedding = openai.Embedding.create(model="text-embedding-ada-002", input=tree_str)
-                    '''
-                    
-                    Compressed tree makes longer embeddings
-                    
-                    '''
                     # print(cosine_similarity([1.0], [1.0]))
                     # children_trees.append(tree_str)
                     # print(tree_str)
@@ -205,11 +206,18 @@ async def do_scrape(start_link):
     async with async_playwright() as p:
         browser = await p.chromium.launch()
         tree_str, compressed_tree = await fetch_accessibility_tree(start_link, browser)
-
-        file_name = "output.txt"
-        with open(file_name, 'w') as file:
+        '''
+        
+        FETCH HTML BELOW
+        
+        '''
+        html_content = await fetch_html(start_link, browser)
+        with open("outtree.txt", 'w') as file:
             file.write(repr(tree_str))
-        functionality = await interpret_functionality(tree_str)
+        # functionality = await interpret_functionality(tree_str)
+        with open("outhtml.txt", 'w') as file:
+            file.write(repr(html_content))
+        functionality = "tonk"
         # print(functionality)
         print("TONK")
         '''
@@ -219,7 +227,7 @@ async def do_scrape(start_link):
         root = WebPageNode(url=start_link, private=functionality, acc_tree=tree_str, parent=None, children=None)
         all_seen_links.add(start_link)
 
-        await do_scrape_help(root, browser)
+        # await do_scrape_help(root, browser)
 
     await browser.close()
     return root

@@ -247,6 +247,8 @@ async def main():
     global start_url
     global scrape_queue
     start_url = await normalize_url(start_url)
+    all_seen_links.add(start_url)
+    all_processed_links.add(start_url)
 
     async with async_playwright() as p:
         browser = await p.chromium.launch()
@@ -268,6 +270,11 @@ async def main():
         print(f"ALL PROCESSED LINKS LENGTH: {len(all_processed_links)}")
 
         print(f"ALL NODES LENGTH: {len(all_nodes)}")
+
+        missed_links = list(set(all_seen_links).difference(all_processed_links))
+        with open('missed_links.txt', 'w') as file:
+            for item in missed_links:
+                file.write(item + "\n")
 
         await browser.close()
 
