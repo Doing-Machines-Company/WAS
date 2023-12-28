@@ -259,27 +259,20 @@ async def process_node(node, browser):
     naively_removed_products = []
     trimmed_url = url[:-5] if url.endswith('.html') else url
     for link in new_links:
-        if (link.endswith('.html') and link.startswith(trimmed_url) and url_depth(link) > 1) or (not link.endswith('.html')):
+        if (link.endswith('.html') and link.startswith(trimmed_url)) or (not link.endswith('.html')):
             naively_removed_products.append(link)
 
     all_seen_links.update(links)
 
     filtered_links = await filter_urls_getshort(naively_removed_products)
 
-    if len(filtered_links) > 100:
-        sorted_link = sorted(filtered_links)
-        with open(f'LinkSanity{np}.txt', 'w') as file:
-            for link in sorted_link:
-                file.write(link + '\n')
 
 
 
     for link in filtered_links:
         tree_str, _ = await fetch_accessibility_tree(link, browser)
-        print(link)
         if link.endswith('.html') and url_depth(link) == 1 and 'SKU' in tree_str:
-            print("Skipped product page")
-            print("FUCK! NICE!")
+            print(f"Skipped: {link}")
             continue
         # functionality = await interpret_functionality(tree_str)
         functionality = "tonk"
@@ -337,5 +330,5 @@ async def main():
         await browser.close()
 
 
-
+#nice
 asyncio.run(main())
