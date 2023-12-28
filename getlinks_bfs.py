@@ -101,10 +101,10 @@ async def simplify_functionality(fun_str):
 
 
 class WebPageNode:
-    def __init__(self, url, private, acc_tree, embedding=None, parent=None, children=None):
+    def __init__(self, url, private, public, acc_tree, embedding=None, parent=None, children=None):
         self.url = url
         self.private = private
-        self.public = private
+        self.public = private if public is None else public
         self.parent = parent
         self.acc_tree = acc_tree
         self.children = children if children is not None else []
@@ -123,7 +123,6 @@ class WebPageNode:
             "vec_embedding": self.page_embedding,
             "children": [child.to_dict() for child in self.children]
         }
-
 
     def __str__(self):
         parent_url = self.parent.url if self.parent else 'None'
