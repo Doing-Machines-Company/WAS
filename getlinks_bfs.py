@@ -14,7 +14,6 @@ client = OpenAI(api_key=api_key)
 
 all_processed_links = set()
 all_seen_links = set()
-do_not_process_links = set()
 compress_labels = {}
 current_compressed_label = 0
 scrape_queue = []
@@ -22,7 +21,6 @@ CONCURRENT_BROWSERS = 150
 BATCH_SIZE = 5
 np = 0
 
-all_nodes = []
 
 start_url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770'
 # start_url = 'https://www.jchencxh.com/'
@@ -35,7 +33,7 @@ def url_depth(url):
     parsed = urlparse(url)
     return parsed.path.count('/')
 
-
+'''
 async def normalize_url(url):
     parsed_url = urlparse(url)
     scheme = parsed_url.scheme if parsed_url.scheme else 'http'
@@ -44,6 +42,17 @@ async def normalize_url(url):
     #     netloc = 'www.' + netloc
     normalized_url = urlunparse(
         (scheme, netloc, parsed_url.path, parsed_url.params, parsed_url.query, parsed_url.fragment))
+    return normalized_url
+
+'''
+
+async def normalize_url(url):  # Very aggressive normalization
+    parsed_url = urlparse(url)
+    scheme = parsed_url.scheme if parsed_url.scheme else 'http'
+    netloc = parsed_url.netloc
+    path = parsed_url.path.rstrip('/')  # Remove trailing slashes from the path
+    # Ignoring the query and fragment
+    normalized_url = urlunparse((scheme, netloc, path, '', '', ''))
     return normalized_url
 
 
@@ -106,11 +115,12 @@ class WebPageNode:
         self.children.append(child_node)
 
     def to_dict(self):
-        """ Serialize the node to a dictionary. """
         return {
             "url": self.url,
             "private": self.private,
             "public": self.public,
+            "acc_tree": self.acc_tree,
+            "vec_embedding": self.page_embedding,
             "children": [child.to_dict() for child in self.children]
         }
 
@@ -199,42 +209,86 @@ async def fetch_accessibility_tree(url, browser):
     return tree_str, compressed_tree
 
 
+async def filter_urls_getlong(url_list):
+    filtered_urls = []
+
+    for url in url_list:
+        is_substring = False
+        for other_url in url_list:
+            if url != other_url and url in other_url:
+                is_substring = True
+                break
+
+        if not is_substring:
+            filtered_urls.append(url)
+
+    return filtered_urls
+
+async def filter_urls_getshort(url_list):
+    original_html_status = {url: url.endswith('.html') for url in url_list}
+
+    modified_urls = [url[:-5] if url.endswith('.html') else url for url in url_list]
+
+    filtered_urls = modified_urls.copy()
+
+    for url in modified_urls:
+        for other_url in modified_urls:
+            if url != other_url and other_url in url:
+                if url in filtered_urls:
+                    filtered_urls.remove(url)
+
+    final_urls = []
+    for url in filtered_urls:
+        original_url = url + '.html' if original_html_status.get(url + '.html', False) else url
+        final_urls.append(original_url)
+
+    return final_urls
+
+
 async def process_node(node, browser):
     global np
     global all_processed_links
     global scrape_queue
     global all_seen_links
     url = node.url
+    print("Processing: " + url)
     links = await fetch_links(url, browser)
 
-    new_links = list(set(links).difference(do_not_process_links))
-    all_seen_links.update(new_links)
+    new_links = list(set(links).difference(all_processed_links))
+    # naively_removed_products = [link for link in new_links if not (url_depth(link) == 1 and link.endswith('.html'))] # This needs to be better
+    naively_removed_products = []
+    trimmed_url = url[:-5] if url.endswith('.html') else url
+    for link in new_links:
+        if (link.endswith('.html') and link.startswith(trimmed_url) and url_depth(link) > 1) or (not link.endswith('.html')):
+            naively_removed_products.append(link)
 
-    curr_depth = url_depth(url)
-    new_links_depths = [url_depth(link) for link in new_links if url_depth(link) >= curr_depth]
-    to_search_depth = min(new_links_depths) if new_links_depths else 0
+    all_seen_links.update(links)
 
-    #  min_depth_links = [link for link in new_links if ((url_depth(link) == to_search_depth and link.startswith(url)) or (curr_depth != 0 and url_depth(link) == 1 and link.endswith('.html')))]  # We are assuming other links have better parents
-    same_state_links = [link for link in new_links if (url_depth(link) == curr_depth and link.startswith(url))]  #  Just use this
+    filtered_links = await filter_urls_getshort(naively_removed_products)
 
-    do_not_process_links.update(same_state_links)
+    if len(filtered_links) > 100:
+        sorted_link = sorted(filtered_links)
+        with open(f'LinkSanity{np}.txt', 'w') as file:
+            for link in sorted_link:
+                file.write(link + '\n')
 
-    min_depth_links = [link for link in new_links if (url_depth(link) == to_search_depth and link.startswith(url))]
-    min_depth_links = list(set(min_depth_links).difference(same_state_links))
 
-    all_processed_links.update(min_depth_links)
-    do_not_process_links.update(min_depth_links)
 
-    for link in min_depth_links:
-        # tree_str, _ = await fetch_accessibility_tree(link, browser)
+    for link in filtered_links:
+        tree_str, _ = await fetch_accessibility_tree(link, browser)
+        print(link)
+        if link.endswith('.html') and url_depth(link) == 1 and 'SKU' in tree_str:
+            print("Skipped product page")
+            print("FUCK! NICE!")
+            continue
         # functionality = await interpret_functionality(tree_str)
         functionality = "tonk"
-        child_node = WebPageNode(url=link, private=functionality, acc_tree=None, parent=node, children=None)
-        all_nodes.append(child_node)
+        child_node = WebPageNode(url=link, private=functionality, acc_tree=tree_str, parent=node, children=None)
         np += 1
         print(np)
         node.add_child(child_node)
         scrape_queue.append(child_node)
+        all_processed_links.add(link)
 
     print(f"SANITY PROCESSED LINKS LENGTH: {len(all_processed_links)}")
     print(f"SANITY SEEN LINKS LENGTH: {len(all_seen_links)}")
@@ -245,33 +299,28 @@ async def main():
     global scrape_queue
     global all_seen_links
     global all_processed_links
-    global do_not_process_links
     start_url = await normalize_url(start_url)
-    print(url_depth(start_url))
     all_seen_links.add(start_url)
     all_processed_links.add(start_url)
-    do_not_process_links.add(start_url)
 
     async with async_playwright() as p:
         browser = await p.chromium.launch()
-        # tree_str, _ = await fetch_accessibility_tree(start_url, browser)
+        tree_str, _ = await fetch_accessibility_tree(start_url, browser)
         # functionality = await interpret_functionality(tree_str)
         functionality = "tonk"
-        root_node = WebPageNode(url=start_url, private=functionality, acc_tree=None, parent=None, children=None)
+        root_node = WebPageNode(url=start_url, private=functionality, acc_tree=tree_str, parent=None, children=None)
         np += 1
         print(np)
-        all_nodes.append(root_node)
         scrape_queue.append(root_node)
         while scrape_queue:
             node = scrape_queue.pop(0)
             await process_node(node, browser)
-            print(f"Processed: {node.url}")
+            print(f"Finished Processing: {node.url}")
             print(f"Queue Length: {len(scrape_queue)}")
 
         print(f"ALL SEEN LINKS LENGTH: {len(all_seen_links)}")
         print(f"ALL PROCESSED LINKS LENGTH: {len(all_processed_links)}")
 
-        print(f"ALL NODES LENGTH: {len(all_nodes)}")
 
         missed_links = list(set(all_seen_links).difference(all_processed_links))
 
@@ -280,14 +329,10 @@ async def main():
             for item in missed_links:
                 file.write(item + "\n")
 
-        with open('donotprocess.txt', 'w') as file:
-            for item in do_not_process_links:
-                file.write(item + "\n")
-
-
         tree_data = serialize_tree(root_node)
-        with open('webpage_tree.json', 'w', encoding='utf-8') as file:
+        with open('webpage_tree_v2.json', 'w', encoding='utf-8') as file:
             json.dump(tree_data, file, ensure_ascii=False, indent=4)
+
 
         await browser.close()
 
