@@ -14,6 +14,7 @@ client = OpenAI(api_key=api_key)
 
 all_processed_links = set()
 all_seen_links = set()
+do_not_process_links = set()
 compress_labels = {}
 current_compressed_label = 0
 scrape_queue = []
@@ -59,27 +60,23 @@ async def load_few_shot_examples(filename):
         return json.load(file)
 
 
-async def interpret_functionality(tree_str):
+def interpret_functionality_TREE(tree_str):
     response = client.chat.completions.create(
         model="gpt-4-1106-preview",
         messages=[
             {"role": "system",
-             "content": "You are an autonomous intelligent agent tasked with analyzing web pages in-depth. Your primary task is to provide a brief and exhaustive evaluation of the web page's overall purpose, without considering the purpose of outgoing links."},
+             "content": "You are an autonomous intelligent agent tasked with analyzing web pages in-depth. Your primary task is to provide a detailed evaluation of the web page's overall purpose."},
             {"role": "system",
              "content": "You will be given a page's accessibility tree. This is a simplified representation of the webpage, providing key information."},
             {"role": "system",
-             "content": "You are to provide very brief and concise descriptions of all functionalities of a web page. Do not include any details about what the web page links to. Do not include any details about links, or what those links may do. Only describe what can be done on the page without going to another link."},
+             "content": "You are to provide very brief and concise descriptions of all functionalities of a web page. Do not include any details about links or what other links may do or how actions are performed. Only describe what can be done on the page. Be specific about the page's functionality and purpose. Include different functionalities in different descriptions. Do not in any circumstance include navigational details, do not include details about functionality that require navigating to another link or page. Do include page specific details. "},
             {"role": "system",
              "content": "Give your answer in the format of quoted descriptions in a list format enclosed within square brackets, like this: \n ['Descrition here', 'another description here']"},
-            # {"role": "user",
-            #  "content": "Accessibility Tree Example 1:\n[Accessibility tree details...]\nWhat can be done on this page:\n['Functionality 1', 'Functionality 2']"},
-            # {"role": "user",
-            #  "content": "Accessibility Tree Example 2:\n[Accessibility tree details...]\nWhat can be done on this page:\n['Functionality A', 'Functionality B']"},
             {"role": "user",
-             "content": f"Describe what can be done on this web page based on this accessibility tree:\n{tree_str}\nDo not include any information about what it links to, only what can be done on this page. Provide an exhaustive list of functionalities, keeping descriptions brief."}
+             "content": f"Describe what can be done on this web page based on this accessibility tree:\n{tree_str}\nAgain, include only what can be done on this page. Keep descriptions as brief as possible. Keep your entire list as brief as possible."}
         ],
-        temperature=0.0,
-        max_tokens=250
+    temperature=0.0,
+    max_tokens=200
     )
     return response.choices[0].message.content
 
@@ -95,40 +92,28 @@ async def simplify_functionality(fun_str):
 
 
 class WebPageNode:
-    def __init__(self, url, private, acc_tree, parent=None, children=None):
+    def __init__(self, url, private, acc_tree, embedding=None, parent=None, children=None):
         self.url = url
         self.private = private
         self.public = private
         self.parent = parent
         self.acc_tree = acc_tree
         self.children = children if children is not None else []
+        self.page_embedding = embedding
 
     def add_child(self, child_node):
         child_node.parent = self  # Set this node as the parent of the child
         self.children.append(child_node)
 
-    def backpropagate_public(self, public):
-        if self.children == []:
-            self.public = self.private
-        else:
-            descriptions = []
-            for child in self.children:
-                descriptions.extend(child.public)
+    def to_dict(self):
+        """ Serialize the node to a dictionary. """
+        return {
+            "url": self.url,
+            "private": self.private,
+            "public": self.public,
+            "children": [child.to_dict() for child in self.children]
+        }
 
-    def traverse_up(self):
-        # Method to traverse upwards (towards the root)
-        node = self
-        while node:
-            yield node
-            node = node.parent
-
-    def traverse_down(self):
-        # Method to traverse downwards (towards the leaves)
-        nodes = [self]
-        while nodes:
-            current_node = nodes.pop()
-            yield current_node
-            nodes.extend(current_node.children)
 
     def __str__(self):
         parent_url = self.parent.url if self.parent else 'None'
@@ -144,6 +129,9 @@ def get_compressed_label(role):  # Not really good for tokenization, produces mo
         compress_labels[role] = current_compressed_label
         current_compressed_label += 1
     return compress_labels[role]
+
+def serialize_tree(root_node):
+    return root_node.to_dict()
 
 
 def parse_accessibility_tree(node, depth=0):
@@ -215,24 +203,33 @@ async def process_node(node, browser):
     global np
     global all_processed_links
     global scrape_queue
+    global all_seen_links
     url = node.url
     links = await fetch_links(url, browser)
 
-    new_links = list(set(links).difference(all_processed_links))
+    new_links = list(set(links).difference(do_not_process_links))
     all_seen_links.update(new_links)
 
     curr_depth = url_depth(url)
     new_links_depths = [url_depth(link) for link in new_links if url_depth(link) >= curr_depth]
     to_search_depth = min(new_links_depths) if new_links_depths else 0
-    min_depth_links = [link for link in new_links if url_depth(link) == to_search_depth and link.startswith(url)] # We are assuming other links have better parents
+
+    #  min_depth_links = [link for link in new_links if ((url_depth(link) == to_search_depth and link.startswith(url)) or (curr_depth != 0 and url_depth(link) == 1 and link.endswith('.html')))]  # We are assuming other links have better parents
+    same_state_links = [link for link in new_links if (url_depth(link) == curr_depth and link.startswith(url))]  #  Just use this
+
+    do_not_process_links.update(same_state_links)
+
+    min_depth_links = [link for link in new_links if (url_depth(link) == to_search_depth and link.startswith(url))]
+    min_depth_links = list(set(min_depth_links).difference(same_state_links))
 
     all_processed_links.update(min_depth_links)
+    do_not_process_links.update(min_depth_links)
 
     for link in min_depth_links:
-        tree_str, _ = await fetch_accessibility_tree(link, browser)
+        # tree_str, _ = await fetch_accessibility_tree(link, browser)
         # functionality = await interpret_functionality(tree_str)
         functionality = "tonk"
-        child_node = WebPageNode(url=link, private=functionality, acc_tree=tree_str, parent=node, children=None)
+        child_node = WebPageNode(url=link, private=functionality, acc_tree=None, parent=node, children=None)
         all_nodes.append(child_node)
         np += 1
         print(np)
@@ -246,16 +243,21 @@ async def main():
     global np
     global start_url
     global scrape_queue
+    global all_seen_links
+    global all_processed_links
+    global do_not_process_links
     start_url = await normalize_url(start_url)
+    print(url_depth(start_url))
     all_seen_links.add(start_url)
     all_processed_links.add(start_url)
+    do_not_process_links.add(start_url)
 
     async with async_playwright() as p:
         browser = await p.chromium.launch()
-        tree_str, _ = await fetch_accessibility_tree(start_url, browser)
+        # tree_str, _ = await fetch_accessibility_tree(start_url, browser)
         # functionality = await interpret_functionality(tree_str)
         functionality = "tonk"
-        root_node = WebPageNode(url=start_url, private=functionality, acc_tree=tree_str, parent=None, children=None)
+        root_node = WebPageNode(url=start_url, private=functionality, acc_tree=None, parent=None, children=None)
         np += 1
         print(np)
         all_nodes.append(root_node)
@@ -272,9 +274,20 @@ async def main():
         print(f"ALL NODES LENGTH: {len(all_nodes)}")
 
         missed_links = list(set(all_seen_links).difference(all_processed_links))
-        with open('missed_links.txt', 'w') as file:
+
+
+        with open('missed_links_v3.txt', 'w') as file:
             for item in missed_links:
                 file.write(item + "\n")
+
+        with open('donotprocess.txt', 'w') as file:
+            for item in do_not_process_links:
+                file.write(item + "\n")
+
+
+        tree_data = serialize_tree(root_node)
+        with open('webpage_tree.json', 'w', encoding='utf-8') as file:
+            json.dump(tree_data, file, ensure_ascii=False, indent=4)
 
         await browser.close()
 

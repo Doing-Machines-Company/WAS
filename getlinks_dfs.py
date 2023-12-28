@@ -29,7 +29,7 @@ async def interpret_functionality(tree_str):
         messages=[
             {"role": "system", "content": "You are an autonomous intelligent agent tasked with analyzing web pages in-depth. Your primary task is to provide a detailed evaluation of the web page's overall purpose."},
             {"role": "system", "content": "You will be given a page's accessibility tree. This is a simplified representation of the webpage, providing key information."},
-            {"role": "system", "content": "You are to provide very brief and concise descriptions of all functionalities of a web page. Do not include any details about what the web page links to. Do not include any details about links or buttons. Only describe what can be done on the page."},
+            {"role": "system", "content": "You are to provide very brief and concise descriptions of all functionalities of a web page. Do not include any details about what the web page links to. Do not include any details about links. Only describe what can be done on the page. Be specific about the page's functionality and purpose."},
             {"role": "system", "content": "Give your answer in the format of quoted descriptions in a list format enclosed within square brackets, like this: \n ['Descrition here', 'another description here']"},
             {"role": "user", "content": f"Describe what can be done on this web page based on this accessibility tree:\n{tree_str}\nDo not include any information about what it links to, only what can be done on this page. Provide an exhaustive list of functionalities, keeping descriptions brief."}
         ],
@@ -212,11 +212,9 @@ async def do_scrape(start_link):
         
         '''
         html_content = await fetch_html(start_link, browser)
-        with open("outtree.txt", 'w') as file:
+        with open("outtreev2.txt", 'w') as file:
             file.write(repr(tree_str))
         # functionality = await interpret_functionality(tree_str)
-        with open("outhtml.txt", 'w') as file:
-            file.write(repr(html_content))
         functionality = "tonk"
         # print(functionality)
         print("TONK")
@@ -234,7 +232,7 @@ async def do_scrape(start_link):
 
 async def main():
     # target_url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770'
-    target_url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/pre-baked-gingerbread-house-kit-value-pack-17-oz-pack-of-2-total-34-oz.html'
+    target_url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/health-household.html?price=200-300'
     print(await do_scrape(target_url))
 
 
