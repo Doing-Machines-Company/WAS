@@ -13,7 +13,7 @@ def get_embedding(text, model="text-embedding-ada-002"):
    return client.embeddings.create(input = [text], model=model).data[0].embedding
 
 class WebPageNode:
-    def __init__(self, url, private, public, acc_tree, embedding=None, parent=None, children=None):
+    def __init__(self, url=None, private=None, public=None, acc_tree=None, embedding=None, parent=None, children=None):
         self.url = url
         self.private = private
         self.public = private if public is None else public
@@ -384,17 +384,34 @@ def clean_url(url):
 
     return cleaned_path
 
-# Usage example
-root_node = load_tree_from_file('webpage_tree_v2.json')
+
+def get_links_of_tree(tree):
+    links = []
+    def dfs(node):
+        links.append(node.url)
+        for child in node.children:
+            dfs(child)
+
+    dfs(tree)
+
+    return links
+
+
+root_node = load_tree_from_file('webpage_tree.json')
+rootlist = get_links_of_tree(root_node)
+print(len(rootlist))
+print(len(set(rootlist)))
+
 # t2 = root_node.children[15]
 
-tacc = root_node.children[12].children[0]
+# tacc = root_node.children
+# print(tacc[0].url)
 # tacc = root_node.children[8]
 # tacc = root_node.children[8].children[0]
 
-print(tacc.url)
+# print(tacc.url)
 
-print(interpret_functionality_TREE_v7(tacc.acc_tree, tacc.url, few_shots))
+# print(interpret_functionality_TREE_v7(tacc.acc_tree, tacc.url, few_shots))
 
 def serialize_tree(root_node):
     return root_node.to_dict()
@@ -410,6 +427,8 @@ with open('webpage_tree_v2.json', 'w', encoding='utf-8') as file:
 # embed_product_1 = [get_embedding(product_1)]
 # embed_product_2 = [get_embedding(product_2)]
 # embed_office_prods = [get_embedding(office_prods)]
+
+
 '''
 print(f"Sanity, should be 1: {cosine_similarity(embed_product_1, embed_product_1)}")
 

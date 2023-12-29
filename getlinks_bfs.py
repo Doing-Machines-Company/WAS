@@ -20,6 +20,7 @@ scrape_queue = []
 CONCURRENT_BROWSERS = 150
 BATCH_SIZE = 5
 np = 0
+all_created_nodes = dict()
 
 
 start_url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770'
@@ -46,7 +47,7 @@ async def normalize_url(url):
 
 '''
 
-async def normalize_url(url):  # Very aggressive normalization
+def normalize_url(url):  # Very aggressive normalization
     parsed_url = urlparse(url)
     scheme = parsed_url.scheme if parsed_url.scheme else 'http'
     netloc = parsed_url.netloc
@@ -55,7 +56,14 @@ async def normalize_url(url):  # Very aggressive normalization
     normalized_url = urlunparse((scheme, netloc, path, '', '', ''))
     return normalized_url
 
+def trim_url_to_depth(url, depth):
+    parsed = urlparse(url)
 
+    path_segments = parsed.path.split('/')
+    trimmed_path = '/'.join(path_segments[:depth + 1])
+
+    trimmed_url = urlunparse((parsed.scheme, parsed.netloc, trimmed_path, '', '', ''))
+    return trimmed_url
 async def is_same_domain(url):
     parsed_url = urlparse(url)
     return (parsed_url.netloc == start_domain or
@@ -101,18 +109,26 @@ async def simplify_functionality(fun_str):
 
 
 class WebPageNode:
-    def __init__(self, url, private, public, acc_tree, embedding=None, parent=None, children=None):
+    def __init__(self, url=None, private=None, public=None, acc_tree=None, embedding=None, parent=None, children=None):
         self.url = url
         self.private = private
         self.public = private if public is None else public
-        self.parent = parent
+        self.parents = set()
+        self.ancestor_urls = set()
+        if url is not None:
+            self.ancestor_urls.add(url)
+        if parent is not None:
+            self.parents.add(parent)
         self.acc_tree = acc_tree
-        self.children = children if children is not None else []
+        self.children = set()
+        if children is not None:
+            self.children.update(children)
         self.page_embedding = embedding
 
     def add_child(self, child_node):
-        child_node.parent = self  # Set this node as the parent of the child
-        self.children.append(child_node)
+        child_node.parents.add(self)  # Set this node as the parent of the child
+        self.children.add(child_node)
+        child_node.ancestor_urls.update(self.ancestor_urls)
 
     def to_dict(self):
         return {
@@ -124,12 +140,56 @@ class WebPageNode:
             "children": [child.to_dict() for child in self.children]
         }
 
-    def __str__(self):
-        parent_url = self.parent.url if self.parent else 'None'
-        children_urls = ', '.join([child.url for child in self.children])
-        return (f"WebPageNode(URL: {self.url}, Private: {self.private}, "
-                f"Public: {self.public}, Parent URL: {parent_url}, "
-                f"Children URLs: [{children_urls}]")
+    def choose_parent(self):
+        if len(self.parents) > 0:
+            found = False
+            for parent in self.parents:
+                # p_url = parent.url # what the fuck?
+                same_depth_child = trim_url_to_depth(self.url, url_depth(parent.url))
+                try:
+                    assert(same_depth_child == normalize_url(same_depth_child))
+                except:
+                    print("FUCK!")
+                    print(same_depth_child)
+                trimmed_url = parent.url[:-5] if parent.url.endswith('.html') else parent.url
+
+                if trimmed_url == same_depth_child:
+                #if p_url.endswith('.html'):
+                #     p_url = p_url[:-5]
+                # if self.url.startswith(p_url): # Not actually good, need to decrease to same depth and see if match
+                    # self.parents = set()
+                    # self.parents.add(parent)
+                    new_parents = set()
+                    new_parents.add(parent)
+                    bad_parents = self.parents.difference(new_parents)
+                    for bad_parent in bad_parents:
+                        bad_parent.children.remove(self)
+                    self.parents = new_parents
+                    found = True
+
+                    break
+            if not found:
+                min_parent_depth = min([url_depth(parent.url) for parent in self.parents])
+                for arbitrary_parent in self.parents:
+                    if url_depth(arbitrary_parent.url) == min_parent_depth:
+                        new_parents = set()
+                        new_parents.add(arbitrary_parent)
+                        bad_parents = self.parents.difference(new_parents)
+                        for bad_parent in bad_parents:
+                            bad_parent.children.remove(self)
+                        self.parents = new_parents
+                        break
+
+
+
+        assert(len(self.parents) <= 1)
+
+
+    def __eq__(self, other):
+        return self.url == other.url
+
+    def __hash__(self):
+        return hash(self.url)
 
 
 def get_compressed_label(role):  # Not really good for tokenization, produces more tokens for embedding
@@ -190,7 +250,7 @@ async def fetch_links(url, browser):
     for link in links:
         href = await link.get_attribute('href')
         if href:
-            normalized_href = await normalize_url(href)
+            normalized_href = normalize_url(href)
             if await is_same_domain(normalized_href):
                 valid_links.append(normalized_href)
 
@@ -244,46 +304,75 @@ async def filter_urls_getshort(url_list):
     return final_urls
 
 
-async def process_node(node, browser):
+async def process_node(parent_node, browser):
     global np
     global all_processed_links
     global scrape_queue
     global all_seen_links
-    url = node.url
-    print("Processing: " + url)
-    links = await fetch_links(url, browser)
+    global all_created_nodes
+    parent_url = parent_node.url
+    print("Processing: " + parent_url)
+    links = await fetch_links(parent_url, browser)
 
-    new_links = list(set(links).difference(all_processed_links))
-    # naively_removed_products = [link for link in new_links if not (url_depth(link) == 1 and link.endswith('.html'))] # This needs to be better
+    new_links = list((set(links).difference(parent_node.ancestor_urls)))
+
     naively_removed_products = []
-    trimmed_url = url[:-5] if url.endswith('.html') else url
+
     for link in new_links:
-        if (link.endswith('.html') and link.startswith(trimmed_url)) or (not link.endswith('.html')):
+        if not link.endswith('.html'):
             naively_removed_products.append(link)
+        else:
+            same_depth_child = trim_url_to_depth(link, url_depth(parent_url))
+            try:
+                if same_depth_child != normalize_url(same_depth_child):
+                    print("NOT NICE! ")
+                    print(same_depth_child)
+                    print(normalize_url(same_depth_child))
+            except:
+                print("NOT NICE! BONK! ")
+                print(same_depth_child)
+                print(normalize_url(same_depth_child))
+
+
+            trimmed_url = parent_url[:-5] if parent_url.endswith('.html') else parent_url
+
+            if trimmed_url == same_depth_child:
+            # if parent_url == same_depth_child or parent_url == same_depth_child + '.html' or parent_url + '.html' == same_depth_child:
+            # if link.endswith('.html') and link.startswith(trimmed_url):
+                print("NICE! ")
+                naively_removed_products.append(link)
+
 
     all_seen_links.update(links)
 
     filtered_links = await filter_urls_getshort(naively_removed_products)
 
 
-
-
     for link in filtered_links:
-        tree_str, _ = await fetch_accessibility_tree(link, browser)
-        if link.endswith('.html') and url_depth(link) == 1 and 'SKU' in tree_str:
-            print(f"Skipped: {link}")
-            continue
-        # functionality = await interpret_functionality(tree_str)
-        functionality = "tonk"
-        child_node = WebPageNode(url=link, private=functionality, acc_tree=tree_str, parent=node, children=None)
-        np += 1
-        print(np)
-        node.add_child(child_node)
-        scrape_queue.append(child_node)
-        all_processed_links.add(link)
+        if link not in all_created_nodes:
+            tree_str, _ = await fetch_accessibility_tree(link, browser)
+            if link.endswith('.html') and url_depth(link) == 1 and 'SKU' in tree_str:
+                print(f"Skipped: {link}")
+                continue
+            functionality = "tonk"
+            child_node = WebPageNode(url=link, private=functionality, acc_tree=tree_str, parent=parent_node, children=None)
+            all_created_nodes[link] = child_node
+            np += 1
+            print(np)
+            parent_node.add_child(child_node)
+            scrape_queue.append(child_node)
+            all_processed_links.add(link)
+        else:
+            child_node = all_created_nodes[link]
+            parent_node.add_child(child_node)
 
     print(f"SANITY PROCESSED LINKS LENGTH: {len(all_processed_links)}")
     print(f"SANITY SEEN LINKS LENGTH: {len(all_seen_links)}")
+
+def collapse_parents(node):
+    node.choose_parent()
+    for child in node.children:
+        collapse_parents(child)
 
 async def main():
     global np
@@ -291,9 +380,11 @@ async def main():
     global scrape_queue
     global all_seen_links
     global all_processed_links
-    start_url = await normalize_url(start_url)
+    global all_created_nodes
+    start_url = normalize_url(start_url)
     all_seen_links.add(start_url)
     all_processed_links.add(start_url)
+
 
     async with async_playwright() as p:
         browser = await p.chromium.launch()
@@ -301,6 +392,7 @@ async def main():
         # functionality = await interpret_functionality(tree_str)
         functionality = "tonk"
         root_node = WebPageNode(url=start_url, private=functionality, acc_tree=tree_str, parent=None, children=None)
+        all_created_nodes[start_url] = root_node
         np += 1
         print(np)
         scrape_queue.append(root_node)
@@ -317,16 +409,18 @@ async def main():
         missed_links = list(set(all_seen_links).difference(all_processed_links))
 
 
-        with open('missed_links_v3.txt', 'w') as file:
-            for item in missed_links:
-                file.write(item + "\n")
-
-        tree_data = serialize_tree(root_node)
-        with open('webpage_tree_v2.json', 'w', encoding='utf-8') as file:
-            json.dump(tree_data, file, ensure_ascii=False, indent=4)
-
 
         await browser.close()
+
+    collapse_parents(root_node)
+
+    with open('missed_links_v10.txt', 'w') as file:
+        for item in missed_links:
+            file.write(item + "\n")
+
+    tree_data = serialize_tree(root_node)
+    with open('webpage_tree_v6.json', 'w', encoding='utf-8') as file:
+        json.dump(tree_data, file, ensure_ascii=False, indent=4)
 
 
 #nice
