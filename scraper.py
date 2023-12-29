@@ -395,6 +395,14 @@ def get_links_of_tree(tree):
     dfs(tree)
 
     return links
+def normalize_url(url):  # Very aggressive normalization
+    parsed_url = urlparse(url)
+    scheme = parsed_url.scheme if parsed_url.scheme else 'http'
+    netloc = parsed_url.netloc
+    path = parsed_url.path.rstrip('/')  # Remove trailing slashes from the path
+    # Ignoring the query and fragment
+    normalized_url = urlunparse((scheme, netloc, path, '', '', ''))
+    return normalized_url
 
 
 old_tree = load_tree_from_file('webpage_tree.json')
@@ -411,6 +419,8 @@ print(set(old_tree_nodes) - set(new_tree_nodes))
 with open('missed_links_v10.txt', 'w') as file:
     for link in set(old_tree_nodes) - set(new_tree_nodes):
         file.write(link + '\n')
+
+
 # t2 = root_node.children[15]
 
 # tacc = root_node.children

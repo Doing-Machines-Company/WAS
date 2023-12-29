@@ -142,21 +142,30 @@ class WebPageNode:
 
     def choose_parent(self):
         if len(self.parents) > 0:
-            # Find the parent with the minimum URL depth, as a heuristic
             min_parent_depth = min([url_depth(parent.url) for parent in self.parents])
+            backup_selected_parent = None
             selected_parent = None
             for parent in self.parents:
-                if url_depth(parent.url) == min_parent_depth:
+                if not backup_selected_parent and url_depth(parent.url) == min_parent_depth:
                     selected_parent = parent
-                    break
+
+                same_depth_child = trim_url_to_depth(self.url, url_depth(parent.url))
+
+                trimmed_url = parent.url[:-5] if parent.url.endswith('.html') else parent.url
+                if trimmed_url == same_depth_child:
+                    if selected_parent == None:
+                        selected_parent = parent
+                    elif url_depth(parent.url) >= url_depth(selected_parent.url):
+                        selected_parent = parent
+
+            if selected_parent == None:
+                selected_parent = backup_selected_parent
 
             if selected_parent:
-                # Update parents - first remove this node from all other parents' children
                 for parent in self.parents:
                     if parent != selected_parent:
                         parent.children.discard(self)
 
-                # Now reset this node's parents to only the selected parent
                 self.parents = {selected_parent}
 
 
@@ -165,6 +174,8 @@ class WebPageNode:
 
 
     def __eq__(self, other):
+        if other is None:
+            return False
         return self.url == other.url
 
     def __hash__(self):
@@ -271,7 +282,7 @@ async def filter_urls_getshort(url_list):
 
     for url in modified_urls:
         for other_url in modified_urls:
-            if url != other_url and other_url in url:
+            if url != other_url and other_url in url and url_depth(url) != url_depth(other_url):
                 if url in filtered_urls:
                     filtered_urls.remove(url)
 
@@ -302,16 +313,6 @@ async def process_node(parent_node, browser):
             naively_removed_products.append(link)
         else:
             same_depth_child = trim_url_to_depth(link, url_depth(parent_url))
-            try:
-                if same_depth_child != normalize_url(same_depth_child):
-                    print("NOT NICE! ")
-                    print(same_depth_child)
-                    print(normalize_url(same_depth_child))
-            except:
-                print("NOT NICE! BONK! ")
-                print(same_depth_child)
-                print(normalize_url(same_depth_child))
-
 
             trimmed_url = parent_url[:-5] if parent_url.endswith('.html') else parent_url
 
@@ -394,7 +395,7 @@ async def main():
 
     collapse_parents(root_node)
 
-    with open('missed_links_v10.txt', 'w') as file:
+    with open('missed_links_v11_0.txt', 'w') as file:
         for item in missed_links:
             file.write(item + "\n")
 
