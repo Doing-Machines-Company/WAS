@@ -29,6 +29,11 @@ parsed_start_url = urlparse(start_url)
 start_domain = parsed_start_url.netloc
 start_scheme = parsed_start_url.scheme
 
+def load_cookies(file_path):
+    with open(file_path, 'r') as file:
+        return json.load(file)
+
+cookies = load_cookies('cookies.json')
 
 def url_depth(url):
     parsed = urlparse(url)
@@ -233,8 +238,11 @@ def clean_accessibility_tree(tree_str):  # Further cleaning perhaps good later o
 
 
 async def fetch_links(url, browser):
-    page = await browser.new_page()
+    context = await browser.new_context()
+    page = await context.new_page()
+    await context.add_cookies(cookies)
     await page.goto(url)
+
     links = await page.query_selector_all('a')
     valid_links = []
     for link in links:
@@ -395,12 +403,12 @@ async def main():
 
     collapse_parents(root_node)
 
-    with open('missed_links_v11_0.txt', 'w') as file:
+    with open('missed_links_v12_0.txt', 'w') as file:
         for item in missed_links:
             file.write(item + "\n")
 
     tree_data = serialize_tree(root_node)
-    with open('webpage_tree_v7.json', 'w', encoding='utf-8') as file:
+    with open('webpage_tree_v8.json', 'w', encoding='utf-8') as file:
         json.dump(tree_data, file, ensure_ascii=False, indent=4)
 
 
