@@ -397,11 +397,20 @@ def get_links_of_tree(tree):
     return links
 
 
-root_node = load_tree_from_file('webpage_tree.json')
-rootlist = get_links_of_tree(root_node)
-print(len(rootlist))
-print(len(set(rootlist)))
+old_tree = load_tree_from_file('webpage_tree.json')
+old_tree_nodes = get_links_of_tree(old_tree)
+print(len(old_tree_nodes))
+print(len(set(old_tree_nodes)))
 
+new_tree = load_tree_from_file('webpage_tree_v6.json')
+new_tree_nodes = get_links_of_tree(new_tree)
+print(len(new_tree_nodes))
+print(len(set(new_tree_nodes)))
+
+print(set(old_tree_nodes) - set(new_tree_nodes))
+with open('missed_links_v10.txt', 'w') as file:
+    for link in set(old_tree_nodes) - set(new_tree_nodes):
+        file.write(link + '\n')
 # t2 = root_node.children[15]
 
 # tacc = root_node.children
@@ -413,12 +422,6 @@ print(len(set(rootlist)))
 
 # print(interpret_functionality_TREE_v7(tacc.acc_tree, tacc.url, few_shots))
 
-def serialize_tree(root_node):
-    return root_node.to_dict()
-
-tree_data = serialize_tree(root_node)
-with open('webpage_tree_v2.json', 'w', encoding='utf-8') as file:
-    json.dump(tree_data, file, ensure_ascii=False, indent=4)
 
 # print("t2 HERE: \n")
 # print(t2.url)

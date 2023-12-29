@@ -142,47 +142,26 @@ class WebPageNode:
 
     def choose_parent(self):
         if len(self.parents) > 0:
-            found = False
+            # Find the parent with the minimum URL depth, as a heuristic
+            min_parent_depth = min([url_depth(parent.url) for parent in self.parents])
+            selected_parent = None
             for parent in self.parents:
-                # p_url = parent.url # what the fuck?
-                same_depth_child = trim_url_to_depth(self.url, url_depth(parent.url))
-                try:
-                    assert(same_depth_child == normalize_url(same_depth_child))
-                except:
-                    print("FUCK!")
-                    print(same_depth_child)
-                trimmed_url = parent.url[:-5] if parent.url.endswith('.html') else parent.url
-
-                if trimmed_url == same_depth_child:
-                #if p_url.endswith('.html'):
-                #     p_url = p_url[:-5]
-                # if self.url.startswith(p_url): # Not actually good, need to decrease to same depth and see if match
-                    # self.parents = set()
-                    # self.parents.add(parent)
-                    new_parents = set()
-                    new_parents.add(parent)
-                    bad_parents = self.parents.difference(new_parents)
-                    for bad_parent in bad_parents:
-                        bad_parent.children.remove(self)
-                    self.parents = new_parents
-                    found = True
-
+                if url_depth(parent.url) == min_parent_depth:
+                    selected_parent = parent
                     break
-            if not found:
-                min_parent_depth = min([url_depth(parent.url) for parent in self.parents])
-                for arbitrary_parent in self.parents:
-                    if url_depth(arbitrary_parent.url) == min_parent_depth:
-                        new_parents = set()
-                        new_parents.add(arbitrary_parent)
-                        bad_parents = self.parents.difference(new_parents)
-                        for bad_parent in bad_parents:
-                            bad_parent.children.remove(self)
-                        self.parents = new_parents
-                        break
+
+            if selected_parent:
+                # Update parents - first remove this node from all other parents' children
+                for parent in self.parents:
+                    if parent != selected_parent:
+                        parent.children.discard(self)
+
+                # Now reset this node's parents to only the selected parent
+                self.parents = {selected_parent}
 
 
+        assert (len(self.parents) <= 1)
 
-        assert(len(self.parents) <= 1)
 
 
     def __eq__(self, other):
@@ -371,7 +350,8 @@ async def process_node(parent_node, browser):
 
 def collapse_parents(node):
     node.choose_parent()
-    for child in node.children:
+    children_copy = list(node.children)  # Create a copy of children for safe iteration
+    for child in children_copy:
         collapse_parents(child)
 
 async def main():
@@ -419,7 +399,7 @@ async def main():
             file.write(item + "\n")
 
     tree_data = serialize_tree(root_node)
-    with open('webpage_tree_v6.json', 'w', encoding='utf-8') as file:
+    with open('webpage_tree_v7.json', 'w', encoding='utf-8') as file:
         json.dump(tree_data, file, ensure_ascii=False, indent=4)
 
 
