@@ -17,8 +17,6 @@ all_seen_links = set()
 compress_labels = {}
 current_compressed_label = 0
 scrape_queue = []
-CONCURRENT_BROWSERS = 150
-BATCH_SIZE = 5
 np = 0
 all_created_nodes = dict()
 
@@ -29,11 +27,12 @@ parsed_start_url = urlparse(start_url)
 start_domain = parsed_start_url.netloc
 start_scheme = parsed_start_url.scheme
 
-def load_cookies(file_path):
-    with open(file_path, 'r') as file:
-        return json.load(file)
+with open('data.json', 'r') as file:
+    data = json.load(file)
 
-cookies = load_cookies('cookies.json')
+cookies = data['cookies']
+local_storage_data = data['origins'][0]['localStorage']
+origin = data['origins'][0]['origin']
 
 def url_depth(url):
     parsed = urlparse(url)
@@ -238,9 +237,16 @@ def clean_accessibility_tree(tree_str):  # Further cleaning perhaps good later o
 
 
 async def fetch_links(url, browser):
+    global cookies
+
     context = await browser.new_context()
     page = await context.new_page()
-    await context.add_cookies(cookies)
+
+
+    await set_cookies(context, cookies)
+
+    await set_local_storage(page, origin, local_storage_data)
+
     await page.goto(url)
 
     links = await page.query_selector_all('a')
@@ -257,6 +263,10 @@ async def fetch_links(url, browser):
 
 
 async def fetch_accessibility_tree(url, browser):
+    global cookies
+    global local_storage_data
+    global origin
+
     page = await browser.new_page()
     await page.goto(url)
 
@@ -301,6 +311,14 @@ async def filter_urls_getshort(url_list):
 
     return final_urls
 
+async def set_cookies(context, cookies):
+    await context.add_cookies(cookies)
+
+async def set_local_storage(page, origin, local_storage_data):
+    await page.goto(origin)
+    for item in local_storage_data:
+        await page.evaluate(f"window.localStorage.setItem('{item['name']}', `{json.dumps(item['value'])}`)")
+
 
 async def process_node(parent_node, browser):
     global np
@@ -310,6 +328,7 @@ async def process_node(parent_node, browser):
     global all_created_nodes
     parent_url = parent_node.url
     print("Processing: " + parent_url)
+
     links = await fetch_links(parent_url, browser)
 
     new_links = list((set(links).difference(parent_node.ancestor_urls)))
@@ -327,7 +346,6 @@ async def process_node(parent_node, browser):
             if trimmed_url == same_depth_child:
             # if parent_url == same_depth_child or parent_url == same_depth_child + '.html' or parent_url + '.html' == same_depth_child:
             # if link.endswith('.html') and link.startswith(trimmed_url):
-                print("NICE! ")
                 naively_removed_products.append(link)
 
 
@@ -370,13 +388,26 @@ async def main():
     global all_seen_links
     global all_processed_links
     global all_created_nodes
+    global cookies
+    global local_storage_data
+    global origin
     start_url = normalize_url(start_url)
     all_seen_links.add(start_url)
     all_processed_links.add(start_url)
 
 
+
+
     async with async_playwright() as p:
         browser = await p.chromium.launch()
+        context = await browser.new_context()
+        page = await context.new_page()
+
+        await set_cookies(context, cookies)
+
+        await set_local_storage(page, origin, local_storage_data)
+
+        # browser = await p.chromium.launch()
         tree_str, _ = await fetch_accessibility_tree(start_url, browser)
         # functionality = await interpret_functionality(tree_str)
         functionality = "tonk"
@@ -403,12 +434,12 @@ async def main():
 
     collapse_parents(root_node)
 
-    with open('missed_links_v12_0.txt', 'w') as file:
+    with open('missed_links_v10_0.txt', 'w') as file:
         for item in missed_links:
             file.write(item + "\n")
 
     tree_data = serialize_tree(root_node)
-    with open('webpage_tree_v8.json', 'w', encoding='utf-8') as file:
+    with open('webpage_tree_v20.json', 'w', encoding='utf-8') as file:
         json.dump(tree_data, file, ensure_ascii=False, indent=4)
 
 

@@ -3,6 +3,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 from openai import OpenAI
 import os
 import json
+import ast
+
 
 api_key = os.getenv('OPENAI_API_KEY')
 
@@ -97,7 +99,7 @@ def interpret_functionality_TREE_v7(tree_str, url, examples):
 few_shots = [
     {"tree": "[WebArea] 'Fan Shop - Sports & Outdoors'\n\t[link] 'My Account'\n\t[link] 'My Wish List'\n\t[link] 'Sign In'\n\t[link] 'Create an Account'\n\t[link] 'Skip to Content'\n\t[link] 'store logo'\n\t[link] '\\ue611 My Cart'\n\t[text] '\\ue615'\n\t[text] 'Search'\n\t[combobox] '\\ue615 Search'\n\t[link] 'Advanced Search'\n\t[button] 'Search'\n\t[link] 'Beauty & Personal Care'\n\t[link] 'Sports & Outdoors'\n\t[link] 'Clothing, Shoes & Jewelry'\n\t[link] 'Home & Kitchen'\n\t[link] 'Office Products'\n\t[link] 'Tools & Home Improvement'\n\t[link] 'Health & Household'\n\t[link] 'Patio, Lawn & Garden'\n\t[link] 'Electronics'\n\t[link] 'Cell Phones & Accessories'\n\t[link] 'Video Games'\n\t[link] 'Grocery & Gourmet Food'\n\t[link] 'Home '\n\t[text] '\\ue608'\n\t[link] 'Sports & Outdoors '\n\t[text] '\\ue608'\n\t[text] 'Fan Shop'\n\t[generic] ''\n\t[heading] 'Fan Shop Items 1-12 of 338'\n\t[text] 'View as'\n\t[text] '\\ue60d'\n\t[text] 'Grid'\n\t[link] 'View as \\ue60b List'\n\t[text] 'Items '\n\t[text] '1'\n\t[text] '-'\n\t[text] '12'\n\t[text] ' of '\n\t[text] '338'\n\t[text] 'Sort By'\n\t[combobox] 'Sort By'\n\t\t[menuitem] 'Position'\n\t\t[menuitem] 'Product Name'\n\t\t[menuitem] 'Price'\n\t[link] '\\ue613 Set Descending Direction'\n\t[link] 'Image'\n\t[link] 'DkRgVNY Lace Spcling Lingerie Womens Sexy Hollow Out Underwear Bodysuit One Piece Snap Crotch Clubwear Teddy Bodysuit'\n\t[text] '$11.09'\n\t[button] 'Add to Cart'\n\t[button] 'Add to Wish List'\n\t[button] 'Add to Compare'\n\t[link] 'Image'\n\t[link] 'Mens Cotton Dress Shirts Short Sleeve Button Down Summer Casual Roll Up Beach Hawaiian Hipster Tops Classic Poplin Shirt'\n\t[text] '$12.99'\n\t[button] 'Add to Cart'\n\t[button] 'Add to Wish List'\n\t[button] 'Add to Compare'\n\t[link] 'Image'\n\t[link] 'Wedge Sandals for Women Dressy Summer,Womens Shiny Ankle Strap Platform Block Chunky High Heel Pumps Sandals for Party'\n\t[text] '$21.34'\n\t[button] 'Add to Cart'\n\t[button] 'Add to Wish List'\n\t[button] 'Add to Compare'\n\t[link] 'Image'\n\t[link] \"Vera Bradley Women's Collegiate Plush XL Throw Blanket (Multiple Teams Available)\"\n\t[text] '$75.78'\n\t[button] 'Add to Cart'\n\t[button] 'Add to Wish List'\n\t[button] 'Add to Compare'\n\t[link] 'Image'\n\t[link] 'Short Sleeve Button Down Shirts for Men Big and Tall Casual Floral Print Lapel Collar Tops Summer Beach Hawaiian T-Shirt'\n\t[text] '$10.98'\n\t[button] 'Add to Cart'\n\t[button] 'Add to Wish List'\n\t[button] 'Add to Compare'\n\t[link] 'Image'\n\t[link] \"Custom Jersey Style St Patrick's Day T Shirts - Saint Pattys Tee & Irish Outfits\"\n\t[text] 'Rating:'\n\t[text] '\\ue605\\ue605\\ue605\\ue605\\ue605'\n\t[text] '\\ue605\\ue605\\ue605\\ue605\\ue605'\n\t[text] '82%'\n\t[link] '12 \\xa0Reviews'\n\t[text] '$19.95'\n\t[button] 'Add to Cart'\n\t[button] 'Add to Wish List'\n\t[button] 'Add to Compare'\n\t[link] 'Image'\n\t[link] 'Officially Licensed NFL \"Prestige\" Plush Raschel Throw Blanket, 60\" x 80\"'\n\t[text] '$34.95'\n\t[button] 'Add to Cart'\n\t[button] 'Add to Wish List'\n\t[button] 'Add to Compare'\n\t[link] 'Image'\n\t[link] \"WoCoo Men's Trench Coat Notch Lapel Double Breasted Long Pea Coats Premium Wool Blend Full Length Overcoat Outwear\"\n\t[text] '$38.99'\n\t[button] 'Add to Cart'\n\t[button] 'Add to Wish List'\n\t[button] 'Add to Compare'\n\t[link] 'Image'\n\t[link] 'Light Blue Simple Summer New Low Heels Slippers for Women Fashion Chunky Heels Pointed Toe Wine Glasses Sandals Comfortable Walking Shoes Ladies All-Match Sexy Party Shoes'\n\t[text] '$14.59'\n\t[button] 'Add to Cart'\n\t[button] 'Add to Wish List'\n\t[button] 'Add to Compare'\n\t[link] 'Image'\n\t[link] 'Christmas Sweatshirt for Women Trendy Reindeer Graphic Hoodie Crewneck Long Sleeve Shirt Fashion Pullovers Jumper Tops'\n\t[text] '$14.99'\n\t[button] 'Add to Cart'\n\t[button] 'Add to Wish List'\n\t[button] 'Add to Compare'\n\t[link] 'Image'\n\t[link] \"Tops for Women Dressy, Women's O Neck Colorful Tees Shirt Casual Comfy Blouses Summer Short Sleeve Tunic Tops\"\n\t[text] '$8.51'\n\t[button] 'Add to Cart'\n\t[button] 'Add to Wish List'\n\t[button] 'Add to Compare'\n\t[link] 'Image'\n\t[link] 'FABIURT Christmas Sweaters for Women Tops Dressy Classic Fit Long Sleeve Casual Tunic T Shirt Blouse Tops Pullover Tee'\n\t[text] '$8.36'\n\t[button] 'Add to Cart'\n\t[button] 'Add to Wish List'\n\t[button] 'Add to Compare'\n\t[text] 'Page'\n\t[text] \"You're currently reading page\"\n\t[text] '1'\n\t[link] 'Page 2'\n\t[link] 'Page 3'\n\t[link] 'Page 4'\n\t[link] 'Page 5'\n\t[link] '\\ue608 Page Next'\n\t[text] 'Show'\n\t[combobox] 'Show'\n\t\t[menuitem] '12'\n\t\t[menuitem] '24'\n\t\t[menuitem] '36'\n\t[text] 'per page'\n\t[text] 'Shop By'\n\t[heading] 'Shopping Options'\n\t[heading] 'Category'\n\t[link] 'Clothing( 241 item )'\n\t[link] 'Footwear( 58 item )'\n\t[heading] 'Price'\n\t[link] '$0.00 - $99.99( 335 item )'\n\t[link] '$100.00 and above( 3 item )'\n\t[heading] 'Compare Products'\n\t[text] 'You have no items to compare.'\n\t[heading] 'My Wish List'\n\t[text] 'You have no items in your wish list.'\n\t[text] '\\ue61d'\n\t[text] 'Sign Up for Our Newsletter:'\n\t[textbox] 'Sign Up for Our Newsletter:'\n\t[button] 'Subscribe'\n\t[link] 'Privacy and Cookie Policy'\n\t[link] 'Search Terms'\n\t[link] 'Advanced Search'\n\t[link] 'Orders and Returns'\n\t[link] 'Contact Us'\n\t[text] 'Copyright © 2013-present Magento, Inc. All rights reserved.'\n\t[text] 'Help Us Keep Magento Healthy'\n\t[text] ' '\n\t[link] 'Report All Bugs'\n",
      "url": "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sports-outdoors/fan-shop.html",
-     "response": "['Browse and purchase various Fan Shop items', 'Search for products using a basic or advanced search feature', 'Add products to Cart, Wish List, or Compare them', 'Filter and sort products by category, name, price, or position',  'Read customer reviews and ratings for selected fan shop products']"},
+     "response": "[\"Browse and purchase various Fan Shop items\", \"Search for products using a basic or advanced search feature\", \"Add products to Cart, Wish List, or Compare them\", \"Filter and sort products by category, name, price, or position\",  \"Read customer reviews and ratings for selected fan shop products\"]"},
 ]
 
 
@@ -125,7 +127,7 @@ def load_tree_from_file(filename):
     return deserialize_node(tree_data)
 
 
-root_node = load_tree_from_file('webpage_tree_v2.json')
+root_node = load_tree_from_file('webpage_tree_clean_mvp_v1.json')
 
 def generate_description_for_node(node):
     description = interpret_functionality_TREE_v7(node.acc_tree, node.url, few_shots)
@@ -137,9 +139,112 @@ def generate_description_for_node(node):
 def serialize_tree(root_node):
     return root_node.to_dict()
 
+def string_to_list(input_string):
+    try:
+        return ast.literal_eval(input_string)
+    except (ValueError, SyntaxError) as e:
+        print("Error converting string to list: ")
+        print(input_string)
+        return f"Error converting string to list: {e}"
 
+
+def check_publics(node):
+    if node.private is None:
+        print("URL doesn't exist? ")
+        print(node.url)
+    else:
+        if isinstance(node.public, str):
+            print(node.url)
+            node_desc = string_to_list(node.public)
+            node.public = node_desc
+            print(f'URL: {node.url}\nDescription: {node_desc}\n')
+    for child in node.children:
+        check_publics(child)
+# generate_description_for_node(root_node)
+
+check_publics(root_node)
+
+def read_functionalities_from_file(file_path):
+    with open(file_path, 'r') as file:
+        data = json.load(file)
+        return data.get('functionalities', [])
+def simplify_webpage_functionalities(functionalities_list):
+    functionalities_pairs = read_functionalities_from_file('simplification_fewshot.json')
+    messages = [{"role": "system",
+             "content": "You are an AI assistant tasked with simplifying and summarizing webpage functionalities. Your primary task is to condense a list of detailed webpage functionalities into a brief and concise format, preserving unique pieces of information."},
+            {"role": "system",
+             "content": "You will receive a list of functionalities that describe various actions and features available on a webpage. These functionalities might have overlapping or redundant information."},
+            {"role": "system",
+             "content": "You are to provide a simplified list of functionalities. Combine similar functionalities into single, concise statements. Avoid repetition and ensure all unique functionalities are preserved. Exclude detailed explanations and focus on the essence of each functionality."},
+            {"role": "system",
+             "content": "Present the simplified list in a format like this: \n[\"Functionality 1\", \"Functionality 2\", ...]"},
+            {"role": "system",
+             "content": "Here is an example of a detailed list of functionalities and its simplified version:\nDetailed list:\n"},]
+
+    for pair in functionalities_pairs:
+        example_message = [{"role": "system",
+                            "name": "example_user",
+                            "content": f"Here is the detailed list of functionalities for the current web page you need to simplify:\n{pair['detailed']}"},
+                           {"role": "system",
+                            "name": "example_assistant",
+                            "content": f"{pair['simplified']}"}]
+        messages.extend(example_message)
+    messages.append({"role": "system",
+                     "content": f"Here is the detailed list of functionalities for the current web page you need to simplify:\n{functionalities_list}"})
+
+    response = client.chat.completions.create(
+        model="gpt-4-1106-preview",
+        messages=messages,
+        temperature=0.0,
+        max_tokens=400
+    )
+    return response.choices[0].message.content
+
+
+'''
+
+check_privates(root_node)
 
 tree_data = serialize_tree(root_node)
-with open('webpage_tree_withprivates.json', 'w', encoding='utf-8') as file:
+with open('webpage_tree_v9_withprivateslists.json', 'w', encoding='utf-8') as file:
     json.dump(tree_data, file, ensure_ascii=False, indent=4)
 
+'''
+
+
+
+
+
+def prop_publics(node):
+    if node.children != []:
+        for child in node.children:
+            prop_publics(child)
+    if node.children == []:
+        node.public = node.private
+    else:
+        all_children_info = set()
+        for child in node.children:
+            all_children_info.update(child.private)
+        node.public = list(all_children_info)
+        print(f'URL: {node.url}\nPublic: {node.public}\n')
+
+# print(simplify_webpage_functionalities(root_node.public))
+# print(simplify_webpage_functionalities(root_node.children[10].public))
+
+def simplify_publics(node):
+    if node.children != []:
+        simplified_public = simplify_webpage_functionalities(node.public)
+        node.public = simplified_public
+        print(node.url)
+        print(node.public)
+    for child in node.children:
+        simplify_publics(child)
+
+# prop_publics(root_node)
+
+# simplify_publics(root_node)
+
+tree_data = serialize_tree(root_node)
+
+with open('webpage_tree_clean_mvp_v2.json', 'w', encoding='utf-8') as file:
+    json.dump(tree_data, file, ensure_ascii=False, indent=4)
