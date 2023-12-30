@@ -54,7 +54,7 @@ def interpret_functionality_TREE_v7(tree_str, url, examples):
         {"role": "system",
          "content": "Provide a concise analysis using action-oriented statements. Mention specific categories, types of products, or services that the page is centered around."},
         {"role": "system",
-         "content": "Your response should be a Python list of brief action statements, each highlighting a unique feature or functionality of the webpage, as indicated by the accessibility tree."},
+         "content": "Your response should be a Python list of brief action statements, each highlighting a unique feature or functionality of the webpage, as indicated by the accessibility tree. Make sure to give the same output format as the example I give you."},
         {"role": "system",
          "content": "Ensure that each action statement reflects the specific nature or purpose of the webpage, providing insight into the type of user experience it offers. "},
         {"role": "system",
@@ -127,7 +127,7 @@ def load_tree_from_file(filename):
     return deserialize_node(tree_data)
 
 
-root_node = load_tree_from_file('webpage_tree_clean_mvp_v1.json')
+
 
 def generate_description_for_node(node):
     description = interpret_functionality_TREE_v7(node.acc_tree, node.url, few_shots)
@@ -162,7 +162,6 @@ def check_publics(node):
         check_publics(child)
 # generate_description_for_node(root_node)
 
-check_publics(root_node)
 
 def read_functionalities_from_file(file_path):
     with open(file_path, 'r') as file:
@@ -177,9 +176,9 @@ def simplify_webpage_functionalities(functionalities_list):
             {"role": "system",
              "content": "You are to provide a simplified list of functionalities. Combine similar functionalities into single, concise statements. Avoid repetition and ensure all unique functionalities are preserved. Exclude detailed explanations and focus on the essence of each functionality."},
             {"role": "system",
-             "content": "Present the simplified list in a format like this: \n[\"Functionality 1\", \"Functionality 2\", ...]"},
+             "content": "Present the simplified list in a format like this: \n[\"Functionality 1\", \"Functionality 2\", \"Functionality 3\"]\n  Make sure to give the same output format as the example I give you. It is very very important to use \" and not ' to separate each list item, REMEMBER THIS!"},
             {"role": "system",
-             "content": "Here is an example of a detailed list of functionalities and its simplified version:\nDetailed list:\n"},]
+             "content": "Here is an example of a detailed list of functionalities and its simplified version:\n"},]
 
     for pair in functionalities_pairs:
         example_message = [{"role": "system",
@@ -196,22 +195,43 @@ def simplify_webpage_functionalities(functionalities_list):
         model="gpt-4-1106-preview",
         messages=messages,
         temperature=0.0,
-        max_tokens=400
+        max_tokens=500
     )
     return response.choices[0].message.content
 
 
+
+def shove_in(node, root_dict):
+    root_dict[node.url] = node
+    for child in node.children:
+        shove_in(child)
+
+def fix_privates(node, root_dict):
+    if node.url not in root_dict:
+        new_func = ast.literal_eval(interpret_functionality_TREE_v7(node.acc_tree, node.url, few_shots))
+        node.private = new_func
+        print(f"URL: {node.url}\nDescription: {new_func}\n")
+    else:
+        node.private = root_dict[node.url].private
+
+    for child in node.children:
+        fix_privates(child)
+
+
 '''
+root_node = load_tree_from_file('webpage_tree_clean_mvp_v2.json')
+new_node = load_tree_from_file('webpage_tree_v21.json')
+root_dict = dict()
+shove_in(root_node, root_dict)
+fix_privates(new_node, root_dict)
 
 check_privates(root_node)
 
-tree_data = serialize_tree(root_node)
-with open('webpage_tree_v9_withprivateslists.json', 'w', encoding='utf-8') as file:
+
+tree_data = serialize_tree(new_node)
+with open('webpage_tree_v21_dirtyprivated2.json', 'w', encoding='utf-8') as file:
     json.dump(tree_data, file, ensure_ascii=False, indent=4)
-
 '''
-
-
 
 
 
@@ -233,18 +253,19 @@ def prop_publics(node):
 
 def simplify_publics(node):
     if node.children != []:
-        simplified_public = simplify_webpage_functionalities(node.public)
+        simplified_public = ast.literal_eval(simplify_webpage_functionalities(node.public)) # super dangerous oh god
         node.public = simplified_public
         print(node.url)
         print(node.public)
     for child in node.children:
         simplify_publics(child)
 
-# prop_publics(root_node)
+# root_node = load_tree_from_file('webpage_tree_21_2_dirtypublics.json')
+# simplify_publics(root_node)
 
 # simplify_publics(root_node)
 
-tree_data = serialize_tree(root_node)
+# tree_data = serialize_tree(root_node)
 
-with open('webpage_tree_clean_mvp_v2.json', 'w', encoding='utf-8') as file:
-    json.dump(tree_data, file, ensure_ascii=False, indent=4)
+# with open('webpage_tree_21_2_almost.json', 'w', encoding='utf-8') as file:
+#     json.dump(tree_data, file, ensure_ascii=False, indent=4)

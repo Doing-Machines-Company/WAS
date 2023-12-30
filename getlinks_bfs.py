@@ -27,13 +27,6 @@ parsed_start_url = urlparse(start_url)
 start_domain = parsed_start_url.netloc
 start_scheme = parsed_start_url.scheme
 
-with open('data.json', 'r') as file:
-    data = json.load(file)
-
-cookies = data['cookies']
-local_storage_data = data['origins'][0]['localStorage']
-origin = data['origins'][0]['origin']
-
 def url_depth(url):
     parsed = urlparse(url)
     return parsed.path.count('/')
@@ -203,21 +196,17 @@ def parse_accessibility_tree(node, depth=0):
 
     indent = "\t" * depth
     role = node.get('role', '')
-    compressed_role = get_compressed_label(role)  # Get compressed label
     name = node.get('name', '')
     node_str = f"{indent}[{role}] {repr(name)}"
-    compressed_node_str = f"{indent}[{compressed_role}] {repr(name)}"
 
     node_str += "\n"
-    compressed_node_str += "\n"
 
     # Recursively process children
     for child in node.get('children', []):
-        child_str, compressed_child_str = parse_accessibility_tree(child, depth + 1)
+        child_str = parse_accessibility_tree(child, depth + 1)
         node_str += child_str
-        compressed_node_str += compressed_child_str
 
-    return node_str, compressed_node_str
+    return node_str
 
 
 def clean_accessibility_tree(tree_str):  # Further cleaning perhaps good later on
@@ -237,15 +226,17 @@ def clean_accessibility_tree(tree_str):  # Further cleaning perhaps good later o
 
 
 async def fetch_links(url, browser):
-    global cookies
 
-    context = await browser.new_context()
-    page = await context.new_page()
+    username = 'emma.lopez@gmail.com'
+    password = 'Password.123'
 
+    page = await browser.new_page()
 
-    await set_cookies(context, cookies)
+    await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
+    await page.get_by_label("Email", exact=True).fill(username)
+    await page.get_by_label("Password", exact=True).fill(password)
+    await page.get_by_role("button", name="Sign In").click()
 
-    await set_local_storage(page, origin, local_storage_data)
 
     await page.goto(url)
 
@@ -263,17 +254,23 @@ async def fetch_links(url, browser):
 
 
 async def fetch_accessibility_tree(url, browser):
-    global cookies
-    global local_storage_data
-    global origin
+
+    username = 'emma.lopez@gmail.com'
+    password = 'Password.123'
 
     page = await browser.new_page()
+
+    await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
+    await page.get_by_label("Email", exact=True).fill(username)
+    await page.get_by_label("Password", exact=True).fill(password)
+    await page.get_by_role("button", name="Sign In").click()
+
     await page.goto(url)
 
     accessibility_snapshot = await page.accessibility.snapshot()
-    tree_str, compressed_tree = parse_accessibility_tree(accessibility_snapshot)
+    tree_str = parse_accessibility_tree(accessibility_snapshot)
     await page.close()
-    return tree_str, compressed_tree
+    return tree_str
 
 
 async def filter_urls_getlong(url_list):
@@ -356,7 +353,7 @@ async def process_node(parent_node, browser):
 
     for link in filtered_links:
         if link not in all_created_nodes:
-            tree_str, _ = await fetch_accessibility_tree(link, browser)
+            tree_str = await fetch_accessibility_tree(link, browser)
             if link.endswith('.html') and url_depth(link) == 1 and 'SKU' in tree_str:
                 print(f"Skipped: {link}")
                 continue
@@ -397,18 +394,20 @@ async def main():
 
 
 
-
     async with async_playwright() as p:
         browser = await p.chromium.launch()
-        context = await browser.new_context()
-        page = await context.new_page()
 
-        await set_cookies(context, cookies)
-
-        await set_local_storage(page, origin, local_storage_data)
+        '''
+        browser = p.chromium.launch()
+        context = browser.new_context()
+        page = context.new_page()
+        set_cookies(context, cookies)
+        set_local_storage(page, origin, local_storage_data)
+        
+        '''
 
         # browser = await p.chromium.launch()
-        tree_str, _ = await fetch_accessibility_tree(start_url, browser)
+        tree_str = await fetch_accessibility_tree(start_url, browser)
         # functionality = await interpret_functionality(tree_str)
         functionality = "tonk"
         root_node = WebPageNode(url=start_url, private=functionality, acc_tree=tree_str, parent=None, children=None)
@@ -434,12 +433,12 @@ async def main():
 
     collapse_parents(root_node)
 
-    with open('missed_links_v10_0.txt', 'w') as file:
+    with open('missed_links_v11_0.txt', 'w') as file:
         for item in missed_links:
             file.write(item + "\n")
 
     tree_data = serialize_tree(root_node)
-    with open('webpage_tree_v20.json', 'w', encoding='utf-8') as file:
+    with open('webpage_tree_v21.json', 'w', encoding='utf-8') as file:
         json.dump(tree_data, file, ensure_ascii=False, indent=4)
 
 
