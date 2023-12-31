@@ -75,25 +75,39 @@ async def extract_interaction_info(html):
         return "Radio Button (select one option)"
     return "Interactable Element"
 
+
 async def parse_and_clean(elements):
     cleaned_output = []
     for element in elements:
-        text = await element.text_content()
         # Use JavaScript evaluation to get the outer HTML
         html = await element.evaluate("element => element.outerHTML")
-        text_content = text.strip() if text else "No visible text"
-        if text_content == "No visible text":
-            pass
-        else:
-            print(html)
-            print(text_content)
+
+        # Skip elements of type 'hidden'
+        if "type='hidden'" in html or 'type="hidden"' in html:
+            continue
+
+        text = await element.text_content()
+        text_content = text.strip() if text else None
+
+        # Check the 'name' attribute in HTML if text_content is None
+        if text_content is None:
+            # Extract text from HTML content
+            match_text = re.search(r'>([^<]+)<', html)
+            text_content = match_text.group(1).strip() if match_text else None
+
+            # Extract name from HTML attribute if text_content is still None
+            if text_content is None:
+                match_name = re.search(r'name=["\']([^"\']+)["\']', html)
+                text_content = match_name.group(1) if match_name else "No visible text"
+
 
         interaction_info = await extract_interaction_info(html)
 
-        element_info = f"Text Content: {text_content}\nInteraction Info: {interaction_info}\n"
+        element_info = (text_content, interaction_info)
+
         cleaned_output.append(element_info)
 
-    return "\n".join(cleaned_output)
+    return cleaned_output
 
 
 
@@ -173,7 +187,7 @@ async def fetch_accessibility_tree(url):
 
 async def main():
     elements = await get_usable_elements(link)
-    # print(elements)
+    print(elements)
 
 
 asyncio.run(main())
