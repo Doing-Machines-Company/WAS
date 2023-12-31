@@ -121,8 +121,8 @@ async def get_clickable_elements(url):
         page = await browser.new_page()
 
         await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
-        await page.get_by_label("Email", exact=True).fill(username)
-        await page.get_by_label("Password", exact=True).fill(password)
+        await page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
+        await page.get_by_label("Password", exact=True).fill('Password.123')
         await page.get_by_role("button", name="Sign In").click()
         await page.goto(url)
 
@@ -142,24 +142,24 @@ async def get_usable_elements(url):
     async with async_playwright() as p:
         browser = await p.chromium.launch()
 
-        username = 'emma.lopez@gmail.com'
-        password = 'Password.123'
-
         page = await browser.new_page()
 
         await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
-        await page.fill("input[name='login[username]']", username)
-        await page.fill("input[name='login[password]']", password)
-        await page.click("button[type='submit']")
+        await page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
+        await page.get_by_label("Password", exact=True).fill('Password.123')
+        await page.get_by_role("button", name="Sign In").click()
         await page.goto(url)
 
         selector = "a, button, input, select, textarea, [onclick], [role='button']"
 
         interactable_elements = await page.query_selector_all(selector)
+        print(len(interactable_elements))
 
         cleaned_elements = await parse_and_clean(interactable_elements)
+        print(len(cleaned_elements))
 
         await browser.close()
+
         return cleaned_elements
 
 async def fetch_accessibility_tree(url):
@@ -187,7 +187,7 @@ async def fetch_accessibility_tree(url):
 
 async def main():
     elements = await get_usable_elements(link)
-    print(elements)
+
 
 
 asyncio.run(main())
