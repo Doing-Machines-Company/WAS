@@ -27,15 +27,18 @@ async def get_usable_elements(page, url):
     await page.goto(url)
     selector = "a, button, input, select, textarea, [onclick], [role='button']"
     interactable_elements = await page.query_selector_all(selector)
-    print(len(interactable_elements))
+    # print(len(interactable_elements))
+    # print(interactable_elements)
     cleaned_elements = await parse_and_clean(interactable_elements)
-    print(len(cleaned_elements))
+    # print(len(cleaned_elements))
     return cleaned_elements
 
 async def parse_and_clean(elements):
     cleaned_output = []
-    for element in elements:
+    for i in range(len(elements)):
+        element = elements[i]
         html = await element.evaluate("element => element.outerHTML")
+
         if "type='hidden'" in html or 'type="hidden"' in html:
             continue
 
@@ -68,17 +71,13 @@ async def parse_and_clean(elements):
                 match_name = re.search(r'name=["\']([^"\']+)["\']', html)
                 text_content = match_name.group(1) if match_name else "No visible text"
 
-        if text_content == "No visible text":
-            print("NO VIS")
-            print(html)
-            print("------------------")
-        elif text_content == "":
-            print("EMPTY")
-            print(html)
-            print("------------------")
-        interaction_info = await extract_interaction_info(html)
+        if text_content == "No visible text" or text_content == "":
+            continue
 
-        element_info = (xpath, text_content, interaction_info)
+        interaction_info = await extract_interaction_info(html)
+        name_attribute = await element.get_attribute("name")
+
+        element_info = (xpath, text_content, name_attribute, interaction_info)
         cleaned_output.append(element_info)
 
     return cleaned_output
@@ -89,6 +88,11 @@ async def click_element_by_xpath(page, xpath):
     if element:
         await element.click()
 
+async def click_element_by_attribute(page, attribute, value):
+    selector = f"[{attribute}='{value}']"
+    element = await page.query_selector(selector)
+    if element:
+        await element.click()
 async def main():
     async with async_playwright() as p:
         link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/v8-energy-healthy-energy-drink-steady-energy-from-black-and-green-tea-pomegranate-blueberry-8-ounce-can-pack-of-24.html"
@@ -99,17 +103,41 @@ async def main():
         await page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
         await page.get_by_label("Password", exact=True).fill('Password.123')
         await page.get_by_role("button", name="Sign In").click()
-        await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/view/order_id/157/")
-        await page.get_by_role("button", name="Subscribe").click()
 
         elements = await get_usable_elements(page, link)
+        interactable_descs = []
+        # (xpath, text_content, name_attribute, interaction_info)
+        for xpath, text_content, name_attribute, interaction_info in elements:
+            interactable_descs.append(text_content)
+            print(name_attribute)
+            if elements.index((xpath, text_content, name_attribute, interaction_info)) == 1:
+
+                try:
+                    print("TONK")
+                    # print(name_attribute)
+                    await click_element_by_xpath(page, xpath)
+                except:
+                    print("Failed to click element")
+                input("Press Enter to close the browser finally...")
+                break
+
+
+            # await click_element_by_attribute(page, 'name', 'some_name')
+
+
+        await browser.close()
+        # print(f"Interactable Elements Descriptions: {interactable_descs}")
+
+
+        '''
         descs = []
+        
         for xpath, text_content, interaction_info in elements:
             descs.append(text_content) #better naming
             # Example: Click on the first element
             # if elements.index((xpath, text_content, interaction_info)) == 0:
                 # await click_element_by_xpath(page, xpath)
-        '''
+        
         
         print(len(set(descs)))
         print(len(set(right_elements)))
@@ -118,7 +146,6 @@ async def main():
         
         '''
 
-
-        await browser.close()
-
 asyncio.run(main())
+
+
