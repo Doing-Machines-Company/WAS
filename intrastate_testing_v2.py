@@ -26,7 +26,7 @@ async def extract_interaction_info(html):
 async def get_usable_elements(page, url):
     await page.goto(url)
     selector = "a, button, input, select, textarea, [onclick], [role='button']"
-    interactable_elements = await page.query_locator(selector).element_handles()
+    interactable_elements = await page.locator(selector).element_handles()
     # print(len(interactable_elements))
     # print(interactable_elements)
     cleaned_elements = await parse_and_clean(interactable_elements)
@@ -105,7 +105,7 @@ async def click_element_by_attribute(page, attribute, value):
 async def main():
     async with async_playwright() as p:
         link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/v8-energy-healthy-energy-drink-steady-energy-from-black-and-green-tea-pomegranate-blueberry-8-ounce-can-pack-of-24.html"
-        browser = await p.chromium.launch(headless=False)
+        browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
 
         await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
@@ -114,26 +114,14 @@ async def main():
         await page.get_by_role("button", name="Sign In").click()
 
         elements = await get_usable_elements(page, link)
-        interactable_descs = []
+        # interactable_descs = []
         # (xpath, text_content, name_attribute, interaction_info)
         for xpath, text_content, name_attribute, interaction_info in elements:
-            interactable_descs.append(text_content)
-            print("BONK")
-            print(xpath)
-            print("TONK")
-            if elements.index((xpath, text_content, name_attribute, interaction_info)) == 2:
-
-                # try:
-                    # print("TONK")
-                    # print(name_attribute)
-                    # await click_element_by_xpath(page, xpath)
-                # except:
-                    # print("Failed to click element")
-                # input("Press Enter to close the browser finally...")
-                break
-
-
-            # await click_element_by_attribute(page, 'name', 'some_name')
+            print("-------------------")
+            print(interaction_info)
+            print(name_attribute)
+            print(text_content)
+            print("-------------------")
 
 
         await browser.close()
