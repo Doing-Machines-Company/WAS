@@ -26,7 +26,7 @@ async def extract_interaction_info(html):
 async def get_usable_elements(page, url):
     await page.goto(url)
     selector = "a, button, input, select, textarea, [onclick], [role='button']"
-    interactable_elements = await page.query_selector_all(selector)
+    interactable_elements = await page.query_locator(selector).element_handles()
     # print(len(interactable_elements))
     # print(interactable_elements)
     cleaned_elements = await parse_and_clean(interactable_elements)
@@ -37,11 +37,12 @@ async def parse_and_clean(elements):
     cleaned_output = []
     for i in range(len(elements)):
         element = elements[i]
+        print(type(element))
         html = await element.evaluate("element => element.outerHTML")
 
         if "type='hidden'" in html or 'type="hidden"' in html:
             continue
-
+        # How does query selector know siblings????
         xpath = await element.evaluate('''(element) => {
             const getElementXPath = (el) => {
                 if (!el || el.nodeType !== 1) return '';
@@ -84,15 +85,22 @@ async def parse_and_clean(elements):
 
 
 async def click_element_by_xpath(page, xpath):
-    element = await page.query_selector(f'xpath={xpath}')
-    if element:
-        await element.click()
+    locator = page.locator(f'xpath={xpath}')
+    if await locator.count() == 0:
+        print(f"No elements with this xpath: {xpath}\n This should be impossible\n What????")
+    elif await locator.count() == 1:
+        await locator.first().click()
+    else:
+        print("Multiple elements with this xpath")
+        await locator.first().click()
+        print(locator.count())
+
 
 async def click_element_by_attribute(page, attribute, value):
-    selector = f"[{attribute}='{value}']"
-    element = await page.query_selector(selector)
-    if element:
-        await element.click()
+    locator = page.locator(f"[{attribute}='{value}']")
+    if await locator.count() > 0:
+        await locator.first().click()
+
 
 async def main():
     async with async_playwright() as p:
