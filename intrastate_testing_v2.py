@@ -93,6 +93,7 @@ async def click_element_by_attribute(page, attribute, value):
     element = await page.query_selector(selector)
     if element:
         await element.click()
+
 async def main():
     async with async_playwright() as p:
         link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/v8-energy-healthy-energy-drink-steady-energy-from-black-and-green-tea-pomegranate-blueberry-8-ounce-can-pack-of-24.html"
@@ -109,16 +110,18 @@ async def main():
         # (xpath, text_content, name_attribute, interaction_info)
         for xpath, text_content, name_attribute, interaction_info in elements:
             interactable_descs.append(text_content)
-            print(name_attribute)
-            if elements.index((xpath, text_content, name_attribute, interaction_info)) == 1:
+            print("BONK")
+            print(xpath)
+            print("TONK")
+            if elements.index((xpath, text_content, name_attribute, interaction_info)) == 2:
 
-                try:
-                    print("TONK")
+                # try:
+                    # print("TONK")
                     # print(name_attribute)
-                    await click_element_by_xpath(page, xpath)
-                except:
-                    print("Failed to click element")
-                input("Press Enter to close the browser finally...")
+                    # await click_element_by_xpath(page, xpath)
+                # except:
+                    # print("Failed to click element")
+                # input("Press Enter to close the browser finally...")
                 break
 
 
