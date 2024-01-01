@@ -71,10 +71,11 @@ async def get_usable_elements(page, url):
 async def parse_and_clean(elements):
     cleaned_output = []
     for element in elements:
+        if not await element.is_visible() or await element.is_hidden() or await element.is_disabled():
+            continue
         href = await element.get_attribute('href')
         html = await element.evaluate("element => element.outerHTML")
-        if await element.is_disabled() or not await element.is_visible() or await element.is_hidden():
-            continue
+
 
 
         if href and href.startswith('#'):
@@ -104,7 +105,6 @@ async def parse_and_clean(elements):
             };
             return getElementXPath(element);
         }''')
-
         text = await element.text_content()
         text_content = text.strip() if text else None
         if text_content is None:
@@ -125,6 +125,7 @@ async def parse_and_clean(elements):
 
         element_info = (xpath, text_content, name_attribute, interaction_info, element_id)
         cleaned_output.append(element_info)
+        print(html)
 
     return cleaned_output
 
@@ -142,15 +143,9 @@ async def click_element_by_xpath(page, xpath):
         # await page.wait_for_load_state('networkidle')
         # await locator.first.hover()
         await page.wait_for_load_state('networkidle')
-        # await locator.scrollIntoViewIfNeeded()
-        tree1 = parse_accessibility_tree(await page.accessibility.snapshot())
-        with open('tree1.txt', 'w') as file:
-            file.write(tree1)
         await locator.first.click()
         await page.wait_for_load_state('networkidle')
-        tree2 = parse_accessibility_tree(await page.accessibility.snapshot())
-        with open('tree2.txt', 'w') as file:
-            file.write(tree2)
+
 
         return
     else:
@@ -159,14 +154,9 @@ async def click_element_by_xpath(page, xpath):
         # await locator.first.hover()
         await page.wait_for_load_state('networkidle')
         # await locator.first.scrollIntoViewIfNeeded()
-        tree1 = parse_accessibility_tree(await page.accessibility.snapshot())
-        with open('tree1.txt', 'w') as file:
-            file.write(tree1)
+
         await locator.first.click()
         await page.wait_for_load_state('networkidle')
-        tree2 = parse_accessibility_tree(await page.accessibility.snapshot())
-        with open('tree1.txt', 'w') as file:
-            file.write(tree2)
 
         print(locator.count())
         return
@@ -182,7 +172,8 @@ def use_gpt_fill_input(page, xpath, text):
 async def main():
     async with async_playwright() as p:
 
-        link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/tweezers-for-succulents-duo.html"
+        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/tweezers-for-succulents-duo.html"
+        link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/index"
         browser = await p.chromium.launch(headless=False)
         page = await browser.new_page()
 
@@ -201,7 +192,6 @@ async def main():
             print(text_content)
             print(element_id)
             print("-------------------")
-
 
             if interaction_info == "Link (click to navigate)" or interaction_info == "Button (click to interact)":
                 page = await browser.new_page()
