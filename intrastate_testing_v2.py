@@ -16,6 +16,24 @@ def normalize_url(url):  # Very aggressive normalization
     normalized_url = urlunparse((scheme, netloc, path, '', '', ''))
     return normalized_url
 
+def parse_accessibility_tree(node, depth=0):
+    if not node or 'role' not in node:
+        return ""
+
+    indent = "\t" * depth
+    role = node.get('role', '')
+    name = node.get('name', '')
+    node_str = f"{indent}[{role}] {repr(name)}"
+
+    node_str += "\n"
+
+    # Recursively process children
+    for child in node.get('children', []):
+        child_str = parse_accessibility_tree(child, depth + 1)
+        node_str += child_str
+
+    return node_str
+
 async def extract_interaction_info(html):
     if 'href="' in html:
         return "Link (click to navigate)"
@@ -42,34 +60,23 @@ async def get_usable_elements(page, url):
     selector = "a, button, input, select, textarea, [onclick], [role='button']"
     interactable_elements = await page.locator(selector).element_handles()
     # print(len(interactable_elements))
-    # print(interactable_elements)
     cleaned_elements = await parse_and_clean(interactable_elements) # NEED TO REMOVE DUPLICATES
-    # print(len(cleaned_elements))
+    # print(len(cleaned_elementps))
     return cleaned_elements
 
 async def parse_and_clean(elements):
     cleaned_output = []
     for element in elements:
-
-        if not await element.is_visible() or await element.is_disabled():
+        href = await element.get_attribute('href')
+        html = await element.evaluate("element => element.outerHTML")
+        if await element.is_disabled() or not await element.is_visible() or await element.is_hidden():
             continue
 
-        href = await element.get_attribute('href')
+
         if href and href.startswith('#'):
-            # print("IGNORED! ANCHOR ")
-            # print(href)
             continue
         elif href is not None and normalize_url(href) in all_links:
-            # print("IGNORED! ")
-            # print(href)
             continue
-        elif href is not None:
-            print("KEPT!")
-            print(href)
-
-        html = await element.evaluate("element => element.outerHTML")
-
-
 
         if "type='hidden'" in html or 'type="hidden"' in html:
             continue
@@ -109,8 +116,9 @@ async def parse_and_clean(elements):
 
         interaction_info = await extract_interaction_info(html)
         name_attribute = await element.get_attribute("name")
+        element_id = await element.get_attribute("id")
 
-        element_info = (xpath, text_content, name_attribute, interaction_info)
+        element_info = (xpath, text_content, name_attribute, interaction_info, element_id)
         cleaned_output.append(element_info)
 
     return cleaned_output
@@ -118,13 +126,9 @@ async def parse_and_clean(elements):
 
 async def click_element_by_xpath(page, xpath):
     locator = page.locator(f'xpath={xpath}')
-    href = await locator.get_attribute('href')
-    # if href and href.startswith('#'):
-    #     return
+
     count = await locator.count()
-    # if not await locator.is_visible() or await locator.is_disabled():
-    #     print(f"Element with xpath {xpath} is not clickable (either not visible or disabled).")
-    #     return
+
     if count == 0:
         print(f"No elements with this xpath: {xpath}\n This should be impossible\n What????\n")
         return
@@ -151,7 +155,8 @@ def use_gpt_fill_input(page, xpath, text):
 
 async def main():
     async with async_playwright() as p:
-        link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/"
+
+        link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/tweezers-for-succulents-duo.html"
         browser = await p.chromium.launch(headless=False)
         page = await browser.new_page()
 
@@ -162,14 +167,16 @@ async def main():
 
         elements = await get_usable_elements(page, link)
         await page.close()
-        # interactable_descs = []
-        # (xpath, text_content, name_attribute, interaction_info)
-        for xpath, text_content, name_attribute, interaction_info in elements:
+        for xpath, text_content, name_attribute, interaction_info, element_id in elements:
+
             print("-------------------")
             print(interaction_info)
             print(name_attribute)
             print(text_content)
+            print(element_id)
             print("-------------------")
+
+
             if interaction_info == "Link (click to navigate)" or interaction_info == "Button (click to interact)":
                 page = await browser.new_page()
 
@@ -193,7 +200,6 @@ async def main():
 
 
         await browser.close()
-        # print(f"Interactable Elements Descriptions: {interactable_descs}")
 
 
         '''
