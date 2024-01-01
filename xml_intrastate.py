@@ -39,20 +39,24 @@ async def extract_interaction_info(html):
         return "Link (click to navigate)"
     if '<button' in html or "type='button'" in html or "role='button'" in html:
         return "Button (click to interact)"
-    if "type='submit'" in html:
+    if "type=\"submit\"" in html:
         return "Submit Button (click to submit form)"
     if "onclick=" in html:
         return "Clickable Element (click to trigger action)"
-    if "type='text'" in html or "type='email'" in html or "type='password'" in html:
+    if "type=\"text\"" in html or "type='email'" in html or "type='password'" in html:
         return "Text Input (enter text)"
     if "<select" in html:
         return "Dropdown Select (choose an option)"
     if "<textarea" in html:
         return "Text Area (enter multiline text)"
-    if "type='checkbox'" in html:
+    if "type=\"checkbox\"" in html:
         return "Checkbox (select an option)"
-    if "type='radio'" in html:
+    if "type=\"radio\"" in html:
         return "Radio Button (select one option)"
+    if "role=\"combobox\"" in html:
+        return "Text Input (combobox)"
+    if "type=\"text\"" in html and "<input" in html:
+        return "Text Input (general)"
     return "Interactable Element"
 
 async def get_usable_elements(page, url):
@@ -118,6 +122,7 @@ async def parse_and_clean(elements):
         name_attribute = await element.get_attribute("name")
         element_id = await element.get_attribute("id")
 
+
         element_info = (xpath, text_content, name_attribute, interaction_info, element_id)
         cleaned_output.append(element_info)
 
@@ -133,20 +138,41 @@ async def click_element_by_xpath(page, xpath):
         print(f"No elements with this xpath: {xpath}\n This should be impossible\n What????\n")
         return
     elif count == 1:
+        print("One element with this xpath")
+        # await page.wait_for_load_state('networkidle')
+        # await locator.first.hover()
+        await page.wait_for_load_state('networkidle')
+        # await locator.scrollIntoViewIfNeeded()
+        tree1 = parse_accessibility_tree(await page.accessibility.snapshot())
+        with open('tree1.txt', 'w') as file:
+            file.write(tree1)
         await locator.first.click()
+        await page.wait_for_load_state('networkidle')
+        tree2 = parse_accessibility_tree(await page.accessibility.snapshot())
+        with open('tree2.txt', 'w') as file:
+            file.write(tree2)
+
         return
     else:
         print("Multiple elements with this xpath")
+        # await page.wait_for_load_state('networkidle')
+        # await locator.first.hover()
+        await page.wait_for_load_state('networkidle')
+        # await locator.first.scrollIntoViewIfNeeded()
+        tree1 = parse_accessibility_tree(await page.accessibility.snapshot())
+        with open('tree1.txt', 'w') as file:
+            file.write(tree1)
         await locator.first.click()
+        await page.wait_for_load_state('networkidle')
+        tree2 = parse_accessibility_tree(await page.accessibility.snapshot())
+        with open('tree1.txt', 'w') as file:
+            file.write(tree2)
+
         print(locator.count())
         return
     return
 
 
-async def click_element_by_attribute(page, attribute, value):
-    locator = page.locator(f"[{attribute}='{value}']")
-    if await locator.count() > 0:
-        await locator.first().click()
 
 
 def use_gpt_fill_input(page, xpath, text):
@@ -190,7 +216,7 @@ async def main():
                 if tonk == '':
                     pass
                 else:
-                    browser.close()
+                    await browser.close()
                     break
                 await page.close()
             else:
