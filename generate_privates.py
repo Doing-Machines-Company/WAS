@@ -260,10 +260,21 @@ def simplify_publics(node):
     for child in node.children:
         simplify_publics(child)
 
-# root_node = load_tree_from_file('webpage_tree_21_2_dirtypublics.json')
+all_links = []
+root_node = load_tree_from_file('webpage_MVP_V3.json')
 # simplify_publics(root_node)
 
 # simplify_publics(root_node)
+
+def store_all_links(node):
+    all_links.append(node.url)
+    for child in node.children:
+        store_all_links(child)
+
+store_all_links(root_node)
+
+with open('all_links.json', 'w') as file:
+    json.dump(all_links, file, ensure_ascii=False, indent=4)
 
 # tree_data = serialize_tree(root_node)
 
