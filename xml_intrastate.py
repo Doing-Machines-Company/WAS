@@ -63,16 +63,17 @@ async def extract_interaction_info_v0(html): #use general input type
 
 async def extract_interaction_info(html): #use general input type
     if '<a' in html:
-        return "Link"
-    if '<button' in html or "type='button'" in html or "role='button'" in html:
-        return "Button"
-    if "<input" in html:
-        return "Input"
+        return "link"
+    if '<button' in html or "type='button'" in html or "role='button'" in html or "select" in html or "select" in html or "[onclick]" in html or "onclick=" in html or "[role='button']" in html:
+        return "button"
+    if "<input" in html or "textarea" in html:
+        return "input"
     return "Uncased Element"
 
 async def get_usable_elements(page, url):
     await page.goto(url)
     selector = "a, button, input, select, textarea, [onclick], [role='button']"
+    await page.wait_for_load_state('networkidle')
     interactable_elements = await page.locator(selector).element_handles()
     # print(len(interactable_elements))
     cleaned_elements = await parse_and_clean(interactable_elements) # NEED TO REMOVE DUPLICATES
@@ -116,25 +117,12 @@ async def parse_and_clean(elements):
             };
             return getElementXPath(element);
         }''')
-        text = await element.text_content()
-        text_content = text.strip() if text else None
-        if text_content is None:
-            match_text = re.search(r'>([^<]+)<', html)
-            text_content = match_text.group(1).strip() if match_text else None
-            if text_content is None:
-                match_name = re.search(r'name=["\']([^"\']+)["\']', html)
-                text_content = match_name.group(1) if match_name else "No visible text"
-
-        if text_content == "No visible text" or text_content == "":
-            continue
 
 
         interaction_info = await extract_interaction_info(html)
-        name_attribute = await element.get_attribute("name")
-        element_id = await element.get_attribute("id")
 
 
-        element_info = (xpath, text_content, name_attribute, interaction_info, element_id, html)
+        element_info = (xpath, interaction_info, html)
         cleaned_output.append(element_info)
         print(f"html: {html}")
         print(f"xpath: {xpath}")
@@ -181,6 +169,7 @@ async def click_element_by_xpath(page, xpath):
     return
 
 async def interact_element_by_xpath(page, xpath, interaction_info, html):
+    await page.wait_for_load_state('networkidle')
     locator = page.locator(f'xpath={xpath}')
     count = await locator.count()
     print("INTERACTING")
@@ -190,19 +179,18 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html):
         print(f"No elements found with this xpath: {xpath}")
         return
 
-    if not await locator.is_visible():
-        print(f"For some reason not visible")
 
     if await locator.is_disabled():
         print("For some reason disabled")
 
 
-    if interaction_info in ["Text Input (enter text)", "Text Input (combobox)", "Text Input (general)"]:
+    if interaction_info == "input":
         print(f"Skipped text input")
+        return
         generated_text = await use_gpt_fill_input(page, html) # maybe needs xpath? idk
         await page.wait_for_load_state('networkidle')
         await locator.first.fill(generated_text)
-    elif interaction_info in ["Link (click to navigate)", "Button (click to interact)", "Submit Button (click to submit form)", "Clickable Element (click to trigger action)"]:
+    elif interaction_info in ["link", "button"]:
         await page.wait_for_load_state('networkidle')
         await locator.first.click()
     else:
@@ -228,7 +216,7 @@ class IntrastateWebPageNode:
         if children is not None:
             self.children.update(children)
         self.page_embedding = embedding
-def use_gpt_fill_input(page, html):
+async def use_gpt_fill_input(page, html):
     pass
 
 
@@ -247,13 +235,10 @@ async def main():
 
         elements = await get_usable_elements(page, link)
         await page.close()
-        for xpath, text_content, name_attribute, interaction_info, element_id, html in elements:
+        for xpath, interaction_info, html in elements:
 
             print("-------------------")
             print(interaction_info)
-            print(name_attribute)
-            print(text_content)
-            print(element_id)
             print("-------------------")
 
             page = await browser.new_page()
