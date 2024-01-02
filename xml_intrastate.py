@@ -34,7 +34,7 @@ def parse_accessibility_tree(node, depth=0):
 
     return node_str
 
-async def extract_interaction_info(html):
+async def extract_interaction_info_v0(html): #use general input type
     if 'href="' in html:
         return "Link (click to navigate)"
     if '<button' in html or "type='button'" in html or "role='button'" in html:
@@ -57,7 +57,18 @@ async def extract_interaction_info(html):
         return "Text Input (combobox)"
     if "type=\"text\"" in html and "<input" in html:
         return "Text Input (general)"
+    if "type=\"number\"" in html and "<input" in html:
+        return "Text Input (number)"
     return "Interactable Element"
+
+async def extract_interaction_info(html): #use general input type
+    if '<a' in html:
+        return "Link"
+    if '<button' in html or "type='button'" in html or "role='button'" in html:
+        return "Button"
+    if "<input" in html:
+        return "Input"
+    return "Uncased Element"
 
 async def get_usable_elements(page, url):
     await page.goto(url)
@@ -123,9 +134,10 @@ async def parse_and_clean(elements):
         element_id = await element.get_attribute("id")
 
 
-        element_info = (xpath, text_content, name_attribute, interaction_info, element_id)
+        element_info = (xpath, text_content, name_attribute, interaction_info, element_id, html)
         cleaned_output.append(element_info)
-        print(html)
+        print(f"html: {html}")
+        print(f"xpath: {xpath}")
 
     return cleaned_output
 
@@ -143,8 +155,12 @@ async def click_element_by_xpath(page, xpath):
         # await page.wait_for_load_state('networkidle')
         # await locator.first.hover()
         await page.wait_for_load_state('networkidle')
+        with open('tree1.txt', 'w') as file:
+            file.write(parse_accessibility_tree(await page.accessibility.snapshot()))
         await locator.first.click()
         await page.wait_for_load_state('networkidle')
+        with open('tree2.txt', 'w') as file:
+            file.write(parse_accessibility_tree(await page.accessibility.snapshot()))
 
 
         return
@@ -153,27 +169,74 @@ async def click_element_by_xpath(page, xpath):
         # await page.wait_for_load_state('networkidle')
         # await locator.first.hover()
         await page.wait_for_load_state('networkidle')
-        # await locator.first.scrollIntoViewIfNeeded()
-
+        with open('tree1.txt', 'w') as file:
+            file.write(parse_accessibility_tree(await page.accessibility.snapshot()))
         await locator.first.click()
         await page.wait_for_load_state('networkidle')
+        with open('tree2.txt', 'w') as file:
+            file.write(parse_accessibility_tree(await page.accessibility.snapshot()))
 
         print(locator.count())
         return
     return
 
+async def interact_element_by_xpath(page, xpath, interaction_info, html):
+    locator = page.locator(f'xpath={xpath}')
+    count = await locator.count()
+    print("INTERACTING")
+    print(html)
+
+    if count == 0:
+        print(f"No elements found with this xpath: {xpath}")
+        return
+
+    if not await locator.is_visible():
+        print(f"For some reason not visible")
+
+    if await locator.is_disabled():
+        print("For some reason disabled")
 
 
+    if interaction_info in ["Text Input (enter text)", "Text Input (combobox)", "Text Input (general)"]:
+        print(f"Skipped text input")
+        generated_text = await use_gpt_fill_input(page, html) # maybe needs xpath? idk
+        await page.wait_for_load_state('networkidle')
+        await locator.first.fill(generated_text)
+    elif interaction_info in ["Link (click to navigate)", "Button (click to interact)", "Submit Button (click to submit form)", "Clickable Element (click to trigger action)"]:
+        await page.wait_for_load_state('networkidle')
+        await locator.first.click()
+    else:
+        print("No specific interaction defined for this element type.")
 
-def use_gpt_fill_input(page, xpath, text):
+    # Add any necessary wait or additional handling after interaction
+    await page.wait_for_load_state('networkidle')
+
+
+class IntrastateWebPageNode:
+    def __init__(self, url=None, private=None, public=None, acc_tree=None, embedding=None, parent=None, children=None):
+        self.url = url
+        self.private = private
+        self.public = private if public is None else public
+        self.parents = set()
+        self.ancestor_urls = set()
+        if url is not None:
+            self.ancestor_urls.add(url)
+        if parent is not None:
+            self.parents.add(parent)
+        self.acc_tree = acc_tree
+        self.children = set()
+        if children is not None:
+            self.children.update(children)
+        self.page_embedding = embedding
+def use_gpt_fill_input(page, html):
     pass
 
 
 async def main():
     async with async_playwright() as p:
 
-        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/tweezers-for-succulents-duo.html"
-        link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/index"
+        link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/tweezers-for-succulents-duo.html"
+        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/index"
         browser = await p.chromium.launch(headless=False)
         page = await browser.new_page()
 
@@ -184,7 +247,7 @@ async def main():
 
         elements = await get_usable_elements(page, link)
         await page.close()
-        for xpath, text_content, name_attribute, interaction_info, element_id in elements:
+        for xpath, text_content, name_attribute, interaction_info, element_id, html in elements:
 
             print("-------------------")
             print(interaction_info)
@@ -193,47 +256,29 @@ async def main():
             print(element_id)
             print("-------------------")
 
-            if interaction_info == "Link (click to navigate)" or interaction_info == "Button (click to interact)":
-                page = await browser.new_page()
+            page = await browser.new_page()
 
-                await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
-                await page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
-                await page.get_by_label("Password", exact=True).fill('Password.123')
-                await page.get_by_role("button", name="Sign In").click()
-                await page.goto(link)
-                await click_element_by_xpath(page, xpath)
-                tonk = input("Press Enter to continue...")
-                if tonk == '':
-                    pass
-                else:
-                    await browser.close()
-                    break
-                await page.close()
+            await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
+            await page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
+            await page.get_by_label("Password", exact=True).fill('Password.123')
+            await page.get_by_role("button", name="Sign In").click()
+            await page.goto(link)
+            await interact_element_by_xpath(page, xpath, interaction_info=interaction_info, html=html)
+            tonk = input("Press Enter to continue...")
+            if tonk == '':
+                pass
             else:
-                print("Not a link or button")
+                await browser.close()
+                break
+            await page.close()
 
 
 
 
         await browser.close()
 
+        
 
-        '''
-        descs = []
-        
-        for xpath, text_content, interaction_info in elements:
-            descs.append(text_content) #better naming
-            # Example: Click on the first element
-            # if elements.index((xpath, text_content, interaction_info)) == 0:
-                # await click_element_by_xpath(page, xpath)
-        
-        
-        print(len(set(descs)))
-        print(len(set(right_elements)))
-        print(set(descs) - set(right_elements))
-        print(set(right_elements) - set(descs))
-        
-        '''
 
 asyncio.run(main())
 
