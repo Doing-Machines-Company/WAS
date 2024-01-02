@@ -3,9 +3,34 @@ from playwright.async_api import async_playwright
 import re
 import json
 from urllib.parse import urlparse, urlunparse
+from openai import OpenAI
+import os
+
+api_key = os.getenv('OPENAI_API_KEY')
+
+client = OpenAI(api_key=api_key)
 
 with open('all_links.json', 'r') as file:
     all_links = json.load(file)
+
+user_context = {
+    "email": "emma.lopez@gmail.com",
+    "password": "Password.123",
+    "first_name": "Emma",
+    "last_name": "Lopez",
+    "address": "1234 Main St",
+    "city": "San Francisco",
+    "state": "California",
+    "zip": "94101",
+    "phone": "1234567890",
+    "cc_number": "1234567890123456",
+    "cc_exp_month": "01",
+    "cc_exp_year": "2022",
+    "cc_cvv": "123",
+    "desired_product": "Tennis Balls 24 count",
+    "desired_price": "$12.00",
+    "desired_amount": "10",
+}
 
 def normalize_url(url):  # Very aggressive normalization
     parsed_url = urlparse(url)
@@ -34,33 +59,6 @@ def parse_accessibility_tree(node, depth=0):
 
     return node_str
 
-async def extract_interaction_info_v0(html): #use general input type
-    if 'href="' in html:
-        return "Link (click to navigate)"
-    if '<button' in html or "type='button'" in html or "role='button'" in html:
-        return "Button (click to interact)"
-    if "type=\"submit\"" in html:
-        return "Submit Button (click to submit form)"
-    if "onclick=" in html:
-        return "Clickable Element (click to trigger action)"
-    if "type=\"text\"" in html or "type='email'" in html or "type='password'" in html:
-        return "Text Input (enter text)"
-    if "<select" in html:
-        return "Dropdown Select (choose an option)"
-    if "<textarea" in html:
-        return "Text Area (enter multiline text)"
-    if "type=\"checkbox\"" in html:
-        return "Checkbox (select an option)"
-    if "type=\"radio\"" in html:
-        return "Radio Button (select one option)"
-    if "role=\"combobox\"" in html:
-        return "Text Input (combobox)"
-    if "type=\"text\"" in html and "<input" in html:
-        return "Text Input (general)"
-    if "type=\"number\"" in html and "<input" in html:
-        return "Text Input (number)"
-    return "Interactable Element"
-
 async def extract_interaction_info(html): #use general input type
     if '<a' in html:
         return "link"
@@ -70,14 +68,12 @@ async def extract_interaction_info(html): #use general input type
         return "input"
     return "Uncased Element"
 
-async def get_usable_elements(page, url):
+async def get_usable_elements(page, url): # maybe remove duplicates if ever needed
     await page.goto(url)
     selector = "a, button, input, select, textarea, [onclick], [role='button']"
     await page.wait_for_load_state('networkidle')
     interactable_elements = await page.locator(selector).element_handles()
-    # print(len(interactable_elements))
-    cleaned_elements = await parse_and_clean(interactable_elements) # NEED TO REMOVE DUPLICATES
-    # print(len(cleaned_elementps))
+    cleaned_elements = await parse_and_clean(interactable_elements)
     return cleaned_elements
 
 async def parse_and_clean(elements):
@@ -130,45 +126,9 @@ async def parse_and_clean(elements):
     return cleaned_output
 
 
-async def click_element_by_xpath(page, xpath):
-    locator = page.locator(f'xpath={xpath}')
-
-    count = await locator.count()
-
-    if count == 0:
-        print(f"No elements with this xpath: {xpath}\n This should be impossible\n What????\n")
-        return
-    elif count == 1:
-        print("One element with this xpath")
-        # await page.wait_for_load_state('networkidle')
-        # await locator.first.hover()
-        await page.wait_for_load_state('networkidle')
-        with open('tree1.txt', 'w') as file:
-            file.write(parse_accessibility_tree(await page.accessibility.snapshot()))
-        await locator.first.click()
-        await page.wait_for_load_state('networkidle')
-        with open('tree2.txt', 'w') as file:
-            file.write(parse_accessibility_tree(await page.accessibility.snapshot()))
-
-
-        return
-    else:
-        print("Multiple elements with this xpath")
-        # await page.wait_for_load_state('networkidle')
-        # await locator.first.hover()
-        await page.wait_for_load_state('networkidle')
-        with open('tree1.txt', 'w') as file:
-            file.write(parse_accessibility_tree(await page.accessibility.snapshot()))
-        await locator.first.click()
-        await page.wait_for_load_state('networkidle')
-        with open('tree2.txt', 'w') as file:
-            file.write(parse_accessibility_tree(await page.accessibility.snapshot()))
-
-        print(locator.count())
-        return
-    return
 
 async def interact_element_by_xpath(page, xpath, interaction_info, html):
+    global user_context
     await page.wait_for_load_state('networkidle')
     locator = page.locator(f'xpath={xpath}')
     count = await locator.count()
@@ -178,16 +138,24 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html):
     if count == 0:
         print(f"No elements found with this xpath: {xpath}")
         return
+    elif count == 1:
+        print('One element found with this xpath')
+    else:
+        print('Multiple elements found with this xpath')
 
 
     if await locator.is_disabled():
         print("For some reason disabled")
 
+    before_tree = parse_accessibility_tree(await page.accessibility.snapshot())
+    print(before_tree)
 
     if interaction_info == "input":
-        print(f"Skipped text input")
-        return
-        generated_text = await use_gpt_fill_input(page, html) # maybe needs xpath? idk
+        print(f"Trying to input text")
+        # return
+        parse_acc_tree = parse_accessibility_tree(await page.accessibility.snapshot())
+        generated_text = use_gpt_fill_input(parse_acc_tree, html, user_context) # maybe needs xpath? idk
+        print(f"Generated text: {generated_text}")
         await page.wait_for_load_state('networkidle')
         await locator.first.fill(generated_text)
     elif interaction_info in ["link", "button"]:
@@ -199,12 +167,15 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html):
     # Add any necessary wait or additional handling after interaction
     await page.wait_for_load_state('networkidle')
 
+    after_tree = parse_accessibility_tree(await page.accessibility.snapshot())
+    print(after_tree)
+
 
 class IntrastateWebPageNode:
-    def __init__(self, url=None, private=None, public=None, acc_tree=None, embedding=None, parent=None, children=None):
+    def __init__(self, url=None, private=None, public=None, acc_tree=None, embedding=None, parent=None, children=None): # represented by url and action, action taken at url/state
         self.url = url
-        self.private = private
-        self.public = private if public is None else public
+        self.private = private # Action taken to reach it and objective accomplished
+        self.public = private if public is None else public # Possible objectives of all children
         self.parents = set()
         self.ancestor_urls = set()
         if url is not None:
@@ -216,8 +187,87 @@ class IntrastateWebPageNode:
         if children is not None:
             self.children.update(children)
         self.page_embedding = embedding
-async def use_gpt_fill_input(page, html):
-    pass
+
+
+def use_gpt_fill_input(tree_str, specific_html, user_context):
+    messages = [
+        {"role": "system",
+         "content": "You are an autonomous agent performing tasks for an user on a webshop. You are tasked with analyzing a web page based on the entire page's accessibility tree and one element's specific HTML."},
+        {"role": "system",
+         "content": "The HTML will represent an element that you must input some text into."},
+        {"role": "system",
+         "content": "The accessibility tree will be a string representation of the accessibility tree of the web page."},
+        {"role": "system",
+         "content": "You will also be given some context about the user, which will be a dictionary of information about the user."},
+        {"role": "system",
+         "content": "If nothing in the user context fits the input box, use \"N/A\""},
+        {"role": "system",
+         "content": "Reason through your answer, then give the exact string you would input into the box enclosed by '''s, like this: \n '''I would input this string'''"},
+        {"role": "user",
+        "content": f"Here's the information, what should be input into the element represented by the specific HTML? \n Specific element HTML: {specific_html}\nCurrent page accessibility tree:\n{tree_str}\nUser context: {user_context}\n"}
+    ]
+
+    response = client.chat.completions.create(
+        model="gpt-4-1106-preview",
+        messages=messages,
+        temperature=0.0,
+        max_tokens=400
+    )
+
+    result = response.choices[0].message.content
+
+    pattern = r"\'\'\'(.*?)\'\'\'"
+
+    match = re.search(pattern, result, re.DOTALL)
+    print(f"RESULT: {result}")
+    if match:
+        final_answer = match.group(1).strip()
+        return final_answer
+    else:
+        return "FAILURE"
+
+    return "FAILURE"
+
+
+
+def use_gpt_get_difference(tree_str1, tree_str2, action):
+    messages = [
+        {"role": "system",
+         "content": "You are an autonomous agent performing tasks for an user on a webshop. You are tasked with analyzing a web page based on the entire page's accessibility tree and one element's specific HTML."},
+        {"role": "system",
+         "content": "The HTML will represent an element that you must input some text into."},
+        {"role": "system",
+         "content": "The accessibility tree will be a string representation of the accessibility tree of the web page."},
+        {"role": "system",
+         "content": "You will also be given some context about the user, which will be a dictionary of information about the user."},
+        {"role": "system",
+         "content": "If nothing in the user context fits the input box, use \"N/A\""},
+        {"role": "system",
+         "content": "Reason through your answer, then give the exact string you would input into the box enclosed by '''s, like this: \n '''I would input this string'''"},
+        {"role": "user",
+        "content": f"Here's the information, what should be input into the element represented by the specific HTML? \n Specific element HTML: {specific_html}\nCurrent page accessibility tree:\n{tree_str}\nUser context: {user_context}\n"}
+    ]
+
+    response = client.chat.completions.create(
+        model="gpt-4-1106-preview",
+        messages=messages,
+        temperature=0.0,
+        max_tokens=400
+    )
+
+    result = response.choices[0].message.content
+
+    pattern = r"\'\'\'(.*?)\'\'\'"
+
+    match = re.search(pattern, result, re.DOTALL)
+    print(f"RESULT: {result}")
+    if match:
+        final_answer = match.group(1).strip()
+        return final_answer
+    else:
+        return "FAILURE"
+
+    return "FAILURE"
 
 
 async def main():
