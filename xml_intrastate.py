@@ -32,13 +32,15 @@ user_context = {
     "desired_amount": "10",
 }
 
-def normalize_url(url):  # Very aggressive normalization
+def normalize_url(url):
     parsed_url = urlparse(url)
     scheme = parsed_url.scheme if parsed_url.scheme else 'http'
     netloc = parsed_url.netloc
     path = parsed_url.path.rstrip('/')  # Remove trailing slashes from the path
-    # Ignoring the query and fragment
-    normalized_url = urlunparse((scheme, netloc, path, '', '', ''))
+    query = parsed_url.query  # Include the query part
+    fragment = parsed_url.fragment  # Include the fragment part
+
+    normalized_url = urlunparse((scheme, netloc, path, '', query, fragment))
     return normalized_url
 
 def parse_accessibility_tree(node, depth=0):
@@ -62,7 +64,7 @@ def parse_accessibility_tree(node, depth=0):
 async def extract_interaction_info(html): #use general input type
     if '<a' in html:
         return "link"
-    if '<button' in html or "type='button'" in html or "role='button'" in html or "select" in html or "select" in html or "[onclick]" in html or "onclick=" in html or "[role='button']" in html:
+    if ('<button' in html or "type='button'" in html or "role='button'" in html or "role=\"button\"" in html or "select" in html or "select" in html or "[onclick]" in html or "onclick=" in html or "[role='button']" in html) and "<div" not in html: # filter out div?
         return "button"
     if "<input" in html or "textarea" in html:
         return "input"
@@ -79,16 +81,21 @@ async def get_usable_elements(page, url): # maybe remove duplicates if ever need
 async def parse_and_clean(elements):
     cleaned_output = []
     for element in elements:
-        if not await element.is_visible() or await element.is_hidden() or await element.is_disabled():
-            continue
         href = await element.get_attribute('href')
         html = await element.evaluate("element => element.outerHTML")
+        # print(html)
+        if not await element.is_visible() or await element.is_hidden() or await element.is_disabled():
+            # print("BAD ELEMENT")
+            continue
+        if "disabled=\"disabled\"" in html:
+            continue
 
 
 
         if href and href.startswith('#'):
             continue
         elif href is not None and normalize_url(href) in all_links:
+            # print("ALREADY BAD!")
             continue
 
         if "type='hidden'" in html or 'type="hidden"' in html:
@@ -120,8 +127,8 @@ async def parse_and_clean(elements):
 
         element_info = (xpath, interaction_info, html)
         cleaned_output.append(element_info)
-        print(f"html: {html}")
-        print(f"xpath: {xpath}")
+        # print(f"html: {html}")
+        # print(f"xpath: {xpath}")
 
     return cleaned_output
 
@@ -144,11 +151,10 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html):
         print('Multiple elements found with this xpath')
 
 
-    if await locator.is_disabled():
+    if await locator.is_disabled() or await locator.is_hidden():
         print("For some reason disabled")
 
     before_tree = parse_accessibility_tree(await page.accessibility.snapshot())
-    print(before_tree)
 
     if interaction_info == "input":
         print(f"Trying to input text")
@@ -158,17 +164,26 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html):
         print(f"Generated text: {generated_text}")
         await page.wait_for_load_state('networkidle')
         await locator.first.fill(generated_text)
+        await page.wait_for_load_state('networkidle')
+        # if 'search' in html:
+        await page.keyboard.press('Enter')
+        await page.wait_for_load_state('networkidle')
+        action_description = f"Entered {generated_text} into {html}"
     elif interaction_info in ["link", "button"]:
         await page.wait_for_load_state('networkidle')
         await locator.first.click()
+        await page.wait_for_load_state('networkidle')
+        action_description = f"Clicked on {html}"
     else:
         print("No specific interaction defined for this element type.")
+        return
 
     # Add any necessary wait or additional handling after interaction
-    await page.wait_for_load_state('networkidle')
+
 
     after_tree = parse_accessibility_tree(await page.accessibility.snapshot())
-    print(after_tree)
+    difference = use_gpt_get_difference(before_tree, after_tree, action_description)
+    print(difference)
 
 
 class IntrastateWebPageNode:
@@ -233,19 +248,21 @@ def use_gpt_fill_input(tree_str, specific_html, user_context):
 def use_gpt_get_difference(tree_str1, tree_str2, action):
     messages = [
         {"role": "system",
-         "content": "You are an autonomous agent performing tasks for an user on a webshop. You are tasked with analyzing a web page based on the entire page's accessibility tree and one element's specific HTML."},
-        {"role": "system",
-         "content": "The HTML will represent an element that you must input some text into."},
+         "content": "You are an autonomous agent performing tasks for an user on a webshop. You are tasked with telling me what the effect of an action performed on a web page is, given the accessibility trees of the web page before and after the action, as well as the html of the element the action was performed on."},
         {"role": "system",
          "content": "The accessibility tree will be a string representation of the accessibility tree of the web page."},
         {"role": "system",
-         "content": "You will also be given some context about the user, which will be a dictionary of information about the user."},
+         "content": "Your answers are to be used to tag element interactions, so please be general and concise. You have to give me your description using general object types (like dates, products, numbers.etc), instead of specific instances of these objects (like June 24th, tweezers, 4). Do not ever give any information about amounts or quantities. Do definitely give any general type information, while being general, as long as it doesn't violate the other requirements I've given you. Emphasise the effects of the action performed."},
         {"role": "system",
-         "content": "If nothing in the user context fits the input box, use \"N/A\""},
+         "content": "Do not include any specific details about visual or informational changes to the page, only what these changes imply. Only include these changes if they are necessary to describe the effect of the action. "},
         {"role": "system",
-         "content": "Reason through your answer, then give the exact string you would input into the box enclosed by '''s, like this: \n '''I would input this string'''"},
+         "content": "This is important: if there's a difference in ordering of products/orders.etc between two accessibility trees (e.g., one has older orders, or price has become descending), you must include this difference in your answer."},
+        {"role": "system",
+         "content": "Reason through your answer, then give the exact string you would input into the box enclosed by '''s, like this: \n '''This is the difference between these two web page states'''"},
+        {"role": "system",
+         "content": "If nothing in the user context fits the input box, return '''N/A''' at the end of your message."},
         {"role": "user",
-        "content": f"Here's the information, what should be input into the element represented by the specific HTML? \n Specific element HTML: {specific_html}\nCurrent page accessibility tree:\n{tree_str}\nUser context: {user_context}\n"}
+        "content": f"Give me the effect of the action. Accessibility tree before the action: {tree_str1}\nAccessibility tree before the action:\n{tree_str2}\nThe action: {action}\n"}
     ]
 
     response = client.chat.completions.create(
@@ -267,7 +284,6 @@ def use_gpt_get_difference(tree_str1, tree_str2, action):
     else:
         return "FAILURE"
 
-    return "FAILURE"
 
 
 async def main():
@@ -275,6 +291,7 @@ async def main():
 
         link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/tweezers-for-succulents-duo.html"
         # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/index"
+        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/"
         browser = await p.chromium.launch(headless=False)
         page = await browser.new_page()
 
@@ -289,6 +306,7 @@ async def main():
 
             print("-------------------")
             print(interaction_info)
+            print(html)
             print("-------------------")
 
             page = await browser.new_page()
