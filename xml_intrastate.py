@@ -132,7 +132,7 @@ async def parse_and_clean(elements):
 
 
 
-async def interact_element_by_xpath(page, xpath, interaction_info, html):
+async def interact_element_by_xpath(page, xpath, interaction_info, html, root_node):
     global user_context
     await page.wait_for_load_state('networkidle')
     locator = page.locator(f'xpath={xpath}')
@@ -152,13 +152,12 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html):
     if await locator.is_disabled() or await locator.is_hidden():
         print("For some reason disabled")
 
-    before_tree = parse_accessibility_tree(await page.accessibility.snapshot())
+    before_tree = root_node.acc_tree
 
     if interaction_info == "input":
         print(f"Trying to input text")
         # return
-        parse_acc_tree = parse_accessibility_tree(await page.accessibility.snapshot())
-        generated_text = use_gpt_fill_input(parse_acc_tree, html, user_context) # maybe needs xpath? idk
+        generated_text = use_gpt_fill_input(before_tree, html, user_context) # maybe needs xpath? idk
         print(f"Generated text: {generated_text}")
         await page.wait_for_load_state('networkidle')
         await locator.first.fill(generated_text)
@@ -167,11 +166,21 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html):
         await page.keyboard.press('Enter')
         await page.wait_for_load_state('networkidle')
         action_description = f"Entered {generated_text} into {html} and pressed enter"
+
+        # TODO
+        edge_info = ("input", (generated_text, html))
+
+
     elif interaction_info in ["link", "button"]:
         await page.wait_for_load_state('networkidle')
         await locator.first.click()
         await page.wait_for_load_state('networkidle')
         action_description = f"Clicked on {html}"
+
+        # TODO
+        edge_info = ("click", html)
+
+
     else:
         print("No specific interaction defined for this element type.")
         return
@@ -180,19 +189,27 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html):
 
     after_tree = parse_accessibility_tree(await page.accessibility.snapshot())
     difference = use_gpt_get_difference(before_tree, after_tree, action_description)
+    child_node = IntrastateWebPageNode(url=page.url, edge=edge_info, private=difference, acc_tree=after_tree)
     print(difference)
-
+    root_node.add_child(child_node)
 
 class IntrastateWebPageNode:
-    def __init__(self, url=None, private=None, acc_tree=None, embedding=None): # represented by url and action, action taken at url/state
+    def __init__(self, url=None, edge=None, private=None, acc_tree=None, embedding=None): # represented by url and action, action taken at url/state
         self.url = url
-        self.private = private # something like (parent, action, html of action)
+        self.edge = edge # something like (action, html of action)
+        self.private = private
         self.public = None # functionality of all children operations
         self.parent = None
         self.ancestor_reps = set()
         self.acc_tree = acc_tree
-        self.children = []
+        self.children = [] # something like (parent, action, html of action)
         self.page_embedding = embedding
+
+    def add_child(self, child):
+        self.children.append(child)
+        child.parent = self
+        # self.public = self.public + child.public
+        # TODO ADD ANCESTORS self.ancestor_reps.add(child.public)
 
 
 def use_gpt_fill_input(tree_str, specific_html, user_context):
@@ -310,7 +327,9 @@ async def main():
         await page.get_by_label("Password", exact=True).fill('Password.123')
         await page.get_by_role("button", name="Sign In").click()
 
-
+        # def __init__(self, url=None, edge=None, acc_tree=None, embedding=None):
+        curr_page_acc_tree = parse_accessibility_tree(await page.accessibility.snapshot())
+        root_node = IntrastateWebPageNode(url=link, edge=None, acc_tree=curr_page_acc_tree)
 
         elements = await get_usable_elements(page, link)
         await page.close()
@@ -329,10 +348,10 @@ async def main():
             await page.get_by_role("button", name="Sign In").click()
 
             await page.goto(link)
-            curr_page_acc_tree = await page.accessibility.snapshot()
-            # def __init__(self, url=None, private=None, acc_tree=None, embedding=None):
-            root_node = IntrastateWebPageNode(url=link, private=None, acc_tree=curr_page_acc_tree)
-            await interact_element_by_xpath(page, xpath, interaction_info=interaction_info, html=html)
+
+
+
+            await interact_element_by_xpath(page, xpath, interaction_info=interaction_info, html=html, root_node=root_node)
             tonk = input("Press Enter to continue...")
             if tonk == '':
                 pass
@@ -342,7 +361,7 @@ async def main():
             await page.close()
 
 
-
+        # save root node
 
         await browser.close()
 
