@@ -64,7 +64,7 @@ def parse_accessibility_tree(node, depth=0):
 async def extract_interaction_info(html): #use general input type
     if '<a' in html:
         return "link"
-    if ('<button' in html or "type='button'" in html or "role='button'" in html or "role=\"button\"" in html or "select" in html or "select" in html or "[onclick]" in html or "onclick=" in html or "[role='button']" in html) and "<div" not in html: # filter out div?
+    if ('<button' in html or "type='button'" in html or "role='button'" in html or "role=\"button\"" in html or "select" in html or "select" in html or "[onclick]" in html or "onclick=" in html or "[role='button']" in html) and ("<div" not in html): # filter out div?
         return "button"
     if "<input" in html or "textarea" in html:
         return "input"
@@ -139,8 +139,8 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html):
     await page.wait_for_load_state('networkidle')
     locator = page.locator(f'xpath={xpath}')
     count = await locator.count()
-    print("INTERACTING")
-    print(html)
+    # print("INTERACTING")
+    # print(html)
 
     if count == 0:
         print(f"No elements found with this xpath: {xpath}")
@@ -168,7 +168,7 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html):
         # if 'search' in html:
         await page.keyboard.press('Enter')
         await page.wait_for_load_state('networkidle')
-        action_description = f"Entered {generated_text} into {html}"
+        action_description = f"Entered {generated_text} into {html} and pressed enter"
     elif interaction_info in ["link", "button"]:
         await page.wait_for_load_state('networkidle')
         await locator.first.click()
@@ -187,20 +187,16 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html):
 
 
 class IntrastateWebPageNode:
-    def __init__(self, url=None, private=None, public=None, acc_tree=None, embedding=None, parent=None, children=None): # represented by url and action, action taken at url/state
+    def __init__(self, url=None, private=None, public=None, acc_tree=None, embedding=None, parent=None): # represented by url and action, action taken at url/state
         self.url = url
-        self.private = private # Action taken to reach it and objective accomplished
-        self.public = private if public is None else public # Possible objectives of all children
+        self.private = private # Element interacted with to reach this state, as well as objective achieved
+        self.public = private if public is None else public # Possible objectives of all children, propagated from privates
         self.parents = set()
-        self.ancestor_urls = set()
-        if url is not None:
-            self.ancestor_urls.add(url)
+        self.ancestor_reps = set()
         if parent is not None:
             self.parents.add(parent)
         self.acc_tree = acc_tree
-        self.children = set()
-        if children is not None:
-            self.children.update(children)
+        self.children = []
         self.page_embedding = embedding
 
 
@@ -305,7 +301,7 @@ async def main():
         for xpath, interaction_info, html in elements:
 
             print("-------------------")
-            print(interaction_info)
+            print(f"Interaction info: {interaction_info}")
             print(html)
             print("-------------------")
 
