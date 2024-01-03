@@ -90,8 +90,6 @@ async def parse_and_clean(elements):
         if "disabled=\"disabled\"" in html:
             continue
 
-
-
         if href and href.startswith('#'):
             continue
         elif href is not None and normalize_url(href) in all_links:
@@ -178,7 +176,6 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html):
         print("No specific interaction defined for this element type.")
         return
 
-    # Add any necessary wait or additional handling after interaction
 
 
     after_tree = parse_accessibility_tree(await page.accessibility.snapshot())
@@ -187,14 +184,12 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html):
 
 
 class IntrastateWebPageNode:
-    def __init__(self, url=None, private=None, public=None, acc_tree=None, embedding=None, parent=None): # represented by url and action, action taken at url/state
+    def __init__(self, url=None, private=None, acc_tree=None, embedding=None): # represented by url and action, action taken at url/state
         self.url = url
-        self.private = private # Element interacted with to reach this state, as well as objective achieved
-        self.public = private if public is None else public # Possible objectives of all children, propagated from privates
-        self.parents = set()
+        self.private = private # something like (parent, action, html of action)
+        self.public = None # functionality of all children operations
+        self.parent = None
         self.ancestor_reps = set()
-        if parent is not None:
-            self.parents.add(parent)
         self.acc_tree = acc_tree
         self.children = []
         self.page_embedding = embedding
@@ -281,6 +276,25 @@ def use_gpt_get_difference(tree_str1, tree_str2, action):
         return "FAILURE"
 
 
+async def scrape_leaves(root_node):
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=False)
+        page = await browser.new_page()
+
+        await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
+        await page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
+        await page.get_by_label("Password", exact=True).fill('Password.123')
+        await page.get_by_role("button", name="Sign In").click()
+
+        # Logged in
+
+        await page.goto(root_node.url)
+
+        # At root node url, always start at root node url
+
+        leaves = []
+
+
 
 async def main():
     async with async_playwright() as p:
@@ -295,6 +309,8 @@ async def main():
         await page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
         await page.get_by_label("Password", exact=True).fill('Password.123')
         await page.get_by_role("button", name="Sign In").click()
+
+
 
         elements = await get_usable_elements(page, link)
         await page.close()
@@ -311,7 +327,11 @@ async def main():
             await page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
             await page.get_by_label("Password", exact=True).fill('Password.123')
             await page.get_by_role("button", name="Sign In").click()
+
             await page.goto(link)
+            curr_page_acc_tree = await page.accessibility.snapshot()
+            # def __init__(self, url=None, private=None, acc_tree=None, embedding=None):
+            root_node = IntrastateWebPageNode(url=link, private=None, acc_tree=curr_page_acc_tree)
             await interact_element_by_xpath(page, xpath, interaction_info=interaction_info, html=html)
             tonk = input("Press Enter to continue...")
             if tonk == '':
