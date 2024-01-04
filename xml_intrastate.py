@@ -43,6 +43,16 @@ def normalize_url(url):
     normalized_url = urlunparse((scheme, netloc, path, '', query, fragment))
     return normalized_url
 
+
+def aggressive_url_norm(url):  # Very aggressive normalization
+    parsed_url = urlparse(url)
+    scheme = parsed_url.scheme if parsed_url.scheme else 'http'
+    netloc = parsed_url.netloc
+    path = parsed_url.path.rstrip('/')  # Remove trailing slashes from the path
+    # Ignoring the query and fragment
+    normalized_url = urlunparse((scheme, netloc, path, '', '', ''))
+    return normalized_url
+
 def parse_accessibility_tree(node, depth=0):
     if not node or 'role' not in node:
         return ""
@@ -70,8 +80,7 @@ async def extract_interaction_info(html): #use general input type
         return "input"
     return "Uncased Element"
 
-async def get_usable_elements(page, url): # maybe remove duplicates if ever needed
-    await page.goto(url)
+async def get_usable_elements(page): # maybe remove duplicates if ever needed
     selector = "a, button, input, select, textarea, [onclick], [role='button']"
     await page.wait_for_load_state('networkidle')
     interactable_elements = await page.locator(selector).element_handles()
@@ -130,7 +139,49 @@ async def parse_and_clean(elements):
 
     return cleaned_output
 
+async def step_by_xpath(page, edge):
+    # edge_info = (interaction_info, generated_text, html, xpath)
+    interaction_info, generated_text, html, xpath = edge
+    await page.wait_for_load_state('networkidle')
+    locator = page.locator(f'xpath={xpath}')
+    count = await locator.count()
+    if count == 0:
+        print(f"STEPPING: No elements found with this xpath: {xpath}")
+        print("IMPOSSIbLE BAD")
+    elif count == 1:
+        print('STEPPING: One element found with this xpath')
+    else:
+        print('STEPPING: Multiple elements found with this xpath')
 
+    if interaction_info == 'click':
+        await page.wait_for_load_state('networkidle')
+        locator.first.click()
+        await page.wait_for_load_state('networkidle')
+    elif interaction_info == 'input':
+        await page.wait_for_load_state('networkidle')
+        await locator.first.fill(generated_text)
+        await page.wait_for_load_state('networkidle')
+        await page.keyboard.press('Enter')
+        await page.wait_for_load_state('networkidle')
+
+def print_intrastate_node_tree(node, depth=0):
+    if not node:
+        return
+
+    # Create an indent based on the depth of the node in the tree
+    indent = '    ' * depth
+
+    # Print the current node's details
+    print(f"{indent}Node URL: {node.url}")
+    print(f"{indent}Edge: {node.edge if node.edge is not None else 'None'}")
+    print(f"{indent}Private: {node.private if node.private is not None else 'None'}")
+    acc_tree_preview = (node.acc_tree[:30] + '...') if node.acc_tree else 'None'
+    print(f"{indent}Accessibility Tree: {acc_tree_preview}")
+    print(f"{indent}Number of Children: {len(node.children)}")
+
+    # Recursively print each child node
+    for child in node.children:
+        print_intrastate_node_tree(child, depth + 1)
 
 async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
     global user_context
@@ -168,7 +219,7 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
         action_description = f"Entered {generated_text} into {html} and pressed enter"
 
         # TODO
-        edge_info = ("input", generated_text, html, xpath)
+        edge_info = (interaction_info, generated_text, html, xpath)
 
 
     elif interaction_info in ["link", "button"]:
@@ -178,7 +229,7 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
         action_description = f"Clicked on {html}"
 
         # TODO
-        edge_info = ("click", 'click', html, xpath)
+        edge_info = (interaction_info, interaction_info, html, xpath)
 
 
     else:
@@ -197,30 +248,22 @@ class IntrastateWebPageNode:
     def __init__(self, url=None, edge=None, private=None, acc_tree=None, embedding=None): # represented by url and action, action taken at url/state
         self.url = url
         self.edge = edge # something like (action, html of action)
-        self.private = private
+        self.private = private # effect of edge operation on parent
         self.public = None # functionality of all children operations
         self.parent = None
         self.trajectory = [] # How you got here from root
 
         self.acc_tree = acc_tree
-        self.children = [] # something like (parent, action, html of action)
+        self.children = []
         self.page_embedding = embedding
 
     def add_child(self, child):
         self.children.append(child)
         child.parent = self
-        # self.public = self.public + child.public
-        # TODO ADD ANCESTORS self.ancestor_reps.add(child.public)
-        # TODO DO WE NEED THIS????? self.ancestor_reps.union(self.parent.ancestor_reps)
+        if self.parent:
+            child.trajectory = self.parent.trajectory
+        child.trajectory.append(child.edge)
 
-    def aggressive_url_norm(self, url):  # Very aggressive normalization
-        parsed_url = urlparse(url)
-        scheme = parsed_url.scheme if parsed_url.scheme else 'http'
-        netloc = parsed_url.netloc
-        path = parsed_url.path.rstrip('/')  # Remove trailing slashes from the path
-        # Ignoring the query and fragment
-        normalized_url = urlunparse((scheme, netloc, path, '', '', ''))
-        return normalized_url
 
 
 
@@ -243,7 +286,8 @@ def use_gpt_fill_input(tree_str, specific_html, user_context):
     ]
 
     response = client.chat.completions.create(
-        model="gpt-4-1106-preview",
+        # model="gpt-4-1106-preview",
+        model="gpt-3.5-turbo-1106",
         messages=messages,
         temperature=0.0,
         max_tokens=400
@@ -304,39 +348,39 @@ def use_gpt_get_difference(tree_str1, tree_str2, action):
     else:
         return "FAILURE"
 
-async def get_leaves(root_node, leaves):
-    if leaves == None:
+async def get_leaves(node):
+    if node.children == []:
+        return [node]
+    else:
         leaves = []
+        for child in node.children:
+            await leaves.extend(get_leaves(child))
+        return leaves
 
-    for child in root_node.children:
-        if child.children == []:
-            leaves.append(child)
-        else:
-            leaves = await get_leaves(child, leaves)
-
-async def scrape_leaves(root_node):
+async def scrape_leaves(root_node, leaves):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=False)
 
         # At root node url, always start at root node url
 
-        leaves = []
-
-        await get_leaves(root_node, leaves)
+        leaves = await get_leaves(root_node)
 
         for leaf in leaves:
             page = await browser.new_page()
-
             await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
             await page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
             await page.get_by_label("Password", exact=True).fill('Password.123')
             await page.get_by_role("button", name="Sign In").click()
+            await page.goto(root_node.url)
 
-            # Logged in
+            trajectory = leaf.trajectory
 
-            await page.goto(leaf.url) # acc tree already exists, so get usable elements, need to traverse here
+            for edge in trajectory: # does nothing for root_node
+                await step_by_xpath(page, edge)
 
-            elements = await get_usable_elements(page, leaf.url)
+            # Now at leaf state, root starts at root
+
+            elements = await get_usable_elements(page)
 
             await page.close()
 
@@ -354,16 +398,25 @@ async def scrape_leaves(root_node):
                 await page.get_by_label("Password", exact=True).fill('Password.123')
                 await page.get_by_role("button", name="Sign In").click()
 
-                await page.goto(leaf.url)
+                await page.goto(root_node.url)
+
+                trajectory = leaf.trajectory
+
+                print(f"LEAF TRAJ: {leaf.trajectory}")
+
+                for edge in trajectory:  # does nothing for root_node
+                    await step_by_xpath(page, edge)
+
+
 
                 await interact_element_by_xpath(page, xpath, interaction_info=interaction_info, html=html, node=leaf)
 
-                tonk = input("Press Enter to continue...")
-                if tonk == '':
-                    pass
-                else:
-                    await browser.close()
-                    break
+                # tonk = input("Press Enter to continue...")
+                # if tonk == '':
+                #     pass
+                # else:
+                #     await browser.close()
+                #     break
                 await page.close()
 
 
@@ -376,8 +429,6 @@ async def main():
     async with async_playwright() as p:
 
         link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/tweezers-for-succulents-duo.html"
-        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/index"
-        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/"
         browser = await p.chromium.launch(headless=False)
         page = await browser.new_page()
 
@@ -388,41 +439,61 @@ async def main():
 
         # def __init__(self, url=None, edge=None, acc_tree=None, embedding=None):
         curr_page_acc_tree = parse_accessibility_tree(await page.accessibility.snapshot())
-        root_node = IntrastateWebPageNode(url=link, edge=None, acc_tree=curr_page_acc_tree)
+        # child_node = IntrastateWebPageNode(url=page.url, edge=edge_info, private=difference, acc_tree=after_tree)
+        root_node = IntrastateWebPageNode(url=link, edge=None, private=None, acc_tree=curr_page_acc_tree)
 
-        elements = await get_usable_elements(page, link)
         await page.close()
-        for xpath, interaction_info, html in elements:
-
-            print("-------------------")
-            print(f"Interaction info: {interaction_info}")
-            print(html)
-            print("-------------------")
-
-            page = await browser.new_page()
-
-            await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
-            await page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
-            await page.get_by_label("Password", exact=True).fill('Password.123')
-            await page.get_by_role("button", name="Sign In").click()
-
-            await page.goto(link)
-
-
-
-            await interact_element_by_xpath(page, xpath, interaction_info=interaction_info, html=html, node=root_node)
-            tonk = input("Press Enter to continue...")
-            if tonk == '':
-                pass
-            else:
-                await browser.close()
-                break
-            await page.close()
-
-
-        # save root node
-
         await browser.close()
+
+
+    leaves = await get_leaves(root_node)
+
+    print(leaves)
+
+    print(f"ROOT TRAJ: {root_node.trajectory}")
+
+    await scrape_leaves(root_node, leaves)
+
+    '''
+    
+    elements = await get_usable_elements(page)
+    await page.close()
+    for xpath, interaction_info, html in elements:
+
+        print("-------------------")
+        print(f"Interaction info: {interaction_info}")
+        print(html)
+        print("-------------------")
+
+        page = await browser.new_page()
+
+        await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
+        await page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
+        await page.get_by_label("Password", exact=True).fill('Password.123')
+        await page.get_by_role("button", name="Sign In").click()
+
+        await page.goto(link)
+
+
+
+        await interact_element_by_xpath(page, xpath, interaction_info=interaction_info, html=html, node=root_node)
+        tonk = input("Press Enter to continue...")
+        if tonk == '':
+            pass
+        else:
+            await browser.close()
+            break
+        await page.close()
+    '''
+
+
+
+
+    # save root node
+
+    print_intrastate_node_tree(root_node)
+
+
 
         
 
