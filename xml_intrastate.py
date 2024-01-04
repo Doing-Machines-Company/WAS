@@ -132,7 +132,7 @@ async def parse_and_clean(elements):
 
 
 
-async def interact_element_by_xpath(page, xpath, interaction_info, html, root_node):
+async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
     global user_context
     await page.wait_for_load_state('networkidle')
     locator = page.locator(f'xpath={xpath}')
@@ -152,7 +152,7 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, root_no
     if await locator.is_disabled() or await locator.is_hidden():
         print("For some reason disabled")
 
-    before_tree = root_node.acc_tree
+    before_tree = node.acc_tree
 
     if interaction_info == "input":
         print(f"Trying to input text")
@@ -168,7 +168,7 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, root_no
         action_description = f"Entered {generated_text} into {html} and pressed enter"
 
         # TODO
-        edge_info = ("input", (generated_text, html))
+        edge_info = ("input", generated_text, html, xpath)
 
 
     elif interaction_info in ["link", "button"]:
@@ -178,7 +178,7 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, root_no
         action_description = f"Clicked on {html}"
 
         # TODO
-        edge_info = ("click", html)
+        edge_info = ("click", 'click', html, xpath)
 
 
     else:
@@ -191,7 +191,7 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, root_no
     difference = use_gpt_get_difference(before_tree, after_tree, action_description)
     child_node = IntrastateWebPageNode(url=page.url, edge=edge_info, private=difference, acc_tree=after_tree)
     print(difference)
-    root_node.add_child(child_node)
+    node.add_child(child_node)
 
 class IntrastateWebPageNode:
     def __init__(self, url=None, edge=None, private=None, acc_tree=None, embedding=None): # represented by url and action, action taken at url/state
@@ -200,7 +200,8 @@ class IntrastateWebPageNode:
         self.private = private
         self.public = None # functionality of all children operations
         self.parent = None
-        self.ancestor_reps = set()
+        self.trajectory = [] # How you got here from root
+
         self.acc_tree = acc_tree
         self.children = [] # something like (parent, action, html of action)
         self.page_embedding = embedding
@@ -210,6 +211,17 @@ class IntrastateWebPageNode:
         child.parent = self
         # self.public = self.public + child.public
         # TODO ADD ANCESTORS self.ancestor_reps.add(child.public)
+        # TODO DO WE NEED THIS????? self.ancestor_reps.union(self.parent.ancestor_reps)
+
+    def aggressive_url_norm(self, url):  # Very aggressive normalization
+        parsed_url = urlparse(url)
+        scheme = parsed_url.scheme if parsed_url.scheme else 'http'
+        netloc = parsed_url.netloc
+        path = parsed_url.path.rstrip('/')  # Remove trailing slashes from the path
+        # Ignoring the query and fragment
+        normalized_url = urlunparse((scheme, netloc, path, '', '', ''))
+        return normalized_url
+
 
 
 def use_gpt_fill_input(tree_str, specific_html, user_context):
@@ -292,24 +304,71 @@ def use_gpt_get_difference(tree_str1, tree_str2, action):
     else:
         return "FAILURE"
 
+async def get_leaves(root_node, leaves):
+    if leaves == None:
+        leaves = []
+
+    for child in root_node.children:
+        if child.children == []:
+            leaves.append(child)
+        else:
+            leaves = await get_leaves(child, leaves)
 
 async def scrape_leaves(root_node):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=False)
-        page = await browser.new_page()
-
-        await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
-        await page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
-        await page.get_by_label("Password", exact=True).fill('Password.123')
-        await page.get_by_role("button", name="Sign In").click()
-
-        # Logged in
-
-        await page.goto(root_node.url)
 
         # At root node url, always start at root node url
 
         leaves = []
+
+        await get_leaves(root_node, leaves)
+
+        for leaf in leaves:
+            page = await browser.new_page()
+
+            await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
+            await page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
+            await page.get_by_label("Password", exact=True).fill('Password.123')
+            await page.get_by_role("button", name="Sign In").click()
+
+            # Logged in
+
+            await page.goto(leaf.url) # acc tree already exists, so get usable elements, need to traverse here
+
+            elements = await get_usable_elements(page, leaf.url)
+
+            await page.close()
+
+            for xpath, interaction_info, html in elements:
+
+                print("-------------------")
+                print(f"Interaction info: {interaction_info}")
+                print(html)
+                print("-------------------")
+
+                page = await browser.new_page()
+
+                await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
+                await page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
+                await page.get_by_label("Password", exact=True).fill('Password.123')
+                await page.get_by_role("button", name="Sign In").click()
+
+                await page.goto(leaf.url)
+
+                await interact_element_by_xpath(page, xpath, interaction_info=interaction_info, html=html, node=leaf)
+
+                tonk = input("Press Enter to continue...")
+                if tonk == '':
+                    pass
+                else:
+                    await browser.close()
+                    break
+                await page.close()
+
+
+
+
 
 
 
@@ -351,7 +410,7 @@ async def main():
 
 
 
-            await interact_element_by_xpath(page, xpath, interaction_info=interaction_info, html=html, root_node=root_node)
+            await interact_element_by_xpath(page, xpath, interaction_info=interaction_info, html=html, node=root_node)
             tonk = input("Press Enter to continue...")
             if tonk == '':
                 pass
