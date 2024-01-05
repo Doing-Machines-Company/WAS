@@ -164,6 +164,7 @@ async def step_by_xpath(page, edge):
     if count == 0:
         print(f"STEPPING: No elements found with this xpath: {xpath}")
         print("IMPOSSIbLE BAD")
+        return
     elif count == 1:
         print('STEPPING: One element found with this xpath')
     else:
@@ -384,14 +385,14 @@ def use_gpt_get_difference(tree_str1, tree_str2, action):
     else:
         return "FAILURE"
 
-async def get_leaves(node):
+def get_leaves(node):
     if node.children == []:
         return [node]
     else:
         leaves = []
         print(f"NODE CHILDREN: {node.children}")
         for child in node.children:
-            leaves.extend(await get_leaves(child))
+            leaves.extend(get_leaves(child))
         return leaves
 
 async def scrape_leaves(root_node):
@@ -400,7 +401,7 @@ async def scrape_leaves(root_node):
 
         # At root node url, always start at root node url
 
-        leaves = await get_leaves(root_node)
+        leaves = get_leaves(root_node)
 
         for leaf in leaves:
             if not leaf.url.startswith(aggressive_url_norm(root_node.url)):
@@ -415,8 +416,13 @@ async def scrape_leaves(root_node):
 
             trajectory = leaf.trajectory
 
+            print(f"LEAF TRAJ: {leaf.trajectory}")
             for edge in trajectory: # does nothing for root_node
-                await step_by_xpath(outer_page, edge)
+                print(f"CURR EDGE: {edge}")
+                print(f"CURR PAGE URL: {outer_page.url}")
+                await step_by_xpath(outer_page, edge) # FIRST STEP FUCKS UP SOMEHOW
+                input("CONTINUE TRAJ")
+                print(f"CURR PAGE URL AFTER: {outer_page.url}")
 
             print("NOW AT DESIRED PAGE HOPEFULLY")
 
@@ -553,7 +559,7 @@ async def main():
     while True:
         await scrape_leaves(root_node)
         print("SCRAPE ROUND FINISHED! ")
-        current_leaves = await get_leaves(root_node)
+        current_leaves = get_leaves(root_node)
         if len(current_leaves) == previous_leaf_count:
             print("DONE!!!!!")
             break
