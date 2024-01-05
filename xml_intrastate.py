@@ -232,7 +232,8 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
     if interaction_info == "input":
         # print(f"Trying to input text")
         # return
-        generated_text = use_gpt_fill_input(before_tree, html, user_context) # maybe needs xpath? idk
+        # generated_text = use_gpt_fill_input(before_tree, html, user_context) # maybe needs xpath? idk
+        generated_text = "TESTING MODE"
         # print(f"Generated text: {generated_text}")
         await page.wait_for_load_state('networkidle')
         await locator.first.fill(generated_text)
@@ -418,8 +419,10 @@ async def scrape_leaves(root_node):
                 await step_by_xpath(outer_page, edge)
 
             print("NOW AT DESIRED PAGE HOPEFULLY")
+
             print(outer_page.url)
             print(outer_page.url)
+            # input("tonk")
             # http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/
             # http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/catalogsearch/result/?q=Tennis+Balls+24+count
 
@@ -549,8 +552,10 @@ async def main():
     previous_leaf_count = 0
     while True:
         await scrape_leaves(root_node)
+        print("SCRAPE ROUND FINISHED! ")
         current_leaves = await get_leaves(root_node)
         if len(current_leaves) == previous_leaf_count:
+            print("DONE!!!!!")
             break
         previous_leaf_count = len(current_leaves)
 
@@ -590,7 +595,7 @@ async def main():
 
 
     # save root node
-
+    print("DONE!!!")
     print_intrastate_node_tree(root_node)
     print(f"ALL HTMLS: {all_htmls}")
 
