@@ -5,10 +5,14 @@ import json
 from urllib.parse import urlparse, urlunparse
 from openai import OpenAI
 import os
+from bs4 import BeautifulSoup
+
 
 api_key = os.getenv('OPENAI_API_KEY')
 
 client = OpenAI(api_key=api_key)
+
+all_htmls = []
 
 with open('all_links.json', 'r') as file:
     all_links = json.load(file)
@@ -80,21 +84,25 @@ async def extract_interaction_info(html): #use general input type
         return "input"
     return "Uncased Element"
 
-async def get_usable_elements(page): # maybe remove duplicates if ever needed
+async def get_usable_elements(page, leaf): # maybe remove duplicates if ever needed
     selector = "a, button, input, select, textarea, [onclick], [role='button']"
     await page.wait_for_load_state('networkidle')
     interactable_elements = await page.locator(selector).element_handles()
-    cleaned_elements = await parse_and_clean(interactable_elements)
-    return cleaned_elements
+    cleaned_elements = await parse_and_clean(interactable_elements, leaf)
+    cleaned_and_reduced_elements = await reduce_duplicate_elements(cleaned_elements, leaf)
+    print(cleaned_and_reduced_elements)
+    return cleaned_and_reduced_elements
 
-async def parse_and_clean(elements):
+async def parse_and_clean(elements, parent_node):
+    global all_htmls
     cleaned_output = []
     for element in elements:
         href = await element.get_attribute('href')
         html = await element.evaluate("element => element.outerHTML")
-        # print(html)
-        if not await element.is_visible() or await element.is_hidden() or await element.is_disabled():
-            # print("BAD ELEMENT")
+
+        if not await element.is_visible() or await element.is_hidden():
+            continue
+        if await element.is_disabled():
             continue
         if "disabled=\"disabled\"" in html:
             continue
@@ -102,7 +110,10 @@ async def parse_and_clean(elements):
         if href and href.startswith('#'):
             continue
         elif href is not None and normalize_url(href) in all_links:
-            # print("ALREADY BAD!")
+            # print(f"USED href: {href}")
+            continue
+
+        if parent_node.parent and parent_node.parent.url == normalize_url(href): # TODO WHAT?
             continue
 
         if "type='hidden'" in html or 'type="hidden"' in html:
@@ -134,7 +145,8 @@ async def parse_and_clean(elements):
 
         element_info = (xpath, interaction_info, html)
         cleaned_output.append(element_info)
-        # print(f"html: {html}")
+        all_htmls.append(html)
+        print(f"USED html: {html}")
         # print(f"xpath: {xpath}")
 
     return cleaned_output
@@ -173,11 +185,11 @@ def print_intrastate_node_tree(node, depth=0):
 
     # Print the current node's details
     print(f"{indent}Node URL: {node.url}")
-    print(f"{indent}Edge: {node.edge if node.edge is not None else 'None'}")
+    print(f"{indent}Edge: {node.edge[2] if node.edge is not None else 'None'}")
     print(f"{indent}Private: {node.private if node.private is not None else 'None'}")
-    acc_tree_preview = (node.acc_tree[:30] + '...') if node.acc_tree else 'None'
-    print(f"{indent}Accessibility Tree: {acc_tree_preview}")
-    print(f"{indent}Number of Children: {len(node.children)}")
+    # acc_tree_preview = (node.acc_tree[:30] + '...') if node.acc_tree else 'None'
+    # print(f"{indent}Accessibility Tree: {acc_tree_preview}")
+    # print(f"{indent}Number of Children: {len(node.children)}")
 
     # Recursively print each child node
     for child in node.children:
@@ -245,6 +257,8 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
     node.add_child(child_node)
 
 class IntrastateWebPageNode:
+    unique_interacts_visible = set()
+    unique_interacts_html = set()
     def __init__(self, url=None, edge=None, private=None, acc_tree=None, embedding=None): # represented by url and action, action taken at url/state
         self.url = url
         self.edge = edge # something like (action, html of action)
@@ -256,6 +270,7 @@ class IntrastateWebPageNode:
         self.acc_tree = acc_tree
         self.children = []
         self.page_embedding = embedding
+        self.unique_interacts = set()
 
     def add_child(self, child):
         self.children.append(child)
@@ -263,6 +278,7 @@ class IntrastateWebPageNode:
         if self.parent:
             child.trajectory = self.parent.trajectory
         child.trajectory.append(child.edge)
+        IntrastateWebPageNode.unique_interacts.add((self.url, get_visible_from_html(child.edge[2]), child.edge[0])) # SHOULD ALREADY BE ADDED
 
 
 
@@ -357,7 +373,7 @@ async def get_leaves(node):
             await leaves.extend(get_leaves(child))
         return leaves
 
-async def scrape_leaves(root_node, leaves):
+async def scrape_leaves(root_node):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=False)
 
@@ -380,15 +396,15 @@ async def scrape_leaves(root_node, leaves):
 
             # Now at leaf state, root starts at root
 
-            elements = await get_usable_elements(page)
+            elements = await get_usable_elements(page, leaf)
 
             await page.close()
 
             for xpath, interaction_info, html in elements:
 
                 print("-------------------")
-                print(f"Interaction info: {interaction_info}")
-                print(html)
+                # print(f"Interaction info: {interaction_info}")
+                # print(html)
                 print("-------------------")
 
                 page = await browser.new_page()
@@ -420,15 +436,45 @@ async def scrape_leaves(root_node, leaves):
                 await page.close()
 
 
+def get_visible_from_html(html):
+    soup = BeautifulSoup(html, 'html.parser')
+    return soup.get_text(strip=True)
+
+
+async def reduce_duplicate_elements(elements, parent_node): # same url + same visible text = BAD!
+    reduced_elements = []
+
+    for element in elements:
+        # Extract text content for comparison
+        visible_text = get_visible_from_html(element[2])
+        print(f"VISIBLE TEXT: {visible_text}")
+        # Use a composite key of xpath, interaction_info, and visible text for uniqueness
+
+        # element_info = (xpath, interaction_info, html)
+        # IntrastateWebPageNode.unique_interacts.add((self.url, get_visible_from_html(child.edge[2]), child.edge[0])) (url, vis_text, interaction_info)
+
+        composite_key_visible = (parent_node.url, element[1], visible_text) # should be added later on
+        composite_key_html = (parent_node.url, element[1], element[2]) # should catch empty text cases
+
+        if composite_key_visible not in IntrastateWebPageNode.unique_interacts_visible or composite_key_html not in IntrastateWebPageNode.unique_interacts_html:
+            reduced_elements.append(element)
+            IntrastateWebPageNode.unique_interacts_visible.add(composite_key_visible)
+            IntrastateWebPageNode.unique_interacts_visible.add(composite_key_html)
 
 
 
+
+
+    return reduced_elements
 
 
 async def main():
+    global all_htmls
     async with async_playwright() as p:
 
-        link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/tweezers-for-succulents-duo.html"
+        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/tweezers-for-succulents-duo.html"
+        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/"
+        link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/"
         browser = await p.chromium.launch(headless=False)
         page = await browser.new_page()
 
@@ -446,13 +492,9 @@ async def main():
         await browser.close()
 
 
-    leaves = await get_leaves(root_node)
 
-    print(leaves)
+    await scrape_leaves(root_node)
 
-    print(f"ROOT TRAJ: {root_node.trajectory}")
-
-    await scrape_leaves(root_node, leaves)
 
     '''
     
@@ -492,6 +534,7 @@ async def main():
     # save root node
 
     print_intrastate_node_tree(root_node)
+    print(f"ALL HTMLS: {all_htmls}")
 
 
 
