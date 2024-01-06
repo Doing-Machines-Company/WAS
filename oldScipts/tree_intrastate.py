@@ -92,6 +92,41 @@ async def click_interactable_elements(page, element):
         except Exception as e:
             print(f"Error clicking on element: {e}")
 
+async def find_element_xpath(page, role, name):
+    # Find the element using role and name (accessible name)
+    selector = f"[role='{role}']:text('{name}')"
+    element_handle = await page.query_selector(selector)
+
+    if element_handle:
+        # Execute JavaScript to compute the XPath of the element
+        xpath = await page.evaluate('''(element) => {
+            const getXPath = (node) => {
+                if (node.id !== '') {
+                    return `id("${node.id}")`;
+                }
+                if (node === document.body) {
+                    return node.tagName;
+                }
+
+                let nodeIndex = 0;
+                let siblings = node.parentNode.childNodes;
+                for (let i = 0; i < siblings.length; i++) {
+                    let sibling = siblings[i];
+                    if (sibling === node) {
+                        return `${getXPath(node.parentNode)}/${node.tagName}[${nodeIndex + 1}]`;
+                    }
+                    if (sibling.nodeType === 1 && sibling.tagName === node.tagName) {
+                        nodeIndex++;
+                    }
+                }
+            };
+
+            return getXPath(element);
+        }''', element_handle)
+
+        return xpath
+
+    return None
 
 async def get_link_url(page, link_name):
     link_element = await page.query_selector(f"a:has-text('{link_name}')")
@@ -137,6 +172,7 @@ async def main():
             await page.get_by_role("button", name="Sign In").click()
             await page.goto(link)
             print("logged")
+            print(await find_element_xpath(page, element['role'], element['name']))
             await click_interactable_elements(page, element)
             print("clicked")
             tonk = input("Press Enter to continue...")

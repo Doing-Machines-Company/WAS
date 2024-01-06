@@ -15,6 +15,8 @@ client = OpenAI(api_key=api_key)
 
 all_htmls = []
 
+all_creates_trees = []
+
 with open('all_links.json', 'r') as file:
     all_links = json.load(file)
 
@@ -36,6 +38,10 @@ user_context = {
     "desired_price": "$12.00",
     "desired_amount": "10",
 }
+
+def url_depth(url):
+    parsed = urlparse(url)
+    return parsed.path.count('/')
 
 def normalize_url(url):
     parsed_url = urlparse(url)
@@ -103,6 +109,8 @@ async def parse_and_clean(elements, parent_node):
         href = await element.get_attribute('href')
         html = await element.evaluate("element => element.outerHTML")
 
+        # print(f"HREF: {href}")
+
         if not await element.is_visible() or await element.is_hidden():
             continue
         if await element.is_disabled():
@@ -112,9 +120,10 @@ async def parse_and_clean(elements, parent_node):
 
         if href and href.startswith('#'):
             continue
-        elif href is not None and normalize_url(href) in all_links:
-            # # print(f"USED href: {href}")
+        elif href is not None and (normalize_url(href) in all_links or (url_depth(normalize_url(href)) <= 1 and href.endswith(".html"))):
+            print(f"REMOVED href: {href}")
             continue
+
 
         # print(f"HREF: {href}")
         if parent_node.parent and href and parent_node.parent.url == normalize_url(href): # TODO WHAT?
@@ -214,6 +223,7 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
         print("For some reason disabled")
 
     before_tree = node.acc_tree
+    visible_text = get_visible_from_html(html)
 
     if interaction_info == "input":
         # # print(f"Trying to input text")
@@ -230,8 +240,10 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
 
         action_description = f"Entered {generated_text} into {html} and pressed enter"
 
+
+
         # TODO
-        edge_info = (interaction_info, generated_text, html, xpath)
+        edge_info = (interaction_info, generated_text, html, xpath, visible_text)
 
 
     elif interaction_info in ["link", "button"]:
@@ -243,7 +255,7 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
         # print(f"AFTER ADDRESS {page.url}")
 
         # TODO
-        edge_info = (interaction_info, interaction_info, html, xpath)
+        edge_info = (interaction_info, interaction_info, html, xpath, visible_text)
 
 
     else:
@@ -410,13 +422,16 @@ async def scrape_leaves(root_node):
             trajectory = leaf.trajectory
 
             # print(f"LEAF TRAJ: {leaf.trajectory}")
+            '''
             for edge in trajectory: # does nothing for root_node
                 print("BEFORE STEP")
                 print(outer_page.url)
                 await step_by_xpath(outer_page, edge) # FIRST STEP FUCKS UP SOMEHOW
                 print("AFTER STEP")
                 print(outer_page.url)
+            '''
 
+            # TODO RECONSIDER STEPPING STRATEGY FOR EXCLUSIVE ENTRIES, PERHAPS START STATE UPON ENTRY?
 
             elements = await get_usable_elements(outer_page, leaf)
 
@@ -430,7 +445,7 @@ async def scrape_leaves(root_node):
                 return
 
 
-
+            # edge_info = (interaction_info, generated_text, html, xpath, visible_text)
             for xpath, interaction_info, html in elements:
                 inner_browser = await p.chromium.launch(headless=True)
 
@@ -481,9 +496,15 @@ def get_visible_from_html(html):
 async def reduce_duplicate_elements(elements, parent_node): # same url + same visible text = BAD!
     reduced_elements = []
 
+    page_number_remover = re.compile(r'Page\d+')
+
     for element in elements:
         # Extract text content for comparison
         visible_text = get_visible_from_html(element[2])
+        print(f"VISIBLE TEXT: {visible_text}")
+
+        if page_number_remover.search(visible_text):
+            continue
         # Use a composite key of xpath, interaction_info, and visible text for uniqueness
 
         # element_info = (xpath, interaction_info, html)
@@ -532,6 +553,7 @@ async def main():
         # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/tweezers-for-succulents-duo.html"
         # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/"
         link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/"
+        link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/home-kitchen/storage-organization/baskets-bins-containers.html"
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
 
@@ -552,23 +574,14 @@ async def main():
 
     # await scrape_leaves(root_node)
 
-    previous_leaf_count = 0
-    while True:
-        await scrape_leaves(root_node)
-        # print("SCRAPE ROUND FINISHED! ")
-        current_leaves = get_leaves(root_node)
-        print(f"CURRENT LEAVES: {len(current_leaves)}")
-        if len(current_leaves) == previous_leaf_count:
-            print("DONE!!!!!")
-            break
-        previous_leaf_count = len(current_leaves)
+    await scrape_leaves(root_node)
 
 
     # save root node
     print("DONE!!!")
     # print_intrastate_node_tree(root_node)
     print(f"ALL HTMLS: {all_htmls}")
-    save_tree_to_json(root_node, 'drafttree1.json')
+    save_tree_to_json(root_node, 'drafttree5.json')
 
 
 

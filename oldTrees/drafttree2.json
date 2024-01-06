@@ -1,0 +1,199 @@
+{
+    "url": "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/",
+    "edge": null,
+    "private": null,
+    "public": null,
+    "acc_tree": "[WebArea] 'My Account'\n",
+    "trajectory": [],
+    "children": [
+        {
+            "url": "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/catalogsearch/result/?q=TESTING+MODE",
+            "edge": [
+                "input",
+                "TESTING MODE",
+                "<input id=\"search\" type=\"text\" name=\"q\" value=\"\" placeholder=\"Search entire store here...\" class=\"input-text\" maxlength=\"128\" role=\"combobox\" aria-haspopup=\"false\" aria-autocomplete=\"both\" autocomplete=\"off\" aria-expanded=\"false\">",
+                "id(\"search\")"
+            ],
+            "private": "Initiated a search operation",
+            "public": null,
+            "acc_tree": "[WebArea] ''\n",
+            "trajectory": [
+                [
+                    "input",
+                    "TESTING MODE",
+                    "<input id=\"search\" type=\"text\" name=\"q\" value=\"\" placeholder=\"Search entire store here...\" class=\"input-text\" maxlength=\"128\" role=\"combobox\" aria-haspopup=\"false\" aria-autocomplete=\"both\" autocomplete=\"off\" aria-expanded=\"false\">",
+                    "id(\"search\")"
+                ]
+            ],
+            "children": []
+        },
+        {
+            "url": "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/view/order_id/166/",
+            "edge": [
+                "link",
+                "link",
+                "<a href=\"http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/view/order_id/166/\" class=\"action view\">\n                                <span>View Order</span>\n                            </a>",
+                "HTML[1]/BODY[1]/DIV[2]/MAIN[1]/DIV[2]/DIV[1]/DIV[3]/TABLE[1]/TBODY[1]/TR[6]/TD[5]/A[1]"
+            ],
+            "private": "N/A",
+            "public": null,
+            "acc_tree": "[WebArea] 'Order # 000000166'\n\t[link] 'My Account'\n\t[link] 'My Wish List'\n\t[link] 'Sign Out'\n\t[text] 'Welcome to One Stop Market'\n\t[link] 'Skip to Content'\n\t[link] 'store logo'\n\t[link] '\\ue611 My Cart'\n\t[text] '\\ue615'\n\t[text] 'Search'\n\t[combobox] '\\ue615 Search'\n\t[link] 'Advanced Search'\n\t[button] 'Search'\n\t[menu] ''\n\t\t[menuitem] '\\ue622 Beauty & Personal Care'\n\t\t[menuitem] '\\ue622 Sports & Outdoors'\n\t\t[menuitem] '\\ue622 Clothing, Shoes & Jewelry'\n\t\t[menuitem] '\\ue622 Home & Kitchen'\n\t\t[menuitem] '\\ue622 Office Products'\n\t\t[menuitem] '\\ue622 Tools & Home Improvement'\n\t\t[menuitem] '\\ue622 Health & Household'\n\t\t[menuitem] '\\ue622 Patio, Lawn & Garden'\n\t\t[menuitem] '\\ue622 Electronics'\n\t\t[menuitem] '\\ue622 Cell Phones & Accessories'\n\t\t[menuitem] '\\ue622 Video Games'\n\t\t[menuitem] '\\ue622 Grocery & Gourmet Food'\n\t[generic] ''\n\t[heading] 'Order # 000000166'\n\t[text] 'Complete'\n\t[text] 'Order Date:'\n\t[text] ' '\n\t[text] 'March 10, 2023'\n\t[link] 'Reorder'\n\t[link] 'Print Order'\n\t[text] 'Items Ordered'\n\t[text] 'Items Ordered'\n\t[text] 'Items Ordered'\n\t[text] 'Product Name'\n\t[text] 'SKU'\n\t[text] 'Price'\n\t[text] 'Qty'\n\t[text] 'Subtotal'\n\t[text] 'Kosher MRE Meat Meals Ready to Eat, Beef Cholent & Kugel (1 Pack) - Prepared Shabbos Food Fully Cooked, Shelf Stable Microwave Dinner \u2013 Travel, Military, Camping, Emergency Survival Protein Supply'\n\t[text] 'Style'\n\t[text] '1 Pack'\n\t[text] 'B005IR33MM'\n\t[text] '$12.99'\n\t[text] 'Ordered'\n\t[text] ': '\n\t[text] '1'\n\t[text] '$12.99'\n\t[text] 'Subtotal'\n\t[text] '$12.99'\n\t[text] 'Shipping & Handling'\n\t[text] '$5.00'\n\t[text] 'Grand Total'\n\t[text] '$17.99'\n\t[text] 'Order Information'\n\t[text] 'Shipping Address'\n\t[text] 'Emma Lopez'\n\t[LineBreak] '\\n'\n\t[text] '101 S San Mateo Dr'\n\t[LineBreak] '\\n'\n\t[text] 'San Mateo, California, 94010'\n\t[LineBreak] '\\n'\n\t[text] 'United States'\n\t[LineBreak] '\\n'\n\t[text] 'T: '\n\t[link] '6505551212'\n\t[text] 'Shipping Method'\n\t[text] 'Flat Rate - Fixed'\n\t[text] 'Billing Address'\n\t[text] 'Emma Lopez'\n\t[LineBreak] '\\n'\n\t[text] '101 S San Mateo Dr'\n\t[LineBreak] '\\n'\n\t[text] 'San Mateo, California, 94010'\n\t[LineBreak] '\\n'\n\t[text] 'United States'\n\t[LineBreak] '\\n'\n\t[text] 'T: '\n\t[link] '6505551212'\n\t[text] 'Payment Method'\n\t[text] 'Check / Money order'\n\t[text] 'My Account'\n\t[link] 'My Account'\n\t[link] 'My Orders'\n\t[link] 'My Downloadable Products'\n\t[link] 'My Wish List'\n\t[link] 'Address Book'\n\t[link] 'Account Information'\n\t[link] 'Stored Payment Methods'\n\t[link] 'My Product Reviews'\n\t[link] 'Newsletter Subscriptions'\n\t[heading] 'Compare Products'\n\t[text] 'You have no items to compare.'\n\t[heading] 'My Wish List'\n\t[text] 'You have no items in your wish list.'\n\t[text] '\\ue61d'\n\t[text] 'Sign Up for Our Newsletter:'\n\t[textbox] 'Sign Up for Our Newsletter:'\n\t[button] 'Subscribe'\n\t[link] 'Privacy and Cookie Policy'\n\t[link] 'Search Terms'\n\t[link] 'Advanced Search'\n\t[link] 'Contact Us'\n\t[text] 'Copyright \u00a9 2013-present Magento, Inc. All rights reserved.'\n\t[text] 'Help Us Keep Magento Healthy'\n\t[text] ' '\n\t[link] 'Report All Bugs'\n",
+            "trajectory": [
+                [
+                    "link",
+                    "link",
+                    "<a href=\"http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/view/order_id/166/\" class=\"action view\">\n                                <span>View Order</span>\n                            </a>",
+                    "HTML[1]/BODY[1]/DIV[2]/MAIN[1]/DIV[2]/DIV[1]/DIV[3]/TABLE[1]/TBODY[1]/TR[6]/TD[5]/A[1]"
+                ]
+            ],
+            "children": []
+        },
+        {
+            "url": "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/?p=2",
+            "edge": [
+                "link",
+                "link",
+                "<a href=\"http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/?p=2\" class=\"page\">\n                            <span class=\"label\">Page</span>\n                            <span>2</span>\n                        </a>",
+                "HTML[1]/BODY[1]/DIV[2]/MAIN[1]/DIV[2]/DIV[1]/DIV[4]/DIV[1]/DIV[1]/UL[1]/LI[2]/A[1]"
+            ],
+            "private": "N/A",
+            "public": null,
+            "acc_tree": "[WebArea] 'My Orders'\n\t[link] 'My Account'\n\t[link] 'My Wish List'\n\t[link] 'Sign Out'\n\t[text] 'Welcome to One Stop Market'\n\t[link] 'Skip to Content'\n\t[link] 'store logo'\n\t[link] '\\ue611 My Cart'\n\t[text] '\\ue615'\n\t[text] 'Search'\n\t[combobox] '\\ue615 Search'\n\t[link] 'Advanced Search'\n\t[button] 'Search'\n\t[menu] ''\n\t\t[menuitem] '\\ue622 Beauty & Personal Care'\n\t\t[menuitem] '\\ue622 Sports & Outdoors'\n\t\t[menuitem] '\\ue622 Clothing, Shoes & Jewelry'\n\t\t[menuitem] '\\ue622 Home & Kitchen'\n\t\t[menuitem] '\\ue622 Office Products'\n\t\t[menuitem] '\\ue622 Tools & Home Improvement'\n\t\t[menuitem] '\\ue622 Health & Household'\n\t\t[menuitem] '\\ue622 Patio, Lawn & Garden'\n\t\t[menuitem] '\\ue622 Electronics'\n\t\t[menuitem] '\\ue622 Cell Phones & Accessories'\n\t\t[menuitem] '\\ue622 Video Games'\n\t\t[menuitem] '\\ue622 Grocery & Gourmet Food'\n\t[generic] ''\n\t[heading] 'My Orders'\n\t[text] 'Orders'\n\t[text] 'Order #'\n\t[text] 'Date'\n\t[text] 'Order Total'\n\t[text] 'Status'\n\t[text] 'Action'\n\t[text] '000000148'\n\t[text] '1/29/23'\n\t[text] '$440.64'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000163'\n\t[text] '1/16/23'\n\t[text] '$132.24'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000154'\n\t[text] '12/18/22'\n\t[text] '$97.15'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000184'\n\t[text] '12/14/22'\n\t[text] '$20.49'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000162'\n\t[text] '12/12/22'\n\t[text] '$53.29'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000174'\n\t[text] '12/4/22'\n\t[text] '$32.47'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000164'\n\t[text] '11/26/22'\n\t[text] '$218.17'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000171'\n\t[text] '11/20/22'\n\t[text] '$133.07'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000183'\n\t[text] '11/11/22'\n\t[text] '$51.94'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000176'\n\t[text] '10/22/22'\n\t[text] '$845.07'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] 'Items 11 to 20 of 37 total'\n\t[text] 'Page'\n\t[link] '\\ue617 Page Previous'\n\t[link] 'Page 1'\n\t[text] \"You're currently reading page\"\n\t[text] '2'\n\t[link] 'Page 3'\n\t[link] 'Page 4'\n\t[link] '\\ue608 Page Next'\n\t[text] 'Show'\n\t[combobox] ''\n\t\t[menuitem] '10'\n\t\t[menuitem] '20'\n\t\t[menuitem] '50'\n\t[text] 'per page'\n\t[text] 'My Account'\n\t[link] 'My Account'\n\t[text] 'My Orders'\n\t[link] 'My Downloadable Products'\n\t[link] 'My Wish List'\n\t[link] 'Address Book'\n\t[link] 'Account Information'\n\t[link] 'Stored Payment Methods'\n\t[link] 'My Product Reviews'\n\t[link] 'Newsletter Subscriptions'\n\t[heading] 'Compare Products'\n\t[text] 'You have no items to compare.'\n\t[heading] 'My Wish List'\n\t[text] 'You have no items in your wish list.'\n\t[text] '\\ue61d'\n\t[text] 'Sign Up for Our Newsletter:'\n\t[textbox] 'Sign Up for Our Newsletter:'\n\t[button] 'Subscribe'\n\t[link] 'Privacy and Cookie Policy'\n\t[link] 'Search Terms'\n\t[link] 'Advanced Search'\n\t[link] 'Contact Us'\n\t[text] 'Copyright \u00a9 2013-present Magento, Inc. All rights reserved.'\n\t[text] 'Help Us Keep Magento Healthy'\n\t[text] ' '\n\t[link] 'Report All Bugs'\n",
+            "trajectory": [
+                [
+                    "link",
+                    "link",
+                    "<a href=\"http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/?p=2\" class=\"page\">\n                            <span class=\"label\">Page</span>\n                            <span>2</span>\n                        </a>",
+                    "HTML[1]/BODY[1]/DIV[2]/MAIN[1]/DIV[2]/DIV[1]/DIV[4]/DIV[1]/DIV[1]/UL[1]/LI[2]/A[1]"
+                ]
+            ],
+            "children": []
+        },
+        {
+            "url": "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/?p=3",
+            "edge": [
+                "link",
+                "link",
+                "<a href=\"http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/?p=3\" class=\"page\">\n                            <span class=\"label\">Page</span>\n                            <span>3</span>\n                        </a>",
+                "HTML[1]/BODY[1]/DIV[2]/MAIN[1]/DIV[2]/DIV[1]/DIV[4]/DIV[1]/DIV[1]/UL[1]/LI[3]/A[1]"
+            ],
+            "private": "Navigated to a different page in the order history",
+            "public": null,
+            "acc_tree": "[WebArea] 'My Orders'\n\t[link] 'My Account'\n\t[link] 'My Wish List'\n\t[link] 'Sign Out'\n\t[text] 'Welcome to One Stop Market'\n\t[link] 'Skip to Content'\n\t[link] 'store logo'\n\t[link] '\\ue611 My Cart'\n\t[text] '\\ue615'\n\t[text] 'Search'\n\t[combobox] '\\ue615 Search'\n\t[link] 'Advanced Search'\n\t[button] 'Search'\n\t[menu] ''\n\t\t[menuitem] '\\ue622 Beauty & Personal Care'\n\t\t[menuitem] '\\ue622 Sports & Outdoors'\n\t\t[menuitem] '\\ue622 Clothing, Shoes & Jewelry'\n\t\t[menuitem] '\\ue622 Home & Kitchen'\n\t\t[menuitem] '\\ue622 Office Products'\n\t\t[menuitem] '\\ue622 Tools & Home Improvement'\n\t\t[menuitem] '\\ue622 Health & Household'\n\t\t[menuitem] '\\ue622 Patio, Lawn & Garden'\n\t\t[menuitem] '\\ue622 Electronics'\n\t\t[menuitem] '\\ue622 Cell Phones & Accessories'\n\t\t[menuitem] '\\ue622 Video Games'\n\t\t[menuitem] '\\ue622 Grocery & Gourmet Food'\n\t[generic] ''\n\t[heading] 'My Orders'\n\t[text] 'Orders'\n\t[text] 'Order #'\n\t[text] 'Date'\n\t[text] 'Order Total'\n\t[text] 'Status'\n\t[text] 'Action'\n\t[text] '000000178'\n\t[text] '10/21/22'\n\t[text] '$345.84'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000177'\n\t[text] '10/18/22'\n\t[text] '$2,126.32'\n\t[text] 'Canceled'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000185'\n\t[text] '10/3/22'\n\t[text] '$18.99'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000179'\n\t[text] '9/29/22'\n\t[text] '$2,890.53'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000175'\n\t[text] '9/1/22'\n\t[text] '$133.85'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000172'\n\t[text] '8/12/22'\n\t[text] '$77.66'\n\t[text] 'Canceled'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000155'\n\t[text] '8/10/22'\n\t[text] '$38.99'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000165'\n\t[text] '8/4/22'\n\t[text] '$36.99'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000149'\n\t[text] '7/25/22'\n\t[text] '$354.66'\n\t[text] 'Canceled'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000167'\n\t[text] '7/8/22'\n\t[text] '$40.16'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] 'Items 21 to 30 of 37 total'\n\t[text] 'Page'\n\t[link] '\\ue617 Page Previous'\n\t[link] 'Page 1'\n\t[link] 'Page 2'\n\t[text] \"You're currently reading page\"\n\t[text] '3'\n\t[link] 'Page 4'\n\t[link] '\\ue608 Page Next'\n\t[text] 'Show'\n\t[combobox] ''\n\t\t[menuitem] '10'\n\t\t[menuitem] '20'\n\t\t[menuitem] '50'\n\t[text] 'per page'\n\t[text] 'My Account'\n\t[link] 'My Account'\n\t[text] 'My Orders'\n\t[link] 'My Downloadable Products'\n\t[link] 'My Wish List'\n\t[link] 'Address Book'\n\t[link] 'Account Information'\n\t[link] 'Stored Payment Methods'\n\t[link] 'My Product Reviews'\n\t[link] 'Newsletter Subscriptions'\n\t[heading] 'Compare Products'\n\t[text] 'You have no items to compare.'\n\t[heading] 'My Wish List'\n\t[text] 'You have no items in your wish list.'\n\t[text] '\\ue61d'\n\t[text] 'Sign Up for Our Newsletter:'\n\t[textbox] 'Sign Up for Our Newsletter:'\n\t[button] 'Subscribe'\n\t[link] 'Privacy and Cookie Policy'\n\t[link] 'Search Terms'\n\t[link] 'Advanced Search'\n\t[link] 'Contact Us'\n\t[text] 'Copyright \u00a9 2013-present Magento, Inc. All rights reserved.'\n\t[text] 'Help Us Keep Magento Healthy'\n\t[text] ' '\n\t[link] 'Report All Bugs'\n",
+            "trajectory": [
+                [
+                    "link",
+                    "link",
+                    "<a href=\"http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/?p=3\" class=\"page\">\n                            <span class=\"label\">Page</span>\n                            <span>3</span>\n                        </a>",
+                    "HTML[1]/BODY[1]/DIV[2]/MAIN[1]/DIV[2]/DIV[1]/DIV[4]/DIV[1]/DIV[1]/UL[1]/LI[3]/A[1]"
+                ]
+            ],
+            "children": []
+        },
+        {
+            "url": "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/?p=4",
+            "edge": [
+                "link",
+                "link",
+                "<a href=\"http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/?p=4\" class=\"page\">\n                            <span class=\"label\">Page</span>\n                            <span>4</span>\n                        </a>",
+                "HTML[1]/BODY[1]/DIV[2]/MAIN[1]/DIV[2]/DIV[1]/DIV[4]/DIV[1]/DIV[1]/UL[1]/LI[4]/A[1]"
+            ],
+            "private": "Navigated to a different page within the order history section",
+            "public": null,
+            "acc_tree": "[WebArea] 'My Orders'\n\t[link] 'My Account'\n\t[link] 'My Wish List'\n\t[link] 'Sign Out'\n\t[text] 'Welcome to One Stop Market'\n\t[link] 'Skip to Content'\n\t[link] 'store logo'\n\t[link] '\\ue611 My Cart'\n\t[text] '\\ue615'\n\t[text] 'Search'\n\t[combobox] '\\ue615 Search'\n\t[link] 'Advanced Search'\n\t[button] 'Search'\n\t[menu] ''\n\t\t[menuitem] '\\ue622 Beauty & Personal Care'\n\t\t[menuitem] '\\ue622 Sports & Outdoors'\n\t\t[menuitem] '\\ue622 Clothing, Shoes & Jewelry'\n\t\t[menuitem] '\\ue622 Home & Kitchen'\n\t\t[menuitem] '\\ue622 Office Products'\n\t\t[menuitem] '\\ue622 Tools & Home Improvement'\n\t\t[menuitem] '\\ue622 Health & Household'\n\t\t[menuitem] '\\ue622 Patio, Lawn & Garden'\n\t\t[menuitem] '\\ue622 Electronics'\n\t\t[menuitem] '\\ue622 Cell Phones & Accessories'\n\t\t[menuitem] '\\ue622 Video Games'\n\t\t[menuitem] '\\ue622 Grocery & Gourmet Food'\n\t[generic] ''\n\t[heading] 'My Orders'\n\t[text] 'Orders'\n\t[text] 'Order #'\n\t[text] 'Date'\n\t[text] 'Order Total'\n\t[text] 'Status'\n\t[text] 'Action'\n\t[text] '000000182'\n\t[text] '6/30/22'\n\t[text] '$173.56'\n\t[text] 'Canceled'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000181'\n\t[text] '5/22/22'\n\t[text] '$298.65'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000168'\n\t[text] '4/27/22'\n\t[text] '$24.86'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000159'\n\t[text] '4/5/22'\n\t[text] '$77.96'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000173'\n\t[text] '3/10/22'\n\t[text] '$206.59'\n\t[text] 'Canceled'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000160'\n\t[text] '3/2/22'\n\t[text] '$115.18'\n\t[text] 'Canceled'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000169'\n\t[text] '3/2/22'\n\t[text] '$52.35'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] 'Items 31 to 37 of 37 total'\n\t[text] 'Page'\n\t[link] '\\ue617 Page Previous'\n\t[link] 'Page 1'\n\t[link] 'Page 2'\n\t[link] 'Page 3'\n\t[text] \"You're currently reading page\"\n\t[text] '4'\n\t[text] 'Show'\n\t[combobox] ''\n\t\t[menuitem] '10'\n\t\t[menuitem] '20'\n\t\t[menuitem] '50'\n\t[text] 'per page'\n\t[text] 'My Account'\n\t[link] 'My Account'\n\t[text] 'My Orders'\n\t[link] 'My Downloadable Products'\n\t[link] 'My Wish List'\n\t[link] 'Address Book'\n\t[link] 'Account Information'\n\t[link] 'Stored Payment Methods'\n\t[link] 'My Product Reviews'\n\t[link] 'Newsletter Subscriptions'\n\t[heading] 'Compare Products'\n\t[text] 'You have no items to compare.'\n\t[heading] 'My Wish List'\n\t[text] 'You have no items in your wish list.'\n\t[text] '\\ue61d'\n\t[text] 'Sign Up for Our Newsletter:'\n\t[textbox] 'Sign Up for Our Newsletter:'\n\t[button] 'Subscribe'\n\t[link] 'Privacy and Cookie Policy'\n\t[link] 'Search Terms'\n\t[link] 'Advanced Search'\n\t[link] 'Contact Us'\n\t[text] 'Copyright \u00a9 2013-present Magento, Inc. All rights reserved.'\n\t[text] 'Help Us Keep Magento Healthy'\n\t[text] ' '\n\t[link] 'Report All Bugs'\n",
+            "trajectory": [
+                [
+                    "link",
+                    "link",
+                    "<a href=\"http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/?p=4\" class=\"page\">\n                            <span class=\"label\">Page</span>\n                            <span>4</span>\n                        </a>",
+                    "HTML[1]/BODY[1]/DIV[2]/MAIN[1]/DIV[2]/DIV[1]/DIV[4]/DIV[1]/DIV[1]/UL[1]/LI[4]/A[1]"
+                ]
+            ],
+            "children": []
+        },
+        {
+            "url": "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/?p=2",
+            "edge": [
+                "link",
+                "link",
+                "<a class=\"action  next\" href=\"http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/?p=2\" title=\"Next\">\n                        <span class=\"label\">Page</span>\n                        <span>Next</span>\n                    </a>",
+                "HTML[1]/BODY[1]/DIV[2]/MAIN[1]/DIV[2]/DIV[1]/DIV[4]/DIV[1]/DIV[1]/UL[1]/LI[5]/A[1]"
+            ],
+            "private": "The user navigated to the next page of their order history",
+            "public": null,
+            "acc_tree": "[WebArea] 'My Orders'\n\t[link] 'My Account'\n\t[link] 'My Wish List'\n\t[link] 'Sign Out'\n\t[text] 'Welcome to One Stop Market'\n\t[link] 'Skip to Content'\n\t[link] 'store logo'\n\t[link] '\\ue611 My Cart'\n\t[text] '\\ue615'\n\t[text] 'Search'\n\t[combobox] '\\ue615 Search'\n\t[link] 'Advanced Search'\n\t[button] 'Search'\n\t[menu] ''\n\t\t[menuitem] '\\ue622 Beauty & Personal Care'\n\t\t[menuitem] '\\ue622 Sports & Outdoors'\n\t\t[menuitem] '\\ue622 Clothing, Shoes & Jewelry'\n\t\t[menuitem] '\\ue622 Home & Kitchen'\n\t\t[menuitem] '\\ue622 Office Products'\n\t\t[menuitem] '\\ue622 Tools & Home Improvement'\n\t\t[menuitem] '\\ue622 Health & Household'\n\t\t[menuitem] '\\ue622 Patio, Lawn & Garden'\n\t\t[menuitem] '\\ue622 Electronics'\n\t\t[menuitem] '\\ue622 Cell Phones & Accessories'\n\t\t[menuitem] '\\ue622 Video Games'\n\t\t[menuitem] '\\ue622 Grocery & Gourmet Food'\n\t[generic] ''\n\t[heading] 'My Orders'\n\t[text] 'Orders'\n\t[text] 'Order #'\n\t[text] 'Date'\n\t[text] 'Order Total'\n\t[text] 'Status'\n\t[text] 'Action'\n\t[text] '000000148'\n\t[text] '1/29/23'\n\t[text] '$440.64'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000163'\n\t[text] '1/16/23'\n\t[text] '$132.24'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000154'\n\t[text] '12/18/22'\n\t[text] '$97.15'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000184'\n\t[text] '12/14/22'\n\t[text] '$20.49'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000162'\n\t[text] '12/12/22'\n\t[text] '$53.29'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000174'\n\t[text] '12/4/22'\n\t[text] '$32.47'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000164'\n\t[text] '11/26/22'\n\t[text] '$218.17'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000171'\n\t[text] '11/20/22'\n\t[text] '$133.07'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000183'\n\t[text] '11/11/22'\n\t[text] '$51.94'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000176'\n\t[text] '10/22/22'\n\t[text] '$845.07'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] 'Items 11 to 20 of 37 total'\n\t[text] 'Page'\n\t[link] '\\ue617 Page Previous'\n\t[link] 'Page 1'\n\t[text] \"You're currently reading page\"\n\t[text] '2'\n\t[link] 'Page 3'\n\t[link] 'Page 4'\n\t[link] '\\ue608 Page Next'\n\t[text] 'Show'\n\t[combobox] ''\n\t\t[menuitem] '10'\n\t\t[menuitem] '20'\n\t\t[menuitem] '50'\n\t[text] 'per page'\n\t[text] 'My Account'\n\t[link] 'My Account'\n\t[text] 'My Orders'\n\t[link] 'My Downloadable Products'\n\t[link] 'My Wish List'\n\t[link] 'Address Book'\n\t[link] 'Account Information'\n\t[link] 'Stored Payment Methods'\n\t[link] 'My Product Reviews'\n\t[link] 'Newsletter Subscriptions'\n\t[heading] 'Compare Products'\n\t[text] 'You have no items to compare.'\n\t[heading] 'My Wish List'\n\t[text] 'You have no items in your wish list.'\n\t[text] '\\ue61d'\n\t[text] 'Sign Up for Our Newsletter:'\n\t[textbox] 'Sign Up for Our Newsletter:'\n\t[button] 'Subscribe'\n\t[link] 'Privacy and Cookie Policy'\n\t[link] 'Search Terms'\n\t[link] 'Advanced Search'\n\t[link] 'Contact Us'\n\t[text] 'Copyright \u00a9 2013-present Magento, Inc. All rights reserved.'\n\t[text] 'Help Us Keep Magento Healthy'\n\t[text] ' '\n\t[link] 'Report All Bugs'\n",
+            "trajectory": [
+                [
+                    "link",
+                    "link",
+                    "<a class=\"action  next\" href=\"http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/?p=2\" title=\"Next\">\n                        <span class=\"label\">Page</span>\n                        <span>Next</span>\n                    </a>",
+                    "HTML[1]/BODY[1]/DIV[2]/MAIN[1]/DIV[2]/DIV[1]/DIV[4]/DIV[1]/DIV[1]/UL[1]/LI[5]/A[1]"
+                ]
+            ],
+            "children": []
+        },
+        {
+            "url": "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/",
+            "edge": [
+                "input",
+                "TESTING MODE",
+                "<input name=\"email\" type=\"email\" id=\"newsletter\" placeholder=\"Enter your email address\" data-validate=\"{required:true, 'validate-email':true}\">",
+                "id(\"newsletter\")"
+            ],
+            "private": "Email address submitted for newsletter subscription",
+            "public": null,
+            "acc_tree": "[WebArea] 'My Orders'\n\t[link] 'My Account'\n\t[link] 'My Wish List'\n\t[link] 'Sign Out'\n\t[text] 'Welcome to One Stop Market'\n\t[link] 'Skip to Content'\n\t[link] 'store logo'\n\t[link] '\\ue611 My Cart'\n\t[text] '\\ue615'\n\t[text] 'Search'\n\t[combobox] '\\ue615 Search'\n\t[link] 'Advanced Search'\n\t[button] 'Search'\n\t[menu] ''\n\t\t[menuitem] '\\ue622 Beauty & Personal Care'\n\t\t[menuitem] '\\ue622 Sports & Outdoors'\n\t\t[menuitem] '\\ue622 Clothing, Shoes & Jewelry'\n\t\t[menuitem] '\\ue622 Home & Kitchen'\n\t\t[menuitem] '\\ue622 Office Products'\n\t\t[menuitem] '\\ue622 Tools & Home Improvement'\n\t\t[menuitem] '\\ue622 Health & Household'\n\t\t[menuitem] '\\ue622 Patio, Lawn & Garden'\n\t\t[menuitem] '\\ue622 Electronics'\n\t\t[menuitem] '\\ue622 Cell Phones & Accessories'\n\t\t[menuitem] '\\ue622 Video Games'\n\t\t[menuitem] '\\ue622 Grocery & Gourmet Food'\n\t[generic] ''\n\t[heading] 'My Orders'\n\t[text] 'Orders'\n\t[text] 'Order #'\n\t[text] 'Date'\n\t[text] 'Order Total'\n\t[text] 'Status'\n\t[text] 'Action'\n\t[text] '000000170'\n\t[text] '5/17/23'\n\t[text] '$365.42'\n\t[text] 'Canceled'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000189'\n\t[text] '5/2/23'\n\t[text] '$754.99'\n\t[text] 'Pending'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000188'\n\t[text] '5/2/23'\n\t[text] '$2,004.99'\n\t[text] 'Pending'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000187'\n\t[text] '5/2/23'\n\t[text] '$1,004.99'\n\t[text] 'Pending'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000180'\n\t[text] '3/11/23'\n\t[text] '$65.32'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000166'\n\t[text] '3/10/23'\n\t[text] '$17.99'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000161'\n\t[text] '2/27/23'\n\t[text] '$762.18'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000156'\n\t[text] '2/24/23'\n\t[text] '$231.54'\n\t[text] 'Canceled'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000158'\n\t[text] '2/11/23'\n\t[text] '$174.99'\n\t[text] 'Canceled'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000157'\n\t[text] '2/9/23'\n\t[text] '$185.32'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] 'Items 1 to 10 of 37 total'\n\t[text] 'Page'\n\t[text] \"You're currently reading page\"\n\t[text] '1'\n\t[link] 'Page 2'\n\t[link] 'Page 3'\n\t[link] 'Page 4'\n\t[link] '\\ue608 Page Next'\n\t[text] 'Show'\n\t[combobox] ''\n\t\t[menuitem] '10'\n\t\t[menuitem] '20'\n\t\t[menuitem] '50'\n\t[text] 'per page'\n\t[text] 'My Account'\n\t[link] 'My Account'\n\t[text] 'My Orders'\n\t[link] 'My Downloadable Products'\n\t[link] 'My Wish List'\n\t[link] 'Address Book'\n\t[link] 'Account Information'\n\t[link] 'Stored Payment Methods'\n\t[link] 'My Product Reviews'\n\t[link] 'Newsletter Subscriptions'\n\t[heading] 'Compare Products'\n\t[text] 'You have no items to compare.'\n\t[heading] 'My Wish List'\n\t[text] 'You have no items in your wish list.'\n\t[text] '\\ue61d'\n\t[text] 'Sign Up for Our Newsletter:'\n\t[textbox] 'Sign Up for Our Newsletter: Please enter a valid email address (Ex: johndoe@domain.com).'\n\t[text] 'Please enter a valid email address (Ex: johndoe@domain.com).'\n\t[button] 'Subscribe'\n\t[link] 'Privacy and Cookie Policy'\n\t[link] 'Search Terms'\n\t[link] 'Advanced Search'\n\t[link] 'Contact Us'\n\t[text] 'Copyright \u00a9 2013-present Magento, Inc. All rights reserved.'\n\t[text] 'Help Us Keep Magento Healthy'\n\t[text] ' '\n\t[link] 'Report All Bugs'\n",
+            "trajectory": [
+                [
+                    "input",
+                    "TESTING MODE",
+                    "<input name=\"email\" type=\"email\" id=\"newsletter\" placeholder=\"Enter your email address\" data-validate=\"{required:true, 'validate-email':true}\">",
+                    "id(\"newsletter\")"
+                ]
+            ],
+            "children": []
+        },
+        {
+            "url": "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/",
+            "edge": [
+                "button",
+                "button",
+                "<button class=\"action subscribe primary\" title=\"Subscribe\" type=\"submit\" aria-label=\"Subscribe\">\n                    <span>Subscribe</span>\n                </button>",
+                "HTML[1]/BODY[1]/DIV[2]/FOOTER[1]/DIV[1]/DIV[1]/DIV[2]/FORM[1]/DIV[2]/BUTTON[1]"
+            ],
+            "private": "N/A",
+            "public": null,
+            "acc_tree": "[WebArea] 'My Orders'\n\t[link] 'My Account'\n\t[link] 'My Wish List'\n\t[link] 'Sign Out'\n\t[text] 'Welcome to One Stop Market'\n\t[link] 'Skip to Content'\n\t[link] 'store logo'\n\t[link] '\\ue611 My Cart'\n\t[text] '\\ue615'\n\t[text] 'Search'\n\t[combobox] '\\ue615 Search'\n\t[link] 'Advanced Search'\n\t[button] 'Search'\n\t[menu] ''\n\t\t[menuitem] '\\ue622 Beauty & Personal Care'\n\t\t[menuitem] '\\ue622 Sports & Outdoors'\n\t\t[menuitem] '\\ue622 Clothing, Shoes & Jewelry'\n\t\t[menuitem] '\\ue622 Home & Kitchen'\n\t\t[menuitem] '\\ue622 Office Products'\n\t\t[menuitem] '\\ue622 Tools & Home Improvement'\n\t\t[menuitem] '\\ue622 Health & Household'\n\t\t[menuitem] '\\ue622 Patio, Lawn & Garden'\n\t\t[menuitem] '\\ue622 Electronics'\n\t\t[menuitem] '\\ue622 Cell Phones & Accessories'\n\t\t[menuitem] '\\ue622 Video Games'\n\t\t[menuitem] '\\ue622 Grocery & Gourmet Food'\n\t[generic] ''\n\t[heading] 'My Orders'\n\t[text] 'Orders'\n\t[text] 'Order #'\n\t[text] 'Date'\n\t[text] 'Order Total'\n\t[text] 'Status'\n\t[text] 'Action'\n\t[text] '000000170'\n\t[text] '5/17/23'\n\t[text] '$365.42'\n\t[text] 'Canceled'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000189'\n\t[text] '5/2/23'\n\t[text] '$754.99'\n\t[text] 'Pending'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000188'\n\t[text] '5/2/23'\n\t[text] '$2,004.99'\n\t[text] 'Pending'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000187'\n\t[text] '5/2/23'\n\t[text] '$1,004.99'\n\t[text] 'Pending'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000180'\n\t[text] '3/11/23'\n\t[text] '$65.32'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000166'\n\t[text] '3/10/23'\n\t[text] '$17.99'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000161'\n\t[text] '2/27/23'\n\t[text] '$762.18'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000156'\n\t[text] '2/24/23'\n\t[text] '$231.54'\n\t[text] 'Canceled'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000158'\n\t[text] '2/11/23'\n\t[text] '$174.99'\n\t[text] 'Canceled'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000157'\n\t[text] '2/9/23'\n\t[text] '$185.32'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] 'Items 1 to 10 of 37 total'\n\t[text] 'Page'\n\t[text] \"You're currently reading page\"\n\t[text] '1'\n\t[link] 'Page 2'\n\t[link] 'Page 3'\n\t[link] 'Page 4'\n\t[link] '\\ue608 Page Next'\n\t[text] 'Show'\n\t[combobox] ''\n\t\t[menuitem] '10'\n\t\t[menuitem] '20'\n\t\t[menuitem] '50'\n\t[text] 'per page'\n\t[text] 'My Account'\n\t[link] 'My Account'\n\t[text] 'My Orders'\n\t[link] 'My Downloadable Products'\n\t[link] 'My Wish List'\n\t[link] 'Address Book'\n\t[link] 'Account Information'\n\t[link] 'Stored Payment Methods'\n\t[link] 'My Product Reviews'\n\t[link] 'Newsletter Subscriptions'\n\t[heading] 'Compare Products'\n\t[text] 'You have no items to compare.'\n\t[heading] 'My Wish List'\n\t[text] 'You have no items in your wish list.'\n\t[text] '\\ue61d'\n\t[text] 'Sign Up for Our Newsletter:'\n\t[textbox] 'Sign Up for Our Newsletter: This is a required field.'\n\t[text] 'This is a required field.'\n\t[button] 'Subscribe'\n\t[link] 'Privacy and Cookie Policy'\n\t[link] 'Search Terms'\n\t[link] 'Advanced Search'\n\t[link] 'Contact Us'\n\t[text] 'Copyright \u00a9 2013-present Magento, Inc. All rights reserved.'\n\t[text] 'Help Us Keep Magento Healthy'\n\t[text] ' '\n\t[link] 'Report All Bugs'\n",
+            "trajectory": [
+                [
+                    "button",
+                    "button",
+                    "<button class=\"action subscribe primary\" title=\"Subscribe\" type=\"submit\" aria-label=\"Subscribe\">\n                    <span>Subscribe</span>\n                </button>",
+                    "HTML[1]/BODY[1]/DIV[2]/FOOTER[1]/DIV[1]/DIV[1]/DIV[2]/FORM[1]/DIV[2]/BUTTON[1]"
+                ]
+            ],
+            "children": []
+        },
+        {
+            "url": "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/",
+            "edge": [
+                "link",
+                "link",
+                "<a href=\"http://www.magentocommerce.com/bug-tracking\" target=\"_blank\" title=\"Report All Bugs\">\n        Report All Bugs    </a>",
+                "HTML[1]/BODY[1]/DIV[2]/FOOTER[1]/DIV[1]/SMALL[2]/A[1]"
+            ],
+            "private": "Navigated to bug reporting page",
+            "public": null,
+            "acc_tree": "[WebArea] 'My Orders'\n\t[link] 'My Account'\n\t[link] 'My Wish List'\n\t[link] 'Sign Out'\n\t[text] 'Welcome to One Stop Market'\n\t[link] 'Skip to Content'\n\t[link] 'store logo'\n\t[link] '\\ue611 My Cart'\n\t[text] '\\ue615'\n\t[text] 'Search'\n\t[combobox] '\\ue615 Search'\n\t[link] 'Advanced Search'\n\t[button] 'Search'\n\t[menu] ''\n\t\t[menuitem] '\\ue622 Beauty & Personal Care'\n\t\t[menuitem] '\\ue622 Sports & Outdoors'\n\t\t[menuitem] '\\ue622 Clothing, Shoes & Jewelry'\n\t\t[menuitem] '\\ue622 Home & Kitchen'\n\t\t[menuitem] '\\ue622 Office Products'\n\t\t[menuitem] '\\ue622 Tools & Home Improvement'\n\t\t[menuitem] '\\ue622 Health & Household'\n\t\t[menuitem] '\\ue622 Patio, Lawn & Garden'\n\t\t[menuitem] '\\ue622 Electronics'\n\t\t[menuitem] '\\ue622 Cell Phones & Accessories'\n\t\t[menuitem] '\\ue622 Video Games'\n\t\t[menuitem] '\\ue622 Grocery & Gourmet Food'\n\t[generic] ''\n\t[heading] 'My Orders'\n\t[text] 'Orders'\n\t[text] 'Order #'\n\t[text] 'Date'\n\t[text] 'Order Total'\n\t[text] 'Status'\n\t[text] 'Action'\n\t[text] '000000170'\n\t[text] '5/17/23'\n\t[text] '$365.42'\n\t[text] 'Canceled'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000189'\n\t[text] '5/2/23'\n\t[text] '$754.99'\n\t[text] 'Pending'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000188'\n\t[text] '5/2/23'\n\t[text] '$2,004.99'\n\t[text] 'Pending'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000187'\n\t[text] '5/2/23'\n\t[text] '$1,004.99'\n\t[text] 'Pending'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000180'\n\t[text] '3/11/23'\n\t[text] '$65.32'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000166'\n\t[text] '3/10/23'\n\t[text] '$17.99'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000161'\n\t[text] '2/27/23'\n\t[text] '$762.18'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000156'\n\t[text] '2/24/23'\n\t[text] '$231.54'\n\t[text] 'Canceled'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000158'\n\t[text] '2/11/23'\n\t[text] '$174.99'\n\t[text] 'Canceled'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] '000000157'\n\t[text] '2/9/23'\n\t[text] '$185.32'\n\t[text] 'Complete'\n\t[link] 'View Order'\n\t[link] 'Reorder'\n\t[text] 'Items 1 to 10 of 37 total'\n\t[text] 'Page'\n\t[text] \"You're currently reading page\"\n\t[text] '1'\n\t[link] 'Page 2'\n\t[link] 'Page 3'\n\t[link] 'Page 4'\n\t[link] '\\ue608 Page Next'\n\t[text] 'Show'\n\t[combobox] ''\n\t\t[menuitem] '10'\n\t\t[menuitem] '20'\n\t\t[menuitem] '50'\n\t[text] 'per page'\n\t[text] 'My Account'\n\t[link] 'My Account'\n\t[text] 'My Orders'\n\t[link] 'My Downloadable Products'\n\t[link] 'My Wish List'\n\t[link] 'Address Book'\n\t[link] 'Account Information'\n\t[link] 'Stored Payment Methods'\n\t[link] 'My Product Reviews'\n\t[link] 'Newsletter Subscriptions'\n\t[heading] 'Compare Products'\n\t[text] 'You have no items to compare.'\n\t[heading] 'My Wish List'\n\t[text] 'You have no items in your wish list.'\n\t[text] '\\ue61d'\n\t[text] 'Sign Up for Our Newsletter:'\n\t[textbox] 'Sign Up for Our Newsletter:'\n\t[button] 'Subscribe'\n\t[link] 'Privacy and Cookie Policy'\n\t[link] 'Search Terms'\n\t[link] 'Advanced Search'\n\t[link] 'Contact Us'\n\t[text] 'Copyright \u00a9 2013-present Magento, Inc. All rights reserved.'\n\t[text] 'Help Us Keep Magento Healthy'\n\t[text] ' '\n\t[link] 'Report All Bugs'\n",
+            "trajectory": [
+                [
+                    "link",
+                    "link",
+                    "<a href=\"http://www.magentocommerce.com/bug-tracking\" target=\"_blank\" title=\"Report All Bugs\">\n        Report All Bugs    </a>",
+                    "HTML[1]/BODY[1]/DIV[2]/FOOTER[1]/DIV[1]/SMALL[2]/A[1]"
+                ]
+            ],
+            "children": []
+        }
+    ]
+}
