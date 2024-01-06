@@ -6,6 +6,7 @@ from urllib.parse import urlparse, urlunparse
 from openai import OpenAI
 import os
 from bs4 import BeautifulSoup
+import copy
 
 
 api_key = os.getenv('OPENAI_API_KEY')
@@ -91,8 +92,8 @@ async def get_usable_elements(page, leaf): # maybe remove duplicates if ever nee
     interactable_elements = await page.locator(selector).element_handles()
     cleaned_elements = await parse_and_clean(interactable_elements, leaf)
     cleaned_and_reduced_elements = await reduce_duplicate_elements(cleaned_elements, leaf)
-    print("CLEANED AND REDUCED")
-    print(cleaned_and_reduced_elements)
+    # print("CLEANED AND REDUCED")
+    # print(cleaned_and_reduced_elements)
     return cleaned_and_reduced_elements
 
 async def parse_and_clean(elements, parent_node):
@@ -112,10 +113,10 @@ async def parse_and_clean(elements, parent_node):
         if href and href.startswith('#'):
             continue
         elif href is not None and normalize_url(href) in all_links:
-            # print(f"USED href: {href}")
+            # # print(f"USED href: {href}")
             continue
 
-        print(f"HREF: {href}")
+        # print(f"HREF: {href}")
         if parent_node.parent and href and parent_node.parent.url == normalize_url(href): # TODO WHAT?
             continue
 
@@ -149,21 +150,22 @@ async def parse_and_clean(elements, parent_node):
         element_info = (xpath, interaction_info, html)
         cleaned_output.append(element_info)
         all_htmls.append(html)
-        # print(f"USED html: {html}")
-        # print(f"xpath: {xpath}")
+        # # print(f"USED html: {html}")
+        # # print(f"xpath: {xpath}")
 
     return cleaned_output
 
 async def step_by_xpath(page, edge):
     # edge_info = (interaction_info, generated_text, html, xpath)
     interaction_info, generated_text, html, xpath = edge
+    print(f"STEPPING: Interaction info: {interaction_info}\n HTML: {html}")
     await page.wait_for_load_state('networkidle')
     locator = page.locator(f'xpath={xpath}')
 
     count = await locator.count()
     if count == 0:
         print(f"STEPPING: No elements found with this xpath: {xpath}")
-        print("IMPOSSIbLE BAD")
+        # print("IMPOSSIbLE BAD")
         return
     elif count == 1:
         print('STEPPING: One element found with this xpath')
@@ -187,6 +189,7 @@ async def step_by_xpath(page, edge):
 
     else:
         print("FUCK3")
+'''
 
 def print_intrastate_node_tree(node, depth=0):
     if not node:
@@ -195,26 +198,30 @@ def print_intrastate_node_tree(node, depth=0):
     # Create an indent based on the depth of the node in the tree
     indent = '    ' * depth
 
-    # Print the current node's details
-    print(f"{indent}Node URL: {node.url}")
-    print(f"{indent}Edge: {node.edge[2] if node.edge is not None else 'None'}")
-    print(f"{indent}Private: {node.private if node.private is not None else 'None'}")
+    # # print the current node's details
+    # print(f"{indent}Node URL: {node.url}")
+    # print(f"{indent}Edge: {node.edge[2] if node.edge is not None else 'None'}")
+    # print(f"{indent}Private: {node.private if node.private is not None else 'None'}")
     # acc_tree_preview = (node.acc_tree[:30] + '...') if node.acc_tree else 'None'
-    # print(f"{indent}Accessibility Tree: {acc_tree_preview}")
-    # print(f"{indent}Number of Children: {len(node.children)}")
+    # # print(f"{indent}Accessibility Tree: {acc_tree_preview}")
+    # # print(f"{indent}Number of Children: {len(node.children)}")
 
-    # Recursively print each child node
+    # Recursively # print each child node
     for child in node.children:
         print_intrastate_node_tree(child, depth + 1)
+        
+'''
 
 async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
     global user_context
     await page.wait_for_load_state('networkidle')
     locator = page.locator(f'xpath={xpath}')
+    print("LOCATED! ")
     count = await locator.count()
-    print("INTERACTING")
-    print(f"Interaction info: {interaction_info}")
-    print(html)
+    print(f"BEFORE URL: {page.url}")
+    # print("INTERACTING")
+    # print(f"Interaction info: {interaction_info}")
+    # print(html)
 
     if count == 0:
         print(f"No elements found with this xpath: {xpath}")
@@ -231,17 +238,18 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
     before_tree = node.acc_tree
 
     if interaction_info == "input":
-        # print(f"Trying to input text")
+        # # print(f"Trying to input text")
         # return
         # generated_text = use_gpt_fill_input(before_tree, html, user_context) # maybe needs xpath? idk
         generated_text = "TESTING MODE"
-        # print(f"Generated text: {generated_text}")
+        # # print(f"Generated text: {generated_text}")
         await page.wait_for_load_state('networkidle')
         await locator.first.fill(generated_text)
         await page.wait_for_load_state('networkidle')
-        # if 'search' in html:
+        # if 'search' in html: ????
         await page.keyboard.press('Enter')
         await page.wait_for_load_state('networkidle')
+
         action_description = f"Entered {generated_text} into {html} and pressed enter"
 
         # TODO
@@ -249,28 +257,31 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
 
 
     elif interaction_info in ["link", "button"]:
-        print(f"BEFORE ADDRESS {page.url}")
+        # print(f"BEFORE ADDRESS {page.url}")
         await page.wait_for_load_state('networkidle')
         await locator.first.click()
         await page.wait_for_load_state('networkidle')
         action_description = f"Clicked on {html}"
-        print(f"AFTER ADDRESS {page.url}")
+        # print(f"AFTER ADDRESS {page.url}")
 
         # TODO
         edge_info = (interaction_info, interaction_info, html, xpath)
 
 
     else:
-        print("No specific interaction defined for this element type.")
+        # print("No specific interaction defined for this element type.")
         return
 
 
-
+    print(f"interaction info: {interaction_info}\n html: {html}")
     after_tree = parse_accessibility_tree(await page.accessibility.snapshot())
     difference = use_gpt_get_difference(before_tree, after_tree, action_description)
+    print(f"PAGE URL: {page.url}")
     child_node = IntrastateWebPageNode(url=page.url, edge=edge_info, private=difference, acc_tree=after_tree)
     print("NEW CHILD BIRTHED! ")
-    print(child_node)
+    print(f"CHILD URL: {page.url}")
+    # print("NEW CHILD BIRTHED! ")
+    # print(child_node)
     node.add_child(child_node)
 
 class IntrastateWebPageNode:
@@ -292,14 +303,19 @@ class IntrastateWebPageNode:
     def add_child(self, child):
         self.children.append(child)
         child.parent = self
-        if self.parent:
-            child.trajectory = self.parent.trajectory
+        child.trajectory = copy.deepcopy(self.trajectory)
         child.trajectory.append(child.edge)
 
     def __str__(self):
+        return f'URL: {self.url}'
+    '''
+        def __str__(self):
         return f'IntrastateWebPageNode(url={self.url}, edge={self.edge}, private={self.private}, ' \
                f'acc_tree={self.acc_tree}, children_count={len(self.children)}, ' \
                f'trajectory={self.trajectory})'
+
+    '''
+
 
 
 
@@ -335,7 +351,7 @@ def use_gpt_fill_input(tree_str, specific_html, user_context):
     pattern = r"\'\'\'(.*?)\'\'\'"
 
     match = re.search(pattern, result, re.DOTALL)
-    # print(f"RESULT: {result}")
+    # # print(f"RESULT: {result}")
     if match:
         final_answer = match.group(1).strip()
         return final_answer
@@ -378,7 +394,7 @@ def use_gpt_get_difference(tree_str1, tree_str2, action):
     pattern = r"\'\'\'(.*?)\'\'\'"
 
     match = re.search(pattern, result, re.DOTALL)
-    print(f"RESULT: {result}")
+    # print(f"RESULT: {result}")
     if match:
         final_answer = match.group(1).strip()
         return final_answer
@@ -390,7 +406,7 @@ def get_leaves(node):
         return [node]
     else:
         leaves = []
-        print(f"NODE CHILDREN: {node.children}")
+        # print(f"NODE CHILDREN: {node.children}")
         for child in node.children:
             leaves.extend(get_leaves(child))
         return leaves
@@ -406,7 +422,7 @@ async def scrape_leaves(root_node):
         for leaf in leaves:
             if not leaf.url.startswith(aggressive_url_norm(root_node.url)):
                 continue
-            outer_browser = await p.chromium.launch(headless=False)
+            outer_browser = await p.chromium.launch(headless=True)
             outer_page = await outer_browser.new_page()
             await outer_page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
             await outer_page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
@@ -416,18 +432,22 @@ async def scrape_leaves(root_node):
 
             trajectory = leaf.trajectory
 
-            print(f"LEAF TRAJ: {leaf.trajectory}")
+            # print(f"LEAF TRAJ: {leaf.trajectory}")
             for edge in trajectory: # does nothing for root_node
-                print(f"CURR EDGE: {edge}")
-                print(f"CURR PAGE URL: {outer_page.url}")
+                # print(f"CURR EDGE: {edge}")
+                # print(f"CURR PAGE URL: {outer_page.url}")
+                print("BEFORE STEP")
+                print(outer_page.url)
                 await step_by_xpath(outer_page, edge) # FIRST STEP FUCKS UP SOMEHOW
-                input("CONTINUE TRAJ")
-                print(f"CURR PAGE URL AFTER: {outer_page.url}")
+                print("AFTER STEP")
+                print(outer_page.url)
+                # input("CONTINUE TRAJ")
+                # print(f"CURR PAGE URL AFTER: {outer_page.url}")
 
-            print("NOW AT DESIRED PAGE HOPEFULLY")
+            # print("NOW AT DESIRED PAGE HOPEFULLY")
 
-            print(outer_page.url)
-            print(outer_page.url)
+            # print(outer_page.url)
+            # print(outer_page.url)
             # input("tonk")
             # http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/
             # http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/catalogsearch/result/?q=Tennis+Balls+24+count
@@ -436,28 +456,28 @@ async def scrape_leaves(root_node):
 
             elements = await get_usable_elements(outer_page, leaf)
 
-            print("GOT ELEMENTS")
+            # print("GOT ELEMENTS")
 
-            print(elements)
+            # print(elements)
 
-            print("CLOSING PAGE")
+            # print("CLOSING PAGE")
             if elements == []:
-                print("NO ELEMENTS FOUND")
+                # print("NO ELEMENTS FOUND")
                 return
 
 
 
             for xpath, interaction_info, html in elements:
-                inner_browser = await p.chromium.launch(headless=False)
+                inner_browser = await p.chromium.launch(headless=True)
 
 
-                # print("-------------------")
-                # print(f"Interaction info: {interaction_info}")
-                # print(html)
-                # print("-------------------")
+                # # print("-------------------")
+                # # print(f"Interaction info: {interaction_info}")
+                # # print(html)
+                # # print("-------------------")
 
                 inner_page = await inner_browser.new_page()
-                print("NEW PAGE GOING THROUGH")
+                # print("NEW PAGE GOING THROUGH")
 
                 await inner_page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
                 await inner_page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
@@ -466,11 +486,11 @@ async def scrape_leaves(root_node):
 
                 await inner_page.goto(root_node.url)
 
-                print("LOGGED IN")
+                # print("LOGGED IN")
 
                 trajectory = leaf.trajectory
 
-                # print(f"LEAF TRAJ: {leaf.trajectory}")
+                # # print(f"LEAF TRAJ: {leaf.trajectory}")
 
                 for edge in trajectory:  # does nothing for root_node
                     await step_by_xpath(inner_page, edge)
@@ -481,6 +501,7 @@ async def scrape_leaves(root_node):
 
                 await interact_element_by_xpath(inner_page, xpath, interaction_info=interaction_info, html=html, node=leaf)
 
+                print("HAPPT INTERACTED!!! ")
                 # tonk = input("Press Enter to continue...")
                 # if tonk == '':
                 #     pass
@@ -505,7 +526,7 @@ async def reduce_duplicate_elements(elements, parent_node): # same url + same vi
     for element in elements:
         # Extract text content for comparison
         visible_text = get_visible_from_html(element[2])
-        # print(f"VISIBLE TEXT: {visible_text}")
+        # # print(f"VISIBLE TEXT: {visible_text}")
         # Use a composite key of xpath, interaction_info, and visible text for uniqueness
 
         # element_info = (xpath, interaction_info, html)
@@ -519,8 +540,8 @@ async def reduce_duplicate_elements(elements, parent_node): # same url + same vi
             IntrastateWebPageNode.unique_interacts_visible.add(composite_key_visible)
             IntrastateWebPageNode.unique_interacts_html.add(composite_key_html)
 
-        print(f"COMPOSITE KEY VISIBLE: {composite_key_visible}")
-        print(f"COMPOSITE KEY HTML: {composite_key_html}")
+        # print(f"COMPOSITE KEY VISIBLE: {composite_key_visible}")
+        # print(f"COMPOSITE KEY HTML: {composite_key_html}")
 
 
 
@@ -535,7 +556,7 @@ async def main():
         # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/tweezers-for-succulents-duo.html"
         # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/"
         link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/"
-        browser = await p.chromium.launch(headless=False)
+        browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
 
         await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
@@ -558,8 +579,9 @@ async def main():
     previous_leaf_count = 0
     while True:
         await scrape_leaves(root_node)
-        print("SCRAPE ROUND FINISHED! ")
+        # print("SCRAPE ROUND FINISHED! ")
         current_leaves = get_leaves(root_node)
+        print(f"CURRENT LEAVES: {len(current_leaves)}")
         if len(current_leaves) == previous_leaf_count:
             print("DONE!!!!!")
             break
@@ -571,10 +593,10 @@ async def main():
     await page.close()
     for xpath, interaction_info, html in elements:
 
-        print("-------------------")
-        print(f"Interaction info: {interaction_info}")
-        print(html)
-        print("-------------------")
+        # print("-------------------")
+        # print(f"Interaction info: {interaction_info}")
+        # print(html)
+        # print("-------------------")
 
         page = await browser.new_page()
 
@@ -602,7 +624,7 @@ async def main():
 
     # save root node
     print("DONE!!!")
-    print_intrastate_node_tree(root_node)
+    # print_intrastate_node_tree(root_node)
     print(f"ALL HTMLS: {all_htmls}")
 
 
