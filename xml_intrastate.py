@@ -88,8 +88,10 @@ async def extract_interaction_info(html): #use general input type
     if ('<button' in html or "type='button'" in html or "role='button'" in html or "role=\"button\"" in html or "[onclick]" in html or "onclick=" in html or "[role='button']" in html) and ("<div" not in html): # filter out div?
         # or "select" in html DOESN'T HANDLE
         return "button"
-    if "<input" in html or "textarea" in html:
+    if ("<input" in html or "textarea" in html) and "type=\"checkbox\"" not in html:
         return "input"
+    if "type=\"checkbox\"" in html:
+        return "checkbox"
     return "Uncased Element"
 
 async def get_usable_elements(page, leaf): # maybe remove duplicates if ever needed
@@ -210,6 +212,7 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
         }''')
     locator = page.locator(f'xpath={xpath}')
     print("LOCATED! ")
+    print(f"HTML: {html}")
     count = await locator.count()
     print(f"BEFORE URL: {page.url}")
     # print("INTERACTING")
@@ -230,7 +233,7 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
 
     before_tree = node.acc_tree
     visible_text = get_visible_from_html(html)
-    url1 = page.url
+    url1 = copy.deepcopy(page.url)
 
     if interaction_info == "input":
         # # print(f"Trying to input text")
@@ -253,10 +256,12 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
         edge_info = (interaction_info, generated_text, html, xpath, visible_text)
 
 
-    elif interaction_info in ["link", "button"]:
+    elif interaction_info in ["link", "button", "checkbox"]:
         # print(f"BEFORE ADDRESS {page.url}")
         await page.wait_for_load_state('networkidle')
         await locator.first.click()
+        await page.wait_for_load_state('networkidle')
+        await page.keyboard.press('Enter')
         await page.wait_for_load_state('networkidle')
         action_description = f"Clicked on {html}"
         # print(f"AFTER ADDRESS {page.url}")
@@ -270,15 +275,15 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
         return
 
     await page.wait_for_load_state('networkidle')
-    url2 = page.url
     print(f"interaction info: {interaction_info}\n html: {html}")
     after_tree = parse_accessibility_tree(await page.accessibility.snapshot())
+    url2 = copy.deepcopy(page.url)
     difference = use_gpt_get_difference(before_tree, after_tree, url1, url2, action_description)
-    print(f"PAGE URL: {page.url}")
+    print(f"PAGE URL: {page.url}\n URL2: {url2}")
     child_node = IntrastateWebPageNode(url=page.url, edge=edge_info, private=difference, acc_tree=after_tree)
     print("NEW CHILD BIRTHED! ")
     print(f"BEFORE: {url1}\nAFTER: {url2}")
-    input("TONK")
+    # input("TONK")
     # print("NEW CHILD BIRTHED! ")
     # print(child_node)
     node.add_child(child_node)
@@ -371,9 +376,9 @@ def use_gpt_get_difference(tree_str1, tree_str2, url1, url2, action):
         {"role": "system",
          "content": "This is important: if there's a difference in ordering of products/orders.etc between two accessibility trees (e.g., one has older orders, or price has become descending), you must include this difference in your answer. "},
         {"role": "system",
-         "content": "Carefully and rigorously reason through your answer, then give the exact string you would input into the box enclosed by ''', like this: \n '''This is the difference between these two web page states'''. Do not include reasoning in your enclosed answer."},
+         "content": "Carefully and rigorously reason through your answer step by step, then give the exact string you would input into the box enclosed by ''', like this: \n '''This is the difference between these two web page states'''. Do not include reasoning in your enclosed answer."},
         {"role": "system",
-         "content": "If both the tree differences and action information do not provide enough information, or if you are unsure of your answer, reply with '''N/A''' at the end of your message. If no noticeable change occured, reply with '''N/A'''. REMEMBER TO BE AS GENERAL AS POSSIBLE, DO NOT INCLUDE SPECIFICS."},
+         "content": "If you are unsure of your answer, give as your answer '''N/A'''. If no major change occured (e.g., action did nothing and url doesn't change and accessibility tree has no major or structural changes), reply with '''N/A'''. REMEMBER TO BE AS GENERAL AS POSSIBLE, DO NOT INCLUDE SPECIFICS."},
         {"role": "user",
         "content": f"Give me the effect of the action. Accessibility tree before the action: {tree_str1}\nURL before the action: {url1}\n The action: {action}\n Accessibility tree after the action:\n{tree_str2}\nURL after the action: {url2}"}
     ]
@@ -561,6 +566,8 @@ async def main():
         # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/"
         link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/"
         link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/home-kitchen/storage-organization/baskets-bins-containers.html"
+        link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/edit/"
+        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/clothing-shoes-jewelry/women/clothing.html"
         browser = await p.chromium.launch(headless=False)
         page = await browser.new_page()
 
@@ -588,7 +595,7 @@ async def main():
     print("DONE!!!")
     # print_intrastate_node_tree(root_node)
     print(f"ALL HTMLS: {all_htmls}")
-    save_tree_to_json(root_node, 'drafttree11.json')
+    save_tree_to_json(root_node, 'accountinfodraft.json')
 
 
 
