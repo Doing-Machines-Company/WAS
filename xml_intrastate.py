@@ -202,6 +202,12 @@ async def step_by_xpath(page, edge):
 async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
     global user_context
     await page.wait_for_load_state('networkidle')
+    await page.evaluate('''() => {
+            const links = document.querySelectorAll('a');
+            links.forEach(link => {
+                link.target = '_self';
+            });
+        }''')
     locator = page.locator(f'xpath={xpath}')
     print("LOCATED! ")
     count = await locator.count()
@@ -224,6 +230,7 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
 
     before_tree = node.acc_tree
     visible_text = get_visible_from_html(html)
+    url1 = page.url
 
     if interaction_info == "input":
         # # print(f"Trying to input text")
@@ -262,14 +269,16 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
         # print("No specific interaction defined for this element type.")
         return
 
-
+    await page.wait_for_load_state('networkidle')
+    url2 = page.url
     print(f"interaction info: {interaction_info}\n html: {html}")
     after_tree = parse_accessibility_tree(await page.accessibility.snapshot())
-    difference = use_gpt_get_difference(before_tree, after_tree, action_description)
+    difference = use_gpt_get_difference(before_tree, after_tree, url1, url2, action_description)
     print(f"PAGE URL: {page.url}")
     child_node = IntrastateWebPageNode(url=page.url, edge=edge_info, private=difference, acc_tree=after_tree)
     print("NEW CHILD BIRTHED! ")
-    print(f"CHILD URL: {page.url}")
+    print(f"BEFORE: {url1}\nAFTER: {url2}")
+    input("TONK")
     # print("NEW CHILD BIRTHED! ")
     # print(child_node)
     node.add_child(child_node)
@@ -322,7 +331,7 @@ def use_gpt_fill_input(tree_str, specific_html, user_context):
         {"role": "system",
          "content": "If nothing in the user context fits the input box, use '''N/A''' as the input."},
         {"role": "system",
-         "content": "Reason through your answer, then give the exact string you would input into the box enclosed by '''s, like this: \n '''I would input this string'''"},
+         "content": "Reason through your answer, then give the exact string you would input into the box enclosed by '''s, like this: \n '''I would input this string'''. Do not include reasoning in your enclosed answer."},
         {"role": "user",
         "content": f"Here's the information, what should be input into the element represented by the specific HTML? \n Specific element HTML: {specific_html}\nCurrent page accessibility tree:\n{tree_str}\nUser context: {user_context}\n"}
     ]
@@ -351,24 +360,22 @@ def use_gpt_fill_input(tree_str, specific_html, user_context):
 
 
 
-def use_gpt_get_difference(tree_str1, tree_str2, action):
+def use_gpt_get_difference(tree_str1, tree_str2, url1, url2, action):
     messages = [
         {"role": "system",
-         "content": "You are an autonomous agent performing tasks for an user on a webshop. You are tasked with telling me what the effect of an action performed on a web page is, given the accessibility trees of the web page before and after the action, as well as the html of the element the action was performed on."},
+         "content": "You are an autonomous agent performing tasks for an user on a webshop. You are tasked with telling me what the effect of an action performed on a web page is, given the accessibility trees and url of the web page before and after the action, as well as the html of the element the action was performed on."},
         {"role": "system",
-         "content": "The accessibility tree will be a string representation of the accessibility tree of the web page."},
+         "content": "Your answers are to be used to tag element interactions, so please be general and concise. You have to give me your description using general object types (like dates, products, numbers.etc), instead of specific instances of these objects (like June 24th, tweezers, 4). Do not ever give any information about amounts or quantities. Do definitely give any general type information, while being general, as long as it doesn't violate the other requirements I've given you. Mention if there's a change in the purpose of the web page."},
         {"role": "system",
-         "content": "Your answers are to be used to tag element interactions, so please be general and concise. You have to give me your description using general object types (like dates, products, numbers.etc), instead of specific instances of these objects (like June 24th, tweezers, 4). Do not ever give any information about amounts or quantities. Do definitely give any general type information, while being general, as long as it doesn't violate the other requirements I've given you. Emphasise the effects of the action performed."},
+         "content": "Do not include any specific details about visual or informational changes to the page, only what these changes imply. Only include these changes if they are necessary to describe the effect of the action. Use the URLs and accessibility trees, if no navigation occured do not mention navigation."},
         {"role": "system",
-         "content": "Do not include any specific details about visual or informational changes to the page, only what these changes imply. Only include these changes if they are necessary to describe the effect of the action. "},
+         "content": "This is important: if there's a difference in ordering of products/orders.etc between two accessibility trees (e.g., one has older orders, or price has become descending), you must include this difference in your answer. "},
         {"role": "system",
-         "content": "This is important: if there's a difference in ordering of products/orders.etc between two accessibility trees (e.g., one has older orders, or price has become descending), you must include this difference in your answer."},
+         "content": "Carefully and rigorously reason through your answer, then give the exact string you would input into the box enclosed by ''', like this: \n '''This is the difference between these two web page states'''. Do not include reasoning in your enclosed answer."},
         {"role": "system",
-         "content": "Reason through your answer, then give the exact string you would input into the box enclosed by '''s, like this: \n '''This is the difference between these two web page states'''"},
-        {"role": "system",
-         "content": "If nothing in the user context fits the input box, attempt to use information inferred from the action and the html the action was performed on to infer. After every input action, the 'Enter' key is pressed. If both the tree differences and action information do not provide enough information, return '''N/A''' at the end of your message."},
+         "content": "If both the tree differences and action information do not provide enough information, or if you are unsure of your answer, reply with '''N/A''' at the end of your message. If no noticeable change occured, reply with '''N/A'''. REMEMBER TO BE AS GENERAL AS POSSIBLE, DO NOT INCLUDE SPECIFICS."},
         {"role": "user",
-        "content": f"Give me the effect of the action. Accessibility tree before the action: {tree_str1}\nThe action: {action}\n Accessibility tree after the action:\n{tree_str2}\n"}
+        "content": f"Give me the effect of the action. Accessibility tree before the action: {tree_str1}\nURL before the action: {url1}\n The action: {action}\n Accessibility tree after the action:\n{tree_str2}\nURL after the action: {url2}"}
     ]
 
     response = client.chat.completions.create(
@@ -411,7 +418,7 @@ async def scrape_leaves(root_node):
         for leaf in leaves:
             if not leaf.url.startswith(aggressive_url_norm(root_node.url)):
                 continue
-            outer_browser = await p.chromium.launch(headless=True)
+            outer_browser = await p.chromium.launch(headless=False)
             outer_page = await outer_browser.new_page()
             await outer_page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
             await outer_page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
@@ -447,7 +454,7 @@ async def scrape_leaves(root_node):
 
             # edge_info = (interaction_info, generated_text, html, xpath, visible_text)
             for xpath, interaction_info, html in elements:
-                inner_browser = await p.chromium.launch(headless=True)
+                inner_browser = await p.chromium.launch(headless=False)
 
 
                 # # print("-------------------")
@@ -554,7 +561,7 @@ async def main():
         # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/"
         link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/"
         link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/home-kitchen/storage-organization/baskets-bins-containers.html"
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(headless=False)
         page = await browser.new_page()
 
         await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
@@ -581,7 +588,7 @@ async def main():
     print("DONE!!!")
     # print_intrastate_node_tree(root_node)
     print(f"ALL HTMLS: {all_htmls}")
-    save_tree_to_json(root_node, 'drafttree7.json')
+    save_tree_to_json(root_node, 'drafttree11.json')
 
 
 
