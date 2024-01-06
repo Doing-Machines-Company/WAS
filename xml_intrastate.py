@@ -189,28 +189,6 @@ async def step_by_xpath(page, edge):
 
     else:
         print("FUCK3")
-'''
-
-def print_intrastate_node_tree(node, depth=0):
-    if not node:
-        return
-
-    # Create an indent based on the depth of the node in the tree
-    indent = '    ' * depth
-
-    # # print the current node's details
-    # print(f"{indent}Node URL: {node.url}")
-    # print(f"{indent}Edge: {node.edge[2] if node.edge is not None else 'None'}")
-    # print(f"{indent}Private: {node.private if node.private is not None else 'None'}")
-    # acc_tree_preview = (node.acc_tree[:30] + '...') if node.acc_tree else 'None'
-    # # print(f"{indent}Accessibility Tree: {acc_tree_preview}")
-    # # print(f"{indent}Number of Children: {len(node.children)}")
-
-    # Recursively # print each child node
-    for child in node.children:
-        print_intrastate_node_tree(child, depth + 1)
-        
-'''
 
 async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
     global user_context
@@ -298,7 +276,6 @@ class IntrastateWebPageNode:
         self.acc_tree = acc_tree
         self.children = []
         self.page_embedding = embedding
-        self.unique_interacts = set()
 
     def add_child(self, child):
         self.children.append(child)
@@ -549,6 +526,40 @@ async def reduce_duplicate_elements(elements, parent_node): # same url + same vi
     return reduced_elements
 
 
+def serialize_node(node):
+    """ Serialize the node and its children into a dictionary. """
+    node_data = {
+        'url': node.url,
+        'edge': node.edge,
+        'private': node.private,
+        'public': node.public,
+        'acc_tree': node.acc_tree,
+        'trajectory': node.trajectory,
+        'children': [serialize_node(child) for child in node.children]
+    }
+    return node_data
+'''
+
+    def __init__(self, url=None, edge=None, private=None, acc_tree=None, embedding=None): # represented by url and action, action taken at url/state
+        self.url = url
+        self.edge = edge # something like (action, html of action)
+        self.private = private # effect of edge operation on parent
+        self.public = None # functionality of all children operations
+        self.parent = None
+        self.trajectory = [] # How you got here from root
+
+        self.acc_tree = acc_tree
+        self.children = []
+        self.page_embedding = embedding
+        self.unique_interacts = set()
+        
+'''
+def save_tree_to_json(root_node, filename):
+    with open(filename, 'w') as file:
+        json.dump(serialize_node(root_node), file, indent=4)
+    print("SAVED TO JSON")
+
+
 async def main():
     global all_htmls
     async with async_playwright() as p:
@@ -626,6 +637,7 @@ async def main():
     print("DONE!!!")
     # print_intrastate_node_tree(root_node)
     print(f"ALL HTMLS: {all_htmls}")
+    save_tree_to_json(root_node, 'drafttree1.json')
 
 
 
