@@ -411,25 +411,12 @@ async def scrape_leaves(root_node):
 
             # print(f"LEAF TRAJ: {leaf.trajectory}")
             for edge in trajectory: # does nothing for root_node
-                # print(f"CURR EDGE: {edge}")
-                # print(f"CURR PAGE URL: {outer_page.url}")
                 print("BEFORE STEP")
                 print(outer_page.url)
                 await step_by_xpath(outer_page, edge) # FIRST STEP FUCKS UP SOMEHOW
                 print("AFTER STEP")
                 print(outer_page.url)
-                # input("CONTINUE TRAJ")
-                # print(f"CURR PAGE URL AFTER: {outer_page.url}")
 
-            # print("NOW AT DESIRED PAGE HOPEFULLY")
-
-            # print(outer_page.url)
-            # print(outer_page.url)
-            # input("tonk")
-            # http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/
-            # http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/catalogsearch/result/?q=Tennis+Balls+24+count
-
-            # Now at leaf state, root starts at root
 
             elements = await get_usable_elements(outer_page, leaf)
 
@@ -479,12 +466,6 @@ async def scrape_leaves(root_node):
                 await interact_element_by_xpath(inner_page, xpath, interaction_info=interaction_info, html=html, node=leaf)
 
                 print("HAPPT INTERACTED!!! ")
-                # tonk = input("Press Enter to continue...")
-                # if tonk == '':
-                #     pass
-                # else:
-                #     await browser.close()
-                #     break
                 await inner_page.close()
                 await inner_browser.close()
 
@@ -503,7 +484,6 @@ async def reduce_duplicate_elements(elements, parent_node): # same url + same vi
     for element in elements:
         # Extract text content for comparison
         visible_text = get_visible_from_html(element[2])
-        # # print(f"VISIBLE TEXT: {visible_text}")
         # Use a composite key of xpath, interaction_info, and visible text for uniqueness
 
         # element_info = (xpath, interaction_info, html)
@@ -538,22 +518,7 @@ def serialize_node(node):
         'children': [serialize_node(child) for child in node.children]
     }
     return node_data
-'''
 
-    def __init__(self, url=None, edge=None, private=None, acc_tree=None, embedding=None): # represented by url and action, action taken at url/state
-        self.url = url
-        self.edge = edge # something like (action, html of action)
-        self.private = private # effect of edge operation on parent
-        self.public = None # functionality of all children operations
-        self.parent = None
-        self.trajectory = [] # How you got here from root
-
-        self.acc_tree = acc_tree
-        self.children = []
-        self.page_embedding = embedding
-        self.unique_interacts = set()
-        
-'''
 def save_tree_to_json(root_node, filename):
     with open(filename, 'w') as file:
         json.dump(serialize_node(root_node), file, indent=4)
@@ -597,40 +562,6 @@ async def main():
             print("DONE!!!!!")
             break
         previous_leaf_count = len(current_leaves)
-
-    '''
-    
-    elements = await get_usable_elements(page)
-    await page.close()
-    for xpath, interaction_info, html in elements:
-
-        # print("-------------------")
-        # print(f"Interaction info: {interaction_info}")
-        # print(html)
-        # print("-------------------")
-
-        page = await browser.new_page()
-
-        await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
-        await page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
-        await page.get_by_label("Password", exact=True).fill('Password.123')
-        await page.get_by_role("button", name="Sign In").click()
-
-        await page.goto(link)
-
-
-
-        await interact_element_by_xpath(page, xpath, interaction_info=interaction_info, html=html, node=root_node)
-        tonk = input("Press Enter to continue...")
-        if tonk == '':
-            pass
-        else:
-            await browser.close()
-            break
-        await page.close()
-    '''
-
-
 
 
     # save root node
