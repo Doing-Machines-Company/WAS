@@ -228,8 +228,8 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
     if interaction_info == "input":
         # # print(f"Trying to input text")
         # return
-        # generated_text = use_gpt_fill_input(before_tree, html, user_context) # maybe needs xpath? idk
-        generated_text = "TESTING MODE"
+        generated_text = use_gpt_fill_input(before_tree, html, user_context) # maybe needs xpath? idk
+        # generated_text = "TESTING MODE"
         # # print(f"Generated text: {generated_text}")
         await page.wait_for_load_state('networkidle')
         await locator.first.fill(generated_text)
@@ -320,7 +320,7 @@ def use_gpt_fill_input(tree_str, specific_html, user_context):
         {"role": "system",
          "content": "You will also be given some context about the user, which will be a dictionary of information about the user."},
         {"role": "system",
-         "content": "If nothing in the user context fits the input box, use \"N/A\""},
+         "content": "If nothing in the user context fits the input box, use '''N/A''' as the input."},
         {"role": "system",
          "content": "Reason through your answer, then give the exact string you would input into the box enclosed by '''s, like this: \n '''I would input this string'''"},
         {"role": "user",
@@ -328,8 +328,8 @@ def use_gpt_fill_input(tree_str, specific_html, user_context):
     ]
 
     response = client.chat.completions.create(
-        # model="gpt-4-1106-preview",
-        model="gpt-3.5-turbo-1106",
+        model="gpt-4-1106-preview",
+        # model="gpt-3.5-turbo-1106",
         messages=messages,
         temperature=0.0,
         max_tokens=400
@@ -366,9 +366,9 @@ def use_gpt_get_difference(tree_str1, tree_str2, action):
         {"role": "system",
          "content": "Reason through your answer, then give the exact string you would input into the box enclosed by '''s, like this: \n '''This is the difference between these two web page states'''"},
         {"role": "system",
-         "content": "If nothing in the user context fits the input box, return '''N/A''' at the end of your message."},
+         "content": "If nothing in the user context fits the input box, attempt to use information inferred from the action and the html the action was performed on to infer. After every input action, the 'Enter' key is pressed. If both the tree differences and action information do not provide enough information, return '''N/A''' at the end of your message."},
         {"role": "user",
-        "content": f"Give me the effect of the action. Accessibility tree before the action: {tree_str1}\nAccessibility tree before the action:\n{tree_str2}\nThe action: {action}\n"}
+        "content": f"Give me the effect of the action. Accessibility tree before the action: {tree_str1}\nThe action: {action}\n Accessibility tree after the action:\n{tree_str2}\n"}
     ]
 
     response = client.chat.completions.create(
@@ -383,7 +383,7 @@ def use_gpt_get_difference(tree_str1, tree_str2, action):
     pattern = r"\'\'\'(.*?)\'\'\'"
 
     match = re.search(pattern, result, re.DOTALL)
-    # print(f"RESULT: {result}")
+    print(f"RESULT: {result}")
     if match:
         final_answer = match.group(1).strip()
         return final_answer
@@ -581,7 +581,7 @@ async def main():
     print("DONE!!!")
     # print_intrastate_node_tree(root_node)
     print(f"ALL HTMLS: {all_htmls}")
-    save_tree_to_json(root_node, 'drafttree5.json')
+    save_tree_to_json(root_node, 'drafttree7.json')
 
 
 
