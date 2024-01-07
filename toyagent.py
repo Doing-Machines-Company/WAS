@@ -14,6 +14,13 @@ api_key = os.getenv('OPENAI_API_KEY')
 
 client = OpenAI(api_key=api_key)
 
+with open('all_links.json', 'r') as file:
+    all_links = json.load(file)
+
+def url_depth(url):
+    parsed = urlparse(url)
+    return parsed.path.count('/')
+
 class IntrastateWebPageNode:
     def __init__(self, url=None, edge=None, private=None, acc_tree=None, embedding=None): # represented by url and action, action taken at url/state
         self.url = url
@@ -111,6 +118,99 @@ def load_interstate_from_file(filename):
         tree_data = json.load(file)
     return deserialize_interstate(tree_data)
 
+
+async def extract_interaction_info(html): #use general input type
+    if '<a' in html:
+        return "link"
+    if ('<button' in html or "type='button'" in html or "role='button'" in html or "role=\"button\"" in html or "[onclick]" in html or "onclick=" in html or "[role='button']" in html) and ("<div" not in html): # filter out div?
+        # or "select" in html DOESN'T HANDLE
+        return "button"
+    if ("<input" in html or "textarea" in html) and "type=\"checkbox\"" not in html:
+        return "input"
+    if "type=\"checkbox\"" in html:
+        return "checkbox"
+    return "Uncased Element"
+
+
+def normalize_url(url):
+    parsed_url = urlparse(url)
+    scheme = parsed_url.scheme if parsed_url.scheme else 'http'
+    netloc = parsed_url.netloc
+    path = parsed_url.path.rstrip('/')  # Remove trailing slashes from the path
+    query = parsed_url.query  # Include the query part
+    fragment = parsed_url.fragment  # Include the fragment part
+
+    normalized_url = urlunparse((scheme, netloc, path, '', query, fragment))
+    return normalized_url
+
+async def get_usable_elements(page, leaf): # maybe remove duplicates if ever needed
+    selector = "a, button, input, select, textarea, [onclick], [role='button']"
+    await page.wait_for_load_state('networkidle')
+    interactable_elements = await page.locator(selector).element_handles()
+    cleaned_elements = await parse_and_clean(interactable_elements, leaf)
+    return cleaned_elements
+
+async def parse_and_clean(elements, parent_node):
+    global all_htmls
+    cleaned_output = []
+    for element in elements:
+        href = await element.get_attribute('href')
+        html = await element.evaluate("element => element.outerHTML")
+
+        # print(f"HREF: {href}")
+
+        if not await element.is_visible() or await element.is_hidden():
+            continue
+        if await element.is_disabled():
+            continue
+        if "disabled=\"disabled\"" in html:
+            continue
+
+        if href and href.startswith('#'):
+            continue
+        elif href is not None and (normalize_url(href) in all_links or (url_depth(normalize_url(href)) <= 1 and href.endswith(".html"))):
+            print(f"REMOVED href: {href}")
+            continue
+
+
+        # print(f"HREF: {href}")
+        if parent_node.parent and href and parent_node.parent.url == normalize_url(href): # TODO WHAT?
+            continue
+
+        if "type='hidden'" in html or 'type="hidden"' in html:
+            continue
+        # How does query selector know siblings????
+        xpath = await element.evaluate('''(element) => {
+            const getElementXPath = (el) => {
+                if (!el || el.nodeType !== 1) return '';
+                if (el.id) return 'id("' + el.id + '")';
+                var path = '', parent = el.parentNode;
+                while (parent) {
+                    var index = 1, sibling = parent.firstChild;
+                    while (sibling) {
+                        if (sibling === el) break;
+                        if (sibling.nodeType === 1 && sibling.tagName === el.tagName) index++;
+                        sibling = sibling.nextSibling;
+                    }
+                    path = '/' + el.tagName + '[' + index + ']' + path;
+                    el = parent; parent = parent.parentNode;
+                }
+                return path.substring(1);
+            };
+            return getElementXPath(element);
+        }''')
+
+
+        interaction_info = await extract_interaction_info(html)
+
+
+        element_info = (xpath, interaction_info, html)
+        cleaned_output.append(element_info)
+        all_htmls.append(html)
+        # # print(f"USED html: {html}")
+        # # print(f"xpath: {xpath}")
+
+    return cleaned_output
 
 
 def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
@@ -351,7 +451,7 @@ async def do_task(start_node, intent):
 
         # await page.goto(end_state.url)
         # BETTER SCRAPING!
-        # REORDER MISSING! 
+        # REORDER MISSING!
         await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history")
         intrastate_options = [f"{i}) VisText: {intrastate_tree.children[i].edge[4]}\nPrivate: {intrastate_tree.children[i].private}\n" for i in range(len(intrastate_tree.children))]
         print("\n".join(intrastate_options))
