@@ -14,7 +14,49 @@ api_key = os.getenv('OPENAI_API_KEY')
 
 client = OpenAI(api_key=api_key)
 
+class IntrastateWebPageNode:
+    def __init__(self, url=None, edge=None, private=None, acc_tree=None, embedding=None): # represented by url and action, action taken at url/state
+        self.url = url
+        self.edge = edge # something like (action, html of action)
+        self.private = private # effect of edge operation on parent
+        self.public = None # functionality of all children operations
+        self.parent = None
+        self.trajectory = [] # How you got here from root
 
+        self.acc_tree = acc_tree
+        self.children = []
+        self.page_embedding = embedding
+
+    def add_child(self, child):
+        self.children.append(child)
+        child.parent = self
+        child.trajectory = copy.deepcopy(self.trajectory)
+        child.trajectory.append(child.edge)
+
+def deserialize_intrastate(node_data):
+    """ Deserialize a node dictionary into an IntrastateWebPageNode object. """
+    node = IntrastateWebPageNode(
+        url=node_data['url'],
+        edge=node_data['edge'],
+        private=node_data['private'],
+        acc_tree=node_data['acc_tree']
+    )
+
+    for child_data in node_data['children']:
+        child_node = deserialize_intrastate(child_data)
+        node.add_child(child_node)
+
+    return node
+
+def load_intrastate_from_json(filename):
+    with open(filename, 'r') as file:
+        data = json.load(file)
+        return deserialize_intrastate(data)
+
+def print_intrastate(node, indent=0):
+    print(' ' * indent + str(node.edge))
+    for child in node.children:
+        print_intrastate(child, indent + 4)
 
 class WebPageNode:
     def __init__(self, url, private, public, acc_tree, embedding=None, parent=None, children=None):
@@ -69,16 +111,16 @@ def load_interstate_from_file(filename):
         tree_data = json.load(file)
     return deserialize_interstate(tree_data)
 
-interstate_tree = load_interstate_from_file('webpage_MVP_V3.json')
 
-def get_interstate(intent, answers):
+
+def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
     messages = [
         {"role": "system",
          "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task, and an enumerated set of possible answers. Each answer is a list of functionalities associated with a separate web page. Your are to choose a web page which best fits the intended goal."},
         {"role": "system",
          "content": "If nothing in the user context fits the input box, return '''N/A''' as the input. If you choose an answer, you must only choose a single answer. If anything is mentioned in the list of one answer that's more specific than anything mentioned in any other answer, choose that answer, even if that answer if longer and contains far more information and options. "},
         {"role": "system",
-         "content": "Reason through your answer step-by-step, giving detailed thoughts in each step. Read through each the list associated with each answer I give you carefully. Give the your final answer for the multiple choice like this: \n '''1'''\n Or this: '''13'''. GIVE ONLY INTEGER NUMBERS INSIDE THIS FORMAT. "},
+         "content": "Reason through your answer step-by-step, giving detailed thoughts in each step. Read through each the list associated with each answer I give you carefully. Give the your final answer like this: \n '''1'''\n Or this: '''13'''\nGIVE ONLY INTEGER NUMBERS INSIDE THIS FORMAT. YOU MUST REPLY WITH THIS FORMAT. "}
     ]
 
     one_shot = {"role": "system",
@@ -88,7 +130,7 @@ def get_interstate(intent, answers):
         "content": f"Here's the intent: {intent}\n Here are the answers you must choose from:\n {answers}"})
 
     response = client.chat.completions.create(
-        model="gpt-4-1106-preview",
+        model=model_name,
         # model="gpt-3.5-turbo-1106",
         messages=messages,
         temperature=0.0,
@@ -116,11 +158,6 @@ def get_interstate(intent, answers):
 
 
 
-def load_interstate_from_file(filename):
-    with open(filename, 'r', encoding='utf-8') as file:
-        tree_data = json.load(file)
-    return deserialize_interstate(tree_data)
-
 
 def construct_options_from_children(children):
     result = []
@@ -142,18 +179,37 @@ def chunk_answers(answers, chunk_size):
 
     return chunked_list
 
-def navigate_interstate(start_node, intent, chunk=False):
+def navigate_interstate_bubble(start_node, intent):
+    curr_node = start_node
+    changed_flag = False
+    for _ in range(10):
+        curr_node_children = copy.deepcopy(curr_node.children)
+        while len(curr_node_children) > 0:
+            potential_node = curr_node_children.pop(0)
+            bubble = [curr_node, potential_node]
+            answers = construct_options_from_children(bubble)
+            answer = get_interstate(intent, answers, model_name="gpt-3.5-turbo-1106")
+            if answer != "FAILURE" and answer != "N/A":
+                index = int(answer) - 1
+                curr_node = bubble[index]
+                changed_flag = True
+        if not changed_flag:
+            break
+
+    return curr_node
+
+def navigate_interstate(start_node, intent, chunk_size=None):
     curr_node = start_node
     for _ in range(10):
         answers = construct_options_from_children(curr_node.children)
-        if chunk:
-            chunked_answers = chunk_answers(answers, 5)
+        if chunk_size != None:
+            chunked_answers = chunk_answers(answers, chunk_size)
 
             possible_results = []
 
             for chunk in chunked_answers:
                 print(f"CHUNK: {chunk}")
-                answer = get_interstate(intent, chunk)
+                answer = get_interstate(intent, chunk, model_name="gpt-4-1106-preview")
                 if answer != "FAILURE" and answer != "N/A":
                     possible_results.append(answer)
 
@@ -170,7 +226,7 @@ def navigate_interstate(start_node, intent, chunk=False):
                 possible_nodes = [get_child_from_index(curr_node, int(result) - 1) for result in possible_results]
                 filtered_possible_results = construct_options_from_children(possible_nodes)
                 print(f"FILTERED POSSIBLE RESULTS: {filtered_possible_results}")
-                answer = get_interstate(intent, filtered_possible_results)
+                answer = get_interstate(intent, filtered_possible_results, model_name="gpt-4-1106-preview")
                 if answer != "FAILURE" and answer != "N/A":
                     index = int(answer) - 1
                     child = possible_nodes[index]
@@ -179,7 +235,7 @@ def navigate_interstate(start_node, intent, chunk=False):
                     break
         else:
             print(f"ANSWERS: {answers}")
-            answer = get_interstate(intent, answers)
+            answer = get_interstate(intent, answers, model_name="gpt-4-1106-preview")
             print("NO CUNKING")
             print(f"ANSWER: {answer}")
             if answer != "FAILURE" and answer != "N/A":
@@ -190,17 +246,21 @@ def navigate_interstate(start_node, intent, chunk=False):
                 break
     return curr_node
 
+
+interstate_tree = load_interstate_from_file('webpage_MVP_V3.json')
+intrastate_tree = load_intrastate_from_json('orthosuppliesdraft.json')
+
 intent = "What is the price range of teeth grinding mouth guard in the One Stop Market?"
 
-end_state = navigate_interstate(interstate_tree, intent, chunk=False)
-print(f"END URL: {end_state.url}")
-print(f"END PUBLIC: {end_state.public}")
+# end_state = navigate_interstate(interstate_tree, intent, chunk_size=10)
+# end_state = navigate_interstate_bubble(interstate_tree, intent)
+
 
 
 def do_task(start_node, intent):
-    end_state = navigate_interstate(start_node, intent, chunk=False)
+    end_state = navigate_interstate(start_node, intent, chunk_size=10)
+    print(f"END URL: {end_state.url}")
+    print(f"END PUBLIC: {end_state.public}")
     return end_state
 
-
-# print(interstate_tree.children[17].url)
-# print(interstate_tree.children[1].url)
+do_task(interstate_tree, intent)
