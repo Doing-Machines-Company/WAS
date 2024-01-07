@@ -564,12 +564,12 @@ async def main():
 
         # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/tweezers-for-succulents-duo.html"
         # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/"
-        link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/"
-        link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/home-kitchen/storage-organization/baskets-bins-containers.html"
-        link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/edit/"
+        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/"
+        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/home-kitchen/storage-organization/baskets-bins-containers.html"
+        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/edit/"
         link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history"
         # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/clothing-shoes-jewelry/women/clothing.html"
-        link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/beauty-personal-care/oral-care/orthodontic-supplies.html"
+        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/beauty-personal-care/oral-care/orthodontic-supplies.html"
         browser = await p.chromium.launch(headless=False)
         page = await browser.new_page()
 

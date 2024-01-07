@@ -118,7 +118,7 @@ def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
         {"role": "system",
          "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task, and an enumerated set of possible answers. Each answer is a list of functionalities associated with a separate web page. Your are to choose a web page which best fits the intended goal."},
         {"role": "system",
-         "content": "If nothing in the user context fits the input box, return '''N/A''' as the input. If you choose an answer, you must only choose a single answer. If anything is mentioned in the list of one answer that's more specific than anything mentioned in any other answer, choose that answer, even if that answer if longer and contains far more information and options. "},
+         "content": "If nothing in the user context fits the input box, return '''N/A''' as the input. If you choose an answer, you must only choose a single answer. If anything is mentioned in the list of one answer that's more specific than anything mentioned in any other answer, choose that answer, even if that answer if longer and contains far more information and options. Ignore any emphasis on any aspect in the lists of the answers I give you, as they are not well-balanced, focus on what exists inside those lists."},
         {"role": "system",
          "content": "Reason through your answer step-by-step, giving detailed thoughts in each step. Read through each the list associated with each answer I give you carefully. Give the your final answer like this: \n '''1'''\n Or this: '''13'''\nGIVE ONLY INTEGER NUMBERS INSIDE THIS FORMAT. YOU MUST REPLY WITH THIS FORMAT. "}
     ]
@@ -140,8 +140,8 @@ def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
     result = response.choices[0].message.content
     print(f"GPT RAW RETURN: {result}")
 
-    pattern1 = r"\'\'\'(.*?)\'\'\'"
-    pattern2 = r"\`\`\`(.*?)\`\`\`"
+    pattern1 = r"\'\'\'(\d+)\'\'\'"
+    pattern2 = r"\`\`\`(\d+)\`\`\`"
 
     match1 = re.search(pattern1, result, re.DOTALL)
     match2 = re.search(pattern2, result, re.DOTALL)
@@ -156,6 +156,50 @@ def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
         print("OH FUCK! ")
         return "FAILURE"
 
+def get_intrastate(intent, answers, model_name="gpt-4-1106-preview"):
+    messages = [
+        {"role": "system",
+         "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task, and an enumerated set of possible answers. "},
+        {"role": "system",
+         "content": "If nothing in the user context fits the input box, return '''N/A''' as the input. If you choose an answer, you must only choose a single answer. If anything is mentioned in the list of one answer that's more specific than anything mentioned in any other answer, choose that answer, even if that answer if longer and contains far more information and options. Ignore any emphasis on any aspect in the lists of the answers I give you, as they are not well-balanced, focus on what exists inside those lists."},
+        {"role": "system",
+         "content": "Reason through your answer step-by-step, giving detailed thoughts in each step. Read through each the list associated with each answer I give you carefully. Give the your final answer like this: \n '''1'''\n Or this: '''13'''\nGIVE ONLY INTEGER NUMBERS INSIDE THIS FORMAT. YOU MUST REPLY WITH THIS FORMAT. "}
+    ]
+
+    one_shot = {"role": "system",
+         "content": f"Here is an example:\n '''\n Here's the intent: {"TONK"}\n Here are the answers you must choose from: {"TONK"}\n Desired answer: {"TONK"}\n '''"}
+
+    messages.append({"role": "user",
+        "content": f"Here's the intent: {intent}\n Here are the answers you must choose from:\n {answers}"})
+
+    response = client.chat.completions.create(
+        model=model_name,
+        # model="gpt-3.5-turbo-1106",
+        messages=messages,
+        temperature=0.0,
+        max_tokens=1500
+    )
+
+    result = response.choices[0].message.content
+    print(f"GPT RAW RETURN: {result}")
+
+    # pattern1 = r"\'\'\'(\d+)\'\'\'"
+    # pattern2 = r"\`\`\`(\d+)\`\`\`"
+    pattern3 = r"\'\'\'(.*?)\'\'\'"
+    pattern4 = r"\`\`\`(.*?)\`\`\`"
+
+    match1 = re.search(pattern3, result, re.DOTALL)
+    match2 = re.search(pattern4, result, re.DOTALL)
+
+    if match1:
+        final_answer = match1.group(1).strip()
+        return final_answer
+    elif match2:
+        final_answer = match2.group(1).strip()
+        return final_answer
+    else:
+        print("OH FUCK! ")
+        return "FAILURE"
 
 
 
@@ -163,7 +207,7 @@ def construct_options_from_children(children):
     result = []
     for i in range(len(children)):
         child = children[i]
-        result.append(f"{i+1}: {child.public}\n")
+        result.append(f"{i}: {child.public}\n")
     return result
 
 def get_child_from_index(node, index):
@@ -190,7 +234,7 @@ def navigate_interstate_bubble(start_node, intent):
             answers = construct_options_from_children(bubble)
             answer = get_interstate(intent, answers, model_name="gpt-3.5-turbo-1106")
             if answer != "FAILURE" and answer != "N/A":
-                index = int(answer) - 1
+                index = int(answer)
                 curr_node = bubble[index]
                 changed_flag = True
         if not changed_flag:
@@ -219,7 +263,7 @@ def navigate_interstate(start_node, intent, chunk_size=None):
             if len(possible_results) == 0:
                 return curr_node
             elif len(possible_results) == 1:
-                index = int(possible_results[0]) - 1
+                index = int(possible_results[0])
                 child = get_child_from_index(curr_node, index)
                 curr_node = child
             else: # Do recursive in future
@@ -228,7 +272,7 @@ def navigate_interstate(start_node, intent, chunk_size=None):
                 print(f"FILTERED POSSIBLE RESULTS: {filtered_possible_results}")
                 answer = get_interstate(intent, filtered_possible_results, model_name="gpt-4-1106-preview")
                 if answer != "FAILURE" and answer != "N/A":
-                    index = int(answer) - 1
+                    index = int(answer)
                     child = possible_nodes[index]
                     curr_node = child
                 else:
@@ -239,7 +283,7 @@ def navigate_interstate(start_node, intent, chunk_size=None):
             print("NO CUNKING")
             print(f"ANSWER: {answer}")
             if answer != "FAILURE" and answer != "N/A":
-                index = int(answer) - 1
+                index = int(answer)
                 child = get_child_from_index(curr_node, index)
                 curr_node = child
             else:
@@ -247,20 +291,87 @@ def navigate_interstate(start_node, intent, chunk_size=None):
     return curr_node
 
 
-interstate_tree = load_interstate_from_file('webpage_MVP_V3.json')
-intrastate_tree = load_intrastate_from_json('orthosuppliesdraft.json')
+interstate_tree = load_interstate_from_file('webpage_MVP_V4.json')
+intrastate_tree = load_intrastate_from_json('myordersdraft.json')
 
-intent = "What is the price range of teeth grinding mouth guard in the One Stop Market?"
+# intent = "What is the price range of wireless earphone in the One Stop Market?"
+intent = "What is the date when I made my first purchase on this site?"
 
 # end_state = navigate_interstate(interstate_tree, intent, chunk_size=10)
 # end_state = navigate_interstate_bubble(interstate_tree, intent)
 
+async def step_by_xpath(page, edge):
+    interaction_info, generated_text, html, xpath = edge
+    print(f"STEPPING: Interaction info: {interaction_info}\n HTML: {html}")
+    await page.wait_for_load_state('networkidle')
+    locator = page.locator(f'xpath={xpath}')
+
+    count = await locator.count()
+    if count == 0:
+        print(f"STEPPING: No elements found with this xpath: {xpath}")
+        # print("IMPOSSIbLE BAD")
+        return
+    elif count == 1:
+        print('STEPPING: One element found with this xpath')
+    else:
+        print('STEPPING: Multiple elements found with this xpath')
 
 
-def do_task(start_node, intent):
-    end_state = navigate_interstate(start_node, intent, chunk_size=10)
-    print(f"END URL: {end_state.url}")
-    print(f"END PUBLIC: {end_state.public}")
-    return end_state
+    if interaction_info in ['button', 'click']:
+        await page.wait_for_load_state('networkidle')
+        locator.first.click()
+        await page.wait_for_load_state('networkidle')
+    elif interaction_info == 'input':
+        await page.wait_for_load_state('networkidle')
+        await locator.first.fill(generated_text)
 
-do_task(interstate_tree, intent)
+        await page.wait_for_load_state('networkidle')
+
+        await page.keyboard.press('Enter')
+
+        await page.wait_for_load_state('networkidle')
+
+    else:
+        print("FUCK3")
+
+async def do_task(start_node, intent):
+    # end_state = navigate_interstate(start_node, intent, chunk_size=None)
+    # print(f"END URL: {end_state.url}")
+    # print(f"END PUBLIC: {end_state.public}")
+    # Assume we are at order history page
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=False)
+        page = await browser.new_page()
+
+        await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
+        await page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
+        await page.get_by_label("Password", exact=True).fill('Password.123')
+        await page.get_by_role("button", name="Sign In").click()
+
+        # await page.goto(end_state.url)
+        # BETTER SCRAPING!
+        # REORDER MISSING! 
+        await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history")
+        intrastate_options = [f"{i}) VisText: {intrastate_tree.children[i].edge[4]}\nPrivate: {intrastate_tree.children[i].private}\n" for i in range(len(intrastate_tree.children))]
+        print("\n".join(intrastate_options))
+        # TODO Not as simple, have to match usable actions with intrastate options
+
+        '''
+        
+        edge_info = (interaction_info, generated_text, html, xpath, visible_text)
+        private = diff from parent to child
+        
+        def deserialize_intrastate(node_data):
+            node = IntrastateWebPageNode(
+                url=node_data['url'],
+                edge=node_data['edge'],
+                private=node_data['private'],
+                acc_tree=node_data['acc_tree'])
+        
+        '''
+
+
+    return None
+
+asyncio.run(do_task(interstate_tree, intent))
