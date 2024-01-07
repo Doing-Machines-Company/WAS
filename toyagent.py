@@ -47,7 +47,7 @@ class WebPageNode:
                 f"Public: {self.public}, Parent URL: {parent_url}, "
                 f"Children URLs: [{children_urls}]")
 
-def deserialize_node(node_data, parent=None):
+def deserialize_interstate(node_data, parent=None):
     # Recreate a WebPageNode from the dictionary data.
     node = WebPageNode(
         url=node_data["url"],
@@ -59,26 +59,26 @@ def deserialize_node(node_data, parent=None):
     )
 
     for child_data in node_data["children"]:
-        child_node = deserialize_node(child_data, parent=node)
+        child_node = deserialize_interstate(child_data, parent=node)
         node.add_child(child_node)
 
     return node
 
-def load_tree_from_file(filename):
+def load_interstate_from_file(filename):
     with open(filename, 'r', encoding='utf-8') as file:
         tree_data = json.load(file)
-    return deserialize_node(tree_data)
+    return deserialize_interstate(tree_data)
 
-interstate_tree = load_tree_from_file('webpage_MVP_V3.json')
+interstate_tree = load_interstate_from_file('webpage_MVP_V3.json')
 
 def get_interstate(intent, answers):
     messages = [
         {"role": "system",
-         "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task, and an enumerated set of possible answers. Each answer is a list of functionalities associated with a separate web page. Your are to be as specific as possible and choose a web page which best fits the intended goal."},
+         "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task, and an enumerated set of possible answers. Each answer is a list of functionalities associated with a separate web page. Your are to choose a web page which best fits the intended goal."},
         {"role": "system",
-         "content": "If nothing in the user context fits the input box, return '''N/A''' as the input. If you choose an answer, you must only choose a single answer. Your answer must fit the intent as closely as possible. Some potential answers may be longer than others, just pick the answer which contains the most specific and relevant information to your task, even if the answer as a whole is longer."},
+         "content": "If nothing in the user context fits the input box, return '''N/A''' as the input. If you choose an answer, you must only choose a single answer. If anything is mentioned in the list of one answer that's more specific than anything mentioned in any other answer, choose that answer, even if that answer if longer and contains far more information and options. "},
         {"role": "system",
-         "content": "Reason through your answer step-by-step, giving detailed thoughts in each step, then give the your final answer for the multiple choice like this: \n '''1'''\n Or this: '''13'''. GIVE ONLY INTEGER NUMBERS INSIDE THIS FORMAT. REMEMBER TO CHOOSE CATEGORIES AND PAGES AS SPECIFIC AS POSSIBLE. "},
+         "content": "Reason through your answer step-by-step, giving detailed thoughts in each step. Read through each the list associated with each answer I give you carefully. Give the your final answer for the multiple choice like this: \n '''1'''\n Or this: '''13'''. GIVE ONLY INTEGER NUMBERS INSIDE THIS FORMAT. "},
     ]
 
     one_shot = {"role": "system",
@@ -88,8 +88,8 @@ def get_interstate(intent, answers):
         "content": f"Here's the intent: {intent}\n Here are the answers you must choose from:\n {answers}"})
 
     response = client.chat.completions.create(
-        # model="gpt-4-1106-preview",
-        model="gpt-3.5-turbo-1106",
+        model="gpt-4-1106-preview",
+        # model="gpt-3.5-turbo-1106",
         messages=messages,
         temperature=0.0,
         max_tokens=1500
@@ -114,42 +114,12 @@ def get_interstate(intent, answers):
         print("OH FUCK! ")
         return "FAILURE"
 
-def get_interstate_instruct(intent, answers):
-    prompt = "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task, and an enumerated set of possible answers. Each answer is a list of functionalities associated with a separate web page. "
-    prompt += "If nothing in the user context fits the input box, return '''N/A''' as the input.  "
-    prompt += "Your answer must fit the intent as closely as possible. Some potential answers may be longer than others, this does not matter, just pick the answer which contains the most specific and relevant information to your task. "
-    prompt += "Reason through your answer step-by-step, then give the your final answer for the multiple choice like this at the end of your reasoned response like this: \n '''1'''"
-    prompt += f"Here's the intent: {intent}\n Here are the answers you must choose from:\n {answers}"
-
-    response = client.completions.create(
-        model="gpt-3.5-turbo-instruct",
-        prompt=prompt,
-        max_tokens=1500,
-        temperature=0.0
-    )
-
-    result = response.choices[0].text
-    print(f"GPT RAW RETURN: {result}")
-
-    pattern = r"\'\'\'(.*?)\'\'\'"
-
-    match = re.search(pattern, result, re.DOTALL)
-
-    if match:
-        final_answer = match.group(1).strip()
-        print("MATCHED! ")
-        print(final_answer)
-        return final_answer
-    else:
-        print("OH FUCK! ")
-        return "FAILURE"
 
 
-
-def load_tree_from_file(filename):
+def load_interstate_from_file(filename):
     with open(filename, 'r', encoding='utf-8') as file:
         tree_data = json.load(file)
-    return deserialize_node(tree_data)
+    return deserialize_interstate(tree_data)
 
 
 def construct_options_from_children(children):
@@ -172,47 +142,64 @@ def chunk_answers(answers, chunk_size):
 
     return chunked_list
 
-def navigate_interstate(start_node, intent):
+def navigate_interstate(start_node, intent, chunk=False):
     curr_node = start_node
     for _ in range(10):
         answers = construct_options_from_children(curr_node.children)
-        chunked_answers = chunk_answers(answers, 5)
+        if chunk:
+            chunked_answers = chunk_answers(answers, 5)
 
-        possible_results = []
+            possible_results = []
 
-        for chunk in chunked_answers:
-            print(f"CHUNK: {chunk}")
-            answer = get_interstate(intent, chunk)
-            if answer != "FAILURE" and answer != "N/A":
-                possible_results.append(answer)
+            for chunk in chunked_answers:
+                print(f"CHUNK: {chunk}")
+                answer = get_interstate(intent, chunk)
+                if answer != "FAILURE" and answer != "N/A":
+                    possible_results.append(answer)
 
-        print(f"POSSIBLE RESULTS: {possible_results}")
+            print(f"POSSIBLE RESULTS: {possible_results}")
+            print(f"curr_node: {curr_node.url}")
 
-        if len(possible_results) == 0:
-            return curr_node
-        elif len(possible_results) == 1:
-            index = int(possible_results[0]) - 1
-            child = get_child_from_index(curr_node, index)
-            curr_node = child
-        else: # Do recursive in future
-            possible_nodes = [get_child_from_index(curr_node, int(result) - 1) for result in possible_results]
-            filtered_possible_results = construct_options_from_children(possible_nodes)
-            print(f"FILTERED POSSIBLE RESULTS: {filtered_possible_results}")
-            answer = get_interstate(intent, filtered_possible_results)
+            if len(possible_results) == 0:
+                return curr_node
+            elif len(possible_results) == 1:
+                index = int(possible_results[0]) - 1
+                child = get_child_from_index(curr_node, index)
+                curr_node = child
+            else: # Do recursive in future
+                possible_nodes = [get_child_from_index(curr_node, int(result) - 1) for result in possible_results]
+                filtered_possible_results = construct_options_from_children(possible_nodes)
+                print(f"FILTERED POSSIBLE RESULTS: {filtered_possible_results}")
+                answer = get_interstate(intent, filtered_possible_results)
+                if answer != "FAILURE" and answer != "N/A":
+                    index = int(answer) - 1
+                    child = possible_nodes[index]
+                    curr_node = child
+                else:
+                    break
+        else:
+            print(f"ANSWERS: {answers}")
+            answer = get_interstate(intent, answers)
+            print("NO CUNKING")
+            print(f"ANSWER: {answer}")
             if answer != "FAILURE" and answer != "N/A":
                 index = int(answer) - 1
                 child = get_child_from_index(curr_node, index)
                 curr_node = child
             else:
                 break
-
     return curr_node
 
 intent = "What is the price range of teeth grinding mouth guard in the One Stop Market?"
 
-end_state = navigate_interstate(interstate_tree, intent)
+end_state = navigate_interstate(interstate_tree, intent, chunk=False)
 print(f"END URL: {end_state.url}")
 print(f"END PUBLIC: {end_state.public}")
+
+
+def do_task(start_node, intent):
+    end_state = navigate_interstate(start_node, intent, chunk=False)
+    return end_state
 
 
 # print(interstate_tree.children[17].url)
