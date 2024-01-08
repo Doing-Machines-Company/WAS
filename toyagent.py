@@ -235,27 +235,43 @@ async def parse_and_clean(elements, parent_node):
 
 
 def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
+
+    print(f"INTENT: {intent}")
     messages = [
         {"role": "system",
          "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task, and an enumerated set of possible answers. Each answer is a list of functionalities associated with a separate web page. Your are to choose a web page which best fits the intended goal."},
         {"role": "system",
-         "content": "If nothing in the user context fits the input box, return '''N/A''' as the input. If you choose an answer, you must only choose a single answer. If anything is mentioned in the list of one answer that's more specific than anything mentioned in any other answer, choose that answer, even if that answer if longer and contains far more information and options. Ignore any emphasis on any aspect in the lists of the answers I give you, as they are not well-balanced, focus on what exists inside those lists."},
+         "content": "If nothing in the user context fits the input box, return '''N/A''' as the input. If you choose an answer, you must only choose a single answer. You only care about what is mentioned in each answer choice, the amount or emphasis of items in the list does not matter. Ignore any emphasis."},
         {"role": "system",
-         "content": "Reason through your answer step-by-step, giving detailed thoughts in each step. Read through each the list associated with each answer I give you carefully. Give the your final answer like this: \n '''1'''\n Or this: '''13'''\nGIVE ONLY INTEGER NUMBERS INSIDE THIS FORMAT. YOU MUST REPLY WITH THIS FORMAT. "}
+         "content": "Reason through your answer step-by-step, giving detailed thoughts in each step. Read through each the list associated with each answer I give you carefully. Give the your final answer like this: \n '''1'''\n Or this: '''13'''\nGIVE ONLY INTEGER NUMBERS INSIDE THIS FORMAT. YOU MUST REPLY WITH THIS FORMAT. "},
+        {"role": "system",
+         "content": "Here is an example:\n"}
     ]
 
-    one_shot = {"role": "system",
-         "content": f"Here is an example:\n '''\n Here's the intent: {"TONK"}\n Here are the answers you must choose from: {"TONK"}\n Desired answer: {"TONK"}\n '''"}
+    example_message = {
+        "role": "system",
+        "name": "example_user",
+        "content": f"Task: I want to buy focaccia \nChoose from these answers:\n0) View and buy dairy products and sliced bread.\n1) View any buy desserts, sweets, clothing, makeup, specialty baked goods and international baked goods."
+    }
+    # messages.append(example_message)
+    example_response = {
+        "role": "system",
+        "name": "example_assistant",
+        "content": f"Let's think through this step by step.\n- 0: This option mentions sliced bread, which could be the answer, however focaccia is not necessarily sliced. \n- 2: While this option has more options, it mentions specialty baked goods and international baked goods, which is more specific for my goal of buying focaccia bread. \n As I was instructed to pay attention to what is mentioned in each answer choice and that the amount or emphasis of items in the list does not matter. Hence I will choose ''' 1 '''. "
+    }
+    # messages.append(example_response)
 
     messages.append({"role": "user",
-        "content": f"Here's the intent: {intent}\n Here are the answers you must choose from:\n {answers}"})
+        "content": f"Task: {intent}\nChoose from these answers:\n {answers}"})
 
     response = client.chat.completions.create(
         model=model_name,
         # model="gpt-3.5-turbo-1106",
         messages=messages,
-        temperature=0.0,
-        max_tokens=1500
+        temperature=0,
+        max_tokens=1500,
+        # top_p=0,
+        seed=88888888
     )
 
     result = response.choices[0].message.content
@@ -388,7 +404,7 @@ def navigate_interstate(start_node, intent, chunk_size=None):
                 child = get_child_from_index(curr_node, index)
                 curr_node = child
             else: # Do recursive in future
-                possible_nodes = [get_child_from_index(curr_node, int(result) - 1) for result in possible_results]
+                possible_nodes = [get_child_from_index(curr_node, int(result)) for result in possible_results]
                 filtered_possible_results = construct_options_from_children(possible_nodes)
                 print(f"FILTERED POSSIBLE RESULTS: {filtered_possible_results}")
                 answer = get_interstate(intent, filtered_possible_results, model_name="gpt-4-1106-preview")
@@ -399,9 +415,8 @@ def navigate_interstate(start_node, intent, chunk_size=None):
                 else:
                     break
         else:
-            print(f"ANSWERS: {answers}")
+            # print(f"ANSWERS: {answers}")
             answer = get_interstate(intent, answers, model_name="gpt-4-1106-preview")
-            print("NO CUNKING")
             print(f"ANSWER: {answer}")
             if answer != "FAILURE" and answer != "N/A":
                 index = int(answer)
@@ -417,6 +432,7 @@ intrastate_tree = load_intrastate_from_json('myordersdraft.json')
 
 # intent = "What is the price range of wireless earphone in the One Stop Market?"
 intent = "What is the date when I made my first purchase on this site?"
+# intent = "What is the price range of teeth grinding mouth guard in the One Stop Market?"
 
 # end_state = navigate_interstate(interstate_tree, intent, chunk_size=10)
 # end_state = navigate_interstate_bubble(interstate_tree, intent)
@@ -503,7 +519,7 @@ async def do_task(start_node, intent):
         await page.get_by_label("Password", exact=True).fill('Password.123')
         await page.get_by_role("button", name="Sign In").click()
 
-        await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history")
+        await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history") # TODO end_state.url
 
         # TODO Not as simple, have to match usable actions with intrastate options
         usable = await get_usable_elements(page, intrastate_tree) # element_info = (xpath, interaction_info, html, visible_text)
@@ -512,6 +528,8 @@ async def do_task(start_node, intent):
         extracted_info = [extract_info_from_html(html) for html in htmls]
         matched = match_edges_with_extracted_info(intrastate_tree, extracted_info)
         question_for_gpt = [f"{i}) {item}\n" for i, item in enumerate(matched)]
+
+
 
         '''
         
@@ -530,4 +548,9 @@ async def do_task(start_node, intent):
 
     return None
 
-asyncio.run(do_task(interstate_tree, intent))
+# asyncio.run(do_task(interstate_tree, intent))
+
+
+end_state = navigate_interstate(interstate_tree, intent, chunk_size=None)
+print(f"END URL: {end_state.url}")
+print(f"END PUBLIC: {end_state.public}")
