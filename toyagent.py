@@ -14,7 +14,7 @@ api_key = os.getenv('OPENAI_API_KEY')
 
 client = OpenAI(api_key=api_key)
 
-with open('all_links.json', 'r') as file:
+with open('all_links2.json', 'r') as file:
     all_links = json.load(file)
 
 def url_depth(url):
@@ -153,6 +153,7 @@ def extract_info_from_html(html):
         return None
 
 
+
 def normalize_url(url):
     parsed_url = urlparse(url)
     scheme = parsed_url.scheme if parsed_url.scheme else 'http'
@@ -164,42 +165,23 @@ def normalize_url(url):
     normalized_url = urlunparse((scheme, netloc, path, '', query, fragment))
     return normalized_url
 
-async def get_usable_elements(page, leaf): # maybe remove duplicates if ever needed
-    selector = "a, button, input, select, textarea, [onclick], [role='button']"
-    await page.wait_for_load_state('networkidle')
-    interactable_elements = await page.locator(selector).element_handles()
-    cleaned_elements = await parse_and_clean(interactable_elements, leaf)
-    return cleaned_elements
-
-async def parse_and_clean(elements, parent_node):
+async def parse_and_clean_new(elements, parent_node):
     cleaned_output = []
     for element in elements:
         href = await element.get_attribute('href')
         html = await element.evaluate("element => element.outerHTML")
 
-        # print(f"HREF: {href}")
-
         if not await element.is_visible() or await element.is_hidden():
             continue
-        if await element.is_disabled():
+        if await element.is_disabled() or "disabled=\"disabled\"" in html:
             continue
-        if "disabled=\"disabled\"" in html:
+        if href and (href.startswith('#') or normalize_url(href) in all_links or (url_depth(normalize_url(href)) <= 1 and href.endswith(".html"))):
             continue
-
-        if href and href.startswith('#'):
+        if parent_node.parent and href and parent_node.parent.url == normalize_url(href):
             continue
-        elif href is not None and (normalize_url(href) in all_links or (url_depth(normalize_url(href)) <= 1 and href.endswith(".html"))):
-            print(f"REMOVED href: {href}")
-            continue
-
-
-        # print(f"HREF: {href}")
-        if parent_node.parent and href and parent_node.parent.url == normalize_url(href): # TODO WHAT?
-            continue
-
         if "type='hidden'" in html or 'type="hidden"' in html:
             continue
-        # How does query selector know siblings????
+
         xpath = await element.evaluate('''(element) => {
             const getElementXPath = (el) => {
                 if (!el || el.nodeType !== 1) return '';
@@ -220,18 +202,61 @@ async def parse_and_clean(elements, parent_node):
             return getElementXPath(element);
         }''')
 
-
         interaction_info = extract_interaction_info(html)
         visible_text = get_visible_from_html(html)
 
-        # edge_info = (interaction_info, generated_text, html, xpath, visible_text)
+        # Determine if the element is part of a table and capture the row context
+        table_context_with_headers = None
+        if interaction_info in ["link", "button", "input"]:  # Check if element types usually in tables
+            table_context_with_headers = await element.evaluate('''(element) => {
+                        let row = element.closest('tr');
+                        let headers = [];
+                        let dataWithHeaders = {};
+                        if (row) {
+                            let table = row.closest('table');
+                            if (table) {
+                                // Get the headers (assuming the headers are in the first row or in <thead>)
+                                let headerCells = table.querySelectorAll('thead th') || table.querySelectorAll('tr:first-child th');
+                                headerCells.forEach((th, index) => {
+                                    headers[index] = th.textContent.trim();
+                                });
 
-        element_info = (xpath, interaction_info, html, visible_text)
+                                // Get the data in the same row as the element, excluding interactable elements
+                                let dataCells = row.querySelectorAll('td');
+                                dataCells.forEach((td, index) => {
+                                    let clonedCell = td.cloneNode(true);
+                                    // Remove interactable elements from the cloned cell
+                                    clonedCell.querySelectorAll('a, button, input, select, textarea, [onclick], [role="button"]').forEach(interactable => interactable.remove());
+                                    let header = headers[index] || `Column ${index + 1}`;
+                                    let cellText = clonedCell.textContent.trim();
+                                    if (cellText) {
+                                        dataWithHeaders[header] = cellText;
+                                    }
+                                });
+                            }
+                        }
+                        return dataWithHeaders;
+                    }''')
+        if table_context_with_headers == dict() or table_context_with_headers == {}:
+            table_context_with_headers = None
+
+        element_info = {
+            'xpath': xpath,
+            'interaction_info': interaction_info,
+            'html': html,
+            'visible_text': visible_text,
+            'table_context': table_context_with_headers
+        }
         cleaned_output.append(element_info)
-        # # print(f"USED html: {html}")
-        # # print(f"xpath: {xpath}")
 
     return cleaned_output
+
+async def get_usable_elements_new(page, leaf): # maybe remove duplicates if ever needed
+    selector = "a, button, input, select, textarea, [onclick], [role='button']"
+    await page.wait_for_load_state('networkidle')
+    interactable_elements = await page.locator(selector).element_handles()
+    cleaned_elements = await parse_and_clean_new(interactable_elements, leaf)
+    return cleaned_elements
 
 
 def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
@@ -243,23 +268,8 @@ def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
         {"role": "system",
          "content": "If nothing in the user context fits the input box, return '''N/A''' as the input. If you choose an answer, you must only choose a single answer. You only care about what is mentioned in each answer choice, the amount or emphasis of items in the list does not matter. Ignore any emphasis."},
         {"role": "system",
-         "content": "Reason through your answer step-by-step, giving detailed thoughts in each step. Read through each the list associated with each answer I give you carefully. Give the your final answer like this: \n '''1'''\n Or this: '''13'''\nGIVE ONLY INTEGER NUMBERS INSIDE THIS FORMAT. YOU MUST REPLY WITH THIS FORMAT. "},
-        {"role": "system",
-         "content": "Here is an example:\n"}
+         "content": "Reason through your answer step-by-step, giving detailed thoughts in each step. Read through each the list associated with each answer I give you carefully. Give the your final answer like this: \n '''1'''\n Or this: '''13'''\nGIVE ONLY INTEGER NUMBERS INSIDE THIS FORMAT. YOU MUST REPLY WITH THIS FORMAT."},
     ]
-
-    example_message = {
-        "role": "system",
-        "name": "example_user",
-        "content": f"Task: I want to buy focaccia \nChoose from these answers:\n0) View and buy dairy products and sliced bread.\n1) View any buy desserts, sweets, clothing, makeup, specialty baked goods and international baked goods."
-    }
-    # messages.append(example_message)
-    example_response = {
-        "role": "system",
-        "name": "example_assistant",
-        "content": f"Let's think through this step by step.\n- 0: This option mentions sliced bread, which could be the answer, however focaccia is not necessarily sliced. \n- 2: While this option has more options, it mentions specialty baked goods and international baked goods, which is more specific for my goal of buying focaccia bread. \n As I was instructed to pay attention to what is mentioned in each answer choice and that the amount or emphasis of items in the list does not matter. Hence I will choose ''' 1 '''. "
-    }
-    # messages.append(example_response)
 
     messages.append({"role": "user",
         "content": f"Task: {intent}\nChoose from these answers:\n {answers}"})
@@ -293,40 +303,40 @@ def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
         print("OH FUCK! ")
         return "FAILURE"
 
+
 def get_intrastate(intent, answers, model_name="gpt-4-1106-preview"):
+
+    print(f"INTENT: {intent}")
     messages = [
         {"role": "system",
-         "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task, and an enumerated set of possible answers. "},
+         "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task, and an enumerated set of possible answers. Each answer is a description generated from the HTML of an actionable element, as well as a description of what that element does when you choose it if available. "},
         {"role": "system",
-         "content": "If nothing in the user context fits the input box, return '''N/A''' as the input. If you choose an answer, you must only choose a single answer. If anything is mentioned in the list of one answer that's more specific than anything mentioned in any other answer, choose that answer, even if that answer if longer and contains far more information and options. Ignore any emphasis on any aspect in the lists of the answers I give you, as they are not well-balanced, focus on what exists inside those lists."},
+         "content": "If nothing in the user context fits the input box, return '''N/A''' as the input. "},
         {"role": "system",
-         "content": "Reason through your answer step-by-step, giving detailed thoughts in each step. Read through each the list associated with each answer I give you carefully. Give the your final answer like this: \n '''1'''\n Or this: '''13'''\nGIVE ONLY INTEGER NUMBERS INSIDE THIS FORMAT. YOU MUST REPLY WITH THIS FORMAT. "}
+         "content": "Reason through your answer step-by-step, giving detailed thoughts in each step. Give the your final answer like this: \n '''1'''\n Or this: '''13'''\nGIVE ONLY INTEGER NUMBERS INSIDE THIS FORMAT. YOU MUST REPLY WITH THIS FORMAT. "},
     ]
 
-    one_shot = {"role": "system",
-         "content": f"Here is an example:\n '''\n Here's the intent: {"TONK"}\n Here are the answers you must choose from: {"TONK"}\n Desired answer: {"TONK"}\n '''"}
-
     messages.append({"role": "user",
-        "content": f"Here's the intent: {intent}\n Here are the answers you must choose from:\n {answers}"})
+        "content": f"Task: {intent}\nChoose from these answers:\n {answers}"})
 
     response = client.chat.completions.create(
         model=model_name,
         # model="gpt-3.5-turbo-1106",
         messages=messages,
-        temperature=0.0,
-        max_tokens=1500
+        temperature=0,
+        max_tokens=1500,
+        # top_p=0,
+        seed=88888888
     )
 
     result = response.choices[0].message.content
     print(f"GPT RAW RETURN: {result}")
 
-    # pattern1 = r"\'\'\'(\d+)\'\'\'"
-    # pattern2 = r"\`\`\`(\d+)\`\`\`"
-    pattern3 = r"\'\'\'(.*?)\'\'\'"
-    pattern4 = r"\`\`\`(.*?)\`\`\`"
+    pattern1 = r"\'\'\'(\d+)\'\'\'"
+    pattern2 = r"\`\`\`(\d+)\`\`\`"
 
-    match1 = re.search(pattern3, result, re.DOTALL)
-    match2 = re.search(pattern4, result, re.DOTALL)
+    match1 = re.search(pattern1, result, re.DOTALL)
+    match2 = re.search(pattern2, result, re.DOTALL)
 
     if match1:
         final_answer = match1.group(1).strip()
@@ -337,7 +347,6 @@ def get_intrastate(intent, answers, model_name="gpt-4-1106-preview"):
     else:
         print("OH FUCK! ")
         return "FAILURE"
-
 
 
 def construct_options_from_children(children):
@@ -519,17 +528,41 @@ async def do_task(start_node, intent):
         await page.get_by_label("Password", exact=True).fill('Password.123')
         await page.get_by_role("button", name="Sign In").click()
 
-        await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history") # TODO end_state.url
+        # await page.goto(end_state.url) # TODO end_state.url
+        await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history")
+
+
+
 
         # TODO Not as simple, have to match usable actions with intrastate options
-        usable = await get_usable_elements(page, intrastate_tree) # element_info = (xpath, interaction_info, html, visible_text)
+        usable = await get_usable_elements_new(page, intrastate_tree) # element_info = (xpath, interaction_info, html, visible_text)
 
-        htmls = [item[2] for item in usable]
+        '''
+        usable elements
+        element_info = {
+            'xpath': xpath,
+            'interaction_info': interaction_info,
+            'html': html,
+            'visible_text': visible_text,
+            'table_context': table_context_with_headers
+        }
+        
+        '''
+
+        tables = [item['table_context'] for item in usable]
+        htmls = [item['html'] for item in usable]
         extracted_info = [extract_info_from_html(html) for html in htmls]
+
+
+        print("EXTRACTED INFO")
         matched = match_edges_with_extracted_info(intrastate_tree, extracted_info)
-        question_for_gpt = [f"{i}) {item}\n" for i, item in enumerate(matched)]
+        print("MATCHED")
+        print(matched)
 
-
+        print(len(matched))
+        print(len(tables))
+        # question_for_gpt = [f"{i}) {item}\n" for i, item in enumerate(matched)]
+        # print('\n'.join(question_for_gpt))
 
         '''
         
@@ -548,9 +581,4 @@ async def do_task(start_node, intent):
 
     return None
 
-# asyncio.run(do_task(interstate_tree, intent))
-
-
-end_state = navigate_interstate(interstate_tree, intent, chunk_size=None)
-print(f"END URL: {end_state.url}")
-print(f"END PUBLIC: {end_state.public}")
+asyncio.run(do_task(interstate_tree, intent))
