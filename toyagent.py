@@ -119,7 +119,7 @@ def load_interstate_from_file(filename):
     return deserialize_interstate(tree_data)
 
 
-async def extract_interaction_info(html): #use general input type
+def extract_interaction_info(html): #use general input type
     if '<a' in html:
         return "link"
     if ('<button' in html or "type='button'" in html or "role='button'" in html or "role=\"button\"" in html or "[onclick]" in html or "onclick=" in html or "[role='button']" in html) and ("<div" not in html): # filter out div?
@@ -130,6 +130,27 @@ async def extract_interaction_info(html): #use general input type
     if "type=\"checkbox\"" in html:
         return "checkbox"
     return "Uncased Element"
+
+def get_visible_from_html(html):
+    soup = BeautifulSoup(html, 'html.parser')
+    return soup.get_text(strip=True)
+
+
+def extract_info_from_html(html):
+    soup = BeautifulSoup(html, 'html.parser')
+    outer_element = soup.find()  # Find the first/outermost tag
+
+    if outer_element:
+        info = {
+            'tag': outer_element.name,
+            'visible_text': outer_element.get_text(strip=True),
+            'interaction': extract_interaction_info(str(outer_element)),
+            'attributes': outer_element.attrs,
+            'raw_html': html # TODO: Remove this later
+        }
+        return info
+    else:
+        return None
 
 
 def normalize_url(url):
@@ -151,7 +172,6 @@ async def get_usable_elements(page, leaf): # maybe remove duplicates if ever nee
     return cleaned_elements
 
 async def parse_and_clean(elements, parent_node):
-    global all_htmls
     cleaned_output = []
     for element in elements:
         href = await element.get_attribute('href')
@@ -201,12 +221,13 @@ async def parse_and_clean(elements, parent_node):
         }''')
 
 
-        interaction_info = await extract_interaction_info(html)
+        interaction_info = extract_interaction_info(html)
+        visible_text = get_visible_from_html(html)
 
+        # edge_info = (interaction_info, generated_text, html, xpath, visible_text)
 
-        element_info = (xpath, interaction_info, html)
+        element_info = (xpath, interaction_info, html, visible_text)
         cleaned_output.append(element_info)
-        all_htmls.append(html)
         # # print(f"USED html: {html}")
         # # print(f"xpath: {xpath}")
 
@@ -434,6 +455,39 @@ async def step_by_xpath(page, edge):
     else:
         print("FUCK3")
 
+
+def match_edges_with_extracted_info(node, extracted_info):
+    matched_edges = []
+
+    for info in extracted_info:
+        found = False
+        new_info = {
+            'visible_text': info['visible_text'],
+            'interaction': info['interaction'],
+            'attributes': info['attributes'],
+        }
+
+        for i in range(len(node.children)):
+            edge = node.children[i].edge
+            interaction_info, generated_text, html, xpath, visible_text = edge
+            if visible_text and visible_text == info['visible_text']:
+                # print("FLAG 1")
+                matched_edges.append((new_info, f"ACTION DESCRIPTION: {node.children[i].private}"))
+                found = True
+                break
+
+        if not found:
+            for i in range(len(node.children)):
+                edge = node.children[i].edge
+                interaction_info, generated_text, html, xpath, visible_text = edge
+                if html and html == info['raw_html']:
+                    matched_edges.append((new_info, f"ACTION DESCRIPTION: {node.children[i].private}"))
+                    found = True
+                    break
+        if not found: matched_edges.append((new_info, "ACTION DESCRIPTION: UNKNOWN"))
+
+    return matched_edges
+
 async def do_task(start_node, intent):
     # end_state = navigate_interstate(start_node, intent, chunk_size=None)
     # print(f"END URL: {end_state.url}")
@@ -441,7 +495,7 @@ async def do_task(start_node, intent):
     # Assume we are at order history page
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False)
+        browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
 
         await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
@@ -449,13 +503,15 @@ async def do_task(start_node, intent):
         await page.get_by_label("Password", exact=True).fill('Password.123')
         await page.get_by_role("button", name="Sign In").click()
 
-        # await page.goto(end_state.url)
-        # BETTER SCRAPING!
-        # REORDER MISSING!
         await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history")
-        intrastate_options = [f"{i}) VisText: {intrastate_tree.children[i].edge[4]}\nPrivate: {intrastate_tree.children[i].private}\n" for i in range(len(intrastate_tree.children))]
-        print("\n".join(intrastate_options))
+
         # TODO Not as simple, have to match usable actions with intrastate options
+        usable = await get_usable_elements(page, intrastate_tree) # element_info = (xpath, interaction_info, html, visible_text)
+
+        htmls = [item[2] for item in usable]
+        extracted_info = [extract_info_from_html(html) for html in htmls]
+        matched = match_edges_with_extracted_info(intrastate_tree, extracted_info)
+        question_for_gpt = [f"{i}) {item}\n" for i, item in enumerate(matched)]
 
         '''
         
