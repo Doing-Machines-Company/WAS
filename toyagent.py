@@ -309,11 +309,11 @@ def get_intrastate(intent, answers, model_name="gpt-4-1106-preview"):
     print(f"INTENT: {intent}")
     messages = [
         {"role": "system",
-         "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task, and an enumerated set of possible answers. Each answer is a description generated from the HTML of an actionable element on a web page, as well as a description of what that element does when you choose it if available, alomg with some extra information. "},
+         "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task and multiple choice answers. Each answer represents an action. If the action has an effect description called ACTION EFFECT, pay attention to it. "},
         {"role": "system",
-         "content": "If nothing in the answers I give you will help you achieve the task, or if you think that the task is impossible, return '''N/A''' as the input. You want to find the most correct answer possible, the answer you will choose may be one of many steps. Make sure you explore as much as necessary, and make sure that if you explore there is good probability your exploration choice will find items for the required task."},
+         "content": "If nothing in the answers I give you will help you achieve the task, or if you think that the task is impossible, return '''N/A'''. The answer you need may not be currently visible to you, tend towards exploring unless none of the exploration ACTION EFFECTs fit your task. You want the best possible solution, which may require navigation.. "},
         {"role": "system",
-         "content": "Reason through your answer step-by-step, giving detailed thoughts in each step. Give the your final answer like this: \n '''1'''\n Or this: '''13'''\nGIVE ONLY INTEGER NUMBERS INSIDE THIS FORMAT. YOU MUST REPLY WITH THIS FORMAT. "},
+         "content": "Reason through every single option I give you step-by-step thoughtfully. Give explanations for why every option I give you may be right or wrong. Pay close attention to options which let you view more information or navigate. Give the your final answer like this: \n '''1'''\n Or this: '''13'''"},
     ]
 
     messages.append({"role": "user",
@@ -418,10 +418,10 @@ def navigate_interstate(start_node, intent, chunk_size=None):
 
 
 interstate_tree = load_interstate_from_file('webpage_MVP_V4.json')
-intrastate_tree = load_intrastate_from_json('ordershistoryv3.json')
+intrastate_tree = load_intrastate_from_json('ordershistoryv5.json')
 
 # intent = "What is the price range of wireless earphone in the One Stop Market?"
-intent = "What was the earliest order I made in August 2023?"
+intent = "What was the oldest order I made on this website?"
 # intent = "What is the price range of teeth grinding mouth guard in the One Stop Market?"
 
 # end_state = navigate_interstate(interstate_tree, intent, chunk_size=10)
@@ -435,8 +435,8 @@ def match_edges_with_extracted_info(node, extracted_info):
         found = False
         new_info = {
             'visible_text': info['visible_text'],
-            'interaction': info['interaction'],
-            'attributes': info['attributes'],
+            # 'interaction': info['interaction'],
+            # 'attributes': info['attributes'],
         }
 
         for i in range(len(node.children)):
@@ -444,7 +444,7 @@ def match_edges_with_extracted_info(node, extracted_info):
             interaction_info, generated_text, html, xpath, visible_text = edge
             if visible_text and visible_text == info['visible_text']:
                 # print("FLAG 1")
-                matched_edges.append((new_info, f"ACTION DESCRIPTION: {node.children[i].private}"))
+                matched_edges.append((new_info, f"ACTION EFFECT: {node.children[i].private}"))
                 found = True
                 break
 
