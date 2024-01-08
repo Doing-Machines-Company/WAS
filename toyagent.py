@@ -175,7 +175,7 @@ async def parse_and_clean_new(elements, parent_node):
             continue
         if await element.is_disabled() or "disabled=\"disabled\"" in html:
             continue
-        if href and (href.startswith('#') or normalize_url(href) in all_links or (url_depth(normalize_url(href)) <= 1 and href.endswith(".html"))):
+        if href and ((href.startswith('#') and href != '#') or normalize_url(href) in all_links or (url_depth(normalize_url(href)) <= 1 and href.endswith(".html"))):
             continue
         if parent_node.parent and href and parent_node.parent.url == normalize_url(href):
             continue
@@ -309,9 +309,9 @@ def get_intrastate(intent, answers, model_name="gpt-4-1106-preview"):
     print(f"INTENT: {intent}")
     messages = [
         {"role": "system",
-         "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task, and an enumerated set of possible answers. Each answer is a description generated from the HTML of an actionable element, as well as a description of what that element does when you choose it if available. "},
+         "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task, and an enumerated set of possible answers. Each answer is a description generated from the HTML of an actionable element on a web page, as well as a description of what that element does when you choose it if available, alomg with some extra information. "},
         {"role": "system",
-         "content": "If nothing in the user context fits the input box, return '''N/A''' as the input. "},
+         "content": "If nothing in the answers I give you will help you achieve the task, or if you think that the task is impossible, return '''N/A''' as the input. You want to find the most correct answer possible, the answer you will choose may be one of many steps. Make sure you explore as much as necessary, and make sure that if you explore there is good probability your exploration choice will find items for the required task."},
         {"role": "system",
          "content": "Reason through your answer step-by-step, giving detailed thoughts in each step. Give the your final answer like this: \n '''1'''\n Or this: '''13'''\nGIVE ONLY INTEGER NUMBERS INSIDE THIS FORMAT. YOU MUST REPLY WITH THIS FORMAT. "},
     ]
@@ -369,25 +369,6 @@ def chunk_answers(answers, chunk_size):
 
     return chunked_list
 
-def navigate_interstate_bubble(start_node, intent):
-    curr_node = start_node
-    changed_flag = False
-    for _ in range(10):
-        curr_node_children = copy.deepcopy(curr_node.children)
-        while len(curr_node_children) > 0:
-            potential_node = curr_node_children.pop(0)
-            bubble = [curr_node, potential_node]
-            answers = construct_options_from_children(bubble)
-            answer = get_interstate(intent, answers, model_name="gpt-3.5-turbo-1106")
-            if answer != "FAILURE" and answer != "N/A":
-                index = int(answer)
-                curr_node = bubble[index]
-                changed_flag = True
-        if not changed_flag:
-            break
-
-    return curr_node
-
 def navigate_interstate(start_node, intent, chunk_size=None):
     curr_node = start_node
     for _ in range(10):
@@ -437,48 +418,14 @@ def navigate_interstate(start_node, intent, chunk_size=None):
 
 
 interstate_tree = load_interstate_from_file('webpage_MVP_V4.json')
-intrastate_tree = load_intrastate_from_json('myordersdraft.json')
+intrastate_tree = load_intrastate_from_json('ordershistoryv3.json')
 
 # intent = "What is the price range of wireless earphone in the One Stop Market?"
-intent = "What is the date when I made my first purchase on this site?"
+intent = "What was the earliest order I made in August 2023?"
 # intent = "What is the price range of teeth grinding mouth guard in the One Stop Market?"
 
 # end_state = navigate_interstate(interstate_tree, intent, chunk_size=10)
 # end_state = navigate_interstate_bubble(interstate_tree, intent)
-
-async def step_by_xpath(page, edge):
-    interaction_info, generated_text, html, xpath = edge
-    print(f"STEPPING: Interaction info: {interaction_info}\n HTML: {html}")
-    await page.wait_for_load_state('networkidle')
-    locator = page.locator(f'xpath={xpath}')
-
-    count = await locator.count()
-    if count == 0:
-        print(f"STEPPING: No elements found with this xpath: {xpath}")
-        # print("IMPOSSIbLE BAD")
-        return
-    elif count == 1:
-        print('STEPPING: One element found with this xpath')
-    else:
-        print('STEPPING: Multiple elements found with this xpath')
-
-
-    if interaction_info in ['button', 'click']:
-        await page.wait_for_load_state('networkidle')
-        locator.first.click()
-        await page.wait_for_load_state('networkidle')
-    elif interaction_info == 'input':
-        await page.wait_for_load_state('networkidle')
-        await locator.first.fill(generated_text)
-
-        await page.wait_for_load_state('networkidle')
-
-        await page.keyboard.press('Enter')
-
-        await page.wait_for_load_state('networkidle')
-
-    else:
-        print("FUCK3")
 
 
 def match_edges_with_extracted_info(node, extracted_info):
@@ -513,6 +460,79 @@ def match_edges_with_extracted_info(node, extracted_info):
 
     return matched_edges
 
+def use_gpt_fill_input(tree_str, specific_html, user_context):
+    messages = [
+        {"role": "system",
+         "content": "You are an autonomous agent performing tasks for an user on a webshop. You are tasked with analyzing a web page based on the entire page's accessibility tree and one element's specific HTML."},
+        {"role": "system",
+         "content": "The HTML will represent an element that you must input some text into."},
+        {"role": "system",
+         "content": "The accessibility tree will be a string representation of the accessibility tree of the web page."},
+        {"role": "system",
+         "content": "You will also be given some context about the user, which will be a dictionary of information about the user."},
+        {"role": "system",
+         "content": "If nothing in the user context fits the input box, use '''N/A''' as the input."},
+        {"role": "system",
+         "content": "Reason through your answer, then give the exact string you would input into the box enclosed by '''s, like this: \n '''I would input this string'''. Do not include reasoning in your enclosed answer."},
+        {"role": "user",
+        "content": f"Here's the information, what should be input into the element represented by the specific HTML? \n Specific element HTML: {specific_html}\nCurrent page accessibility tree:\n{tree_str}\nUser context: {user_context}\n"}
+    ]
+
+    response = client.chat.completions.create(
+        model="gpt-4-1106-preview",
+        # model="gpt-3.5-turbo-1106",
+        messages=messages,
+        temperature=0.0,
+        max_tokens=400
+    )
+
+    result = response.choices[0].message.content
+
+    pattern = r"\'\'\'(.*?)\'\'\'"
+
+    match = re.search(pattern, result, re.DOTALL)
+    # # print(f"RESULT: {result}")
+    if match:
+        final_answer = match.group(1).strip()
+        return final_answer
+    else:
+        return "FAILURE"
+
+    return "FAILURE"
+
+async def step_by_xpath(page, xpath, interaction_info, html):
+
+    await page.wait_for_load_state('networkidle')
+    locator = page.locator(f'xpath={xpath}')
+
+    count = await locator.count()
+    if count == 0:
+        print(f"STEPPING: No elements found with this xpath: {xpath}")
+        return
+    elif count == 1:
+        print('STEPPING: One element found with this xpath')
+    else:
+        print('STEPPING: Multiple elements found with this xpath')
+
+
+    if interaction_info in ['button', 'link', 'checkbox']:
+        await page.wait_for_load_state('networkidle')
+        await locator.first.click()
+        await page.wait_for_load_state('networkidle')
+    elif interaction_info == 'input':
+        await page.wait_for_load_state('networkidle')
+
+        await locator.first.fill("TESTING MODE")
+
+        await page.wait_for_load_state('networkidle')
+
+        await page.keyboard.press('Enter')
+
+        await page.wait_for_load_state('networkidle')
+
+    else:
+        print("FUCK3")
+
 async def do_task(start_node, intent):
     # end_state = navigate_interstate(start_node, intent, chunk_size=None)
     # print(f"END URL: {end_state.url}")
@@ -520,7 +540,7 @@ async def do_task(start_node, intent):
     # Assume we are at order history page
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(headless=False)
         page = await browser.new_page()
 
         await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
@@ -533,50 +553,68 @@ async def do_task(start_node, intent):
 
 
 
+        for _ in range(10):
 
-        # TODO Not as simple, have to match usable actions with intrastate options
-        usable = await get_usable_elements_new(page, intrastate_tree) # element_info = (xpath, interaction_info, html, visible_text)
+            # TODO Not as simple, have to match usable actions with intrastate options
+            usable = await get_usable_elements_new(page, intrastate_tree) # element_info = (xpath, interaction_info, html, visible_text)
 
-        '''
-        usable elements
-        element_info = {
-            'xpath': xpath,
-            'interaction_info': interaction_info,
-            'html': html,
-            'visible_text': visible_text,
-            'table_context': table_context_with_headers
-        }
-        
-        '''
+            '''
+            usable elements
+            element_info = {
+                'xpath': xpath,
+                'interaction_info': interaction_info,
+                'html': html,
+                'visible_text': visible_text,
+                'table_context': table_context_with_headers
+            }
+            
+            '''
 
-        tables = [item['table_context'] for item in usable]
-        htmls = [item['html'] for item in usable]
-        extracted_info = [extract_info_from_html(html) for html in htmls]
+            tables = [item['table_context'] for item in usable]
+            htmls = [item['html'] for item in usable]
+            extracted_info = [extract_info_from_html(html) for html in htmls]
 
 
-        print("EXTRACTED INFO")
-        matched = match_edges_with_extracted_info(intrastate_tree, extracted_info)
-        print("MATCHED")
-        print(matched)
+            print("EXTRACTED INFO")
+            matched = match_edges_with_extracted_info(intrastate_tree, extracted_info)
+            combined = []
 
-        print(len(matched))
-        print(len(tables))
-        # question_for_gpt = [f"{i}) {item}\n" for i, item in enumerate(matched)]
-        # print('\n'.join(question_for_gpt))
+            for i, (info, action_desc) in enumerate(matched):
+                combined.append((info, action_desc, f"EXTRA INFO: {tables[i]}"))
 
-        '''
-        
-        edge_info = (interaction_info, generated_text, html, xpath, visible_text)
-        private = diff from parent to child
-        
-        def deserialize_intrastate(node_data):
-            node = IntrastateWebPageNode(
-                url=node_data['url'],
-                edge=node_data['edge'],
-                private=node_data['private'],
-                acc_tree=node_data['acc_tree'])
-        
-        '''
+            print(len(combined))
+            print(len(extracted_info))
+            print(len(usable))
+            question_for_gpt = [f"{i}) {item}\n" for i, item in enumerate(combined)]
+            print('\n'.join(question_for_gpt))
+            answer = get_intrastate(intent, '\n'.join(question_for_gpt), model_name="gpt-4-1106-preview")
+            xpath = usable[int(answer)]['xpath']
+            interaction_info = usable[int(answer)]['interaction_info']
+            html = usable[int(answer)]['html']
+            visible_text = usable[int(answer)]['visible_text']
+
+
+            await step_by_xpath(page, xpath, interaction_info, html)
+            continue_flag = input("PRESS ENTER TO CONTINUE")
+            if continue_flag == '':
+                continue
+            else:
+                exit()
+
+
+            '''
+            
+            edge_info = (interaction_info, generated_text, html, xpath, visible_text)
+            private = diff from parent to child
+            
+            def deserialize_intrastate(node_data):
+                node = IntrastateWebPageNode(
+                    url=node_data['url'],
+                    edge=node_data['edge'],
+                    private=node_data['private'],
+                    acc_tree=node_data['acc_tree'])
+            
+            '''
 
 
     return None
