@@ -288,11 +288,15 @@ def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
         {"role": "system",
          "content": "If nothing in the user context fits the input box, return '''N/A''' as the input. If you choose an answer, you must only choose a single answer. You only care about what is mentioned in each answer choice, the amount or emphasis of items in the list does not matter. Ignore any emphasis."},
         {"role": "system",
-         "content": "Reason through your answer step-by-step, giving detailed thoughts in each step. Read through each the list associated with each answer I give you carefully. Give the your final answer like this: \n '''1'''\n Or this: '''13'''\nGIVE ONLY INTEGER NUMBERS INSIDE THIS FORMAT. YOU MUST REPLY WITH THIS FORMAT."},
+         "content": "Reason through every single option I give you step-by-step thoughtfully. Give explanations for why every option I give you may be right or wrong. After reasoning, give your final answer like this: \n '''1'''\n Or this: '''13'''."},
     ]
+    print("TONK ANSWERS")
+
+    formatted_answers = '\n'.join(answers)
+    print(formatted_answers)
 
     messages.append({"role": "user",
-        "content": f"Task: {intent}\nChoose from these answers:\n {answers}"})
+        "content": f"Task: {intent}\nChoose from these answers:\n {formatted_answers}"})
 
     response = client.chat.completions.create(
         model=model_name,
@@ -406,7 +410,7 @@ def navigate_interstate(start_node, intent, chunk_size=None):
                 if answer != "FAILURE" and answer != "N/A":
                     possible_results.append(answer)
 
-            print(f"POSSIBLE RESULTS: {possible_results}")
+            # print(f"POSSIBLE RESULTS: {possible_results}")
             print(f"curr_node: {curr_node.url}")
 
             if len(possible_results) == 0:
@@ -427,7 +431,7 @@ def navigate_interstate(start_node, intent, chunk_size=None):
                 else:
                     break
         else:
-            # print(f"ANSWERS: {answers}")
+            # print(f"POSSIBLES: {answers}")
             answer = get_interstate(intent, answers, model_name="gpt-4-1106-preview")
             print(f"ANSWER: {answer}")
             if answer != "FAILURE" and answer != "N/A":
@@ -439,11 +443,10 @@ def navigate_interstate(start_node, intent, chunk_size=None):
     return curr_node
 
 
-interstate_tree = load_interstate_from_file('webpage_MVP_V4.json')
-intrastate_tree = load_intrastate_from_json('ordershistoryv5.json')
+interstate_tree = load_interstate_from_file('webpage_MVP_V5.json')
 
 # intent = "What is the price range of wireless earphone in the One Stop Market?"
-intent = "How much I spent during March 2023?"
+intent = "I want to change my password"
 # intent = "What is the price range of teeth grinding mouth guard in the One Stop Market?"
 
 # end_state = navigate_interstate(interstate_tree, intent, chunk_size=10)
@@ -464,7 +467,9 @@ def match_edges_with_extracted_info(node, extracted_info):
         for i in range(len(node.children)):
             edge = node.children[i].edge
             interaction_info, generated_text, html, xpath, visible_text = edge
-            if visible_text and visible_text == info['visible_text']:
+            # if visible_text and visible_text == info['visible_text']:
+            # if visible_text and info['visible_text'].startswith(visible_text):
+            if visible_text and visible_text in info['visible_text']:
                 # print("FLAG 1")
                 matched_edges.append((new_info, f"ACTION EFFECT: {node.children[i].private}"))
                 found = True
@@ -475,10 +480,10 @@ def match_edges_with_extracted_info(node, extracted_info):
                 edge = node.children[i].edge
                 interaction_info, generated_text, html, xpath, visible_text = edge
                 if html and html == info['raw_html']:
-                    matched_edges.append((new_info, f"ACTION DESCRIPTION: {node.children[i].private}"))
+                    matched_edges.append((new_info, f"ACTION EFFECT: {node.children[i].private}"))
                     found = True
                     break
-        if not found: matched_edges.append((new_info, "ACTION DESCRIPTION: UNKNOWN"))
+        if not found: matched_edges.append((new_info, "ACTION EFFECT: UNKNOWN"))
 
     return matched_edges
 
@@ -556,11 +561,29 @@ async def step_by_xpath(page, xpath, interaction_info, html):
         print("FUCK3")
 
 async def do_task(start_node, intent):
-    # end_state = navigate_interstate(start_node, intent, chunk_size=None)
-    # print(f"END URL: {end_state.url}")
-    # print(f"END PUBLIC: {end_state.public}")
+    end_state = navigate_interstate(start_node, intent)
+    print(f"END URL: {end_state.url}")
+    print(f"END PUBLIC: {end_state.public}")
+    exit()
     # Assume we are at order history page
 
+    if "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/edit" in end_state.url: #some are sublinks need better system
+        intrastate_tree = load_intrastate_from_json('myaccountedit.json')
+    elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history" in end_state.url:
+        intrastate_tree = load_intrastate_from_json('myorders.json')
+    elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/wishlist" in end_state.url:
+        intrastate_tree = load_intrastate_from_json('mywishlistNEW.json')
+    elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/address" in end_state.url:
+        intrastate_tree = load_intrastate_from_json('myaddressbookNEW.json')
+    elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account" in end_state.url:
+        intrastate_tree = load_intrastate_from_json('myaccount.json')
+    elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/newsletter/manage" in end_state.url:
+        intrastate_tree = load_intrastate_from_json('mynewsletter.json')
+    else:
+        print("OOPS! NO INTRASTATE TREE FOUND")
+        print(f"END URL: {end_state.url}")
+        input("PRESS ENTER TO CONTINUE")
+        exit()
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=False)
         page = await browser.new_page()
@@ -570,8 +593,8 @@ async def do_task(start_node, intent):
         await page.get_by_label("Password", exact=True).fill('Password.123')
         await page.get_by_role("button", name="Sign In").click()
 
-        # await page.goto(end_state.url) # TODO end_state.url
-        await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history")
+        await page.goto(end_state.url) # TODO end_state.url
+        # await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history")
 
 
 
@@ -600,17 +623,20 @@ async def do_task(start_node, intent):
             print("EXTRACTED INFO")
             matched = match_edges_with_extracted_info(intrastate_tree, extracted_info)
             combined = []
+            known_usable = []
 
             for i, (info, action_desc) in enumerate(matched):
-                combined.append((info, action_desc, f"EXTRA INFO: {tables[i]}"))
+                if action_desc != "ACTION EFFECT: UNKNOWN" and action_desc != "ACTION EFFECT: N/A": # Unknown is not matched to a private, N/A is private generated didn't know
+                    known_usable.append(usable[i])
+                    combined.append((info, action_desc, f"EXTRA INFO: {tables[i]}"))
 
             question_for_gpt = [f"{i}) {item}\n" for i, item in enumerate(combined)]
             print('\n'.join(question_for_gpt))
             answer = get_intrastate(intent, '\n'.join(question_for_gpt), model_name="gpt-4-1106-preview")
-            xpath = usable[int(answer)]['xpath']
-            interaction_info = usable[int(answer)]['interaction_info']
-            html = usable[int(answer)]['html']
-            visible_text = usable[int(answer)]['visible_text']
+            xpath = known_usable[int(answer)]['xpath']
+            interaction_info = known_usable[int(answer)]['interaction_info']
+            html = known_usable[int(answer)]['html']
+            visible_text = known_usable[int(answer)]['visible_text']
 
 
             await step_by_xpath(page, xpath, interaction_info, html)

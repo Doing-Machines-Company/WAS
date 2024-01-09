@@ -17,7 +17,7 @@ all_htmls = []
 
 all_creates_trees = []
 
-with open('all_links.json', 'r') as file:
+with open('all_links2.json', 'r') as file:
     all_links = json.load(file)
 
 user_context = {
@@ -111,20 +111,31 @@ async def parse_and_clean(elements, parent_node):
         href = await element.get_attribute('href')
         html = await element.evaluate("element => element.outerHTML")
 
-        # print(f"HREF: {href}")
+
 
         if not await element.is_visible() or await element.is_hidden():
             continue
+
+
         if await element.is_disabled():
             continue
+
+
         if "disabled=\"disabled\"" in html:
             continue
 
-        if href and href.startswith('#'):
+        if href and href.startswith('#') and href != "#": # some starts with # bad, some good, confusing
             continue
-        elif href is not None and (normalize_url(href) in all_links or (url_depth(normalize_url(href)) <= 1 and href.endswith(".html"))):
-            print(f"REMOVED href: {href}")
+
+
+        if href and (normalize_url(href) in all_links) and (normalize_url(href) != parent_node.url):
             continue
+
+
+
+        if href and url_depth(aggressive_url_norm(href)) <= 1 and aggressive_url_norm(href).endswith(".html") and (aggressive_url_norm(href) != parent_node.url):
+            continue
+
 
 
         # print(f"HREF: {href}")
@@ -163,7 +174,6 @@ async def parse_and_clean(elements, parent_node):
         all_htmls.append(html)
         # # print(f"USED html: {html}")
         # # print(f"xpath: {xpath}")
-
     return cleaned_output
 
 async def step_by_xpath(page, edge):
@@ -184,7 +194,7 @@ async def step_by_xpath(page, edge):
         print('STEPPING: Multiple elements found with this xpath')
 
 
-    if interaction_info in ['button', 'click']:
+    if interaction_info in ['button', 'click', 'link', 'checkbox']:
         await page.wait_for_load_state('networkidle')
         locator.first.click()
         await page.wait_for_load_state('networkidle')
@@ -201,7 +211,7 @@ async def step_by_xpath(page, edge):
     else:
         print("FUCK3")
 
-async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
+async def interact_element_by_xpath(page, xpath, interaction_info, html, node): # WHY IS REORDER NOT SCRAPING????
     global user_context
     await page.wait_for_load_state('networkidle')
     await page.evaluate('''() => {
@@ -279,8 +289,9 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
     after_tree = parse_accessibility_tree(await page.accessibility.snapshot())
     url2 = copy.deepcopy(page.url)
     difference = use_gpt_get_difference(before_tree, after_tree, url1, url2, action_description)
+    # difference = "TESTING MODE"
     print(f"PAGE URL: {page.url}\n URL2: {url2}")
-    child_node = IntrastateWebPageNode(url=page.url, edge=edge_info, private=difference, acc_tree=after_tree)
+    child_node = IntrastateWebPageNode(url=normalize_url(page.url), edge=edge_info, private=difference, acc_tree=after_tree)
     print("NEW CHILD BIRTHED! ")
     print(f"BEFORE: {url1}\nAFTER: {url2}")
     # input("TONK")
@@ -374,7 +385,7 @@ def use_gpt_get_difference(tree_str1, tree_str2, url1, url2, action):
         {"role": "system",
          "content": "Do not include any specific details about visual or informational changes to the page, only what these changes imply. Only include these changes if they are necessary to describe the effect of the action. Use the URLs and accessibility trees, if no navigation occured do not mention navigation."},
         {"role": "system",
-         "content": "This is important: if there's a difference in ordering of products/orders.etc between two accessibility trees (e.g., one has older orders, or price has become descending), you must include this difference in your answer. "},
+         "content": "This is important: if there's a difference in ordering of products/orders.etc between two accessibility trees (e.g., one has older orders, or price has become descending), you must include this difference in your answer. This ordering and pattern is very important information"},
         {"role": "system",
          "content": "Carefully and rigorously reason through your answer step by step, then give the exact string you would input into the box enclosed by ''', like this: \n '''This is the difference between these two web page states'''. Do not include reasoning in your enclosed answer."},
         {"role": "system",
@@ -423,12 +434,18 @@ async def scrape_leaves(root_node):
         for leaf in leaves:
             if not leaf.url.startswith(aggressive_url_norm(root_node.url)):
                 continue
-            outer_browser = await p.chromium.launch(headless=False)
+            outer_browser = await p.chromium.launch(headless=True)
             outer_page = await outer_browser.new_page()
             await outer_page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
             await outer_page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
             await outer_page.get_by_label("Password", exact=True).fill('Password.123')
             await outer_page.get_by_role("button", name="Sign In").click()
+
+            # await outer_page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/tide-pods-spring-meadow-scent-he-turbo-laundry-detergent-pacs-81-count.html")
+            # await outer_page.click("text=Add to Wish List")
+            # await outer_page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/tide-pods-spring-meadow-scent-he-turbo-laundry-detergent-pacs-81-count.html")
+            # await outer_page.click("text=Add to Compare")
+
             await outer_page.goto(root_node.url)
 
             trajectory = leaf.trajectory
@@ -459,7 +476,7 @@ async def scrape_leaves(root_node):
 
             # edge_info = (interaction_info, generated_text, html, xpath, visible_text)
             for xpath, interaction_info, html in elements:
-                inner_browser = await p.chromium.launch(headless=False)
+                inner_browser = await p.chromium.launch(headless=True)
 
 
                 # # print("-------------------")
@@ -474,6 +491,11 @@ async def scrape_leaves(root_node):
                 await inner_page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
                 await inner_page.get_by_label("Password", exact=True).fill('Password.123')
                 await inner_page.get_by_role("button", name="Sign In").click()
+
+                # await inner_page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/tide-pods-spring-meadow-scent-he-turbo-laundry-detergent-pacs-81-count.html")
+                # await inner_page.click("text=Add to Wish List")
+                # await inner_page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/tide-pods-spring-meadow-scent-he-turbo-laundry-detergent-pacs-81-count.html")
+                # await inner_page.click("text=Add to Compare")
 
                 await inner_page.goto(root_node.url)
 
@@ -567,16 +589,29 @@ async def main():
         # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/"
         # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/home-kitchen/storage-organization/baskets-bins-containers.html"
         # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/edit/"
-        link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history"
+        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history"
         # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/clothing-shoes-jewelry/women/clothing.html"
         # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/beauty-personal-care/oral-care/orthodontic-supplies.html"
-        browser = await p.chromium.launch(headless=False)
+        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/?p=3"
+        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account"
+        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/wishlist"
+        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/address"
+        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/edit"
+        link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/newsletter/manage"
+        browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
 
         await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
         await page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
         await page.get_by_label("Password", exact=True).fill('Password.123')
         await page.get_by_role("button", name="Sign In").click()
+
+        # await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/tide-pods-spring-meadow-scent-he-turbo-laundry-detergent-pacs-81-count.html")
+        # await page.click("text=Add to Wish List")
+        # await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/tide-pods-spring-meadow-scent-he-turbo-laundry-detergent-pacs-81-count.html")
+        # await page.click("text=Add to Compare")
+
+
 
         # def __init__(self, url=None, edge=None, acc_tree=None, embedding=None):
         curr_page_acc_tree = parse_accessibility_tree(await page.accessibility.snapshot())
@@ -597,7 +632,7 @@ async def main():
     print("DONE!!!")
     # print_intrastate_node_tree(root_node)
     print(f"ALL HTMLS: {all_htmls}")
-    save_tree_to_json(root_node, 'orthosuppliesdraft.json')
+    save_tree_to_json(root_node, 'mynewsletter.json')
 
 
 
