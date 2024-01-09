@@ -21,6 +21,26 @@ def url_depth(url):
     parsed = urlparse(url)
     return parsed.path.count('/')
 
+
+def parse_accessibility_tree(node, depth=0):
+    if not node or 'role' not in node:
+        return ""
+
+    indent = "\t" * depth
+    role = node.get('role', '')
+    name = node.get('name', '')
+    node_str = f"{indent}[{role}] {repr(name)}"
+
+    node_str += "\n"
+
+    # Recursively process children
+    for child in node.get('children', []):
+        child_str = parse_accessibility_tree(child, depth + 1)
+        node_str += child_str
+
+    return node_str
+
+
 class IntrastateWebPageNode:
     def __init__(self, url=None, edge=None, private=None, acc_tree=None, embedding=None): # represented by url and action, action taken at url/state
         self.url = url
@@ -309,11 +329,13 @@ def get_intrastate(intent, answers, model_name="gpt-4-1106-preview"):
     print(f"INTENT: {intent}")
     messages = [
         {"role": "system",
-         "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task and multiple choice answers. Each answer represents an action. If the action has an effect description called ACTION EFFECT, pay attention to it. "},
+         "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task and multiple choice answers. Each answer represents an action being taken on the same web page. If the action has an effect description called ACTION EFFECT, pay attention to it. "},
         {"role": "system",
-         "content": "If nothing in the answers I give you will help you achieve the task, or if you think that the task is impossible, return '''N/A'''. The answer you need may not be currently visible to you, tend towards exploring unless none of the exploration ACTION EFFECTs fit your task. You want the best possible solution, which may require navigation.. "},
+         "content": "If nothing in the answers I give you will help you achieve the task, or if you think that the task is impossible, return '''N/A'''. If there are multiple correct answers available, return '''N/A'''. The answer you need may not be currently visible to you, pay attention to ACTION EFFECTs that fit your task. "},
         {"role": "system",
-         "content": "Reason through every single option I give you step-by-step thoughtfully. Give explanations for why every option I give you may be right or wrong. Pay close attention to options which let you view more information or navigate. Give the your final answer like this: \n '''1'''\n Or this: '''13'''"},
+         "content": "You want to first pay attention to all of effects labelled ACTION EFFECTS in each of the options I give you, especially paying attention to the effects of navigation related options. All dates are in the format of MM/DD/YY. YY is the last two digits of the year."},
+        {"role": "system",
+         "content": "Reason through every single option I give you step-by-step thoughtfully. Give explanations for why every option I give you may be right or wrong. Pay close attention to options which let you view more information or navigate. Give the your final answer like this: \n '''1'''\n Or this: '''13'''. "},
     ]
 
     messages.append({"role": "user",
@@ -326,7 +348,7 @@ def get_intrastate(intent, answers, model_name="gpt-4-1106-preview"):
         temperature=0,
         max_tokens=1500,
         # top_p=0,
-        seed=88888888
+        seed=12345678
     )
 
     result = response.choices[0].message.content
@@ -421,7 +443,7 @@ interstate_tree = load_interstate_from_file('webpage_MVP_V4.json')
 intrastate_tree = load_intrastate_from_json('ordershistoryv5.json')
 
 # intent = "What is the price range of wireless earphone in the One Stop Market?"
-intent = "What was the oldest order I made on this website?"
+intent = "How much I spent during March 2023?"
 # intent = "What is the price range of teeth grinding mouth guard in the One Stop Market?"
 
 # end_state = navigate_interstate(interstate_tree, intent, chunk_size=10)
@@ -582,9 +604,6 @@ async def do_task(start_node, intent):
             for i, (info, action_desc) in enumerate(matched):
                 combined.append((info, action_desc, f"EXTRA INFO: {tables[i]}"))
 
-            print(len(combined))
-            print(len(extracted_info))
-            print(len(usable))
             question_for_gpt = [f"{i}) {item}\n" for i, item in enumerate(combined)]
             print('\n'.join(question_for_gpt))
             answer = get_intrastate(intent, '\n'.join(question_for_gpt), model_name="gpt-4-1106-preview")
