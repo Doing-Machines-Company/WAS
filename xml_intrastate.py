@@ -7,6 +7,7 @@ from openai import OpenAI
 import os
 from bs4 import BeautifulSoup
 import copy
+from accessibility_tree_utils import parse_accessibility_tree
 
 
 api_key = os.getenv('OPENAI_API_KEY')
@@ -64,23 +65,6 @@ def aggressive_url_norm(url):  # Very aggressive normalization
     normalized_url = urlunparse((scheme, netloc, path, '', '', ''))
     return normalized_url
 
-def parse_accessibility_tree(node, depth=0):
-    if not node or 'role' not in node:
-        return ""
-
-    indent = "\t" * depth
-    role = node.get('role', '')
-    name = node.get('name', '')
-    node_str = f"{indent}[{role}] {repr(name)}"
-
-    node_str += "\n"
-
-    # Recursively process children
-    for child in node.get('children', []):
-        child_str = parse_accessibility_tree(child, depth + 1)
-        node_str += child_str
-
-    return node_str
 
 async def extract_interaction_info(html): #use general input type
     if '<a' in html:

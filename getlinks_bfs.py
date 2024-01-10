@@ -5,6 +5,7 @@ from openai import OpenAI
 import os
 from urllib.parse import urlparse, urlunparse
 import json
+from interstate_tree import WebPageNode
 
 api_key = os.getenv('OPENAI_API_KEY')
 
@@ -27,12 +28,8 @@ parsed_start_url = urlparse(start_url)
 start_domain = parsed_start_url.netloc
 start_scheme = parsed_start_url.scheme
 
-def url_depth(url):
-    parsed = urlparse(url)
-    return parsed.path.count('/')
-
 '''
-async def normalize_url(url):
+async def aggressive_normalize_url(url):
     parsed_url = urlparse(url)
     scheme = parsed_url.scheme if parsed_url.scheme else 'http'
     netloc = parsed_url.netloc
@@ -44,7 +41,7 @@ async def normalize_url(url):
 
 '''
 
-def normalize_url(url):  # Very aggressive normalization
+def aggressive_normalize_url(url):  # Very aggressive normalization
     parsed_url = urlparse(url)
     scheme = parsed_url.scheme if parsed_url.scheme else 'http'
     netloc = parsed_url.netloc
@@ -53,14 +50,7 @@ def normalize_url(url):  # Very aggressive normalization
     normalized_url = urlunparse((scheme, netloc, path, '', '', ''))
     return normalized_url
 
-def trim_url_to_depth(url, depth):
-    parsed = urlparse(url)
 
-    path_segments = parsed.path.split('/')
-    trimmed_path = '/'.join(path_segments[:depth + 1])
-
-    trimmed_url = urlunparse((parsed.scheme, parsed.netloc, trimmed_path, '', '', ''))
-    return trimmed_url
 async def is_same_domain(url):
     parsed_url = urlparse(url)
     return (parsed_url.netloc == start_domain or
@@ -74,78 +64,7 @@ async def load_few_shot_examples(filename):
         return json.load(file)
 
 
-class WebPageNode:
-    def __init__(self, url=None, private=None, public=None, acc_tree=None, embedding=None, parent=None, children=None):
-        self.url = url
-        self.private = private
-        self.public = private if public is None else public
-        self.parents = set()
-        self.ancestor_urls = set()
-        if url is not None:
-            self.ancestor_urls.add(url)
-        if parent is not None:
-            self.parents.add(parent)
-        self.acc_tree = acc_tree
-        self.children = set()
-        if children is not None:
-            self.children.update(children)
-        self.page_embedding = embedding
 
-    def add_child(self, child_node):
-        child_node.parents.add(self)  # Set this node as the parent of the child
-        self.children.add(child_node)
-        child_node.ancestor_urls.update(self.ancestor_urls)
-
-    def to_dict(self):
-        return {
-            "url": self.url,
-            "private": self.private,
-            "public": self.public,
-            "acc_tree": self.acc_tree,
-            "vec_embedding": self.page_embedding,
-            "children": [child.to_dict() for child in self.children]
-        }
-
-    def choose_parent(self):
-        if len(self.parents) > 0:
-            min_parent_depth = min([url_depth(parent.url) for parent in self.parents])
-            backup_selected_parent = None
-            selected_parent = None
-            for parent in self.parents:
-                if not backup_selected_parent and url_depth(parent.url) == min_parent_depth:
-                    selected_parent = parent
-
-                same_depth_child = trim_url_to_depth(self.url, url_depth(parent.url))
-
-                trimmed_url = parent.url[:-5] if parent.url.endswith('.html') else parent.url
-                if trimmed_url == same_depth_child:
-                    if selected_parent == None:
-                        selected_parent = parent
-                    elif url_depth(parent.url) >= url_depth(selected_parent.url):
-                        selected_parent = parent
-
-            if selected_parent == None:
-                selected_parent = backup_selected_parent
-
-            if selected_parent:
-                for parent in self.parents:
-                    if parent != selected_parent:
-                        parent.children.discard(self)
-
-                self.parents = {selected_parent}
-
-
-        assert (len(self.parents) <= 1)
-
-
-
-    def __eq__(self, other):
-        if other is None:
-            return False
-        return self.url == other.url
-
-    def __hash__(self):
-        return hash(self.url)
 
 
 def get_compressed_label(role):  # Not really good for tokenization, produces more tokens for embedding
@@ -178,22 +97,6 @@ def parse_accessibility_tree(node, depth=0):
     return node_str
 
 
-def clean_accessibility_tree(tree_str):  # Further cleaning perhaps good later on
-    clean_lines = []
-    for line in tree_str.split("\n"):
-        if "text" in line.lower():  # Changed from "statictext" to "text"
-            prev_lines = clean_lines[-3:]
-            match = re.search(r"\[text\] '([^']+)'", line)
-            if match:
-                text_content = match.group(1)
-                if all(text_content not in prev_line for prev_line in prev_lines):
-                    clean_lines.append(line)
-        else:
-            clean_lines.append(line)
-
-    return "\n".join(clean_lines)
-
-
 async def fetch_links(url, browser):
 
     username = 'emma.lopez@gmail.com'
@@ -214,7 +117,7 @@ async def fetch_links(url, browser):
     for link in links:
         href = await link.get_attribute('href')
         if href:
-            normalized_href = normalize_url(href)
+            normalized_href = aggressive_normalize_url(href)
             if await is_same_domain(normalized_href):
                 valid_links.append(normalized_href)
 
@@ -285,6 +188,18 @@ async def set_local_storage(page, origin, local_storage_data):
     for item in local_storage_data:
         await page.evaluate(f"window.localStorage.setItem('{item['name']}', `{json.dumps(item['value'])}`)")
 
+def url_depth(url):
+    parsed = urlparse(url)
+    return parsed.path.count('/')
+
+def trim_url_to_depth(url, depth):
+    parsed = urlparse(url)
+
+    path_segments = parsed.path.split('/')
+    trimmed_path = '/'.join(path_segments[:depth + 1])
+
+    trimmed_url = urlunparse((parsed.scheme, parsed.netloc, trimmed_path, '', '', ''))
+    return trimmed_url
 
 async def process_node(parent_node, browser):
     global np
@@ -357,7 +272,7 @@ async def main():
     global cookies
     global local_storage_data
     global origin
-    start_url = normalize_url(start_url)
+    start_url = aggressive_normalize_url(start_url)
     all_seen_links.add(start_url)
     all_processed_links.add(start_url)
 

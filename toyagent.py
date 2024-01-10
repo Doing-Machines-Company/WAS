@@ -3,16 +3,12 @@ from playwright.async_api import async_playwright
 import re
 import json
 from urllib.parse import urlparse, urlunparse
-from openai import OpenAI
-from openai import ChatCompletion
-import os
 from bs4 import BeautifulSoup
-import copy
+from intrastate_tree import load_intrastate_from_json
+from agentprompts import get_interstate, get_intrastate
+from interstate_tree import InferenceWebPageNode
 
 
-api_key = os.getenv('OPENAI_API_KEY')
-
-client = OpenAI(api_key=api_key)
 
 with open('all_links2.json', 'r') as file:
     all_links = json.load(file)
@@ -22,103 +18,18 @@ def url_depth(url):
     return parsed.path.count('/')
 
 
-def parse_accessibility_tree(node, depth=0):
-    if not node or 'role' not in node:
-        return ""
 
-    indent = "\t" * depth
-    role = node.get('role', '')
-    name = node.get('name', '')
-    node_str = f"{indent}[{role}] {repr(name)}"
-
-    node_str += "\n"
-
-    # Recursively process children
-    for child in node.get('children', []):
-        child_str = parse_accessibility_tree(child, depth + 1)
-        node_str += child_str
-
-    return node_str
-
-
-class IntrastateWebPageNode:
-    def __init__(self, url=None, edge=None, private=None, acc_tree=None, embedding=None): # represented by url and action, action taken at url/state
-        self.url = url
-        self.edge = edge # something like (action, html of action)
-        self.private = private # effect of edge operation on parent
-        self.public = None # functionality of all children operations
-        self.parent = None
-        self.trajectory = [] # How you got here from root
-
-        self.acc_tree = acc_tree
-        self.children = []
-        self.page_embedding = embedding
-
-    def add_child(self, child):
-        self.children.append(child)
-        child.parent = self
-        child.trajectory = copy.deepcopy(self.trajectory)
-        child.trajectory.append(child.edge)
-
-def deserialize_intrastate(node_data):
-    """ Deserialize a node dictionary into an IntrastateWebPageNode object. """
-    node = IntrastateWebPageNode(
-        url=node_data['url'],
-        edge=node_data['edge'],
-        private=node_data['private'],
-        acc_tree=node_data['acc_tree']
-    )
-
-    for child_data in node_data['children']:
-        child_node = deserialize_intrastate(child_data)
-        node.add_child(child_node)
-
-    return node
-
-def load_intrastate_from_json(filename):
-    with open(filename, 'r') as file:
-        data = json.load(file)
-        return deserialize_intrastate(data)
 
 def print_intrastate(node, indent=0):
     print(' ' * indent + str(node.edge))
     for child in node.children:
         print_intrastate(child, indent + 4)
 
-class WebPageNode:
-    def __init__(self, url, private, public, acc_tree, embedding=None, parent=None, children=None):
-        self.url = url
-        self.private = private
-        self.public = private if public is None else public
-        self.parent = parent
-        self.acc_tree = acc_tree
-        self.children = children if children is not None else []
-        self.page_embedding = embedding
 
-    def add_child(self, child_node):
-        child_node.parent = self  # Set this node as the parent of the child
-        self.children.append(child_node)
-
-    def to_dict(self):
-        return {
-            "url": self.url,
-            "private": self.private,
-            "public": self.public,
-            "acc_tree": self.acc_tree,
-            "vec_embedding": self.page_embedding,
-            "children": [child.to_dict() for child in self.children]
-        }
-
-    def __str__(self):
-        parent_url = self.parent.url if self.parent else 'None'
-        children_urls = ', '.join([child.url for child in self.children])
-        return (f"WebPageNode(URL: {self.url}, Private: {self.private}, "
-                f"Public: {self.public}, Parent URL: {parent_url}, "
-                f"Children URLs: [{children_urls}]")
 
 def deserialize_interstate(node_data, parent=None):
-    # Recreate a WebPageNode from the dictionary data.
-    node = WebPageNode(
+    # Recreate a InferenceWebPageNode from the dictionary data.
+    node = InferenceWebPageNode(
         url=node_data["url"],
         private=node_data["private"],
         public=node_data["public"],
@@ -279,134 +190,14 @@ async def get_usable_elements_new(page, leaf): # maybe remove duplicates if ever
     return cleaned_elements
 
 
-def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
 
-    print(f"INTENT: {intent}")
-    messages = [
-        {"role": "system",
-         "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task, and an enumerated set of possible answers. Each answer is a list of functionalities associated with a separate web page. Your are to choose a web page which best fits the intended goal."},
-        {"role": "system",
-         "content": "If nothing in the user context fits the input box, return '''N/A''' as the input. If you choose an answer, you must only choose a single answer. You only care about what is mentioned in each answer choice, the amount or emphasis of items in the list does not matter. Ignore any emphasis."},
-        {"role": "system",
-         "content": "Reason through every single option I give you step-by-step thoughtfully. Give explanations for why every option I give you may be right or wrong. Try your best to choose an answer. After reasoning, give your final answer like this: \n '''1'''\n Or this: '''13'''."},
-        {"role": "system",
-         "content": "Here is an example of what your response should look like given their inputs."}
-    ]
-    print("INTERSTATE CHOICES")
-
-    formatted_answers = '\n'.join(answers)
-    print(formatted_answers)
-    example_message = {
-        "role": "system",
-        "name": "example_user",
-        "content": f"Task: How much does mature cheddar cost? \nChoose from these answers:\n 0) [View and buy red wine, white wine, whiskey, makeup, chicken, and dairy products] \n1) [View and buy clothing for men and children] \n2) [View and buy clothing for women, jewelry, and accessories] \n3) [View and buy beef, pork, milk and eggs] \n4) [View and buy seafood, poultry, and produce] \n5) [View account information and change account settings]"
-    }
-    messages.append(example_message)
-    example_response = {
-        "role": "system",
-        "name": "example_assistant",
-        "content": f"Let's reason through these possible answers step-by-step. \n- 1: This option mentions dairy products, and cheese is a type of dairy product. \n- 2: This option mentions nothing related to cheese. \n- 2: This option mentions nothing related to cheese. \n- 3: This option mentions milk, and milk are a type of dairy product. It however does not mention cheese. \n- 4: This option mentions poultry, and cheese is not a type of poultry. \n- 5: This option mentions nothing related to cheese. \nMature cheddar is a type of cheese. Even though option 0 mentions many functionalities, it mentions cheese, and option 3 only mentions milk and not other dairy products as a whole, the correct answer is '''0'''."
-    }
-    messages.append(example_response)
-
-    example_message = {
-        "role": "system",
-        "name": "example_user",
-        "content": f"Task: How much does milk cost? \nChoose from these answers:\n 0) [View and buy red wine, white wine, whiskey, makeup, chicken, and dairy products] \n1) [View and buy clothing for men and children] \n2) [View and buy clothing for women, jewelry, and accessories] \n3) [View and buy beef, pork, milk and eggs] \n4) [View and buy seafood, poultry, and produce] \n5) [View account information and change account settings]"
-    }
-    messages.append(example_message)
-    example_response = {
-        "role": "system",
-        "name": "example_assistant",
-        "content": f"Let's reason through these possible answers step-by-step. \n- 1: This option mentions dairy products, and cheese is a type of dairy product. \n- 2: This option mentions nothing related to cheese. \n- 2: This option mentions nothing related to cheese. \n- 3: This option mentions milk, and milk are a type of dairy product. It however does not mention cheese. \n- 4: This option mentions poultry, and cheese is not a type of poultry. \n- 5: This option mentions nothing related to cheese. \nMilk is a type of dairy, and option 0 contains dairy. However option 3 specifically mentions milk. Even though option 0 mentions mentions dairy, as option 3 mentions milk directly, I must choose the more specific choice and so I should choose option 3, the correct answer is '''0'''."
-    }
-    messages.append(example_response)
-
-    messages.append({"role": "user",
-        "content": f"Task: {intent}\nChoose from these answers:\n {formatted_answers}"})
-
-    response = client.chat.completions.create(
-        model=model_name,
-        # model="gpt-3.5-turbo-1106",
-        messages=messages,
-        temperature=0,
-        max_tokens=1500,
-        # top_p=0,
-        seed=88888888
-    )
-
-    result = response.choices[0].message.content
-    print(f"GPT RAW RETURN: {result}")
-
-    pattern1 = r"\'\'\'(\d+)\'\'\'"
-    pattern2 = r"\`\`\`(\d+)\`\`\`"
-
-    match1 = re.search(pattern1, result, re.DOTALL)
-    match2 = re.search(pattern2, result, re.DOTALL)
-
-    if match1:
-        final_answer = match1.group(1).strip()
-        return final_answer
-    elif match2:
-        final_answer = match2.group(1).strip()
-        return final_answer
-    else:
-        print("OH FUCK! ")
-        return "FAILURE"
-
-
-def get_intrastate(intent, answers, model_name="gpt-4-1106-preview"):
-
-    print(f"INTENT: {intent}")
-    messages = [
-        {"role": "system",
-         "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task and multiple choice answers. Each answer represents an action being taken on the same web page. If the action has an effect description called ACTION EFFECT, pay attention to it. "},
-        {"role": "system",
-         "content": "If nothing in the answers I give you will help you achieve the task, or if you think that the task is impossible, return '''N/A'''. If there are multiple correct answers available, return '''N/A'''. The answer you need may not be currently visible to you, pay attention to ACTION EFFECTs that fit your task. "},
-        {"role": "system",
-         "content": "You want to first pay attention to all of effects labelled ACTION EFFECTS in each of the options I give you, especially paying attention to the effects of navigation related options. All dates are in the format of MM/DD/YY. YY is the last two digits of the year."},
-        {"role": "system",
-         "content": "Reason through every single option I give you step-by-step thoughtfully. Give explanations for why every option I give you may be right or wrong. Pay close attention to options which let you view more information or navigate. Give the your final answer like this: \n '''1'''\n Or this: '''13'''. "},
-    ]
-
-    messages.append({"role": "user",
-        "content": f"Task: {intent}\nChoose from these answers:\n {answers}"})
-
-    response = client.chat.completions.create(
-        # model=model_name,
-        model="gpt-3.5-turbo-1106",
-        messages=messages,
-        temperature=0,
-        max_tokens=1500,
-        # top_p=0,
-        seed=12345678
-    )
-
-    result = response.choices[0].message.content
-    print(f"GPT RAW RETURN: {result}")
-
-    pattern1 = r"\'\'\'(\d+)\'\'\'"
-    pattern2 = r"\`\`\`(\d+)\`\`\`"
-
-    match1 = re.search(pattern1, result, re.DOTALL)
-    match2 = re.search(pattern2, result, re.DOTALL)
-
-    if match1:
-        final_answer = match1.group(1).strip()
-        return final_answer
-    elif match2:
-        final_answer = match2.group(1).strip()
-        return final_answer
-    else:
-        print("OH FUCK! ")
-        return "FAILURE"
 
 
 def construct_options_from_children(children):
     result = []
     for i in range(len(children)):
         child = children[i]
-        result.append(f"{i}: {child.public}\n")
+        result.append(f"{i}) {child.public}\n")
     return result
 
 def get_child_from_index(node, index):
@@ -477,6 +268,7 @@ interstate_tree = load_interstate_from_file('webtreeflattened.json')
 # intent = "What is the price range of wireless earphone in the One Stop Market?"
 # intent = "I want to change my password"
 intent = "Check my order history from 2022 and tell me how much I spent on food"
+# intent = "buy skyr"
 
 # end_state = navigate_interstate(interstate_tree, intent, chunk_size=10)
 # end_state = navigate_interstate_bubble(interstate_tree, intent)
@@ -596,17 +388,17 @@ async def do_task(start_node, intent):
     # Assume we are at order history page
 
     if "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/edit" in end_state.url: #some are sublinks need better system
-        intrastate_tree = load_intrastate_from_json('myaccountedit.json')
+        intrastate_tree = load_intrastate_from_json('intrastate_trees/myaccountedit.json')
     elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history" in end_state.url:
-        intrastate_tree = load_intrastate_from_json('myorders.json')
+        intrastate_tree = load_intrastate_from_json('intrastate_trees/myorders.json')
     elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/wishlist" in end_state.url:
-        intrastate_tree = load_intrastate_from_json('mywishlistNEW.json')
+        intrastate_tree = load_intrastate_from_json('intrastate_trees/mywishlistNEW.json')
     elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/address" in end_state.url:
-        intrastate_tree = load_intrastate_from_json('myaddressbookNEW.json')
+        intrastate_tree = load_intrastate_from_json('intrastate_trees/myaddressbookNEW.json')
     elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account" in end_state.url:
-        intrastate_tree = load_intrastate_from_json('myaccount.json')
+        intrastate_tree = load_intrastate_from_json('intrastate_trees/myaccount.json')
     elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/newsletter/manage" in end_state.url:
-        intrastate_tree = load_intrastate_from_json('mynewsletter.json')
+        intrastate_tree = load_intrastate_from_json('intrastate_trees/mynewsletter.json')
     else:
         print("OOPS! NO INTRASTATE TREE FOUND")
         print(f"END URL: {end_state.url}")
@@ -659,6 +451,7 @@ async def do_task(start_node, intent):
                     combined.append((info, action_desc, f"EXTRA INFO: {tables[i]}"))
 
             question_for_gpt = [f"{i}) {item}\n" for i, item in enumerate(combined)]
+            print("INTRASTATE CHOICES")
             print('\n'.join(question_for_gpt))
             answer = get_intrastate(intent, '\n'.join(question_for_gpt), model_name="gpt-4-1106-preview")
             xpath = known_usable[int(answer)]['xpath']
@@ -681,7 +474,7 @@ async def do_task(start_node, intent):
             private = diff from parent to child
             
             def deserialize_intrastate(node_data):
-                node = IntrastateWebPageNode(
+                node = IntrastateInferenceWebPageNode(
                     url=node_data['url'],
                     edge=node_data['edge'],
                     private=node_data['private'],
