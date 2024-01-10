@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from intrastate_tree import load_intrastate_from_json
 from agentprompts import get_interstate, get_intrastate
 from interstate_tree import InferenceWebPageNode
+from accessibility_tree_utils import parse_accessibility_tree
 
 
 
@@ -218,19 +219,19 @@ def navigate_interstate(start_node, intent, chunk_size=None):
     for _ in range(10):
         answers = construct_options_from_children(curr_node.children)
         if chunk_size != None:
-            chunked_answers = chunk_answers(answers, chunk_size)
+            chunked_questions = chunk_answers(answers, chunk_size)
 
             possible_results = []
 
-            for chunk in chunked_answers:
-                print(f"CHUNK: {chunk}")
+            for chunk in chunked_questions:
+                # print(f"CHUNK: {chunk}")
                 # answer = get_interstate(intent, chunk, model_name="gpt-4-1106-preview")
                 answer = get_interstate(intent, chunk, model_name="gpt-3.5-turbo-1106")
                 if answer != "FAILURE" and answer != "N/A":
                     possible_results.append(answer)
 
             # print(f"POSSIBLE RESULTS: {possible_results}")
-            print(f"curr_node: {curr_node.url}")
+            # (f"curr_node: {curr_node.url}")
 
             if len(possible_results) == 0:
                 return curr_node
@@ -241,7 +242,7 @@ def navigate_interstate(start_node, intent, chunk_size=None):
             else: # Do recursive in future
                 possible_nodes = [get_child_from_index(curr_node, int(result)) for result in possible_results]
                 filtered_possible_results = construct_options_from_children(possible_nodes)
-                print(f"FILTERED POSSIBLE RESULTS: {filtered_possible_results}")
+                # print(f"FILTERED POSSIBLE RESULTS: {filtered_possible_results}")
                 answer = get_interstate(intent, filtered_possible_results, model_name="gpt-3.5-turbo-1106")
                 if answer != "FAILURE" and answer != "N/A":
                     index = int(answer)
@@ -252,7 +253,7 @@ def navigate_interstate(start_node, intent, chunk_size=None):
         else:
             # print(f"POSSIBLES: {answers}")
             answer = get_interstate(intent, answers, model_name="gpt-4-1106-preview")
-            print(f"ANSWER: {answer}")
+            # print(f"ANSWER: {answer}")
             if answer != "FAILURE" and answer != "N/A":
                 index = int(answer)
                 child = get_child_from_index(curr_node, index)
@@ -267,7 +268,7 @@ interstate_tree = load_interstate_from_file('webtreeflattened.json')
 
 # intent = "What is the price range of wireless earphone in the One Stop Market?"
 # intent = "I want to change my password"
-intent = "Check my order history from 2022 and tell me how much I spent on food"
+intent = "Find my most recent order"
 # intent = "buy skyr"
 
 # end_state = navigate_interstate(interstate_tree, intent, chunk_size=10)
@@ -308,45 +309,7 @@ def match_edges_with_extracted_info(node, extracted_info):
 
     return matched_edges
 
-def use_gpt_fill_input(tree_str, specific_html, user_context):
-    messages = [
-        {"role": "system",
-         "content": "You are an autonomous agent performing tasks for an user on a webshop. You are tasked with analyzing a web page based on the entire page's accessibility tree and one element's specific HTML."},
-        {"role": "system",
-         "content": "The HTML will represent an element that you must input some text into."},
-        {"role": "system",
-         "content": "The accessibility tree will be a string representation of the accessibility tree of the web page."},
-        {"role": "system",
-         "content": "You will also be given some context about the user, which will be a dictionary of information about the user."},
-        {"role": "system",
-         "content": "If nothing in the user context fits the input box, use '''N/A''' as the input."},
-        {"role": "system",
-         "content": "Reason through your answer, then give the exact string you would input into the box enclosed by '''s, like this: \n '''I would input this string'''. Do not include reasoning in your enclosed answer."},
-        {"role": "user",
-        "content": f"Here's the information, what should be input into the element represented by the specific HTML? \n Specific element HTML: {specific_html}\nCurrent page accessibility tree:\n{tree_str}\nUser context: {user_context}\n"}
-    ]
 
-    response = client.chat.completions.create(
-        model="gpt-4-1106-preview",
-        # model="gpt-3.5-turbo-1106",
-        messages=messages,
-        temperature=0.0,
-        max_tokens=400
-    )
-
-    result = response.choices[0].message.content
-
-    pattern = r"\'\'\'(.*?)\'\'\'"
-
-    match = re.search(pattern, result, re.DOTALL)
-    # # print(f"RESULT: {result}")
-    if match:
-        final_answer = match.group(1).strip()
-        return final_answer
-    else:
-        return "FAILURE"
-
-    return "FAILURE"
 
 async def step_by_xpath(page, xpath, interaction_info, html):
 
@@ -381,29 +344,31 @@ async def step_by_xpath(page, xpath, interaction_info, html):
     else:
         print("FUCK3")
 
-async def do_task(start_node, intent):
-    end_state = navigate_interstate(start_node, intent, chunk_size=10)
-    print(f"END URL: {end_state.url}")
-    print(f"END PUBLIC: {end_state.public}")
-    # Assume we are at order history page
+async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
 
-    if "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/edit" in end_state.url: #some are sublinks need better system
-        intrastate_tree = load_intrastate_from_json('intrastate_trees/myaccountedit.json')
-    elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history" in end_state.url:
-        intrastate_tree = load_intrastate_from_json('intrastate_trees/myorders.json')
-    elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/wishlist" in end_state.url:
-        intrastate_tree = load_intrastate_from_json('intrastate_trees/mywishlistNEW.json')
-    elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/address" in end_state.url:
-        intrastate_tree = load_intrastate_from_json('intrastate_trees/myaddressbookNEW.json')
-    elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account" in end_state.url:
-        intrastate_tree = load_intrastate_from_json('intrastate_trees/myaccount.json')
-    elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/newsletter/manage" in end_state.url:
-        intrastate_tree = load_intrastate_from_json('intrastate_trees/mynewsletter.json')
-    else:
-        print("OOPS! NO INTRASTATE TREE FOUND")
-        print(f"END URL: {end_state.url}")
-        input("PRESS ENTER TO CONTINUE")
-        exit()
+    # end_state = navigate_interstate(start_node, intent, inter_chunk=chunk_size)
+    # print(f"END URL: {end_state.url}")
+    # print(f"END PUBLIC: {end_state.public}")
+    # # Assume we are at order history page
+    #
+    # if "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/edit" in end_state.url: #some are sublinks need better system
+    #     intrastate_tree = load_intrastate_from_json('intrastate_trees/myaccountedit.json')
+    # elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history" in end_state.url:
+    #     intrastate_tree = load_intrastate_from_json('intrastate_trees/myorders.json')
+    # elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/wishlist" in end_state.url:
+    #     intrastate_tree = load_intrastate_from_json('intrastate_trees/mywishlistNEW.json')
+    # elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/address" in end_state.url:
+    #     intrastate_tree = load_intrastate_from_json('intrastate_trees/myaddressbookNEW.json')
+    # elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account" in end_state.url:
+    #     intrastate_tree = load_intrastate_from_json('intrastate_trees/myaccount.json')
+    # elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/newsletter/manage" in end_state.url:
+    #     intrastate_tree = load_intrastate_from_json('intrastate_trees/mynewsletter.json')
+    # else:
+    #     print("OOPS! NO INTRASTATE TREE FOUND")
+    #     print(f"END URL: {end_state.url}")
+    #     input("PRESS ENTER TO CONTINUE")
+    #     exit()
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=False)
         page = await browser.new_page()
@@ -413,8 +378,9 @@ async def do_task(start_node, intent):
         await page.get_by_label("Password", exact=True).fill('Password.123')
         await page.get_by_role("button", name="Sign In").click()
 
-        await page.goto(end_state.url) # TODO end_state.url
-        # await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history")
+        # await page.goto(end_state.url) # TODO end_state.url
+        await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/?p=4")
+        intrastate_tree = load_intrastate_from_json('intrastate_trees/myorders.json')
 
 
 
@@ -451,38 +417,82 @@ async def do_task(start_node, intent):
                     combined.append((info, action_desc, f"EXTRA INFO: {tables[i]}"))
 
             question_for_gpt = [f"{i}) {item}\n" for i, item in enumerate(combined)]
-            print("INTRASTATE CHOICES")
-            print('\n'.join(question_for_gpt))
-            answer = get_intrastate(intent, '\n'.join(question_for_gpt), model_name="gpt-4-1106-preview")
-            xpath = known_usable[int(answer)]['xpath']
-            interaction_info = known_usable[int(answer)]['interaction_info']
-            html = known_usable[int(answer)]['html']
-            visible_text = known_usable[int(answer)]['visible_text']
+
+            '''
+            
+            def chunk_answers(answers, chunk_size):
+
+                chunked_list = []
+            
+                for i in range(0, len(answers), chunk_size):
+                    chunked_list.append(answers[i:i + chunk_size])
+            
+                return chunked_list
+            
+            '''
+            if intra_chunk != None:
+                chunked_questions = chunk_answers(question_for_gpt, intra_chunk)
+
+                possible_results = []
+
+                for chunk in chunked_questions:
+                    # print(f"CHUNK: {chunk}")
+                    # answer = get_interstate(intent, chunk, model_name="gpt-4-1106-preview")
+                    print("CHUNK!!!")
+                    print('\n'.join(chunk))
+                    answer = get_intrastate(intent, '\n'.join(chunk), model_name="gpt-3.5-turbo-1106")
+                    if answer != "FAILURE" and answer != "N/A":
+                        possible_results.append(answer)
+
+                if len(possible_results) == 0:
+                    return input("FINISHED! ")
+                elif len(possible_results) == 1:
+                    xpath = known_usable[int(possible_results[0])]['xpath']
+                    interaction_info = known_usable[int(possible_results[0])]['interaction_info']
+                    html = known_usable[int(possible_results[0])]['html']
+
+                    await step_by_xpath(page, xpath, interaction_info, html)
+                    continue_flag = input("PRESS ENTER TO CONTINUE")
+
+                else:  # Do recursive in future
+                    filtered_questions = [combined[int(possible)] for possible in possible_results]
+                    answer = get_intrastate(intent, filtered_questions, model_name="gpt-3.5-turbo-1106")
 
 
-            await step_by_xpath(page, xpath, interaction_info, html)
-            continue_flag = input("PRESS ENTER TO CONTINUE")
-            if continue_flag == '':
-                continue
+                    if answer != "FAILURE" and answer != "N/A":
+                        return input("FINISHED! ")
+                    else:
+                        xpath = known_usable[int(answer)]['xpath']
+                        interaction_info = known_usable[int(answer)]['interaction_info']
+                        html = known_usable[int(answer)]['html']
+                        await step_by_xpath(page, xpath, interaction_info, html)
+                        continue_flag = input("PRESS ENTER TO CONTINUE")
+
+                if continue_flag == '':
+                    continue
+                else:
+                    exit()
+                
             else:
-                exit()
+                print('\n'.join(question_for_gpt))
+                answer = get_intrastate(intent, '\n'.join(question_for_gpt), model_name="gpt-4-1106-preview")
+                # answer = get_intrastate(intent, '\n'.join(question_for_gpt), model_name="gpt-4-turbo-1106")
+                xpath = known_usable[int(answer)]['xpath']
+                interaction_info = known_usable[int(answer)]['interaction_info']
+                html = known_usable[int(answer)]['html']
+
+    
+                await step_by_xpath(page, xpath, interaction_info, html)
+                continue_flag = input("PRESS ENTER TO CONTINUE")
+                if continue_flag == '':
+                    continue
+                else:
+                    exit()
 
 
-            '''
-            
-            edge_info = (interaction_info, generated_text, html, xpath, visible_text)
-            private = diff from parent to child
-            
-            def deserialize_intrastate(node_data):
-                node = IntrastateInferenceWebPageNode(
-                    url=node_data['url'],
-                    edge=node_data['edge'],
-                    private=node_data['private'],
-                    acc_tree=node_data['acc_tree'])
-            
-            '''
+
 
 
     return None
 
-asyncio.run(do_task(interstate_tree, intent))
+asyncio.run(do_task(interstate_tree, intent, inter_chunk=10, intra_chunk=None))

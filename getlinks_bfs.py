@@ -28,18 +28,6 @@ parsed_start_url = urlparse(start_url)
 start_domain = parsed_start_url.netloc
 start_scheme = parsed_start_url.scheme
 
-'''
-async def aggressive_normalize_url(url):
-    parsed_url = urlparse(url)
-    scheme = parsed_url.scheme if parsed_url.scheme else 'http'
-    netloc = parsed_url.netloc
-    # if not netloc.startswith('www.'):
-    #     netloc = 'www.' + netloc
-    normalized_url = urlunparse(
-        (scheme, netloc, parsed_url.path, parsed_url.params, parsed_url.query, parsed_url.fragment))
-    return normalized_url
-
-'''
 
 def aggressive_normalize_url(url):  # Very aggressive normalization
     parsed_url = urlparse(url)
