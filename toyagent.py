@@ -288,12 +288,39 @@ def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
         {"role": "system",
          "content": "If nothing in the user context fits the input box, return '''N/A''' as the input. If you choose an answer, you must only choose a single answer. You only care about what is mentioned in each answer choice, the amount or emphasis of items in the list does not matter. Ignore any emphasis."},
         {"role": "system",
-         "content": "Reason through every single option I give you step-by-step thoughtfully. Give explanations for why every option I give you may be right or wrong. After reasoning, give your final answer like this: \n '''1'''\n Or this: '''13'''."},
+         "content": "Reason through every single option I give you step-by-step thoughtfully. Give explanations for why every option I give you may be right or wrong. Try your best to choose an answer. After reasoning, give your final answer like this: \n '''1'''\n Or this: '''13'''."},
+        {"role": "system",
+         "content": "Here is an example of what your response should look like given their inputs."}
     ]
-    print("TONK ANSWERS")
+    print("INTERSTATE CHOICES")
 
     formatted_answers = '\n'.join(answers)
     print(formatted_answers)
+    example_message = {
+        "role": "system",
+        "name": "example_user",
+        "content": f"Task: How much does mature cheddar cost? \nChoose from these answers:\n 0) [View and buy red wine, white wine, whiskey, makeup, chicken, and dairy products] \n1) [View and buy clothing for men and children] \n2) [View and buy clothing for women, jewelry, and accessories] \n3) [View and buy beef, pork, milk and eggs] \n4) [View and buy seafood, poultry, and produce] \n5) [View account information and change account settings]"
+    }
+    messages.append(example_message)
+    example_response = {
+        "role": "system",
+        "name": "example_assistant",
+        "content": f"Let's reason through these possible answers step-by-step. \n- 1: This option mentions dairy products, and cheese is a type of dairy product. \n- 2: This option mentions nothing related to cheese. \n- 2: This option mentions nothing related to cheese. \n- 3: This option mentions milk, and milk are a type of dairy product. It however does not mention cheese. \n- 4: This option mentions poultry, and cheese is not a type of poultry. \n- 5: This option mentions nothing related to cheese. \nMature cheddar is a type of cheese. Even though option 0 mentions many functionalities, it mentions cheese, and option 3 only mentions milk and not other dairy products as a whole, the correct answer is '''0'''."
+    }
+    messages.append(example_response)
+
+    example_message = {
+        "role": "system",
+        "name": "example_user",
+        "content": f"Task: How much does milk cost? \nChoose from these answers:\n 0) [View and buy red wine, white wine, whiskey, makeup, chicken, and dairy products] \n1) [View and buy clothing for men and children] \n2) [View and buy clothing for women, jewelry, and accessories] \n3) [View and buy beef, pork, milk and eggs] \n4) [View and buy seafood, poultry, and produce] \n5) [View account information and change account settings]"
+    }
+    messages.append(example_message)
+    example_response = {
+        "role": "system",
+        "name": "example_assistant",
+        "content": f"Let's reason through these possible answers step-by-step. \n- 1: This option mentions dairy products, and cheese is a type of dairy product. \n- 2: This option mentions nothing related to cheese. \n- 2: This option mentions nothing related to cheese. \n- 3: This option mentions milk, and milk are a type of dairy product. It however does not mention cheese. \n- 4: This option mentions poultry, and cheese is not a type of poultry. \n- 5: This option mentions nothing related to cheese. \nMilk is a type of dairy, and option 0 contains dairy. However option 3 specifically mentions milk. Even though option 0 mentions mentions dairy, as option 3 mentions milk directly, I must choose the more specific choice and so I should choose option 3, the correct answer is '''0'''."
+    }
+    messages.append(example_response)
 
     messages.append({"role": "user",
         "content": f"Task: {intent}\nChoose from these answers:\n {formatted_answers}"})
@@ -346,8 +373,8 @@ def get_intrastate(intent, answers, model_name="gpt-4-1106-preview"):
         "content": f"Task: {intent}\nChoose from these answers:\n {answers}"})
 
     response = client.chat.completions.create(
-        model=model_name,
-        # model="gpt-3.5-turbo-1106",
+        # model=model_name,
+        model="gpt-3.5-turbo-1106",
         messages=messages,
         temperature=0,
         max_tokens=1500,
@@ -406,7 +433,8 @@ def navigate_interstate(start_node, intent, chunk_size=None):
 
             for chunk in chunked_answers:
                 print(f"CHUNK: {chunk}")
-                answer = get_interstate(intent, chunk, model_name="gpt-4-1106-preview")
+                # answer = get_interstate(intent, chunk, model_name="gpt-4-1106-preview")
+                answer = get_interstate(intent, chunk, model_name="gpt-3.5-turbo-1106")
                 if answer != "FAILURE" and answer != "N/A":
                     possible_results.append(answer)
 
@@ -423,7 +451,7 @@ def navigate_interstate(start_node, intent, chunk_size=None):
                 possible_nodes = [get_child_from_index(curr_node, int(result)) for result in possible_results]
                 filtered_possible_results = construct_options_from_children(possible_nodes)
                 print(f"FILTERED POSSIBLE RESULTS: {filtered_possible_results}")
-                answer = get_interstate(intent, filtered_possible_results, model_name="gpt-4-1106-preview")
+                answer = get_interstate(intent, filtered_possible_results, model_name="gpt-3.5-turbo-1106")
                 if answer != "FAILURE" and answer != "N/A":
                     index = int(answer)
                     child = possible_nodes[index]
@@ -443,11 +471,12 @@ def navigate_interstate(start_node, intent, chunk_size=None):
     return curr_node
 
 
-interstate_tree = load_interstate_from_file('webpage_MVP_V5.json')
+# interstate_tree = load_interstate_from_file('webpage_MVP_V5.json')
+interstate_tree = load_interstate_from_file('webtreeflattened.json')
 
 # intent = "What is the price range of wireless earphone in the One Stop Market?"
-intent = "I want to change my password"
-# intent = "What is the price range of teeth grinding mouth guard in the One Stop Market?"
+# intent = "I want to change my password"
+intent = "Check my order history from 2022 and tell me how much I spent on food"
 
 # end_state = navigate_interstate(interstate_tree, intent, chunk_size=10)
 # end_state = navigate_interstate_bubble(interstate_tree, intent)
@@ -561,10 +590,9 @@ async def step_by_xpath(page, xpath, interaction_info, html):
         print("FUCK3")
 
 async def do_task(start_node, intent):
-    end_state = navigate_interstate(start_node, intent)
+    end_state = navigate_interstate(start_node, intent, chunk_size=10)
     print(f"END URL: {end_state.url}")
     print(f"END PUBLIC: {end_state.public}")
-    exit()
     # Assume we are at order history page
 
     if "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/edit" in end_state.url: #some are sublinks need better system
