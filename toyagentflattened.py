@@ -5,27 +5,23 @@ import json
 from urllib.parse import urlparse, urlunparse
 from bs4 import BeautifulSoup
 from intrastate_tree import load_intrastate_from_json
-from agentprompts import get_interstate, get_intrastate
+from agentprompts import get_interstate, get_intrastate, get_intrastate_type
 from interstate_tree import InferenceWebPageNode
 from accessibility_tree_utils import parse_accessibility_tree
 
-
-
 with open('all_links2.json', 'r') as file:
     all_links = json.load(file)
+
 
 def url_depth(url):
     parsed = urlparse(url)
     return parsed.path.count('/')
 
 
-
-
 def print_intrastate(node, indent=0):
     print(' ' * indent + str(node.edge))
     for child in node.children:
         print_intrastate(child, indent + 4)
-
 
 
 def deserialize_interstate(node_data, parent=None):
@@ -45,16 +41,19 @@ def deserialize_interstate(node_data, parent=None):
 
     return node
 
+
 def load_interstate_from_file(filename):
     with open(filename, 'r', encoding='utf-8') as file:
         tree_data = json.load(file)
     return deserialize_interstate(tree_data)
 
 
-def extract_interaction_info(html): #use general input type
+def extract_interaction_info(html):  # use general input type
     if '<a' in html:
         return "link"
-    if ('<button' in html or "type='button'" in html or "role='button'" in html or "role=\"button\"" in html or "[onclick]" in html or "onclick=" in html or "[role='button']" in html) and ("<div" not in html): # filter out div?
+    if (
+            '<button' in html or "type='button'" in html or "role='button'" in html or "role=\"button\"" in html or "[onclick]" in html or "onclick=" in html or "[role='button']" in html) and (
+            "<div" not in html):  # filter out div?
         # or "select" in html DOESN'T HANDLE
         return "button"
     if ("<input" in html or "textarea" in html) and "type=\"checkbox\"" not in html:
@@ -62,6 +61,7 @@ def extract_interaction_info(html): #use general input type
     if "type=\"checkbox\"" in html:
         return "checkbox"
     return "Uncased Element"
+
 
 def get_visible_from_html(html):
     soup = BeautifulSoup(html, 'html.parser')
@@ -78,12 +78,11 @@ def extract_info_from_html(html):
             'visible_text': outer_element.get_text(strip=True),
             'interaction': extract_interaction_info(str(outer_element)),
             'attributes': outer_element.attrs,
-            'raw_html': html # TODO: Remove this later
+            'raw_html': html  # TODO: Remove this later
         }
         return info
     else:
         return None
-
 
 
 def normalize_url(url):
@@ -97,6 +96,7 @@ def normalize_url(url):
     normalized_url = urlunparse((scheme, netloc, path, '', query, fragment))
     return normalized_url
 
+
 async def parse_and_clean_new(elements, parent_node):
     cleaned_output = []
     for element in elements:
@@ -107,7 +107,8 @@ async def parse_and_clean_new(elements, parent_node):
             continue
         if await element.is_disabled() or "disabled=\"disabled\"" in html:
             continue
-        if href and ((href.startswith('#') and href != '#') or normalize_url(href) in all_links or (url_depth(normalize_url(href)) <= 1 and href.endswith(".html"))):
+        if href and ((href.startswith('#') and href != '#') or normalize_url(href) in all_links or (
+                url_depth(normalize_url(href)) <= 1 and href.endswith(".html"))):
             continue
         if parent_node.parent and href and parent_node.parent.url == normalize_url(href):
             continue
@@ -183,15 +184,13 @@ async def parse_and_clean_new(elements, parent_node):
 
     return cleaned_output
 
-async def get_usable_elements_new(page, leaf): # maybe remove duplicates if ever needed
+
+async def get_usable_elements_new(page, leaf):  # maybe remove duplicates if ever needed
     selector = "a, button, input, select, textarea, [onclick], [role='button']"
     await page.wait_for_load_state('networkidle')
     interactable_elements = await page.locator(selector).element_handles()
     cleaned_elements = await parse_and_clean_new(interactable_elements, leaf)
     return cleaned_elements
-
-
-
 
 
 def construct_options_from_children(children):
@@ -201,18 +200,20 @@ def construct_options_from_children(children):
         result.append(f"{i}) {child.public}\n")
     return result
 
+
 def get_child_from_index(node, index):
     children = node.children
     return children[index]
 
-def chunk_answers(answers, chunk_size):
 
+def chunk_answers(answers, chunk_size):
     chunked_list = []
 
     for i in range(0, len(answers), chunk_size):
         chunked_list.append(answers[i:i + chunk_size])
 
     return chunked_list
+
 
 def navigate_interstate(start_node, intent, chunk_size=None):
     curr_node = start_node
@@ -239,7 +240,7 @@ def navigate_interstate(start_node, intent, chunk_size=None):
                 index = int(possible_results[0])
                 child = get_child_from_index(curr_node, index)
                 curr_node = child
-            else: # Do recursive in future
+            else:  # Do recursive in future
                 possible_nodes = [get_child_from_index(curr_node, int(result)) for result in possible_results]
                 filtered_possible_results = construct_options_from_children(possible_nodes)
                 # print(f"FILTERED POSSIBLE RESULTS: {filtered_possible_results}")
@@ -266,12 +267,12 @@ def navigate_interstate(start_node, intent, chunk_size=None):
 # interstate_tree = load_interstate_from_file('webpage_MVP_V5.json')
 interstate_tree = load_interstate_from_file('webtreeflattened.json')
 
-# = "What is the price range of wireless earphone in the One Stop Market?"
+# intent = "What is the price range of wireless earphone in the One Stop Market?"
 # intent = "I want to change my password"
-# intent = "Find my most recent order"
-# intent = "buy skyr"
-intent = "subscribe 'tonk@gmail.com' to newsletter"
+intent = "what is the most recent order i placed in 2022"
 
+
+# intent = "buy skyr"
 
 # end_state = navigate_interstate(interstate_tree, intent, chunk_size=10)
 # end_state = navigate_interstate_bubble(interstate_tree, intent)
@@ -312,9 +313,71 @@ def match_edges_with_extracted_info(node, extracted_info):
     return matched_edges
 
 
+def match_unique_actions(node, usable):
+    '''
+
+    Returns a tuple of (unique actions, all labelled actions), check length
+
+    '''
+
+    htmls = [item['html'] for item in usable]
+    extracted_info = [extract_info_from_html(html) for html in htmls]
+
+    matched_edges = []
+    unique_tags = set()
+
+    for info in extracted_info:
+        found = False
+        new_info = {
+            'visible_text': info['visible_text'],
+            # 'interaction': info['interaction'],
+            # 'attributes': info['attributes'],
+        }
+
+        for i in range(len(node.children)):
+            edge = node.children[i].edge
+            interaction_info, generated_text, html, xpath, visible_text = edge
+            # if visible_text and visible_text == info['visible_text']:
+            # if visible_text and info['visible_text'].startswith(visible_text):
+            if visible_text and visible_text in info['visible_text']:
+                # print("FLAG 1")
+                matched_edges.append((f"VISIBLE TEXT: {info['visible_text']}", f"ACTION EFFECT: {node.children[i].private}"))
+                unique_tags.add((f"VISIBLE TEXT: {info['visible_text']}", f"ACTION EFFECT: {node.children[i].private}"))
+                found = True
+                break
+
+        if not found:
+            for i in range(len(node.children)):
+                edge = node.children[i].edge
+                interaction_info, generated_text, html, xpath, visible_text = edge
+                if html and html == info['raw_html']:
+                    if node.children[i].private == "N/A":
+                        print("FLAG 2")
+                        print(html)
+                    if info['visible_text'].strip() == '':
+                        matched_edges.append((f"VISIBLE TEXT: UNLABELLED", f"ACTION EFFECT: {node.children[i].private}"))
+                        unique_tags.add((f"VISIBLE TEXT: UNLABELLED", f"ACTION EFFECT: {node.children[i].private}"))
+                        found = True
+                    else:
+                        matched_edges.append(
+                            (f"VISIBLE TEXT: {info['visible_text']}", f"ACTION EFFECT: {node.children[i].private}"))
+                        unique_tags.add(
+                            (f"VISIBLE TEXT: {info['visible_text']}", f"ACTION EFFECT: {node.children[i].private}"))
+                        found = True
+                    break
+        if not found:
+            if info['visible_text'].strip() == '':
+                matched_edges.append((f"VISIBLE TEXT: UNLABELLED", "ACTION EFFECT: UNKNOWN"))
+                unique_tags.add((f"VISIBLE TEXT: UNLABELLED", "ACTION EFFECT: UNKNOWN"))
+            else:
+                matched_edges.append((f"VISIBLE TEXT: {info['visible_text']}", "ACTION EFFECT: UNKNOWN"))
+                unique_tags.add((f"VISIBLE TEXT: {info['visible_text']}", "ACTION EFFECT: UNKNOWN"))
+
+
+
+    return unique_tags, matched_edges
 
 async def step_by_xpath(page, xpath, interaction_info, html):
-
     await page.wait_for_load_state('networkidle')
     locator = page.locator(f'xpath={xpath}')
 
@@ -326,7 +389,6 @@ async def step_by_xpath(page, xpath, interaction_info, html):
         print('STEPPING: One element found with this xpath')
     else:
         print('STEPPING: Multiple elements found with this xpath')
-
 
     if interaction_info in ['button', 'link', 'checkbox']:
         await page.wait_for_load_state('networkidle')
@@ -346,8 +408,8 @@ async def step_by_xpath(page, xpath, interaction_info, html):
     else:
         print("FUCK3")
 
-async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
 
+async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
     # end_state = navigate_interstate(start_node, intent, inter_chunk=chunk_size)
     # print(f"END URL: {end_state.url}")
     # print(f"END PUBLIC: {end_state.public}")
@@ -384,12 +446,10 @@ async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
         await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/?p=4")
         intrastate_tree = load_intrastate_from_json('intrastate_trees/myordersNEW.json')
 
-
-
         for _ in range(10):
 
             # TODO Not as simple, have to match usable actions with intrastate options
-            usable = await get_usable_elements_new(page, intrastate_tree) # element_info = (xpath, interaction_info, html, visible_text)
+            usable = await get_usable_elements_new(page, intrastate_tree)  # element_info = (xpath, interaction_info, html, visible_text)
 
             '''
             usable elements
@@ -400,101 +460,79 @@ async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
                 'visible_text': visible_text,
                 'table_context': table_context_with_headers
             }
-            
+
             '''
 
-            tables = [item['table_context'] for item in usable]
-            htmls = [item['html'] for item in usable]
-            extracted_info = [extract_info_from_html(html) for html in htmls]
 
 
             print("EXTRACTED INFO")
-            matched = match_edges_with_extracted_info(intrastate_tree, extracted_info)
-            combined = []
+            # matched = match_edges_with_extracted_info(intrastate_tree, extracted_info)
+            unique, matched = match_unique_actions(intrastate_tree, usable)
+            print("MATCHED")
+            print(matched)
+            print("UNIQUE")
+            print(unique)
+
+            seen_action_types = []
+
+            # for i, (info, action_desc) in enumerate(matched):
+            #     if action_desc != "ACTION EFFECT: UNKNOWN" and action_desc != "ACTION EFFECT: N/A":  # Unknown is not matched to a private, N/A is private generated didn't know
+            #         known_usable.append(usable[i])
+            #         combined.append((info, action_desc, f"EXTRA INFO: {usable[i]['table_context']}"))
+
+            for i, (info, action_desc) in enumerate(unique):
+                if action_desc != "ACTION EFFECT: UNKNOWN":
+                    seen_action_types.append((info, action_desc))
+
+            print("KNOWN USABLE")
+            # print(combined)
+
+            # question_for_gpt = [f"{i}) {item}\n" for i, item in enumerate(combined)]
+            question_for_gpt = [f"{i}) {item[0]}\n{item[1]}\n" for i, item in enumerate(seen_action_types)]
+            print('\n'.join(question_for_gpt))
+
+            answer = get_intrastate_type(intent, '\n'.join(question_for_gpt), model_name="gpt-4-1106-preview")
+            # answer = get_intrastate_type(intent, '\n'.join(question_for_gpt), model_name="gpt-3.5-turbo-1106")
+            (desired_info, desired_action_desc) = seen_action_types[int(answer)]
+            print("BONK")
+            print(desired_info)
+            print(desired_action_desc)
+            print("BONK")
+
             known_usable = []
-
+            combined = []
             for i, (info, action_desc) in enumerate(matched):
-                if action_desc != "ACTION EFFECT: UNKNOWN" and action_desc != "ACTION EFFECT: N/A": # Unknown is not matched to a private, N/A is private generated didn't know
+                print(f"INFO: {info}")
+                print(f"ACTION DESC: {action_desc}")
+                if action_desc == desired_action_desc and info == desired_info:
                     known_usable.append(usable[i])
-                    combined.append((info, action_desc, f"EXTRA INFO: {tables[i]}"))
-
-            question_for_gpt = [f"{i}) {item}\n" for i, item in enumerate(combined)]
-
+                    combined.append((info, action_desc, f"EXTRA INFO: {usable[i]['table_context']}"))
+            print("TONK!")
+            print(known_usable)
             '''
             
-            def chunk_answers(answers, chunk_size):
-
-                chunked_list = []
-            
-                for i in range(0, len(answers), chunk_size):
-                    chunked_list.append(answers[i:i + chunk_size])
-            
-                return chunked_list
+            TABLING HERE!
             
             '''
-            if intra_chunk != None:
-                chunked_questions = chunk_answers(question_for_gpt, intra_chunk)
+            filtered_question_for_gpt = [f"{i}) {item}\n" for i, item in enumerate(combined)]
+            print('\n'.join(filtered_question_for_gpt))
 
-                possible_results = []
-
-                for chunk in chunked_questions:
-                    # print(f"CHUNK: {chunk}")
-                    # answer = get_interstate(intent, chunk, model_name="gpt-4-1106-preview")
-                    print("CHUNK!!!")
-                    print('\n'.join(chunk))
-                    answer = get_intrastate(intent, '\n'.join(chunk), model_name="gpt-3.5-turbo-1106")
-                    if answer != "FAILURE" and answer != "N/A":
-                        possible_results.append(answer)
-
-                if len(possible_results) == 0:
-                    return input("FINISHED! ")
-                elif len(possible_results) == 1:
-                    xpath = known_usable[int(possible_results[0])]['xpath']
-                    interaction_info = known_usable[int(possible_results[0])]['interaction_info']
-                    html = known_usable[int(possible_results[0])]['html']
-
-                    await step_by_xpath(page, xpath, interaction_info, html)
-                    continue_flag = input("PRESS ENTER TO CONTINUE")
-
-                else:  # Do recursive in future
-                    filtered_questions = [combined[int(possible)] for possible in possible_results]
-                    answer = get_intrastate(intent, filtered_questions, model_name="gpt-3.5-turbo-1106")
+            # answer = get_intrastate(intent, '\n'.join(filtered_question_for_gpt), model_name="gpt-4-1106-preview")
+            answer = get_intrastate(intent, '\n'.join(filtered_question_for_gpt), model_name="gpt-3.5-turbo-1106")
 
 
-                    if answer != "FAILURE" and answer != "N/A":
-                        return input("FINISHED! ")
-                    else:
-                        xpath = known_usable[int(answer)]['xpath']
-                        interaction_info = known_usable[int(answer)]['interaction_info']
-                        html = known_usable[int(answer)]['html']
-                        await step_by_xpath(page, xpath, interaction_info, html)
-                        continue_flag = input("PRESS ENTER TO CONTINUE")
+            xpath = known_usable[int(answer)]['xpath']
+            interaction_info = known_usable[int(answer)]['interaction_info']
+            html = known_usable[int(answer)]['html']
+            await step_by_xpath(page, xpath, interaction_info, html)
 
-                if continue_flag == '':
-                    continue
-                else:
-                    exit()
-                
+            continue_flag = input("PRESS ENTER TO CONTINUE")
+            if continue_flag == '':
+                continue
             else:
-                print('\n'.join(question_for_gpt))
-                answer = get_intrastate(intent, '\n'.join(question_for_gpt), model_name="gpt-4-1106-preview")
-                # answer = get_intrastate(intent, '\n'.join(question_for_gpt), model_name="gpt-4-turbo-1106")
-                xpath = known_usable[int(answer)]['xpath']
-                interaction_info = known_usable[int(answer)]['interaction_info']
-                html = known_usable[int(answer)]['html']
-
-    
-                await step_by_xpath(page, xpath, interaction_info, html)
-                continue_flag = input("PRESS ENTER TO CONTINUE")
-                if continue_flag == '':
-                    continue
-                else:
-                    exit()
-
-
-
-
+                exit()
 
     return None
+
 
 asyncio.run(do_task(interstate_tree, intent, inter_chunk=10, intra_chunk=None))
