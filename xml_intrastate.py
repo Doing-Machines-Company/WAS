@@ -69,10 +69,10 @@ def aggressive_url_norm(url):  # Very aggressive normalization
 async def extract_interaction_info(html): #use general input type
     if '<a' in html:
         return "link"
-    if ('<button' in html or "type='button'" in html or "role='button'" in html or "role=\"button\"" in html or "[onclick]" in html or "onclick=" in html or "[role='button']" in html) and ("<div" not in html): # filter out div?
+    if ('<button' in html or "type='button'" in html or "role='button'" in html or "role=\"button\"" in html or "type=\"radio\"" in html or "[onclick]" in html or "onclick=" in html or "[role='button']" in html) and ("<div" not in html): # filter out div?
         # or "select" in html DOESN'T HANDLE
         return "button"
-    if ("<input" in html or "textarea" in html) and "type=\"checkbox\"" not in html:
+    if ("<input" in html or "textarea" in html) and "type=\"checkbox\"" not in html and "type=\"radio\"" not in html:
         return "input"
     if "type=\"checkbox\"" in html:
         return "checkbox"
@@ -568,20 +568,8 @@ async def main():
     global all_htmls
     async with async_playwright() as p:
 
-        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/tweezers-for-succulents-duo.html"
-        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/"
-        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/"
-        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/home-kitchen/storage-organization/baskets-bins-containers.html"
-        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/edit/"
-        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history"
-        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/clothing-shoes-jewelry/women/clothing.html"
-        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/beauty-personal-care/oral-care/orthodontic-supplies.html"
-        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/?p=3"
-        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account"
-        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/wishlist"
-        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/address"
-        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/edit"
-        link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/newsletter/manage"
+        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/clothing-shoes-jewelry.html"
+        link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/noldares-womens-pumps-heels-closed-toe-bohemian-block-heel-buckle-strap-sandals-fashion-party-single-pumps-sandals.html"
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
 
@@ -616,7 +604,7 @@ async def main():
     print("DONE!!!")
     # print_intrastate_node_tree(root_node)
     print(f"ALL HTMLS: {all_htmls}")
-    save_tree_to_json(root_node, 'mynewsletter.json')
+    save_tree_to_json(root_node, 'intrastate_trees/productpage.json')
 
 
 

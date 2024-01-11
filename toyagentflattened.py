@@ -12,6 +12,14 @@ from accessibility_tree_utils import parse_accessibility_tree
 with open('all_links2.json', 'r') as file:
     all_links = json.load(file)
 
+def aggressive_normalize_url(url):  # Very aggressive normalization
+    parsed_url = urlparse(url)
+    scheme = parsed_url.scheme if parsed_url.scheme else 'http'
+    netloc = parsed_url.netloc
+    path = parsed_url.path.rstrip('/')  # Remove trailing slashes from the path
+    # Ignoring the query and fragment
+    normalized_url = urlunparse((scheme, netloc, path, '', '', ''))
+    return normalized_url
 
 def url_depth(url):
     parsed = urlparse(url)
@@ -269,7 +277,7 @@ interstate_tree = load_interstate_from_file('webtreeflattened.json')
 
 # intent = "What is the price range of wireless earphone in the One Stop Market?"
 # intent = "I want to change my password"
-intent = "what is the most recent order i placed in 2022"
+intent = "I want to buy some cheese"
 
 
 # intent = "buy skyr"
@@ -370,8 +378,8 @@ def match_unique_actions(node, usable):
                 matched_edges.append((f"VISIBLE TEXT: UNLABELLED", "ACTION EFFECT: UNKNOWN"))
                 unique_tags.add((f"VISIBLE TEXT: UNLABELLED", "ACTION EFFECT: UNKNOWN"))
             else:
-                matched_edges.append((f"VISIBLE TEXT: {info['visible_text']}", "ACTION EFFECT: UNKNOWN"))
-                unique_tags.add((f"VISIBLE TEXT: {info['visible_text']}", "ACTION EFFECT: UNKNOWN"))
+                matched_edges.append((f"VISIBLE TEXT: {info['visible_text']}", f"ACTION EFFECT: {info['visible_text']}"))
+                unique_tags.add((f"VISIBLE TEXT: {info['visible_text']}", f"ACTION EFFECT: {info['visible_text']}"))
 
 
 
@@ -410,28 +418,10 @@ async def step_by_xpath(page, xpath, interaction_info, html):
 
 
 async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
-    # end_state = navigate_interstate(start_node, intent, inter_chunk=chunk_size)
-    # print(f"END URL: {end_state.url}")
-    # print(f"END PUBLIC: {end_state.public}")
-    # # Assume we are at order history page
-    #
-    # if "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/edit" in end_state.url: #some are sublinks need better system
-    #     intrastate_tree = load_intrastate_from_json('intrastate_trees/myaccountedit.json')
-    # elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history" in end_state.url:
-    #     intrastate_tree = load_intrastate_from_json('intrastate_trees/myorders.json')
-    # elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/wishlist" in end_state.url:
-    #     intrastate_tree = load_intrastate_from_json('intrastate_trees/mywishlistNEW.json')
-    # elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/address" in end_state.url:
-    #     intrastate_tree = load_intrastate_from_json('intrastate_trees/myaddressbookNEW.json')
-    # elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account" in end_state.url:
-    #     intrastate_tree = load_intrastate_from_json('intrastate_trees/myaccount.json')
-    # elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/newsletter/manage" in end_state.url:
-    #     intrastate_tree = load_intrastate_from_json('intrastate_trees/mynewsletter.json')
-    # else:
-    #     print("OOPS! NO INTRASTATE TREE FOUND")
-    #     print(f"END URL: {end_state.url}")
-    #     input("PRESS ENTER TO CONTINUE")
-    #     exit()
+    end_state = navigate_interstate(start_node, intent, chunk_size=inter_chunk)
+    print(f"END URL: {end_state.url}")
+    print(f"END PUBLIC: {end_state.public}")
+
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=False)
@@ -442,11 +432,31 @@ async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
         await page.get_by_label("Password", exact=True).fill('Password.123')
         await page.get_by_role("button", name="Sign In").click()
 
-        # await page.goto(end_state.url) # TODO end_state.url
-        await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/?p=4")
-        intrastate_tree = load_intrastate_from_json('intrastate_trees/myordersNEW.json')
+        await page.goto(end_state.url) # TODO end_state.url
+        # await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/?p=4")
+
+
 
         for _ in range(10):
+            accessibility_snapshot = await page.accessibility.snapshot()
+            tree_str = parse_accessibility_tree(accessibility_snapshot)
+
+            if "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/edit" in page.url: #some are sublinks need better system
+                intrastate_tree = load_intrastate_from_json('intrastate_trees/myaccountedit.json')
+            elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history" in page.url:
+                intrastate_tree = load_intrastate_from_json('intrastate_trees/myorders.json')
+            elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/wishlist" in page.url:
+                intrastate_tree = load_intrastate_from_json('intrastate_trees/mywishlistNEW.json')
+            elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/address" in page.url:
+                intrastate_tree = load_intrastate_from_json('intrastate_trees/myaddressbookNEW.json')
+            elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account" in page.url:
+                intrastate_tree = load_intrastate_from_json('intrastate_trees/myaccount.json')
+            elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/newsletter/manage" in page.url:
+                intrastate_tree = load_intrastate_from_json('intrastate_trees/mynewsletter.json')
+            elif url_depth(aggressive_normalize_url(page.url)) == 1 and 'SKU' in tree_str:
+                intrastate_tree = load_intrastate_from_json('intrastate_trees/productpage.json')
+            else:
+                intrastate_tree = load_intrastate_from_json('intrastate_trees/shoppingsection.json')
 
             # TODO Not as simple, have to match usable actions with intrastate options
             usable = await get_usable_elements_new(page, intrastate_tree)  # element_info = (xpath, interaction_info, html, visible_text)
@@ -491,29 +501,25 @@ async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
             question_for_gpt = [f"{i}) {item[0]}\n{item[1]}\n" for i, item in enumerate(seen_action_types)]
             print('\n'.join(question_for_gpt))
 
-            answer = get_intrastate_type(intent, '\n'.join(question_for_gpt), model_name="gpt-4-1106-preview")
-            # answer = get_intrastate_type(intent, '\n'.join(question_for_gpt), model_name="gpt-3.5-turbo-1106")
+            # answer = get_intrastate_type(intent, '\n'.join(question_for_gpt), model_name="gpt-4-1106-preview")
+            answer = get_intrastate_type(intent, '\n'.join(question_for_gpt), model_name="gpt-3.5-turbo-1106")
             (desired_info, desired_action_desc) = seen_action_types[int(answer)]
-            print("BONK")
-            print(desired_info)
-            print(desired_action_desc)
-            print("BONK")
 
             known_usable = []
             combined = []
+            '''
+
+                        TABLE EXTRACTION HERE!
+
+                        COMBINED IS HIGHLY INSUFFICIENT
+
+            '''
             for i, (info, action_desc) in enumerate(matched):
-                print(f"INFO: {info}")
-                print(f"ACTION DESC: {action_desc}")
                 if action_desc == desired_action_desc and info == desired_info:
                     known_usable.append(usable[i])
                     combined.append((info, action_desc, f"EXTRA INFO: {usable[i]['table_context']}"))
-            print("TONK!")
-            print(known_usable)
-            '''
-            
-            TABLING HERE!
-            
-            '''
+
+
             filtered_question_for_gpt = [f"{i}) {item}\n" for i, item in enumerate(combined)]
             print('\n'.join(filtered_question_for_gpt))
 
