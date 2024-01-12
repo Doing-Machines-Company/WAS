@@ -5,7 +5,7 @@ import json
 from urllib.parse import urlparse, urlunparse
 from bs4 import BeautifulSoup
 from intrastate_tree import load_intrastate_from_json
-from agentprompts import get_interstate, get_intrastate
+from agentprompts import get_interstate, get_intrastate, use_gpt_fill_input
 from interstate_tree import InferenceWebPageNode
 from accessibility_tree_utils import parse_accessibility_tree
 
@@ -19,7 +19,14 @@ def url_depth(url):
     return parsed.path.count('/')
 
 
-
+def aggressive_normalize_url(url):  # Very aggressive normalization
+    parsed_url = urlparse(url)
+    scheme = parsed_url.scheme if parsed_url.scheme else 'http'
+    netloc = parsed_url.netloc
+    path = parsed_url.path.rstrip('/')  # Remove trailing slashes from the path
+    # Ignoring the query and fragment
+    normalized_url = urlunparse((scheme, netloc, path, '', '', ''))
+    return normalized_url
 
 def print_intrastate(node, indent=0):
     print(' ' * indent + str(node.edge))
@@ -270,7 +277,7 @@ interstate_tree = load_interstate_from_file('webtreeflattened.json')
 # intent = "I want to change my password"
 # intent = "Find my most recent order"
 # intent = "buy skyr"
-intent = "subscribe 'tonk@gmail.com' to newsletter"
+intent = "buy pajamas"
 
 
 # end_state = navigate_interstate(interstate_tree, intent, chunk_size=10)
@@ -311,7 +318,56 @@ def match_edges_with_extracted_info(node, extracted_info):
 
     return matched_edges
 
+def match_unique_actions(node, usable):
+    '''
 
+    Returns a tuple of (unique actions, all labelled actions), check length
+
+    '''
+
+    htmls = [item['html'] for item in usable]
+    extracted_info = [extract_info_from_html(html) for html in htmls]
+
+    matched_edges = []
+
+    for info in extracted_info:
+        # print("INFORMATION")
+        # print(info)
+        found = False
+        new_info = {
+            'visible_text': info['visible_text'],
+            # 'interaction': info['interaction'],
+            # 'attributes': info['attributes'],
+        }
+
+        for i in range(len(node.children)):
+            edge = node.children[i].edge
+            interaction_info, generated_text, html, xpath, visible_text = edge
+            # if visible_text and visible_text == info['visible_text']:
+            # if visible_text and info['visible_text'].startswith(visible_text):
+            if visible_text and visible_text in info['visible_text']:
+                # print("FLAG 1")
+                matched_edges.append((f"VISIBLE TEXT: {info['visible_text']}", f"ACTION EFFECT: {node.children[i].private}"))
+                found = True
+                break
+
+        if not found:
+            for i in range(len(node.children)):
+                edge = node.children[i].edge
+                interaction_info, generated_text, html, xpath, visible_text = edge
+                if html and html == info['raw_html']:
+                    if info['visible_text'].strip() == '':
+                        matched_edges.append((f"VISIBLE TEXT: UNLABELLED", f"ACTION EFFECT: {node.children[i].private}"))
+                        found = True
+                    else:
+                        matched_edges.append((f"VISIBLE TEXT: {info['visible_text']}", f"ACTION EFFECT: {node.children[i].private}"))
+                        found = True
+                    break
+        if not found:
+            if info['visible_text'].strip() != '':
+                matched_edges.append((f"VISIBLE TEXT: {info['visible_text']}", ""))
+
+    return matched_edges
 
 async def step_by_xpath(page, xpath, interaction_info, html):
 
@@ -335,7 +391,12 @@ async def step_by_xpath(page, xpath, interaction_info, html):
     elif interaction_info == 'input':
         await page.wait_for_load_state('networkidle')
 
-        await locator.first.fill("TESTING MODE")
+        # await locator.first.fill("TESTING MODE")
+
+        tree_str = parse_accessibility_tree(await page.accessibility.snapshot())
+        specific_html = html
+        input_string = use_gpt_fill_input(tree_str, specific_html, intent)
+        await locator.first.fill(input_string)
 
         await page.wait_for_load_state('networkidle')
 
@@ -348,9 +409,9 @@ async def step_by_xpath(page, xpath, interaction_info, html):
 
 async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
 
-    # end_state = navigate_interstate(start_node, intent, inter_chunk=chunk_size)
-    # print(f"END URL: {end_state.url}")
-    # print(f"END PUBLIC: {end_state.public}")
+    end_state = navigate_interstate(start_node, intent, chunk_size=inter_chunk)
+    print(f"END URL: {end_state.url}")
+    print(f"END PUBLIC: {end_state.public}")
     # # Assume we are at order history page
     #
     # if "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/edit" in end_state.url: #some are sublinks need better system
@@ -380,36 +441,43 @@ async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
         await page.get_by_label("Password", exact=True).fill('Password.123')
         await page.get_by_role("button", name="Sign In").click()
 
-        # await page.goto(end_state.url) # TODO end_state.url
-        await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/?p=4")
-        intrastate_tree = load_intrastate_from_json('intrastate_trees/myordersNEW.json')
+        await page.goto(end_state.url) # TODO end_state.url
 
 
 
         for _ in range(10):
+            accessibility_snapshot = await page.accessibility.snapshot()
+            tree_str = parse_accessibility_tree(accessibility_snapshot)
+
+            if "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/edit" in page.url:  # some are sublinks need better system
+                intrastate_tree = load_intrastate_from_json('intrastate_trees/myaccountedit.json')
+            elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history" in page.url:
+                intrastate_tree = load_intrastate_from_json('intrastate_trees/myorders.json')
+            elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/wishlist" in page.url:
+                intrastate_tree = load_intrastate_from_json('intrastate_trees/mywishlistNEW.json')
+            elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/address" in page.url:
+                intrastate_tree = load_intrastate_from_json('intrastate_trees/myaddressbookNEW.json')
+            elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account" in page.url:
+                intrastate_tree = load_intrastate_from_json('intrastate_trees/myaccount.json')
+            elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/newsletter/manage" in page.url:
+                intrastate_tree = load_intrastate_from_json('intrastate_trees/mynewsletter.json')
+            elif url_depth(aggressive_normalize_url(page.url)) == 1 and 'SKU' in tree_str:
+                intrastate_tree = load_intrastate_from_json('intrastate_trees/productpage.json')
+                print("AT PRODUCT PAGE!!!!!")
+            else:
+                intrastate_tree = load_intrastate_from_json('intrastate_trees/shoppingsection.json')
+                print("AT PRODUCT SECTION!!!!!!")
 
             # TODO Not as simple, have to match usable actions with intrastate options
             usable = await get_usable_elements_new(page, intrastate_tree) # element_info = (xpath, interaction_info, html, visible_text)
 
-            '''
-            usable elements
-            element_info = {
-                'xpath': xpath,
-                'interaction_info': interaction_info,
-                'html': html,
-                'visible_text': visible_text,
-                'table_context': table_context_with_headers
-            }
-            
-            '''
 
             tables = [item['table_context'] for item in usable]
-            htmls = [item['html'] for item in usable]
-            extracted_info = [extract_info_from_html(html) for html in htmls]
+            # htmls = [item['html'] for item in usable]
+            # extracted_info = [extract_info_from_html(html) for html in htmls]
 
 
-            print("EXTRACTED INFO")
-            matched = match_edges_with_extracted_info(intrastate_tree, extracted_info)
+            matched = match_unique_actions(intrastate_tree, usable)
             combined = []
             known_usable = []
 

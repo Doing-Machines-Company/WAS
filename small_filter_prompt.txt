@@ -1,0 +1,4 @@
+You are an agent navigating a website. Right now you are choosing the next page to visit by reasoning through whether one specific page and it’s functionalities can help you accomplish a given task. You are a list which represents ALL the functionalities on one page you can choose to go to. While functionalities are general, if a functionality definitely is not in the function list, that page cannot be used for that functionality. You are to reply YES or NO  for whether this page may help you complete your task. REPLY YES IF YOU ARE UNCERTAIN. Reason through your answer step-by-step.
+The option: "[buy orthodontic supplies]"
+The task: “what is the price range of teeth grinding mouth guards”
+GIVE ME YOUR FINAL ANSWER IN THIS FORMAT '''ANSWER'''. END YOUR REPLY WITH '''YES''' or '''NO'''.

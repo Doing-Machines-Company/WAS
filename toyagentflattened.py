@@ -5,9 +5,11 @@ import json
 from urllib.parse import urlparse, urlunparse
 from bs4 import BeautifulSoup
 from intrastate_tree import load_intrastate_from_json
-from agentprompts import get_interstate, get_intrastate, get_intrastate_type
+from agentprompts import get_interstate, get_intrastate, get_intrastate_type, use_gpt_fill_input
 from interstate_tree import InferenceWebPageNode
 from accessibility_tree_utils import parse_accessibility_tree
+
+intent = "what are my orders from 2022"
 
 with open('all_links2.json', 'r') as file:
     all_links = json.load(file)
@@ -59,8 +61,7 @@ def load_interstate_from_file(filename):
 def extract_interaction_info(html):  # use general input type
     if '<a' in html:
         return "link"
-    if (
-            '<button' in html or "type='button'" in html or "role='button'" in html or "role=\"button\"" in html or "[onclick]" in html or "onclick=" in html or "[role='button']" in html) and (
+    if ('<button' in html or "type='button'" in html or "role='button'" in html or "role=\"button\"" in html or "[onclick]" in html or "onclick=" in html or "[role='button']" in html) and (
             "<div" not in html):  # filter out div?
         # or "select" in html DOESN'T HANDLE
         return "button"
@@ -115,8 +116,10 @@ async def parse_and_clean_new(elements, parent_node):
             continue
         if await element.is_disabled() or "disabled=\"disabled\"" in html:
             continue
-        if href and ((href.startswith('#') and href != '#') or normalize_url(href) in all_links or (
-                url_depth(normalize_url(href)) <= 1 and href.endswith(".html"))):
+        # if href and ((href.startswith('#') and href != '#') or normalize_url(href) in all_links or (
+        #         url_depth(normalize_url(href)) <= 1 and href.endswith(".html"))):
+        #     continue
+        if href and ((href.startswith('#') and href != '#') or normalize_url(href) in all_links):
             continue
         if parent_node.parent and href and parent_node.parent.url == normalize_url(href):
             continue
@@ -276,8 +279,9 @@ def navigate_interstate(start_node, intent, chunk_size=None):
 interstate_tree = load_interstate_from_file('webtreeflattened.json')
 
 # intent = "What is the price range of wireless earphone in the One Stop Market?"
-# intent = "I want to change my password"
-intent = "I want to buy some cheese"
+# intent = "I want to buy cheddar cheese"
+# intent = "I want to buy some cheese"
+# intent = "What is the price range of teeth grinding mouth guard in the One Stop Market?"
 
 
 # intent = "buy skyr"
@@ -335,6 +339,8 @@ def match_unique_actions(node, usable):
     unique_tags = set()
 
     for info in extracted_info:
+        # print("INFORMATION")
+        # print(info)
         found = False
         new_info = {
             'visible_text': info['visible_text'],
@@ -359,9 +365,6 @@ def match_unique_actions(node, usable):
                 edge = node.children[i].edge
                 interaction_info, generated_text, html, xpath, visible_text = edge
                 if html and html == info['raw_html']:
-                    if node.children[i].private == "N/A":
-                        print("FLAG 2")
-                        print(html)
                     if info['visible_text'].strip() == '':
                         matched_edges.append((f"VISIBLE TEXT: UNLABELLED", f"ACTION EFFECT: {node.children[i].private}"))
                         unique_tags.add((f"VISIBLE TEXT: UNLABELLED", f"ACTION EFFECT: {node.children[i].private}"))
@@ -374,12 +377,10 @@ def match_unique_actions(node, usable):
                         found = True
                     break
         if not found:
-            if info['visible_text'].strip() == '':
-                matched_edges.append((f"VISIBLE TEXT: UNLABELLED", "ACTION EFFECT: UNKNOWN"))
-                unique_tags.add((f"VISIBLE TEXT: UNLABELLED", "ACTION EFFECT: UNKNOWN"))
-            else:
-                matched_edges.append((f"VISIBLE TEXT: {info['visible_text']}", f"ACTION EFFECT: {info['visible_text']}"))
-                unique_tags.add((f"VISIBLE TEXT: {info['visible_text']}", f"ACTION EFFECT: {info['visible_text']}"))
+            if info['visible_text'].strip() != '':
+                matched_edges.append((f"VISIBLE TEXT: {info['visible_text']}", ""))
+                unique_tags.add((f"VISIBLE TEXT: {info['visible_text']}", ""))
+
 
 
 
@@ -405,7 +406,12 @@ async def step_by_xpath(page, xpath, interaction_info, html):
     elif interaction_info == 'input':
         await page.wait_for_load_state('networkidle')
 
-        await locator.first.fill("TESTING MODE")
+        # await locator.first.fill("TESTING MODE")
+        # def use_gpt_fill_input(tree_str, specific_html, user_context)
+        tree_str = parse_accessibility_tree(await page.accessibility.snapshot())
+        specific_html = html
+        input_string = use_gpt_fill_input(tree_str, specific_html, intent)
+        await locator.first.fill(input_string)
 
         await page.wait_for_load_state('networkidle')
 
@@ -433,7 +439,6 @@ async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
         await page.get_by_role("button", name="Sign In").click()
 
         await page.goto(end_state.url) # TODO end_state.url
-        # await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/?p=4")
 
 
 
@@ -455,11 +460,14 @@ async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/mynewsletter.json')
             elif url_depth(aggressive_normalize_url(page.url)) == 1 and 'SKU' in tree_str:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/productpage.json')
+                print("AT PRODUCT PAGE!!!!!")
             else:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/shoppingsection.json')
+                print("AT PRODUCT SECTION!!!!!!")
 
             # TODO Not as simple, have to match usable actions with intrastate options
             usable = await get_usable_elements_new(page, intrastate_tree)  # element_info = (xpath, interaction_info, html, visible_text)
+            # exit()
 
             '''
             usable elements
@@ -474,14 +482,7 @@ async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
             '''
 
 
-
-            print("EXTRACTED INFO")
-            # matched = match_edges_with_extracted_info(intrastate_tree, extracted_info)
             unique, matched = match_unique_actions(intrastate_tree, usable)
-            print("MATCHED")
-            print(matched)
-            print("UNIQUE")
-            print(unique)
 
             seen_action_types = []
 
@@ -494,11 +495,12 @@ async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
                 if action_desc != "ACTION EFFECT: UNKNOWN":
                     seen_action_types.append((info, action_desc))
 
-            print("KNOWN USABLE")
+
             # print(combined)
 
             # question_for_gpt = [f"{i}) {item}\n" for i, item in enumerate(combined)]
             question_for_gpt = [f"{i}) {item[0]}\n{item[1]}\n" for i, item in enumerate(seen_action_types)]
+            print("KNOWN USABLE, QUESTIONS FOR GPT")
             print('\n'.join(question_for_gpt))
 
             # answer = get_intrastate_type(intent, '\n'.join(question_for_gpt), model_name="gpt-4-1106-preview")
@@ -507,13 +509,6 @@ async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
 
             known_usable = []
             combined = []
-            '''
-
-                        TABLE EXTRACTION HERE!
-
-                        COMBINED IS HIGHLY INSUFFICIENT
-
-            '''
             for i, (info, action_desc) in enumerate(matched):
                 if action_desc == desired_action_desc and info == desired_info:
                     known_usable.append(usable[i])
@@ -521,6 +516,7 @@ async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
 
 
             filtered_question_for_gpt = [f"{i}) {item}\n" for i, item in enumerate(combined)]
+            print("FILTERED KNOWN USABLE FOT GPT")
             print('\n'.join(filtered_question_for_gpt))
 
             # answer = get_intrastate(intent, '\n'.join(filtered_question_for_gpt), model_name="gpt-4-1106-preview")
