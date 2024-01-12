@@ -266,7 +266,7 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, node): 
 
     else:
         # print("No specific interaction defined for this element type.")
-        return
+        return None
 
     await page.wait_for_load_state('networkidle')
     print(f"interaction info: {interaction_info}\n html: {html}")
@@ -282,6 +282,7 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, node): 
     # print("NEW CHILD BIRTHED! ")
     # print(child_node)
     node.add_child(child_node)
+    return child_node
 
 class IntrastateWebPageNode:
     unique_interacts_visible = set()
@@ -415,7 +416,9 @@ async def scrape_leaves(root_node):
 
         leaves = get_leaves(root_node)
 
-        for leaf in leaves:
+        while len(leaves) > 0:
+
+            leaf = leaves.pop(0)
             if not leaf.url.startswith(aggressive_url_norm(root_node.url)):
                 continue
             outer_browser = await p.chromium.launch(headless=True)
@@ -435,14 +438,12 @@ async def scrape_leaves(root_node):
             trajectory = leaf.trajectory
 
             # print(f"LEAF TRAJ: {leaf.trajectory}")
-            '''
             for edge in trajectory: # does nothing for root_node
                 print("BEFORE STEP")
                 print(outer_page.url)
                 await step_by_xpath(outer_page, edge) # FIRST STEP FUCKS UP SOMEHOW
                 print("AFTER STEP")
                 print(outer_page.url)
-            '''
 
             # TODO RECONSIDER STEPPING STRATEGY FOR EXCLUSIVE ENTRIES, PERHAPS START STATE UPON ENTRY?
 
@@ -450,16 +451,19 @@ async def scrape_leaves(root_node):
 
             # print("GOT ELEMENTS")
 
+            all_seen_elements = copy.deepcopy(elements)
+
             # print(elements)
 
             # print("CLOSING PAGE")
             if elements == []:
-                # print("NO ELEMENTS FOUND")
+                print("NO ELEMENTS FOUND")
                 return
 
 
             # edge_info = (interaction_info, generated_text, html, xpath, visible_text)
-            for xpath, interaction_info, html in elements:
+            while len(elements) > 0:
+                xpath, interaction_info, html = elements.pop(0)
                 inner_browser = await p.chromium.launch(headless=True)
 
 
@@ -496,9 +500,14 @@ async def scrape_leaves(root_node):
 
 
 
-                await interact_element_by_xpath(inner_page, xpath, interaction_info=interaction_info, html=html, node=leaf)
+                child_node = await interact_element_by_xpath(inner_page, xpath, interaction_info=interaction_info, html=html, node=leaf)
 
                 print("HAPPT INTERACTED!!! ")
+                if child_node != None and inner_page.url.startswith(aggressive_url_norm(root_node.url)):
+                    leaves.append(child_node)
+                    print("LEAF ADDED")
+
+
                 await inner_page.close()
                 await inner_browser.close()
 
@@ -569,7 +578,8 @@ async def main():
     async with async_playwright() as p:
 
         # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/clothing-shoes-jewelry.html"
-        link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/noldares-womens-pumps-heels-closed-toe-bohemian-block-heel-buckle-strap-sandals-fashion-party-single-pumps-sandals.html"
+        # link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/noldares-womens-pumps-heels-closed-toe-bohemian-block-heel-buckle-strap-sandals-fashion-party-single-pumps-sandals.html"
+        link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/edit"
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
 
