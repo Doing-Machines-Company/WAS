@@ -15,7 +15,7 @@
                 "id(\"search\")",
                 ""
             ],
-            "private": "The action triggered a search query and navigated to a search results page.",
+            "private": "Search query submitted for desired inputted text and page navigated to search results",
             "public": null,
             "acc_tree": "[WebArea] ''\n",
             "trajectory": [

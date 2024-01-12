@@ -61,7 +61,7 @@
                 "id(\"search\")",
                 ""
             ],
-            "private": "Search query submitted and page navigated to search results",
+            "private": "Search query submitted for desired inputted text and page navigated to search results",
             "public": null,
             "acc_tree": "[WebArea] ''\n",
             "trajectory": [
