@@ -115,10 +115,11 @@ async def parse_and_clean_new(elements, parent_node):
 
         if not await element.is_visible() or await element.is_hidden():
             continue
+
         if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html or "<input type=\"password\" class=\"input-text" in html:
             print("FLAG2")
             print(html)
-        if await element.is_disabled() or "disabled=\"disabled\"" in html:
+        if await element.is_disabled() or "disabled=" in html:
             continue
         if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html or "<input type=\"password\" class=\"input-text" in html:
             print("FLAG3")
@@ -301,7 +302,7 @@ interstate_tree = load_interstate_from_file('webtreeflattened.json')
 # intent = "I want to change my password"
 # intent = "Find my most recent order"
 # intent = "buy skyr"
-intent = "change my email address"
+intent = "change my password"
 
 
 # end_state = navigate_interstate(interstate_tree, intent, chunk_size=10)
