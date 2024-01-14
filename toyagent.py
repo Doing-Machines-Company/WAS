@@ -302,7 +302,7 @@ interstate_tree = load_interstate_from_file('webtreeflattened.json')
 # intent = "I want to change my password"
 # intent = "Find my most recent order"
 # intent = "buy skyr"
-intent = "change my password"
+intent = "look at teeth grinding mouth guard"
 
 
 # end_state = navigate_interstate(interstate_tree, intent, chunk_size=10)

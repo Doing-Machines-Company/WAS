@@ -70,8 +70,7 @@ def aggressive_url_norm(url):  # Very aggressive normalization
 async def extract_interaction_info(html):  # use general input type
     if '<a' in html:
         return "link"
-    if (
-            '<button' in html or "type='button'" in html or "role='button'" in html or "role=\"button\"" in html or "type=\"radio\"" in html or "[onclick]" in html or "onclick=" in html or "[role='button']" in html) and (
+    if ('<button' in html or "type='button'" in html or "role='button'" in html or "role=\"button\"" in html or "type=\"radio\"" in html or "[onclick]" in html or "onclick=" in html or "[role='button']" in html) and (
             "<div" not in html):  # filter out div?
         # or "select" in html DOESN'T HANDLE
         return "button"
@@ -85,11 +84,12 @@ async def extract_interaction_info(html):  # use general input type
 
 async def get_usable_elements(page, leaf):  # maybe remove duplicates if ever needed
     selector = "a, button, input, select, textarea, [onclick], [role='button']"
+
     await page.wait_for_load_state('networkidle')
-    print("PAGE LOADED! 1")
+    # print("PAGE LOADED! 1")
     # input("GETTING USABLE ELEMENTS")
-    interactable_elements = await page.locator(selector).element_handles()
-    print("PAGE LOADED! 2")
+    # interactable_elements = await page.locator(selector).element_handles()
+    interactable_elements = await page.locator(selector).all()
 
     cleaned_elements = await parse_and_clean(interactable_elements, leaf)
 
@@ -105,7 +105,6 @@ async def parse_and_clean(elements, parent_node):
     for element in elements:
         href = await element.get_attribute('href')
         html = await element.evaluate("element => element.outerHTML")
-
         if not await element.is_visible() or await element.is_hidden() or await element.is_disabled():
             continue
 
@@ -201,13 +200,6 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
     global user_context
     await page.wait_for_load_state('networkidle')
     await page.wait_for_load_state()
-    print(html)
-    # await page.evaluate('''() => {
-    #         const links = document.querySelectorAll('a');
-    #         links.forEach(link => {
-    #             link.target = '_self';
-    #         });
-    #     }''')
     locator = page.locator(f'xpath={xpath}')
     await locator.evaluate("element => element.target = '_self'")
 
@@ -404,21 +396,25 @@ async def perform_login(page):
     await page.get_by_role("button", name="Sign In").click()
 
 
-async def get_usable_elements_on_page(leaf, browser):
+async def get_usable_elements_on_page(root_node, leaf, browser):
     page = await browser.new_page()
     await perform_login(page)
-    await page.goto(leaf.url)
+    await page.goto(root_node.url)
+    print(leaf.trajectory)
     for edge in leaf.trajectory:
         await step_by_xpath(page, edge)
+    await page.wait_for_load_state('networkidle')
+    await page.wait_for_load_state()
     elements = await get_usable_elements(page, leaf)
     await page.close()
     return elements
 
 
-async def interact_and_create_child_node(leaf, xpath, interaction_info, html, browser):
+async def interact_and_create_child_node(root_node, leaf, xpath, interaction_info, html, browser):
     page = await browser.new_page()
     await perform_login(page)
-    await page.goto(leaf.url)
+    await page.goto(root_node.url)
+    print(leaf.trajectory)
     for edge in leaf.trajectory:
         await step_by_xpath(page, edge)
 
@@ -438,8 +434,9 @@ async def scrape_leaves(root_node):
             if not leaf.url.startswith(aggressive_url_norm(root_node.url)):
                 continue
 
-            for xpath, interaction_info, html in await get_usable_elements_on_page(leaf, inner_browser):
-                child_node = await interact_and_create_child_node(leaf, xpath, interaction_info, html, inner_browser)
+            for xpath, interaction_info, html in await get_usable_elements_on_page(root_node, leaf, inner_browser):
+                child_node = await interact_and_create_child_node(root_node, leaf, xpath, interaction_info, html, inner_browser)
+                print("CHILD MADE")
                 if child_node:
                     # Add the child node to leaves for further processing
                     leaves.append(child_node)
