@@ -109,17 +109,35 @@ async def parse_and_clean_new(elements, parent_node):
     for element in elements:
         href = await element.get_attribute('href')
         html = await element.evaluate("element => element.outerHTML")
+        if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html or "<input type=\"password\" class=\"input-text" in html:
+            print("FLAG1")
+            print(html)
 
         if not await element.is_visible() or await element.is_hidden():
             continue
+        if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html or "<input type=\"password\" class=\"input-text" in html:
+            print("FLAG2")
+            print(html)
         if await element.is_disabled() or "disabled=\"disabled\"" in html:
             continue
+        if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html or "<input type=\"password\" class=\"input-text" in html:
+            print("FLAG3")
+            print(html)
         if href and ((href.startswith('#') and href != '#') or normalize_url(href) in all_links or (url_depth(normalize_url(href)) <= 1 and href.endswith(".html"))):
             continue
+        if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html or "<input type=\"password\" class=\"input-text" in html:
+            print("FLAG4")
+            print(html)
         if parent_node.parent and href and parent_node.parent.url == normalize_url(href):
             continue
+        if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html or "<input type=\"password\" class=\"input-text" in html:
+            print("FLAG5")
+            print(html)
         if "type='hidden'" in html or 'type="hidden"' in html:
             continue
+        if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html or "<input type=\"password\" class=\"input-text" in html:
+            print("FLAG6")
+            print(html)
 
         xpath = await element.evaluate('''(element) => {
             const getElementXPath = (el) => {
@@ -166,7 +184,7 @@ async def parse_and_clean_new(elements, parent_node):
                                     let clonedCell = td.cloneNode(true);
                                     // Remove interactable elements from the cloned cell
                                     clonedCell.querySelectorAll('a, button, input, select, textarea, [onclick], [role="button"]').forEach(interactable => interactable.remove());
-                                    let header = headers[index] || `Column ${index + 1}`;
+                                    let header = headers[index] || `Column ${index}`;
                                     let cellText = clonedCell.textContent.trim();
                                     if (cellText) {
                                         dataWithHeaders[header] = cellText;
@@ -187,7 +205,9 @@ async def parse_and_clean_new(elements, parent_node):
             'table_context': table_context_with_headers
         }
         cleaned_output.append(element_info)
-
+        if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html or "<input type=\"password\" class=\"input-text" in html:
+            print("FLAG7")
+            print(html)
     return cleaned_output
 
 async def get_usable_elements_new(page, leaf): # maybe remove duplicates if ever needed
@@ -195,6 +215,10 @@ async def get_usable_elements_new(page, leaf): # maybe remove duplicates if ever
     await page.wait_for_load_state('networkidle')
     interactable_elements = await page.locator(selector).element_handles()
     cleaned_elements = await parse_and_clean_new(interactable_elements, leaf)
+    # htmls = [item['html'] for item in cleaned_elements]
+    # print("HTMLS CHECK")
+    # print(htmls)
+    # input("WAIT AND SEE")
     return cleaned_elements
 
 
@@ -277,46 +301,14 @@ interstate_tree = load_interstate_from_file('webtreeflattened.json')
 # intent = "I want to change my password"
 # intent = "Find my most recent order"
 # intent = "buy skyr"
-intent = "buy pajamas"
+intent = "change my email address"
 
 
 # end_state = navigate_interstate(interstate_tree, intent, chunk_size=10)
 # end_state = navigate_interstate_bubble(interstate_tree, intent)
 
 
-def match_edges_with_extracted_info(node, extracted_info):
-    matched_edges = []
 
-    for info in extracted_info:
-        found = False
-        new_info = {
-            'visible_text': info['visible_text'],
-            # 'interaction': info['interaction'],
-            # 'attributes': info['attributes'],
-        }
-
-        for i in range(len(node.children)):
-            edge = node.children[i].edge
-            interaction_info, generated_text, html, xpath, visible_text = edge
-            # if visible_text and visible_text == info['visible_text']:
-            # if visible_text and info['visible_text'].startswith(visible_text):
-            if visible_text and visible_text in info['visible_text']:
-                # print("FLAG 1")
-                matched_edges.append((new_info, f"ACTION EFFECT: {node.children[i].private}"))
-                found = True
-                break
-
-        if not found:
-            for i in range(len(node.children)):
-                edge = node.children[i].edge
-                interaction_info, generated_text, html, xpath, visible_text = edge
-                if html and html == info['raw_html']:
-                    matched_edges.append((new_info, f"ACTION EFFECT: {node.children[i].private}"))
-                    found = True
-                    break
-        if not found: matched_edges.append((new_info, "ACTION EFFECT: UNKNOWN"))
-
-    return matched_edges
 
 def match_unique_actions(node, usable):
     '''
@@ -330,15 +322,9 @@ def match_unique_actions(node, usable):
 
     matched_edges = []
 
-    for info in extracted_info:
-        # print("INFORMATION")
-        # print(info)
+    for j in range(len(extracted_info)):
+        info = extracted_info[j]
         found = False
-        new_info = {
-            'visible_text': info['visible_text'],
-            # 'interaction': info['interaction'],
-            # 'attributes': info['attributes'],
-        }
 
         for i in range(len(node.children)):
             edge = node.children[i].edge
@@ -347,7 +333,7 @@ def match_unique_actions(node, usable):
             # if visible_text and info['visible_text'].startswith(visible_text):
             if visible_text and visible_text in info['visible_text']:
                 # print("FLAG 1")
-                matched_edges.append((f"VISIBLE TEXT: {info['visible_text']}", f"ACTION EFFECT: {node.children[i].private}"))
+                matched_edges.append((f"VISIBLE TEXT: {info['visible_text']}", f"ACTION EFFECT: {node.children[i].private}", usable[j]))
                 found = True
                 break
 
@@ -357,15 +343,15 @@ def match_unique_actions(node, usable):
                 interaction_info, generated_text, html, xpath, visible_text = edge
                 if html and html == info['raw_html']:
                     if info['visible_text'].strip() == '':
-                        matched_edges.append((f"VISIBLE TEXT: UNLABELLED", f"ACTION EFFECT: {node.children[i].private}"))
+                        matched_edges.append((f"VISIBLE TEXT: UNLABELLED", f"ACTION EFFECT: {node.children[i].private}", usable[j]))
                         found = True
                     else:
-                        matched_edges.append((f"VISIBLE TEXT: {info['visible_text']}", f"ACTION EFFECT: {node.children[i].private}"))
+                        matched_edges.append((f"VISIBLE TEXT: {info['visible_text']}", f"ACTION EFFECT: {node.children[i].private}", usable[j]))
                         found = True
                     break
         if not found:
             if info['visible_text'].strip() != '':
-                matched_edges.append((f"VISIBLE TEXT: {info['visible_text']}", ""))
+                matched_edges.append((f"VISIBLE TEXT: {info['visible_text']}", "", usable[j]))
 
     return matched_edges
 
@@ -481,9 +467,9 @@ async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
             combined = []
             known_usable = []
 
-            for i, (info, action_desc) in enumerate(matched):
+            for i, (info, action_desc, element) in enumerate(matched):
                 if action_desc != "ACTION EFFECT: UNKNOWN" and action_desc != "ACTION EFFECT: N/A": # Unknown is not matched to a private, N/A is private generated didn't know
-                    known_usable.append(usable[i])
+                    known_usable.append(element)
                     combined.append((info, action_desc, f"EXTRA INFO: {tables[i]}"))
 
             question_for_gpt = [f"{i}) {item}\n" for i, item in enumerate(combined)]
@@ -551,7 +537,9 @@ async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
                 interaction_info = known_usable[int(answer)]['interaction_info']
                 html = known_usable[int(answer)]['html']
 
-    
+                print("STEPPING HTML")
+                print(html)
+
                 await step_by_xpath(page, xpath, interaction_info, html)
                 continue_flag = input("PRESS ENTER TO CONTINUE")
                 if continue_flag == '':

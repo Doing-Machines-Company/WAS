@@ -73,6 +73,7 @@ async def extract_interaction_info(html): #use general input type
         # or "select" in html DOESN'T HANDLE
         return "button"
     if ("<input" in html or "textarea" in html) and "type=\"checkbox\"" not in html and "type=\"radio\"" not in html:
+        # print("HTML HERE!")
         return "input"
     if "type=\"checkbox\"" in html:
         return "checkbox"
@@ -81,8 +82,13 @@ async def extract_interaction_info(html): #use general input type
 async def get_usable_elements(page, leaf): # maybe remove duplicates if ever needed
     selector = "a, button, input, select, textarea, [onclick], [role='button']"
     await page.wait_for_load_state('networkidle')
+    print("PAGE LOADED! 1")
+    # input("GETTING USABLE ELEMENTS")
     interactable_elements = await page.locator(selector).element_handles()
+    print("PAGE LOADED! 2")
+
     cleaned_elements = await parse_and_clean(interactable_elements, leaf)
+
     cleaned_and_reduced_elements = await reduce_duplicate_elements(cleaned_elements, leaf)
     # print("CLEANED AND REDUCED")
     # print(cleaned_and_reduced_elements)
@@ -95,39 +101,61 @@ async def parse_and_clean(elements, parent_node):
         href = await element.get_attribute('href')
         html = await element.evaluate("element => element.outerHTML")
 
+        if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html:
+            print("FLAG1")
 
 
-        if not await element.is_visible() or await element.is_hidden():
+
+        if not await element.is_visible() or await element.is_hidden() or await element.is_disabled():
             continue
 
+        if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html or "<input type=\"password\" class=\"input-text" in html:
+            print("FLAG2")
+            print(html)
+            # input("WHAT THE ACTUAL FUCK")
 
-        if await element.is_disabled():
-            continue
+
+
+
 
 
         if "disabled=\"disabled\"" in html:
             continue
 
+        if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html or "<input type=\"password\" class=\"input-text" in html:
+            print("FLAG4")
+
         if href and href.startswith('#') and href != "#": # some starts with # bad, some good, confusing
             continue
 
+        if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html or "<input type=\"password\" class=\"input-text" in html:
+            print("FLAG5")
 
         if href and (normalize_url(href) in all_links) and (normalize_url(href) != parent_node.url):
             continue
 
-
+        if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html or "<input type=\"password\" class=\"input-text" in html:
+            print("FLAG6")
 
         if href and url_depth(aggressive_url_norm(href)) <= 1 and aggressive_url_norm(href).endswith(".html") and (aggressive_url_norm(href) != parent_node.url):
             continue
 
-
+        if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html or "<input type=\"password\" class=\"input-text" in html:
+            print("FLAG7")
 
         # print(f"HREF: {href}")
         if parent_node.parent and href and parent_node.parent.url == normalize_url(href): # TODO WHAT?
             continue
 
+        if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html or "<input type=\"password\" class=\"input-text" in html:
+            print("FLAG8")
+
         if "type='hidden'" in html or 'type="hidden"' in html:
             continue
+
+        if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html or "<input type=\"password\" class=\"input-text" in html:
+            print("FLAG9")
+
         # How does query selector know siblings????
         xpath = await element.evaluate('''(element) => {
             const getElementXPath = (el) => {
@@ -162,25 +190,29 @@ async def parse_and_clean(elements, parent_node):
 
 async def step_by_xpath(page, edge):
     # edge_info = (interaction_info, generated_text, html, xpath)
-    interaction_info, generated_text, html, xpath = edge
-    print(f"STEPPING: Interaction info: {interaction_info}\n HTML: {html}")
+    (interaction_info, generated_text, html, xpath, visible_text) = edge
+    # print(f"STEPPING: Interaction info: {interaction_info}\n HTML: {html}")
+
     await page.wait_for_load_state('networkidle')
     locator = page.locator(f'xpath={xpath}')
 
+
     count = await locator.count()
+
+
     if count == 0:
         print(f"STEPPING: No elements found with this xpath: {xpath}")
         # print("IMPOSSIbLE BAD")
         return
-    elif count == 1:
-        print('STEPPING: One element found with this xpath')
-    else:
-        print('STEPPING: Multiple elements found with this xpath')
+    # elif count == 1:
+    #     print('STEPPING: One element found with this xpath')
+    # else:
+    #     print('STEPPING: Multiple elements found with this xpath')
 
 
     if interaction_info in ['button', 'click', 'link', 'checkbox']:
         await page.wait_for_load_state('networkidle')
-        locator.first.click()
+        await locator.first.click()
         await page.wait_for_load_state('networkidle')
     elif interaction_info == 'input':
         await page.wait_for_load_state('networkidle')
@@ -195,31 +227,38 @@ async def step_by_xpath(page, edge):
     else:
         print("FUCK3")
 
+    if "<input type=\"password\"" in html:
+        print("CHANGING PASSWORD")
+        print("EYES4")
+
 async def interact_element_by_xpath(page, xpath, interaction_info, html, node): # WHY IS REORDER NOT SCRAPING????
     global user_context
     await page.wait_for_load_state('networkidle')
+    # print("TONK1")
     await page.evaluate('''() => {
             const links = document.querySelectorAll('a');
             links.forEach(link => {
                 link.target = '_self';
             });
         }''')
+    # print("TONK2")
     locator = page.locator(f'xpath={xpath}')
-    print("LOCATED! ")
-    print(f"HTML: {html}")
+    # print("LOCATED! ")
+    # print(f"HTML: {html}")
     count = await locator.count()
-    print(f"BEFORE URL: {page.url}")
+    # print(f"BEFORE URL: {page.url}")
     # print("INTERACTING")
     # print(f"Interaction info: {interaction_info}")
     # print(html)
+    # TODO CHECK FOR EMAIL CHECKBOX AND CHILD PASSWORD INPUT
 
     if count == 0:
         print(f"No elements found with this xpath: {xpath}")
         return
-    elif count == 1:
-        print('One element found with this xpath')
-    else:
-        print('Multiple elements found with this xpath')
+    # elif count == 1:
+    #     print('One element found with this xpath')
+    # else:
+    #     print('Multiple elements found with this xpath')
 
 
     if await locator.is_disabled() or await locator.is_hidden():
@@ -232,8 +271,8 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, node): 
     if interaction_info == "input":
         # # print(f"Trying to input text")
         # return
-        generated_text = use_gpt_fill_input(before_tree, html, user_context) # maybe needs xpath? idk
-        # generated_text = "TESTING MODE"
+        # generated_text = use_gpt_fill_input(before_tree, html, user_context) # maybe needs xpath? idk
+        generated_text = "TESTING MODE"
         # # print(f"Generated text: {generated_text}")
         await page.wait_for_load_state('networkidle')
         await locator.first.fill(generated_text)
@@ -269,15 +308,15 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, node): 
         return None
 
     await page.wait_for_load_state('networkidle')
-    print(f"interaction info: {interaction_info}\n html: {html}")
+    # print(f"interaction info: {interaction_info}\n html: {html}")
     after_tree = parse_accessibility_tree(await page.accessibility.snapshot())
-    url2 = copy.deepcopy(page.url)
-    difference = use_gpt_get_difference(before_tree, after_tree, url1, url2, action_description)
-    # difference = "TESTING MODE"
-    print(f"PAGE URL: {page.url}\n URL2: {url2}")
+    # url2 = copy.deepcopy(page.url)
+    # difference = use_gpt_get_difference(before_tree, after_tree, url1, url2, action_description)
+    difference = "TESTING MODE"
+    # print(f"PAGE URL: {page.url}\n URL2: {url2}")
     child_node = IntrastateWebPageNode(url=normalize_url(page.url), edge=edge_info, private=difference, acc_tree=after_tree)
-    print("NEW CHILD BIRTHED! ")
-    print(f"BEFORE: {url1}\nAFTER: {url2}")
+    # print("NEW CHILD BIRTHED! ")
+    # print(f"BEFORE: {url1}\nAFTER: {url2}")
     # input("TONK")
     # print("NEW CHILD BIRTHED! ")
     # print(child_node)
@@ -304,6 +343,10 @@ class IntrastateWebPageNode:
         child.parent = self
         child.trajectory = copy.deepcopy(self.trajectory)
         child.trajectory.append(child.edge)
+
+    def kill_self(self):
+        self.parent.children.remove(self)
+        self.parent = None
 
     def __str__(self):
         return f'URL: {self.url}'
@@ -391,7 +434,7 @@ def use_gpt_get_difference(tree_str1, tree_str2, url1, url2, action):
     pattern = r"\'\'\'(.*?)\'\'\'"
 
     match = re.search(pattern, result, re.DOTALL)
-    print(f"RESULT: {result}")
+    # print(f"RESULT: {result}")
     if match:
         final_answer = match.group(1).strip()
         return final_answer
@@ -439,32 +482,45 @@ async def scrape_leaves(root_node):
 
             # print(f"LEAF TRAJ: {leaf.trajectory}")
             for edge in trajectory: # does nothing for root_node
-                print("BEFORE STEP")
-                print(outer_page.url)
+                # print("BEFORE STEP")
+                # print(outer_page.url)
                 await step_by_xpath(outer_page, edge) # FIRST STEP FUCKS UP SOMEHOW
-                print("AFTER STEP")
-                print(outer_page.url)
+                # print("AFTER STEP")
+                # print(outer_page.url)
+            # print("FINISHED STEPPING! ")
 
-            # TODO RECONSIDER STEPPING STRATEGY FOR EXCLUSIVE ENTRIES, PERHAPS START STATE UPON ENTRY?
 
-            elements = await get_usable_elements(outer_page, leaf)
 
-            # print("GOT ELEMENTS")
+            # print(f"TRAJECTORY: {trajectory}")
+            await outer_page.wait_for_load_state('networkidle')
+            dummy = parse_accessibility_tree(await outer_page.accessibility.snapshot())
+            print(dummy)
+            try:
+                elements = await get_usable_elements(outer_page, leaf) # TODO THIS FUCKS UP
+            except:
+                leaf.kill_self()
+                continue
 
-            all_seen_elements = copy.deepcopy(elements)
+
+
+            if trajectory != [] and trajectory is not None and "<input type=\"checkbox\" name=\"change_email" in trajectory[0][2]:
+                htmls = [element[2] for element in elements]
+                print(htmls)
+                # input("TRAJ CHECK THE FUCK")
+
+
+            # input("USE EYES")
 
             # print(elements)
 
             # print("CLOSING PAGE")
-            if elements == []:
-                print("NO ELEMENTS FOUND")
-                return
 
 
             # edge_info = (interaction_info, generated_text, html, xpath, visible_text)
             while len(elements) > 0:
                 xpath, interaction_info, html = elements.pop(0)
                 inner_browser = await p.chromium.launch(headless=True)
+
 
 
                 # # print("-------------------")
@@ -492,18 +548,37 @@ async def scrape_leaves(root_node):
                 trajectory = leaf.trajectory
 
                 # # print(f"LEAF TRAJ: {leaf.trajectory}")
-
+                # flage = False
                 for edge in trajectory:  # does nothing for root_node
+                    # if "<input type=\"password\" class=\"input-text" in html:
+                    #     input("STEP WAIT LOOK")
+                    #     print(html)
+                    # elif flage:
+                    #     input("STEP WAIT LOOK")
+                    #     print(html)
                     await step_by_xpath(inner_page, edge)
 
-                print("HAPPY PLACE")
 
 
+                try:
+                    child_node = await interact_element_by_xpath(inner_page, xpath, interaction_info=interaction_info, html=html, node=leaf)
+                except:
+                    continue
 
-                child_node = await interact_element_by_xpath(inner_page, xpath, interaction_info=interaction_info, html=html, node=leaf)
-
-                print("HAPPT INTERACTED!!! ")
                 if child_node != None and inner_page.url.startswith(aggressive_url_norm(root_node.url)):
+                    # if child_node is not None and "<input type=\"checkbox\" name=\"change_email" in html:
+                    #     print("THE FUCK1")
+                    #     print(html)
+                    #     print(child_node.trajectory)
+                    #     input("THE FUCK 1")
+                    #     print(child_node.parent.trajectory)
+                    #     input("THE FUCK2")
+                    # if child_node is not None and "<input type=\"password\" class=\"input-text" in html:
+                    #     print("THE FUCK3")
+                    #     print(child_node.parent.edge[2])
+                    #     input("THE FUCK 3")
+                    #     print(child_node.trajectory)
+                    #     input("THE FUCK 4")
                     leaves.append(child_node)
                     print("LEAF ADDED")
 
@@ -528,7 +603,7 @@ async def reduce_duplicate_elements(elements, parent_node): # same url + same vi
     for element in elements:
         # Extract text content for comparison
         visible_text = get_visible_from_html(element[2])
-        print(f"VISIBLE TEXT: {visible_text}")
+        # print(f"VISIBLE TEXT: {visible_text}")
 
         if page_number_remover.search(visible_text):
             continue
@@ -613,8 +688,7 @@ async def main():
     # save root node
     print("DONE!!!")
     # print_intrastate_node_tree(root_node)
-    print(f"ALL HTMLS: {all_htmls}")
-    save_tree_to_json(root_node, 'intrastate_trees/productpage.json')
+    save_tree_to_json(root_node, 'intrastate_trees/myaccounteditNEW.json')
 
 
 

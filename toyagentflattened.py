@@ -9,7 +9,7 @@ from agentprompts import get_interstate, get_intrastate, get_intrastate_type, us
 from interstate_tree import InferenceWebPageNode
 from accessibility_tree_utils import parse_accessibility_tree
 
-intent = "what are my orders from 2022"
+intent = "change my password to 123, my current password is Password.123"
 
 with open('all_links2.json', 'r') as file:
     all_links = json.load(file)
