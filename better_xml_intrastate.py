@@ -397,42 +397,54 @@ def get_leaves(node):
             leaves.extend(get_leaves(child))
         return leaves
 
+async def perform_login(page):
+    await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
+    await page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
+    await page.get_by_label("Password", exact=True).fill('Password.123')
+    await page.get_by_role("button", name="Sign In").click()
+
+
+async def get_usable_elements_on_page(leaf, browser):
+    page = await browser.new_page()
+    await perform_login(page)
+    await page.goto(leaf.url)
+    for edge in leaf.trajectory:
+        await step_by_xpath(page, edge)
+    elements = await get_usable_elements(page, leaf)
+    await page.close()
+    return elements
+
+
+async def interact_and_create_child_node(leaf, xpath, interaction_info, html, browser):
+    page = await browser.new_page()
+    await perform_login(page)
+    await page.goto(leaf.url)
+    for edge in leaf.trajectory:
+        await step_by_xpath(page, edge)
+
+    child_node = await interact_element_by_xpath(page, xpath, interaction_info, html, leaf)
+    await page.close()
+    return child_node
+
 
 async def scrape_leaves(root_node):
     leaves = get_leaves(root_node)
 
-    while leaves:
-        leaf = leaves.pop(0)
-        if not leaf.url.startswith(aggressive_url_norm(root_node.url)):
-            continue
+    async with async_playwright() as p:
+        inner_browser = await p.chromium.launch(headless=True)
 
-        async with async_playwright() as p:
-            inner_browser = await p.chromium.launch(headless=False)
-            inner_page = await inner_browser.new_page()
+        while leaves:
+            leaf = leaves.pop(0)
+            if not leaf.url.startswith(aggressive_url_norm(root_node.url)):
+                continue
 
-            # Perform initial login and navigate to the leaf's URL
-            await inner_page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
-            await inner_page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
-            await inner_page.get_by_label("Password", exact=True).fill('Password.123')
-            await inner_page.get_by_role("button", name="Sign In").click()
-            await inner_page.goto(leaf.url)
+            for xpath, interaction_info, html in await get_usable_elements_on_page(leaf, inner_browser):
+                child_node = await interact_and_create_child_node(leaf, xpath, interaction_info, html, inner_browser)
+                if child_node:
+                    # Add the child node to leaves for further processing
+                    leaves.append(child_node)
 
-            # Navigate through the trajectory to reach the desired state
-            for edge in leaf.trajectory:
-                await step_by_xpath(inner_page, edge)
-
-            elements = await get_usable_elements(inner_page, leaf)
-
-            for xpath, interaction_info, html in elements:
-                child_node = await interact_element_by_xpath(inner_page, xpath, interaction_info, html, leaf)
-                if child_node and inner_page.url.startswith(aggressive_url_norm(root_node.url)):
-                    # Recursively explore interactions starting from the child node
-                    await scrape_leaves(child_node)
-                    print("LEAF ADDED")
-
-            await inner_page.close()
-            await inner_browser.close()
-
+        await inner_browser.close()
 
 
 def get_visible_from_html(html):
