@@ -71,63 +71,63 @@ def extract_interaction_info(html): #use general input type
     return "Uncased Element"
 
 
-def find_associated_label(soup, element_html):
+async def find_associated_label(element_html, page):
     if not element_html:
         return ''
 
     element_soup = BeautifulSoup(element_html, 'html.parser')
-    element = element_soup.find()
-    if not element:
+    input_element = element_soup.find()
+    if not input_element or not input_element.has_attr('id'):
         return ''
 
-    # Find the ID of the element (if it exists)
-    element_id = element.get('id')
+    input_id = input_element['id']
 
-    # If the element ID exists, use it to find the associated label in the main soup
-    if element_id:
-        label = soup.find('label', {'for': element_id})
-        if label:
-            # Extract text from span if it exists, else return the text of the label
-            span = label.find('span')
-            return span.get_text(strip=True) if span else label.get_text(strip=True)
+    soup = BeautifulSoup(await page.content(), 'html.parser')
+    # Find the input element in the main soup
+    main_input_element = soup.find(id=input_id)
+    if not main_input_element:
+        return ''
 
-    # If no label is found using the ID, or if the element has no ID
-    # Search among the siblings of the element's parent
-    parent_element = soup.find(id=element_id)
-    if parent_element:
-        parent = parent_element.find_parent()
-        if parent:
-            label = parent.find('label')
-            if label:
-                span = label.find('span')
-                return span.get_text(strip=True) if span else label.get_text(strip=True)
+    # Find the grandparent of the input element in the main soup
+    grandparent_div = main_input_element.find_parent().find_parent() if main_input_element.find_parent() else None
+    if not grandparent_div:
+        return ''
+
+    # Find a label within the grandparent that is associated with the input element
+    label = grandparent_div.find('label', {'for': input_id})
+    if label:
+        span = label.find('span')
+        return span.get_text(strip=True) if span else label.get_text(strip=True)
 
     return ''
 
 
 
-def get_visible_from_html(html):
+
+
+
+
+
+
+async def get_visible_from_html(html, page):
     soup = BeautifulSoup(html, 'html.parser')
     text = soup.get_text(strip=True)
     if text is None or text.strip() == '':
-        outer_element = soup.find()
-        if outer_element:
-            outer_html = str(outer_element)
-            label_text = find_associated_label(soup, outer_html)
-            if label_text:
-                return label_text
+        label_text = await find_associated_label(html, page)
+        if label_text:
+            return label_text
         return ''
     return text
 
 
 
-def extract_info_from_html(html):
+async def extract_info_from_html(html, page):
     soup = BeautifulSoup(html, 'html.parser')
     outer_element = soup.find()  # Find the first/outermost tag
     if outer_element:
         info = {
             'tag': outer_element.name,
-            'visible_text': get_visible_from_html(html),
+            'visible_text': await get_visible_from_html(html, page),
             'interaction': extract_interaction_info(html),
             'attributes': outer_element.attrs,
             'raw_html': html # TODO: Remove this later
@@ -149,7 +149,7 @@ def normalize_url(url):
     normalized_url = urlunparse((scheme, netloc, path, '', query, fragment))
     return normalized_url
 
-async def parse_and_clean_new(elements, parent_node):
+async def parse_and_clean_new(elements, parent_node, page):
     cleaned_output = []
     for element in elements:
         href = await element.get_attribute('href')
@@ -206,7 +206,7 @@ async def parse_and_clean_new(elements, parent_node):
         }''')
 
         interaction_info = extract_interaction_info(html)
-        visible_text = get_visible_from_html(html)
+        visible_text = await get_visible_from_html(html, page)
 
         # Determine if the element is part of a table and capture the row context
         table_context_with_headers = None
@@ -260,7 +260,7 @@ async def get_usable_elements_new(page, leaf): # maybe remove duplicates if ever
     selector = "a, button, input, select, textarea, [onclick], [role='button']"
     await page.wait_for_load_state('networkidle')
     interactable_elements = await page.locator(selector).element_handles()
-    cleaned_elements = await parse_and_clean_new(interactable_elements, leaf)
+    cleaned_elements = await parse_and_clean_new(interactable_elements, leaf, page)
     # htmls = [item['html'] for item in cleaned_elements]
     # print("HTMLS CHECK")
     # print(htmls)
@@ -356,7 +356,7 @@ intent = "change my password"
 
 
 
-def match_unique_actions(node, usable):
+async def match_unique_actions(node, usable, page):
     '''
 
     Returns a tuple of (unique actions, all labelled actions), check length
@@ -364,7 +364,7 @@ def match_unique_actions(node, usable):
     '''
 
     htmls = [item['html'] for item in usable]
-    extracted_info = [extract_info_from_html(html) for html in htmls]
+    extracted_info = [await extract_info_from_html(html, page) for html in htmls]
     print(extracted_info)
     input("TONK!")
 
@@ -515,7 +515,7 @@ async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
             # extracted_info = [extract_info_from_html(html) for html in htmls]
 
 
-            matched = match_unique_actions(intrastate_tree, usable)
+            matched = await match_unique_actions(intrastate_tree, usable, page)
             els = [item[-1]['html'] for item in matched]
             print(els)
             flag = input("continue? ")
