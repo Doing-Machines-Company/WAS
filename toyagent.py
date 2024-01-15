@@ -70,20 +70,65 @@ def extract_interaction_info(html): #use general input type
         return "checkbox"
     return "Uncased Element"
 
+
+def find_associated_label(soup, element_html):
+    if not element_html:
+        return ''
+
+    element_soup = BeautifulSoup(element_html, 'html.parser')
+    element = element_soup.find()
+    if not element:
+        return ''
+
+    # Find the ID of the element (if it exists)
+    element_id = element.get('id')
+
+    # If the element ID exists, use it to find the associated label in the main soup
+    if element_id:
+        label = soup.find('label', {'for': element_id})
+        if label:
+            # Extract text from span if it exists, else return the text of the label
+            span = label.find('span')
+            return span.get_text(strip=True) if span else label.get_text(strip=True)
+
+    # If no label is found using the ID, or if the element has no ID
+    # Search among the siblings of the element's parent
+    parent_element = soup.find(id=element_id)
+    if parent_element:
+        parent = parent_element.find_parent()
+        if parent:
+            label = parent.find('label')
+            if label:
+                span = label.find('span')
+                return span.get_text(strip=True) if span else label.get_text(strip=True)
+
+    return ''
+
+
+
 def get_visible_from_html(html):
     soup = BeautifulSoup(html, 'html.parser')
-    return soup.get_text(strip=True)
+    text = soup.get_text(strip=True)
+    if text is None or text.strip() == '':
+        outer_element = soup.find()
+        if outer_element:
+            outer_html = str(outer_element)
+            label_text = find_associated_label(soup, outer_html)
+            if label_text:
+                return label_text
+        return ''
+    return text
+
 
 
 def extract_info_from_html(html):
     soup = BeautifulSoup(html, 'html.parser')
     outer_element = soup.find()  # Find the first/outermost tag
-
     if outer_element:
         info = {
             'tag': outer_element.name,
-            'visible_text': outer_element.get_text(strip=True),
-            'interaction': extract_interaction_info(str(outer_element)),
+            'visible_text': get_visible_from_html(html),
+            'interaction': extract_interaction_info(html),
             'attributes': outer_element.attrs,
             'raw_html': html # TODO: Remove this later
         }
@@ -302,7 +347,7 @@ interstate_tree = load_interstate_from_file('webtreeflattened.json')
 # intent = "I want to change my password"
 # intent = "Find my most recent order"
 # intent = "buy skyr"
-intent = "look at teeth grinding mouth guard"
+intent = "change my password"
 
 
 # end_state = navigate_interstate(interstate_tree, intent, chunk_size=10)
@@ -320,10 +365,12 @@ def match_unique_actions(node, usable):
 
     htmls = [item['html'] for item in usable]
     extracted_info = [extract_info_from_html(html) for html in htmls]
+    print(extracted_info)
+    input("TONK!")
 
     matched_edges = []
 
-    for j in range(len(extracted_info)):
+    for j in range(len(usable)):
         info = extracted_info[j]
         found = False
 
@@ -353,6 +400,9 @@ def match_unique_actions(node, usable):
         if not found:
             if info['visible_text'].strip() != '':
                 matched_edges.append((f"VISIBLE TEXT: {info['visible_text']}", "", usable[j]))
+            else:
+                print("WHAT THE FUCK")
+                print(usable[j]['html'])
 
     return matched_edges
 
@@ -459,12 +509,19 @@ async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
             usable = await get_usable_elements_new(page, intrastate_tree) # element_info = (xpath, interaction_info, html, visible_text)
 
 
+
             tables = [item['table_context'] for item in usable]
             # htmls = [item['html'] for item in usable]
             # extracted_info = [extract_info_from_html(html) for html in htmls]
 
 
             matched = match_unique_actions(intrastate_tree, usable)
+            els = [item[-1]['html'] for item in matched]
+            print(els)
+            flag = input("continue? ")
+            if flag != '':
+                exit()
+
             combined = []
             known_usable = []
 
