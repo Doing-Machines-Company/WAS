@@ -169,8 +169,12 @@ async def parse_and_clean_new(elements, parent_node, page):
         if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html or "<input type=\"password\" class=\"input-text" in html:
             print("FLAG3")
             print(html)
-        if href and ((href.startswith('#') and href != '#') or normalize_url(href) in all_links or (url_depth(normalize_url(href)) <= 1 and href.endswith(".html"))): # TODO REVEAL PRODUCT TRANSFORMS
+        if href and ((href.startswith('#') and href != '#') or (aggressive_normalize_url(href) in all_links and aggressive_normalize_url(href) != aggressive_normalize_url(page.url))): # TODO REVEAL PRODUCT TRANSFORMS
             continue
+
+        # if (url_depth(normalize_url(href)) <= 1 and href.endswith(".html")):
+            # continue
+
         if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html or "<input type=\"password\" class=\"input-text" in html:
             print("FLAG4")
             print(html)
@@ -301,15 +305,9 @@ def navigate_interstate(start_node, intent, chunk_size=None):
             possible_results = []
 
             for chunk in chunked_questions:
-                # print(f"CHUNK: {chunk}")
-                # answer = get_interstate(intent, chunk, model_name="gpt-4-1106-preview")
                 answer = get_interstate(intent, chunk, model_name="gpt-3.5-turbo-1106")
-                # answer = get_interstate_mistral(intent, chunk)
                 if answer != "FAILURE" and answer != "N/A":
                     possible_results.append(answer)
-
-            # print(f"POSSIBLE RESULTS: {possible_results}")
-            # (f"curr_node: {curr_node.url}")
 
             if len(possible_results) == 0:
                 return curr_node
@@ -320,9 +318,7 @@ def navigate_interstate(start_node, intent, chunk_size=None):
             else: # Do recursive in future
                 possible_nodes = [get_child_from_index(curr_node, int(result)) for result in possible_results]
                 filtered_possible_results = construct_options_from_children(possible_nodes)
-                # print(f"FILTERED POSSIBLE RESULTS: {filtered_possible_results}")
                 answer = get_interstate(intent, filtered_possible_results, model_name="gpt-3.5-turbo-1106")
-                # answer = get_interstate_mistral(intent, filtered_possible_results)
                 if answer != "FAILURE" and answer != "N/A":
                     index = int(answer)
                     child = possible_nodes[index]
@@ -345,17 +341,8 @@ def navigate_interstate(start_node, intent, chunk_size=None):
 # interstate_tree = load_interstate_from_file('webpage_MVP_V5.json')
 interstate_tree = load_interstate_from_file('webtreeflattened.json')
 
-# = "What is the price range of wireless earphone in the One Stop Market?"
-# intent = "I want to change my password"
-# intent = "Find my most recent order"
-# intent = "buy skyr"
-# intent = "find teeth grinding mouth guard"
-intent = "change password"
 
-# end_state = navigate_interstate(interstate_tree, intent, chunk_size=10)
-# end_state = navigate_interstate_bubble(interstate_tree, intent)
-
-
+intent = "buy teeth grinding guard"
 
 
 async def match_unique_actions(node, usable, page):
@@ -366,9 +353,9 @@ async def match_unique_actions(node, usable, page):
     '''
 
     htmls = [item['html'] for item in usable]
-    visible_text = [await get_visible_from_html(html, page) for html in htmls]
-    # print(extracted_info)
-    # input("TONK!")
+    xpaths = [item['xpath'] for item in usable]
+    visible_texts = [await get_visible_from_html(html, page) for html in htmls]
+
 
     matched_edges = []
 
@@ -380,9 +367,13 @@ async def match_unique_actions(node, usable, page):
             interaction_info, generated_text, html, xpath, visible_text = edge
             # if visible_text and visible_text == info['visible_text']:
             # if visible_text and info['visible_text'].startswith(visible_text):
-            if visible_text and visible_text in visible_text[j]:
+            if visible_text and visible_text in visible_texts[j]:
                 # print("FLAG 1")
-                matched_edges.append((f"VISIBLE TEXT: {visible_text[j]}", f"ACTION EFFECT: {node.children[i].private}", usable[j]))
+                matched_edges.append((f"VISIBLE TEXT: {visible_texts[j]}", f"ACTION EFFECT: {node.children[i].private}", usable[j]))
+                found = True
+                break
+            if xpath and xpath == xpaths[j]:
+                matched_edges.append((f"VISIBLE TEXT: {visible_texts[j]}", f"ACTION EFFECT: {node.children[i].private}", usable[j]))
                 found = True
                 break
 
@@ -391,16 +382,16 @@ async def match_unique_actions(node, usable, page):
                 edge = node.children[i].edge
                 interaction_info, generated_text, html, xpath, visible_text = edge
                 if html and html == htmls[j]:
-                    if visible_text[j].strip() == '':
+                    if visible_texts[j].strip() == '':
                         matched_edges.append((f"VISIBLE TEXT: UNLABELLED", f"ACTION EFFECT: {node.children[i].private}", usable[j]))
                         found = True
                     else:
-                        matched_edges.append((f"VISIBLE TEXT: {visible_text[j]}", f"ACTION EFFECT: {node.children[i].private}", usable[j]))
+                        matched_edges.append((f"VISIBLE TEXT: {visible_texts[j]}", f"ACTION EFFECT: {node.children[i].private}", usable[j]))
                         found = True
                     break
         if not found:
-            if visible_text[j].strip() != '':
-                matched_edges.append((f"VISIBLE TEXT: {visible_text[j]}", "", usable[j]))
+            if visible_texts[j].strip() != '':
+                matched_edges.append((f"VISIBLE TEXT: {visible_texts[j]}", "", usable[j]))
             else:
                 print("WHAT THE FUCK")
                 print(usable[j]['html'])
@@ -450,25 +441,6 @@ async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
     end_state = navigate_interstate(start_node, intent, chunk_size=inter_chunk)
     print(f"END URL: {end_state.url}")
     print(f"END PUBLIC: {end_state.public}")
-    # # Assume we are at order history page
-    #
-    # if "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/edit" in end_state.url: #some are sublinks need better system
-    #     intrastate_tree = load_intrastate_from_json('intrastate_trees/myaccountedit.json')
-    # elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history" in end_state.url:
-    #     intrastate_tree = load_intrastate_from_json('intrastate_trees/myorders.json')
-    # elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/wishlist" in end_state.url:
-    #     intrastate_tree = load_intrastate_from_json('intrastate_trees/mywishlistNEW.json')
-    # elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/address" in end_state.url:
-    #     intrastate_tree = load_intrastate_from_json('intrastate_trees/myaddressbookNEW.json')
-    # elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account" in end_state.url:
-    #     intrastate_tree = load_intrastate_from_json('intrastate_trees/myaccount.json')
-    # elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/newsletter/manage" in end_state.url:
-    #     intrastate_tree = load_intrastate_from_json('intrastate_trees/mynewsletter.json')
-    # else:
-    #     print("OOPS! NO INTRASTATE TREE FOUND")
-    #     print(f"END URL: {end_state.url}")
-    #     input("PRESS ENTER TO CONTINUE")
-    #     exit()
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=False)
@@ -525,7 +497,7 @@ async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
             known_usable = []
 
             for i, (info, action_desc, element) in enumerate(matched):
-                if action_desc != "ACTION EFFECT: UNKNOWN" and action_desc != "ACTION EFFECT: N/A" and action_desc.strip() != '': # Unknown is not matched to a private, N/A is private generated didn't know
+                if action_desc != "ACTION EFFECT: UNKNOWN" and action_desc != "ACTION EFFECT: N/A": # Unknown is not matched to a private, N/A is private generated didn't know
                     known_usable.append(element)
                     combined.append((info, action_desc, f"EXTRA INFO: {tables[i]}"))
 
