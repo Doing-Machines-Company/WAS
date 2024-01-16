@@ -136,6 +136,9 @@ async def extract_info_from_html(html, page):
     else:
         return None
 
+def reset_flags(flags):
+    flags['shoppingsection'] = False
+    flags['navigationsearch'] = False
 
 
 def normalize_url(url):
@@ -154,40 +157,29 @@ async def parse_and_clean_new(elements, parent_node, page):
     for element in elements:
         href = await element.get_attribute('href')
         html = await element.evaluate("element => element.outerHTML")
-        if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html or "<input type=\"password\" class=\"input-text" in html:
-            print("FLAG1")
-            print(html)
 
         if not await element.is_visible() or await element.is_hidden():
             continue
 
-        if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html or "<input type=\"password\" class=\"input-text" in html:
-            print("FLAG2")
-            print(html)
         if await element.is_disabled() or "disabled=" in html:
             continue
-        if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html or "<input type=\"password\" class=\"input-text" in html:
-            print("FLAG3")
-            print(html)
+
+
         if href and ((href.startswith('#') and href != '#') or (aggressive_normalize_url(href) in all_links and aggressive_normalize_url(href) != aggressive_normalize_url(page.url))): # TODO REVEAL PRODUCT TRANSFORMS
             continue
 
         # if (url_depth(normalize_url(href)) <= 1 and href.endswith(".html")):
             # continue
 
-        if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html or "<input type=\"password\" class=\"input-text" in html:
-            print("FLAG4")
-            print(html)
+
         if parent_node.parent and href and parent_node.parent.url == normalize_url(href):
             continue
-        if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html or "<input type=\"password\" class=\"input-text" in html:
-            print("FLAG5")
-            print(html)
+
+
         if "type='hidden'" in html or 'type="hidden"' in html:
             continue
-        if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html or "<input type=\"password\" class=\"input-text" in html:
-            print("FLAG6")
-            print(html)
+
+
 
         xpath = await element.evaluate('''(element) => {
             const getElementXPath = (el) => {
@@ -260,7 +252,7 @@ async def parse_and_clean_new(elements, parent_node, page):
             print(html)
     return cleaned_output
 
-async def get_usable_elements_new(page, leaf): # maybe remove duplicates if ever needed
+async def get_usable_elements_new(page, leaf, flags): # maybe remove duplicates if ever needed
     selector = "a, button, input, select, textarea, [onclick], [role='button']"
     await page.wait_for_load_state('networkidle')
     interactable_elements = await page.locator(selector).element_handles()
@@ -345,35 +337,36 @@ interstate_tree = load_interstate_from_file('webtreeflattened.json')
 intent = "buy teeth grinding guard"
 
 
-async def match_unique_actions(node, usable, page):
+async def match_unique_actions(node, usable, page, flags):
     '''
 
     Returns a tuple of (unique actions, all labelled actions), check length
 
     '''
 
-    htmls = [item['html'] for item in usable]
+    html_list = [item['html'] for item in usable]
     xpaths = [item['xpath'] for item in usable]
-    visible_texts = [await get_visible_from_html(html, page) for html in htmls]
+    visible_text_list = [await get_visible_from_html(item['html'], page) for item in usable]
 
 
     matched_edges = []
 
     for j in range(len(usable)):
         found = False
+        if flags['shoppingsection'] and visible_text_list[j] in ['Add to Cart', 'Add to Wish List', 'Add to Compare']:
+            continue
 
         for i in range(len(node.children)):
-            edge = node.children[i].edge
-            interaction_info, generated_text, html, xpath, visible_text = edge
+            interaction_info, generated_text, html, xpath, visible_text = node.children[i].edge
             # if visible_text and visible_text == info['visible_text']:
             # if visible_text and info['visible_text'].startswith(visible_text):
-            if visible_text and visible_text in visible_texts[j]:
+            if visible_text and visible_text in visible_text_list[j]:
                 # print("FLAG 1")
-                matched_edges.append((f"VISIBLE TEXT: {visible_texts[j]}", f"ACTION EFFECT: {node.children[i].private}", usable[j]))
+                matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", f"ACTION EFFECT: {node.children[i].private}", usable[j]))
                 found = True
                 break
             if xpath and xpath == xpaths[j]:
-                matched_edges.append((f"VISIBLE TEXT: {visible_texts[j]}", f"ACTION EFFECT: {node.children[i].private}", usable[j]))
+                matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", f"ACTION EFFECT: {node.children[i].private}", usable[j]))
                 found = True
                 break
 
@@ -381,17 +374,20 @@ async def match_unique_actions(node, usable, page):
             for i in range(len(node.children)):
                 edge = node.children[i].edge
                 interaction_info, generated_text, html, xpath, visible_text = edge
-                if html and html == htmls[j]:
-                    if visible_texts[j].strip() == '':
+                if html and html == html_list[j]:
+                    if visible_text_list[j].strip() == '':
                         matched_edges.append((f"VISIBLE TEXT: UNLABELLED", f"ACTION EFFECT: {node.children[i].private}", usable[j]))
                         found = True
                     else:
-                        matched_edges.append((f"VISIBLE TEXT: {visible_texts[j]}", f"ACTION EFFECT: {node.children[i].private}", usable[j]))
+                        matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", f"ACTION EFFECT: {node.children[i].private}", usable[j]))
                         found = True
                     break
         if not found:
-            if visible_texts[j].strip() != '':
-                matched_edges.append((f"VISIBLE TEXT: {visible_texts[j]}", "", usable[j]))
+            if visible_text_list[j].strip() != '':
+                if flags['shoppingsection']:
+                    matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", f"ACTION EFFECT: Go to page for {visible_text_list[j]}", usable[j]))
+                else:
+                    matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", "", usable[j]))
             else:
                 print("WHAT THE FUCK")
                 print(usable[j]['html'])
@@ -437,6 +433,7 @@ async def step_by_xpath(page, xpath, interaction_info, html):
         print("FUCK3")
 
 async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
+    flags = {'shoppingsection': False, 'navigationsearch': False}
 
     end_state = navigate_interstate(start_node, intent, chunk_size=inter_chunk)
     print(f"END URL: {end_state.url}")
@@ -461,32 +458,40 @@ async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
 
             if "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/edit" in page.url:  # some are sublinks need better system
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/myaccountedit.json')
+                flags = {'shoppingsection': False}
             elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history" in page.url:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/myorders.json')
+                flags = {'shoppingsection': False}
             elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/wishlist" in page.url:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/mywishlistNEW.json')
+                flags = {'shoppingsection': False}
             elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/address" in page.url:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/myaddressbookNEW.json')
+                flags = {'shoppingsection': False}
             elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account" in page.url:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/myaccount.json')
+                flags = {'shoppingsection': False}
             elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/newsletter/manage" in page.url:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/mynewsletter.json')
+                flags = {'shoppingsection': False}
             elif url_depth(aggressive_normalize_url(page.url)) == 1 and 'SKU' in tree_str:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/productpage.json')
+                flags = {'shoppingsection': False}
                 print("AT PRODUCT PAGE!!!!!")
             else:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/shoppingsection.json')
                 print("AT PRODUCT SECTION!!!!!!")
+                flags = {'shoppingsection': True}
 
             # TODO Not as simple, have to match usable actions with intrastate options
-            usable = await get_usable_elements_new(page, intrastate_tree) # element_info = (xpath, interaction_info, html, visible_text)
+            usable = await get_usable_elements_new(page, intrastate_tree, flags) # element_info = (xpath, interaction_info, html, visible_text)
 
 
 
             tables = [item['table_context'] for item in usable]
 
 
-            matched = await match_unique_actions(intrastate_tree, usable, page)
+            matched = await match_unique_actions(intrastate_tree, usable, page, flags)
             els = [item[-1]['html'] for item in matched]
             # print(els)
             flag = input("continue? ")
@@ -566,8 +571,6 @@ async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
                 interaction_info = known_usable[int(answer)]['interaction_info']
                 html = known_usable[int(answer)]['html']
 
-                print("STEPPING HTML")
-                print(html)
 
                 await step_by_xpath(page, xpath, interaction_info, html)
                 continue_flag = input("PRESS ENTER TO CONTINUE")
