@@ -8,6 +8,10 @@ from intrastate_tree import load_intrastate_from_json
 from agentprompts import get_interstate, get_intrastate, use_gpt_fill_input
 from interstate_tree import InferenceWebPageNode
 from accessibility_tree_utils import parse_accessibility_tree
+from navigation_specific_filters import state_specific_filter
+
+
+
 
 
 
@@ -17,7 +21,6 @@ with open('all_links2.json', 'r') as file:
 def url_depth(url):
     parsed = urlparse(url)
     return parsed.path.count('/')
-
 
 def aggressive_normalize_url(url):  # Very aggressive normalization
     parsed_url = urlparse(url)
@@ -32,8 +35,6 @@ def print_intrastate(node, indent=0):
     print(' ' * indent + str(node.edge))
     for child in node.children:
         print_intrastate(child, indent + 4)
-
-
 
 def deserialize_interstate(node_data, parent=None):
     # Recreate a InferenceWebPageNode from the dictionary data.
@@ -57,7 +58,6 @@ def load_interstate_from_file(filename):
         tree_data = json.load(file)
     return deserialize_interstate(tree_data)
 
-
 def extract_interaction_info(html): #use general input type
     if '<a' in html:
         return "link"
@@ -69,7 +69,6 @@ def extract_interaction_info(html): #use general input type
     if "type=\"checkbox\"" in html:
         return "checkbox"
     return "Uncased Element"
-
 
 async def find_associated_label(element_html, page):
     if not element_html:
@@ -101,14 +100,6 @@ async def find_associated_label(element_html, page):
 
     return ''
 
-
-
-
-
-
-
-
-
 async def get_visible_from_html(html, page):
     soup = BeautifulSoup(html, 'html.parser')
     text = soup.get_text(strip=True)
@@ -118,8 +109,6 @@ async def get_visible_from_html(html, page):
             return label_text
         return ''
     return text
-
-
 
 async def extract_info_from_html(html, page):
     soup = BeautifulSoup(html, 'html.parser')
@@ -136,10 +125,8 @@ async def extract_info_from_html(html, page):
     else:
         return None
 
-def reset_flags(flags):
-    flags['shoppingsection'] = False
-    flags['navigationsearch'] = False
-
+def reset_flag(flag):
+    flag = 'None'
 
 def normalize_url(url):
     parsed_url = urlparse(url)
@@ -252,7 +239,7 @@ async def parse_and_clean_new(elements, parent_node, page):
             print(html)
     return cleaned_output
 
-async def get_usable_elements_new(page, leaf, flags): # maybe remove duplicates if ever needed
+async def get_usable_elements_new(page, leaf, flag): # maybe remove duplicates if ever needed
     selector = "a, button, input, select, textarea, [onclick], [role='button']"
     await page.wait_for_load_state('networkidle')
     interactable_elements = await page.locator(selector).element_handles()
@@ -262,10 +249,6 @@ async def get_usable_elements_new(page, leaf, flags): # maybe remove duplicates 
     # print(htmls)
     # input("WAIT AND SEE")
     return cleaned_elements
-
-
-
-
 
 def construct_options_from_children(children):
     result = []
@@ -308,6 +291,7 @@ def navigate_interstate(start_node, intent, chunk_size=None):
                 child = get_child_from_index(curr_node, index)
                 curr_node = child
             else: # Do recursive in future
+                # TODO ADD OPTION HERE TO ALLOW FOR SEARCH OPTION DURING NAVIGATION PHASE
                 possible_nodes = [get_child_from_index(curr_node, int(result)) for result in possible_results]
                 filtered_possible_results = construct_options_from_children(possible_nodes)
                 answer = get_interstate(intent, filtered_possible_results, model_name="gpt-3.5-turbo-1106")
@@ -334,15 +318,10 @@ def navigate_interstate(start_node, intent, chunk_size=None):
 interstate_tree = load_interstate_from_file('webtreeflattened.json')
 
 
-intent = "buy teeth grinding guard"
+intent = "find me some cheese with truffles"
 
 
-async def match_unique_actions(node, usable, page, flags):
-    '''
-
-    Returns a tuple of (unique actions, all labelled actions), check length
-
-    '''
+async def match_unique_actions(node, usable, page, flag):
 
     html_list = [item['html'] for item in usable]
     xpaths = [item['xpath'] for item in usable]
@@ -353,7 +332,8 @@ async def match_unique_actions(node, usable, page, flags):
 
     for j in range(len(usable)):
         found = False
-        if flags['shoppingsection'] and visible_text_list[j] in ['Add to Cart', 'Add to Wish List', 'Add to Compare']:
+
+        if state_specific_filter(html_list[j], xpaths[j], visible_text_list[j], flag):
             continue
 
         for i in range(len(node.children)):
@@ -384,13 +364,13 @@ async def match_unique_actions(node, usable, page, flags):
                     break
         if not found:
             if visible_text_list[j].strip() != '':
-                if flags['shoppingsection']:
+                if flag == 'shoppingsection':
                     matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", f"ACTION EFFECT: Go to page for {visible_text_list[j]}", usable[j]))
                 else:
                     matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", "", usable[j]))
             else:
                 print("WHAT THE FUCK")
-                print(usable[j]['html'])
+                # print(usable[j]['html'])
 
     return matched_edges
 
@@ -433,7 +413,7 @@ async def step_by_xpath(page, xpath, interaction_info, html):
         print("FUCK3")
 
 async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
-    flags = {'shoppingsection': False, 'navigationsearch': False}
+    flag = 'None'
 
     end_state = navigate_interstate(start_node, intent, chunk_size=inter_chunk)
     print(f"END URL: {end_state.url}")
@@ -458,40 +438,41 @@ async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
 
             if "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/edit" in page.url:  # some are sublinks need better system
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/myaccountedit.json')
-                flags = {'shoppingsection': False}
+                flag = 'None'
             elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history" in page.url:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/myorders.json')
-                flags = {'shoppingsection': False}
+                flag = 'None'
             elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/wishlist" in page.url:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/mywishlistNEW.json')
-                flags = {'shoppingsection': False}
+                flag = 'None'
             elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/address" in page.url:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/myaddressbookNEW.json')
-                flags = {'shoppingsection': False}
+                flag = 'None'
             elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account" in page.url:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/myaccount.json')
-                flags = {'shoppingsection': False}
+                flag = 'None'
             elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/newsletter/manage" in page.url:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/mynewsletter.json')
-                flags = {'shoppingsection': False}
+                flag = 'None'
             elif url_depth(aggressive_normalize_url(page.url)) == 1 and 'SKU' in tree_str:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/productpage.json')
-                flags = {'shoppingsection': False}
+                flag = 'None'
                 print("AT PRODUCT PAGE!!!!!")
             else:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/shoppingsection.json')
                 print("AT PRODUCT SECTION!!!!!!")
-                flags = {'shoppingsection': True}
+                flag = 'shoppingsection'
+                # Note this could be view order, I have not cased it on view order pages yet.
 
             # TODO Not as simple, have to match usable actions with intrastate options
-            usable = await get_usable_elements_new(page, intrastate_tree, flags) # element_info = (xpath, interaction_info, html, visible_text)
+            usable = await get_usable_elements_new(page, intrastate_tree, flag) # element_info = (xpath, interaction_info, html, visible_text)
 
 
 
             tables = [item['table_context'] for item in usable]
 
 
-            matched = await match_unique_actions(intrastate_tree, usable, page, flags)
+            matched = await match_unique_actions(intrastate_tree, usable, page, flag)
             els = [item[-1]['html'] for item in matched]
             # print(els)
             flag = input("continue? ")
@@ -585,4 +566,4 @@ async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
 
     return None
 
-asyncio.run(do_task(interstate_tree, intent, inter_chunk=20, intra_chunk=None))
+asyncio.run(do_task(interstate_tree, intent, inter_chunk=10, intra_chunk=None))

@@ -42,7 +42,66 @@ def interstate_filter(intent, choice):
 
 
 def get_interstate_instruct(intent, answers):
-    pass
+    interstate_shots = agentprompts["interstate"]
+    messages = [
+        {"role": "system",
+         "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task, and an enumerated set of possible answers. Each answer is a list of functionalities associated with a separate web page. Your are to choose a web page which best fits the intended goal."},
+        {"role": "system",
+         "content": "If nothing in the user context fits the input box, return '''N/A''' as the input. If you choose an answer, you must only choose a single answer. You only care about what is mentioned in each answer choice. Do your best to choose an answer."},
+        {"role": "system",
+         "content": "Reason through every single option I give you step-by-step thoughtfully. Give explanations for why every option I give you may be right or wrong. After reasoning, give your final answer like this: \n '''answer'''."},
+        {"role": "system",
+         "content": "Here is a few example of what your response should look like given their inputs."}]
+
+    for prompts in interstate_shots:
+        example_message = {
+            "role": "system",
+            "name": "example_user",
+            "content": f"Task: {prompts['intent']} \nChoose from these possible answers:\n {prompts['question']}"
+        }
+        messages.append(example_message)
+        example_response = {
+            "role": "system",
+            "name": "example_assistant",
+            "content": prompts['answer']
+        }
+        messages.append(example_response)
+
+        formatted_answers = '\n'.join(answers)
+        print(formatted_answers)
+
+        messages.append({"role": "user",
+                         "content": f"Now here's your actual task. \nTask: {intent}\nChoose from these answers:\n {formatted_answers}"})
+
+        response = client.completions.create(
+            model="gpt-3.5-turbo-instruct",
+            messages=messages,
+            temperature=0,
+            max_tokens=1500,
+            # top_p=0,
+            seed=88888888
+        )
+
+
+    result = response.choices[0].message.content
+    print(f"GPT RAW RETURN: {result}")
+
+    pattern1 = r"\'\'\'(\d+)\'\'\'"
+    pattern2 = r"\`\`\`(\d+)\`\`\`"
+
+    match1 = re.search(pattern1, result, re.DOTALL)
+    match2 = re.search(pattern2, result, re.DOTALL)
+
+    if match1:
+        final_answer = match1.group(1).strip()
+        return final_answer
+    elif match2:
+        final_answer = match2.group(1).strip()
+        return final_answer
+    else:
+        print("OH FUCK! ")
+        return "FAILURE"
+
 
 def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
     interstate_shots = agentprompts["interstate"]
@@ -52,7 +111,7 @@ def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
         {"role": "system",
          "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task, and an enumerated set of possible answers. Each answer is a list of functionalities associated with a separate web page. Your are to choose a web page which best fits the intended goal."},
         {"role": "system",
-         "content": "If nothing in the user context fits the input box, return '''N/A''' as the input. If you choose an answer, you must only choose a single answer. You only care about what is mentioned in each answer choice, the amount or emphasis of items in the list does not matter. Ignore any emphasis."},
+         "content": "If nothing in the user context fits the input box, return '''N/A''' as the input. If you choose an answer, you must only choose a single answer. If there are multiple possible answers, you must choose one. You only care about what is mentioned in each answer choice, the amount or emphasis of items in the list does not matter. Ignore any emphasis."},
         {"role": "system",
          "content": "Reason through every single option I give you step-by-step thoughtfully. Give explanations for why every option I give you may be right or wrong. Try your best to choose an answer. After reasoning, give your final answer like this: \n '''1'''\n Or this: '''13'''."},
         {"role": "system",
