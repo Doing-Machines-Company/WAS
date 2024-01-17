@@ -12,6 +12,10 @@ client = OpenAI(api_key=api_key)
 with open('agentprompts_fewshot.json', 'r') as file:
     agentprompts = json.load(file)
 
+
+
+
+
 def interstate_filter(intent, choice):
     llm = Llama(model_path="./mistral-7b-instruct-v0.2.Q5_K_M.gguf",
                 chat_format="llama-2")  # Set chat_format according to the model you are using
@@ -62,7 +66,7 @@ def get_interstate_instruct(intent, answers):
         messages.append(example_message)
         example_response = {
             "role": "system",
-            "name": "example_assistant",
+            "name": "example_agent",
             "content": prompts['answer']
         }
         messages.append(example_response)
@@ -128,7 +132,7 @@ def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
         messages.append(example_message)
         example_response = {
             "role": "system",
-            "name": "example_assistant",
+            "name": "example_agent",
             "content": prompts['answer']
         }
         messages.append(example_response)
@@ -169,6 +173,51 @@ def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
         print("OH FUCK! ")
         return "FAILURE"
 
+def should_search(intent):
+    messages = [
+        {"role": "system",
+         "content": "You are an autonomous agent performing tasks for an user on a webshop given a specific task. I am going to you give the task the user wants to complete, and you are to evaluate whether or not the web shop's search bar should be used. The search bar is only used for searching for products you need to buy. "},
+        {"role": "system",
+         "content": "You only care about whether or not the search bar of the website should be used. Reason through your answer step-by-step, and give your final answer as '''YES''' or '''NO'''. GIVE ONLY ONE OF THESE AS YOUR FINAL ANSWER AFTER REASONING. "},
+        {"role": "system",
+         "content": "Here are a few examples of what your response should look like given their inputs."},
+        {
+            "role": "system",
+            "name": "example_user",
+            "content": "find my last order with chocolate milk"
+        },
+        {
+            "role": "system",
+            "name": "example_agent",
+            "content": "I need to find an order, orders are not products you can buy on a web shop. Therefore I should not use the search bar. My final answer is: \n'''NO'''"
+        },
+        {
+            "role": "system",
+            "name": "example_user",
+            "content": "find truffle flavoured ice cream"
+        },
+        {
+            "role": "system",
+            "name": "example_agent",
+            "content": "I need to find a type of ice cream, ice cream are a product that you may be able to buy on a web shop. Therefore I should use the search bar. My final answer is: \n'''YES'''"
+        },
+        {"role": "user",
+         "content": f"Now here is your actual task. \nTask: {intent}"}
+    ]
+
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo-1106",
+        messages=messages,
+        temperature=0,
+        max_tokens=1500,
+        seed=88888888
+    )
+
+    result = response.choices[0].message.content
+    if 'YES' in result:
+        return 'YES'
+    else:
+        return 'NO'
 
 def get_intrastate(intent, answers, model_name="gpt-4-1106-preview"):
 
@@ -195,7 +244,7 @@ def get_intrastate(intent, answers, model_name="gpt-4-1106-preview"):
         messages.append(example_message)
         example_response = {
             "role": "system",
-            "name": "example_assistant",
+            "name": "example_agent",
             "content": prompts['answer']
         }
         messages.append(example_response)
@@ -296,7 +345,7 @@ def get_intrastate_type(intent, answers, model_name="gpt-4-1106-preview"):
         messages.append(example_message)
         example_response = {
             "role": "system",
-            "name": "example_assistant",
+            "name": "example_agent",
             "content": prompts['answer']
         }
         messages.append(example_response)

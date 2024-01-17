@@ -2,21 +2,31 @@ import asyncio
 from playwright.async_api import async_playwright
 import re
 import json
+import urllib.parse
 from urllib.parse import urlparse, urlunparse
 from bs4 import BeautifulSoup
 from intrastate_tree import load_intrastate_from_json
-from agentprompts import get_interstate, get_intrastate, use_gpt_fill_input
+from agentprompts import get_interstate, get_intrastate, use_gpt_fill_input, should_search
 from interstate_tree import InferenceWebPageNode
 from accessibility_tree_utils import parse_accessibility_tree
 from navigation_specific_filters import state_specific_filter
 
 
 
+def normalize_html(html):
+    soup = BeautifulSoup(html, 'html.parser')
 
+    for tag in soup.find_all(attrs={"value": True}):
+        tag.attrs['value'] = None  # Set 'value' attribute to None, which removes it
+    print("SOUPY SOUP")
+    print(str(soup))
+    return str(soup)
 
 
 with open('all_links2.json', 'r') as file:
     all_links = json.load(file)
+
+
 
 def url_depth(url):
     parsed = urlparse(url)
@@ -125,8 +135,8 @@ async def extract_info_from_html(html, page):
     else:
         return None
 
-def reset_flag(flag):
-    flag = 'None'
+# def reset_flag(flags):
+#     flags = {'state':'None', 'phase': 'navigation_unsearched'}
 
 def normalize_url(url):
     parsed_url = urlparse(url)
@@ -239,7 +249,7 @@ async def parse_and_clean_new(elements, parent_node, page):
             print(html)
     return cleaned_output
 
-async def get_usable_elements_new(page, leaf, flag): # maybe remove duplicates if ever needed
+async def get_usable_elements_new(page, leaf): # maybe remove duplicates if ever needed
     selector = "a, button, input, select, textarea, [onclick], [role='button']"
     await page.wait_for_load_state('networkidle')
     interactable_elements = await page.locator(selector).element_handles()
@@ -284,6 +294,10 @@ def navigate_interstate(start_node, intent, chunk_size=None):
                 if answer != "FAILURE" and answer != "N/A":
                     possible_results.append(answer)
 
+            # if flags['phase'] == 'navigation_unsearched':
+            #     flags['phase'] = 'intrastate_searched'
+            #     possible_results.append("SEARCH") # TODO ADD OPTION HERE TO ALLOW FOR SEARCH OPTION DURING NAVIGATION PHASE
+
             if len(possible_results) == 0:
                 return curr_node
             elif len(possible_results) == 1:
@@ -318,22 +332,25 @@ def navigate_interstate(start_node, intent, chunk_size=None):
 interstate_tree = load_interstate_from_file('webtreeflattened.json')
 
 
-intent = "find me some cheese with truffles"
+intent = "find me some ice cream with truffles"
 
 
-async def match_unique_actions(node, usable, page, flag):
+async def match_unique_actions(node, usable, page, flags):
 
     html_list = [item['html'] for item in usable]
     xpaths = [item['xpath'] for item in usable]
-    visible_text_list = [await get_visible_from_html(item['html'], page) for item in usable]
+    visible_text_list = [await get_visible_from_html(normalize_html(item['html']), page) for item in usable]
 
 
     matched_edges = []
 
+    # Manually insert search option
+
+
     for j in range(len(usable)):
         found = False
 
-        if state_specific_filter(html_list[j], xpaths[j], visible_text_list[j], flag):
+        if await state_specific_filter(html_list[j], xpaths[j], visible_text_list[j], flags):
             continue
 
         for i in range(len(node.children)):
@@ -354,7 +371,7 @@ async def match_unique_actions(node, usable, page, flag):
             for i in range(len(node.children)):
                 edge = node.children[i].edge
                 interaction_info, generated_text, html, xpath, visible_text = edge
-                if html and html == html_list[j]:
+                if html and normalize_html(html) == normalize_html(html_list[j]):
                     if visible_text_list[j].strip() == '':
                         matched_edges.append((f"VISIBLE TEXT: UNLABELLED", f"ACTION EFFECT: {node.children[i].private}", usable[j]))
                         found = True
@@ -364,13 +381,13 @@ async def match_unique_actions(node, usable, page, flag):
                     break
         if not found:
             if visible_text_list[j].strip() != '':
-                if flag == 'shoppingsection':
+                if flags['section'] == 'shoppingsection':
                     matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", f"ACTION EFFECT: Go to page for {visible_text_list[j]}", usable[j]))
                 else:
                     matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", "", usable[j]))
             else:
                 print("WHAT THE FUCK")
-                # print(usable[j]['html'])
+
 
     return matched_edges
 
@@ -412,12 +429,15 @@ async def step_by_xpath(page, xpath, interaction_info, html):
     else:
         print("FUCK3")
 
-async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
-    flag = 'None'
 
-    end_state = navigate_interstate(start_node, intent, chunk_size=inter_chunk)
-    print(f"END URL: {end_state.url}")
-    print(f"END PUBLIC: {end_state.public}")
+
+def convert_to_url_format(input_string):
+    formatted_string = input_string.replace(' ', '+')
+    return urllib.parse.quote_plus(formatted_string)
+
+
+async def do_task(start_node, intent, flags, inter_chunk=10, intra_chunk=None):
+
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=False)
@@ -428,7 +448,16 @@ async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
         await page.get_by_label("Password", exact=True).fill('Password.123')
         await page.get_by_role("button", name="Sign In").click()
 
-        await page.goto(end_state.url) # TODO end_state.url
+        search_flag = should_search(intent).strip()
+        print("SEARCH FLAG! ")
+        print(search_flag)
+        if search_flag == 'YES' and flags['phase'] == 'navigation_unsearched':
+            await step_by_xpath(page, 'id(\"search\")', "input", "<input id=\"search\" type=\"text\" name=\"q\" value=\"\" placeholder=\"Search entire store here...\" class=\"input-text\" maxlength=\"128\" role=\"combobox\" aria-haspopup=\"false\" aria-autocomplete=\"both\" autocomplete=\"off\" aria-expanded=\"false\">")
+        else:
+            end_state = navigate_interstate(start_node, intent, chunk_size=inter_chunk)
+            await page.goto(end_state.url)
+            print(f"END URL: {end_state.url}")
+            print(f"END PUBLIC: {end_state.public}")
 
 
 
@@ -438,45 +467,45 @@ async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
 
             if "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/edit" in page.url:  # some are sublinks need better system
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/myaccountedit.json')
-                flag = 'None'
+                flags = {'section':'None', 'phase': 'navigation_unsearched'}
             elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history" in page.url:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/myorders.json')
-                flag = 'None'
+                flags = {'section':'None', 'phase': 'navigation_unsearched'}
             elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/wishlist" in page.url:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/mywishlistNEW.json')
-                flag = 'None'
+                flags = {'section':'None', 'phase': 'navigation_unsearched'}
             elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/address" in page.url:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/myaddressbookNEW.json')
-                flag = 'None'
+                flags = {'section':'None', 'phase': 'navigation_unsearched'}
             elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account" in page.url:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/myaccount.json')
-                flag = 'None'
+                flags = {'section':'None', 'phase': 'navigation_unsearched'}
             elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/newsletter/manage" in page.url:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/mynewsletter.json')
-                flag = 'None'
+                flags = {'section':'None', 'phase': 'navigation_unsearched'}
             elif url_depth(aggressive_normalize_url(page.url)) == 1 and 'SKU' in tree_str:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/productpage.json')
-                flag = 'None'
+                flags = {'section':'None', 'phase': 'navigation_unsearched'}
                 print("AT PRODUCT PAGE!!!!!")
             else:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/shoppingsection.json')
                 print("AT PRODUCT SECTION!!!!!!")
-                flag = 'shoppingsection'
+                flags = {'section':'shoppingsection', 'phase': 'navigation_unsearched'}
                 # Note this could be view order, I have not cased it on view order pages yet.
 
             # TODO Not as simple, have to match usable actions with intrastate options
-            usable = await get_usable_elements_new(page, intrastate_tree, flag) # element_info = (xpath, interaction_info, html, visible_text)
+            usable = await get_usable_elements_new(page, intrastate_tree) # element_info = (xpath, interaction_info, html, visible_text)
 
 
 
             tables = [item['table_context'] for item in usable]
 
 
-            matched = await match_unique_actions(intrastate_tree, usable, page, flag)
+            matched = await match_unique_actions(intrastate_tree, usable, page, flags)
             els = [item[-1]['html'] for item in matched]
             # print(els)
-            flag = input("continue? ")
-            if flag != '':
+            debug_flag = input("continue? ")
+            if debug_flag != '':
                 exit()
 
             combined = []
@@ -489,18 +518,6 @@ async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
 
             question_for_gpt = [f"{i}) {item}\n" for i, item in enumerate(combined)]
 
-            '''
-            
-            def chunk_answers(answers, chunk_size):
-
-                chunked_list = []
-            
-                for i in range(0, len(answers), chunk_size):
-                    chunked_list.append(answers[i:i + chunk_size])
-            
-                return chunked_list
-            
-            '''
             if intra_chunk != None:
                 chunked_questions = chunk_answers(question_for_gpt, intra_chunk)
 
@@ -565,5 +582,5 @@ async def do_task(start_node, intent, inter_chunk=10, intra_chunk=None):
 
 
     return None
-
-asyncio.run(do_task(interstate_tree, intent, inter_chunk=10, intra_chunk=None))
+flags = {'section': 'None', 'phase': 'navigation_unsearched'}
+asyncio.run(do_task(interstate_tree, intent, flags, inter_chunk=10, intra_chunk=None))
