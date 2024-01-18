@@ -502,7 +502,7 @@ async def do_task(start_node, intent, flags, inter_chunk=10, intra_chunk=None):
 
 
             matched = await match_unique_actions(intrastate_tree, usable, page, flags)
-            els = [item[-1]['html'] for item in matched]
+            # els = [item[-1]['html'] for item in matched]
             # print(els)
             debug_flag = input("continue? ")
             if debug_flag != '':
