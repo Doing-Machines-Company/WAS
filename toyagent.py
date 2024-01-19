@@ -18,8 +18,8 @@ def normalize_html(html):
 
     for tag in soup.find_all(attrs={"value": True}):
         tag.attrs['value'] = None  # Set 'value' attribute to None, which removes it
-    print("SOUPY SOUP")
-    print(str(soup))
+    # print("SOUPY SOUP")
+    # print(str(soup))
     return str(soup)
 
 
@@ -71,6 +71,8 @@ def load_interstate_from_file(filename):
 def extract_interaction_info(html): #use general input type
     if '<a' in html:
         return "link"
+    if "type=\"radio\"" in html:
+        return "radio"
     if ('<button' in html or "type='button'" in html or "role='button'" in html or "role=\"button\"" in html or "[onclick]" in html or "onclick=" in html or "[role='button']" in html) and ("<div" not in html): # filter out div?
         # or "select" in html DOESN'T HANDLE
         return "button"
@@ -385,13 +387,13 @@ async def match_unique_actions(node, usable, page, flags):
                     matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", f"ACTION EFFECT: Go to page for {visible_text_list[j]}", usable[j]))
                 else:
                     matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", "", usable[j]))
-            else:
-                print("WHAT THE FUCK")
+            # else:
+            #     print("WHAT THE FUCK")
 
 
     return matched_edges
 
-async def step_by_xpath(page, xpath, interaction_info, html):
+async def step_by_xpath(page, xpath, interaction_info, html, trackers):
 
     await page.wait_for_load_state('networkidle')
     locator = page.locator(f'xpath={xpath}')
@@ -406,10 +408,18 @@ async def step_by_xpath(page, xpath, interaction_info, html):
         print('STEPPING: Multiple elements found with this xpath')
 
 
-    if interaction_info in ['button', 'link', 'checkbox']:
+    if interaction_info == 'link':
         await page.wait_for_load_state('networkidle')
         await locator.first.click()
         await page.wait_for_load_state('networkidle')
+    elif interaction_info == 'button':
+        await page.wait_for_load_state('networkidle')
+        await locator.first.click()
+        await page.wait_for_load_state('networkidle')
+    elif interaction_info == 'checkbox':
+        trackers[html] = 'pressed'
+    elif interaction_info == 'radio':
+        trackers[html] = 'pressed'
     elif interaction_info == 'input':
         await page.wait_for_load_state('networkidle')
 
@@ -418,6 +428,7 @@ async def step_by_xpath(page, xpath, interaction_info, html):
         tree_str = parse_accessibility_tree(await page.accessibility.snapshot())
         specific_html = html
         input_string = use_gpt_fill_input(tree_str, specific_html, intent)
+        trackers[html] = input_string
         await locator.first.fill(input_string)
 
         await page.wait_for_load_state('networkidle')
@@ -436,7 +447,7 @@ def convert_to_url_format(input_string):
     return urllib.parse.quote_plus(formatted_string)
 
 
-async def do_task(start_node, intent, flags, inter_chunk=10, intra_chunk=None):
+async def do_task(start_node, intent, flags, trackers, inter_chunk=10, intra_chunk=None):
 
 
     async with async_playwright() as p:
@@ -452,7 +463,8 @@ async def do_task(start_node, intent, flags, inter_chunk=10, intra_chunk=None):
         print("SEARCH FLAG! ")
         print(search_flag)
         if search_flag == 'YES' and flags['phase'] == 'navigation_unsearched':
-            await step_by_xpath(page, 'id(\"search\")', "input", "<input id=\"search\" type=\"text\" name=\"q\" value=\"\" placeholder=\"Search entire store here...\" class=\"input-text\" maxlength=\"128\" role=\"combobox\" aria-haspopup=\"false\" aria-autocomplete=\"both\" autocomplete=\"off\" aria-expanded=\"false\">")
+            await step_by_xpath(page, 'id(\"search\")', "input", "<input id=\"search\" type=\"text\" name=\"q\" value=\"\" placeholder=\"Search entire store here...\" class=\"input-text\" maxlength=\"128\" role=\"combobox\" aria-haspopup=\"false\" aria-autocomplete=\"both\" autocomplete=\"off\" aria-expanded=\"false\">", trackers)
+            flags['phase'] = 'intrastate_searched'
         else:
             end_state = navigate_interstate(start_node, intent, chunk_size=inter_chunk)
             await page.goto(end_state.url)
@@ -461,36 +473,36 @@ async def do_task(start_node, intent, flags, inter_chunk=10, intra_chunk=None):
 
 
 
-        for _ in range(10):
+        for iteration in range(10):
             accessibility_snapshot = await page.accessibility.snapshot()
             tree_str = parse_accessibility_tree(accessibility_snapshot)
 
             if "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/edit" in page.url:  # some are sublinks need better system
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/myaccountedit.json')
-                flags = {'section':'None', 'phase': 'navigation_unsearched'}
+                flags['section'] = 'None'
             elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history" in page.url:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/myorders.json')
-                flags = {'section':'None', 'phase': 'navigation_unsearched'}
+                flags['section'] = 'None'
             elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/wishlist" in page.url:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/mywishlistNEW.json')
-                flags = {'section':'None', 'phase': 'navigation_unsearched'}
+                flags['section'] = 'None'
             elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/address" in page.url:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/myaddressbookNEW.json')
-                flags = {'section':'None', 'phase': 'navigation_unsearched'}
+                flags['section'] = 'None'
             elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account" in page.url:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/myaccount.json')
-                flags = {'section':'None', 'phase': 'navigation_unsearched'}
+                flags['section'] = 'None'
             elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/newsletter/manage" in page.url:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/mynewsletter.json')
-                flags = {'section':'None', 'phase': 'navigation_unsearched'}
+                flags['section'] = 'None'
             elif url_depth(aggressive_normalize_url(page.url)) == 1 and 'SKU' in tree_str:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/productpage.json')
-                flags = {'section':'None', 'phase': 'navigation_unsearched'}
+                flags['section'] = 'None'
                 print("AT PRODUCT PAGE!!!!!")
             else:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/shoppingsection.json')
                 print("AT PRODUCT SECTION!!!!!!")
-                flags = {'section':'shoppingsection', 'phase': 'navigation_unsearched'}
+                flags['section'] = 'shoppingsection'
                 # Note this could be view order, I have not cased it on view order pages yet.
 
             # TODO Not as simple, have to match usable actions with intrastate options
@@ -502,6 +514,8 @@ async def do_task(start_node, intent, flags, inter_chunk=10, intra_chunk=None):
 
 
             matched = await match_unique_actions(intrastate_tree, usable, page, flags)
+            # TODO WE NEED TO ADD DEFAULT DESCRIPTORS FOR RADIO BUTTONS AND CHECKBOXES
+            # TODO INJECT STATE INFORMATION FOR CHECKBOXES, INPUT BOXES.ETC
             # els = [item[-1]['html'] for item in matched]
             # print(els)
             debug_flag = input("continue? ")
@@ -517,65 +531,73 @@ async def do_task(start_node, intent, flags, inter_chunk=10, intra_chunk=None):
                     combined.append((info, action_desc, f"EXTRA INFO: {tables[i]}"))
 
             question_for_gpt = [f"{i}) {item}\n" for i, item in enumerate(combined)]
+            current_tree = parse_accessibility_tree(await page.accessibility.snapshot())
 
-            if intra_chunk != None:
-                chunked_questions = chunk_answers(question_for_gpt, intra_chunk)
+            # if intra_chunk != None:
+            #     chunked_questions = chunk_answers(question_for_gpt, intra_chunk)
+            #
+            #     possible_results = []
+            #
+            #     for chunk in chunked_questions:
+            #         # print(f"CHUNK: {chunk}")
+            #         # answer = get_interstate(intent, chunk, model_name="gpt-4-1106-preview")
+            #         print("CHUNK!!!")
+            #         print('\n'.joifn(chunk))
+            #
+            #         answer = get_intrastate(intent, '\n'.join(chunk), current_tree, model_name="gpt-3.5-turbo-1106")
+            #         if answer != "FAILURE" and answer != "N/A":
+            #             possible_results.append(answer)
+            #
+            #     if len(possible_results) == 0:
+            #
+            #         return input("FINISHED! ")
+            #     elif len(possible_results) == 1:
+            #         xpath = known_usable[int(possible_results[0])]['xpath']
+            #         interaction_info = known_usable[int(possible_results[0])]['interaction_info']
+            #         html = known_usable[int(possible_results[0])]['html']
+            #
+            #         await step_by_xpath(page, xpath, interaction_info, html)
+            #         continue_flag = input("PRESS ENTER TO CONTINUE")
+            #
+            #     else:  # Do recursive in future
+            #         filtered_questions = [combined[int(possible)] for possible in possible_results]
+            #         answer = get_intrastate(intent, filtered_questions, current_tree, model_name="gpt-3.5-turbo-1106")
+            #
+            #         print(f"ANSWER: {answer}")
+            #         if answer == "FAILURE" or answer == "N/A":
+            #             return input("FINISHED! ")
+            #         else:
+            #             xpath = known_usable[int(answer)]['xpath']
+            #             interaction_info = known_usable[int(answer)]['interaction_info']
+            #             html = known_usable[int(answer)]['html']
+            #             await step_by_xpath(page, xpath, interaction_info, html)
+            #             continue_flag = input("PRESS ENTER TO CONTINUE")
+            #
+            #     if continue_flag == '':
+            #         continue
+            #     else:
+            #         exit()
+            #
+            # else:
+            print('\n'.join(question_for_gpt))
+            answer = get_intrastate(intent, '\n'.join(question_for_gpt), current_tree, model_name="gpt-4-1106-preview")
+            if iteration == 0 and (answer == "FAILURE" or answer == "N/A"):
+                end_state = navigate_interstate(start_node, intent, chunk_size=inter_chunk)
+                await page.goto(end_state.url)
+                continue
+            flags['phase'] = 'intrastate_unsearched'
+            # answer = get_intrastate(intent, '\n'.join(question_for_gpt), model_name="gpt-4-turbo-1106")
+            xpath = known_usable[int(answer)]['xpath']
+            interaction_info = known_usable[int(answer)]['interaction_info']
+            html = known_usable[int(answer)]['html']
 
-                possible_results = []
 
-                for chunk in chunked_questions:
-                    # print(f"CHUNK: {chunk}")
-                    # answer = get_interstate(intent, chunk, model_name="gpt-4-1106-preview")
-                    print("CHUNK!!!")
-                    print('\n'.join(chunk))
-                    answer = get_intrastate(intent, '\n'.join(chunk), model_name="gpt-3.5-turbo-1106")
-                    if answer != "FAILURE" and answer != "N/A":
-                        possible_results.append(answer)
-
-                if len(possible_results) == 0:
-                    return input("FINISHED! ")
-                elif len(possible_results) == 1:
-                    xpath = known_usable[int(possible_results[0])]['xpath']
-                    interaction_info = known_usable[int(possible_results[0])]['interaction_info']
-                    html = known_usable[int(possible_results[0])]['html']
-
-                    await step_by_xpath(page, xpath, interaction_info, html)
-                    continue_flag = input("PRESS ENTER TO CONTINUE")
-
-                else:  # Do recursive in future
-                    filtered_questions = [combined[int(possible)] for possible in possible_results]
-                    answer = get_intrastate(intent, filtered_questions, model_name="gpt-3.5-turbo-1106")
-
-
-                    if answer != "FAILURE" and answer != "N/A":
-                        return input("FINISHED! ")
-                    else:
-                        xpath = known_usable[int(answer)]['xpath']
-                        interaction_info = known_usable[int(answer)]['interaction_info']
-                        html = known_usable[int(answer)]['html']
-                        await step_by_xpath(page, xpath, interaction_info, html)
-                        continue_flag = input("PRESS ENTER TO CONTINUE")
-
-                if continue_flag == '':
-                    continue
-                else:
-                    exit()
-                
+            await step_by_xpath(page, xpath, interaction_info, html, trackers)
+            continue_flag = input("PRESS ENTER TO CONTINUE")
+            if continue_flag == '':
+                continue
             else:
-                print('\n'.join(question_for_gpt))
-                answer = get_intrastate(intent, '\n'.join(question_for_gpt), model_name="gpt-4-1106-preview")
-                # answer = get_intrastate(intent, '\n'.join(question_for_gpt), model_name="gpt-4-turbo-1106")
-                xpath = known_usable[int(answer)]['xpath']
-                interaction_info = known_usable[int(answer)]['interaction_info']
-                html = known_usable[int(answer)]['html']
-
-
-                await step_by_xpath(page, xpath, interaction_info, html)
-                continue_flag = input("PRESS ENTER TO CONTINUE")
-                if continue_flag == '':
-                    continue
-                else:
-                    exit()
+                exit()
 
 
 
@@ -583,4 +605,5 @@ async def do_task(start_node, intent, flags, inter_chunk=10, intra_chunk=None):
 
     return None
 flags = {'section': 'None', 'phase': 'navigation_unsearched'}
-asyncio.run(do_task(interstate_tree, intent, flags, inter_chunk=10, intra_chunk=None))
+trackers = {}
+asyncio.run(do_task(interstate_tree, intent, flags, trackers, inter_chunk=10, intra_chunk=None))

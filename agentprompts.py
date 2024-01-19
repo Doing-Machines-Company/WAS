@@ -219,7 +219,10 @@ def should_search(intent):
     else:
         return 'NO'
 
-def get_intrastate(intent, answers, model_name="gpt-4-1106-preview"):
+def get_intrastate(intent, answers, current_tree, model_name="gpt-4-1106-preview"):
+    print("CURR TREE")
+    print(current_tree)
+    input("CONTINUE")
 
     intrastate_shots = agentprompts["intrastate"]
     messages = [
@@ -239,7 +242,7 @@ def get_intrastate(intent, answers, model_name="gpt-4-1106-preview"):
         example_message = {
             "role": "system",
             "name": "example_user",
-            "content": f"Task: {prompts['intent']} \nChoose from these possible answers:\n {prompts['question']}"
+            "content": f"Task: {prompts['intent']} \nCurrent page accessibility tree: N/A\nChoose from these possible answers:\n {prompts['question']}"
         }
         messages.append(example_message)
         example_response = {
