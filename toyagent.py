@@ -12,7 +12,6 @@ from accessibility_tree_utils import parse_accessibility_tree
 from navigation_specific_filters import state_specific_filter
 
 
-
 def normalize_html(html):
     soup = BeautifulSoup(html, 'html.parser')
 
@@ -22,6 +21,9 @@ def normalize_html(html):
     for tag in soup.find_all(attrs={"checked": True}):
         tag.attrs['checked'] = None  # Remove 'checked' attribute
 
+    for tag in soup.find_all(attrs={"class": True}):
+        tag.attrs['class'] = None  # Remove 'checked' attribute
+
     return str(soup)
 
 
@@ -29,10 +31,10 @@ with open('all_links2.json', 'r') as file:
     all_links = json.load(file)
 
 
-
 def url_depth(url):
     parsed = urlparse(url)
     return parsed.path.count('/')
+
 
 def aggressive_normalize_url(url):  # Very aggressive normalization
     parsed_url = urlparse(url)
@@ -43,10 +45,12 @@ def aggressive_normalize_url(url):  # Very aggressive normalization
     normalized_url = urlunparse((scheme, netloc, path, '', '', ''))
     return normalized_url
 
+
 def print_intrastate(node, indent=0):
     print(' ' * indent + str(node.edge))
     for child in node.children:
         print_intrastate(child, indent + 4)
+
 
 def deserialize_interstate(node_data, parent=None):
     # Recreate a InferenceWebPageNode from the dictionary data.
@@ -65,10 +69,12 @@ def deserialize_interstate(node_data, parent=None):
 
     return node
 
+
 def load_interstate_from_file(filename):
     with open(filename, 'r', encoding='utf-8') as file:
         tree_data = json.load(file)
     return deserialize_interstate(tree_data)
+
 
 def extract_interaction_info(html): #use general input type
     if '<a' in html:
@@ -84,6 +90,7 @@ def extract_interaction_info(html): #use general input type
         return "checkbox"
     return "Uncased Element"
 
+
 async def find_associated_label(element_html, page):
     if not element_html:
         return ''
@@ -96,7 +103,9 @@ async def find_associated_label(element_html, page):
     input_id = input_element['id']
 
     soup = BeautifulSoup(await page.content(), 'html.parser')
+
     # Find the input element in the main soup
+
     main_input_element = soup.find(id=input_id)
     if not main_input_element:
         return ''
@@ -114,6 +123,7 @@ async def find_associated_label(element_html, page):
 
     return ''
 
+
 async def get_visible_from_html(html, page):
     soup = BeautifulSoup(html, 'html.parser')
     text = soup.get_text(strip=True)
@@ -123,6 +133,7 @@ async def get_visible_from_html(html, page):
             return label_text
         return ''
     return text
+
 
 async def extract_info_from_html(html, page):
     soup = BeautifulSoup(html, 'html.parser')
@@ -150,8 +161,10 @@ def normalize_url(url):
     query = parsed_url.query  # Include the query part
     fragment = parsed_url.fragment  # Include the fragment part
 
+
     normalized_url = urlunparse((scheme, netloc, path, '', query, fragment))
     return normalized_url
+
 
 async def parse_and_clean_new(elements, parent_node, page):
     cleaned_output = []
@@ -159,8 +172,10 @@ async def parse_and_clean_new(elements, parent_node, page):
         href = await element.get_attribute('href')
         html = await element.evaluate("element => element.outerHTML")
 
+
         if not await element.is_visible() or await element.is_hidden():
             continue
+
 
         if await element.is_disabled() or "disabled=" in html:
             continue
@@ -168,7 +183,6 @@ async def parse_and_clean_new(elements, parent_node, page):
 
         if href and ((href.startswith('#') and href != '#') or (aggressive_normalize_url(href) in all_links and aggressive_normalize_url(href) != aggressive_normalize_url(page.url))): # TODO REVEAL PRODUCT TRANSFORMS
             continue
-
         # if (url_depth(normalize_url(href)) <= 1 and href.endswith(".html")):
             # continue
 
@@ -179,7 +193,6 @@ async def parse_and_clean_new(elements, parent_node, page):
 
         if "type='hidden'" in html or 'type="hidden"' in html:
             continue
-
 
 
         xpath = await element.evaluate('''(element) => {
@@ -237,6 +250,7 @@ async def parse_and_clean_new(elements, parent_node, page):
                         }
                         return dataWithHeaders;
                     }''')
+
         if table_context_with_headers == dict() or table_context_with_headers == {}:
             table_context_with_headers = None
 
@@ -247,22 +261,18 @@ async def parse_and_clean_new(elements, parent_node, page):
             'visible_text': visible_text,
             'table_context': table_context_with_headers
         }
+
         cleaned_output.append(element_info)
-        if "<input name=\"password\" type=\"password\" class=\"input-text\"" in html or "<input type=\"password\" class=\"input-text" in html:
-            print("FLAG7")
-            print(html)
     return cleaned_output
+
 
 async def get_usable_elements_new(page, leaf): # maybe remove duplicates if ever needed
     selector = "a, button, input, select, textarea, [onclick], [role='button']"
     await page.wait_for_load_state('networkidle')
     interactable_elements = await page.locator(selector).element_handles()
     cleaned_elements = await parse_and_clean_new(interactable_elements, leaf, page)
-    # htmls = [item['html'] for item in cleaned_elements]
-    # print("HTMLS CHECK")
-    # print(htmls)
-    # input("WAIT AND SEE")
     return cleaned_elements
+
 
 def construct_options_from_children(children):
     result = []
@@ -271,9 +281,11 @@ def construct_options_from_children(children):
         result.append(f"{i}) {child.public}\n")
     return result
 
+
 def get_child_from_index(node, index):
     children = node.children
     return children[index]
+
 
 def chunk_answers(answers, chunk_size):
 
@@ -283,6 +295,7 @@ def chunk_answers(answers, chunk_size):
         chunked_list.append(answers[i:i + chunk_size])
 
     return chunked_list
+
 
 def navigate_interstate(start_node, intent, chunk_size=None):
     curr_node = start_node
@@ -336,10 +349,11 @@ def navigate_interstate(start_node, intent, chunk_size=None):
 interstate_tree = load_interstate_from_file('webtreeflattened.json')
 
 
-# intent = "buy chocolate truffle ice cream, if there are options choose arbitrary ones"
+#  "buy chocolate truffle ice cream, if there are options choose arbitrary ones"
 # intent = "Rate my recent purchase of PS3 Remote Controllers with 3 stars, using my nickname GamingEmma?"
 # intent = "View my past orders"
 # intent = "buy me a golf shirt, if there are options choose arbitrary ones"
+# intent = "subscribe to newsletter"
 intent = "change my password from Password.123 to Password..123"
 
 async def match_unique_actions(node, usable, page, flags):
@@ -407,8 +421,8 @@ async def match_unique_actions(node, usable, page, flags):
                         matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", "ACTION EFFECT: Select VISIBLE TEXT option, MUST CHOOSE ONE OF EACH TYPE", usable[j]))
                     elif "type=\"radio\"" in html_list[j] in html_list[j]:
                         matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", "ACTION EFFECT: Select VISIBLE TEXT option", usable[j]))
-                    else:
-                        matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", "", usable[j])) # TODO TRIVIAL OPTION SELECTS FOR CHECK BOXES AND RADIO BUTTONS
+                    elif "input" in html_list[j]:
+                        matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", f"ACTION EFFECT: Input text for {visible_text_list[j]}", usable[j])) # TODO TRIVIAL OPTION SELECTS FOR CHECK BOXES AND RADIO BUTTONS
 
             # else:
             #     print("WHAT THE FUCK")
@@ -422,17 +436,17 @@ async def step_by_xpath(page, xpath, interaction_info, html, trackers):
     locator = page.locator(f'xpath={xpath}')
 
     count = await locator.count()
-    if count == 0:
-        print(f"STEPPING: No elements found with this xpath: {xpath}")
-        return
-    elif count == 1:
-        print('STEPPING: One element found with this xpath')
-    else:
-        print('STEPPING: Multiple elements found with this xpath')
+    # if count == 0:
+    #     print(f"STEPPING: No elements found with this xpath: {xpath}")
+    #     return
+    # elif count == 1:
+    #     print('STEPPING: One element found with this xpath')
+    # else:
+    #     print('STEPPING: Multiple elements found with this xpath')
 
     print("STEPPING HERE")
-    print(html)
-    print(interaction_info)
+    print(normalize_html(html))
+    # print(interaction_info)
     if interaction_info == 'link':
         await page.wait_for_load_state('networkidle')
         await locator.first.click()
@@ -465,14 +479,18 @@ async def step_by_xpath(page, xpath, interaction_info, html, trackers):
         tree_str = parse_accessibility_tree(await page.accessibility.snapshot())
         specific_html = html
         input_string = use_gpt_fill_input(tree_str, specific_html, intent)
+        print(input_string)
         trackers[normalize_html(html)] = input_string
+        print("NORMALIZED HTML")
+        print(normalize_html(html))
+        print("TRACKER FOR INPUT ADDED")
         await locator.first.fill(input_string)
 
         await page.wait_for_load_state('networkidle')
 
-        await page.keyboard.press('Enter')
-
-        await page.wait_for_load_state('networkidle')
+        # await page.keyboard.press('Enter')
+        #
+        # await page.wait_for_load_state('networkidle')
 
     else:
         print("FUCK3")
@@ -498,10 +516,11 @@ def process_trackers(item, trackers): # THIS IS SO HARD CODED
 
     if interaction_info == 'checkbox':
         if norm_html in trackers or "checked=\"checked\"" in item['html']:
-            return 'CHECKBOX ALREADY SELECTED'
+            return 'OPTION OF ACTION EFFECT AND VISIBLE TEXT ALREADY ENABLED'
     elif interaction_info == 'radio' and norm_html in trackers:
         return 'RADIO BUTTON ALREADY SELECTED'
     elif interaction_info == 'input' and norm_html in trackers:
+        print("TRACKER FOR INPUT FOUND")
         return f"\'{trackers[norm_html]}\' ALREADY INPUTTED"
     elif interaction_info == 'link' and norm_html in trackers:
         return f"ALREADY VISITED"
@@ -692,11 +711,9 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=10, intra_chu
             else:
                 exit()
 
-
-
-
-
     return None
+
+
 flags = {'section': 'None', 'phase': 'navigation_unsearched'} # RESET EVERY NAVIGATION?
 trackers = {}
 asyncio.run(do_task(interstate_tree, intent, flags, trackers, inter_chunk=15, intra_chunk=None))

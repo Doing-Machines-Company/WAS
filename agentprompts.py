@@ -228,11 +228,11 @@ def get_intrastate_full(intent, answers, page_desc, model_name="gpt-4-1106-previ
         {"role": "system",
          "content": "If nothing in the answers I give you will help you achieve the task, or if you think that the task is impossible, return '''N/A'''. If there are multiple correct answers available, return '''N/A'''. The answer you need may not be currently visible to you, pay attention to ACTION EFFECTs that fit your task. "},
         {"role": "system",
-         "content": "You want to first pay attention to all of effects labelled ACTION EFFECTS in each of the options I give you, especially paying attention to the effects of navigation related options. All dates are in the format of MM/DD/YY. YY is the last two digits of the year. "},
+         "content": "You want to first pay attention to all of effects labelled ACTION EFFECTS in each of the options I give you, especially paying attention to the effects of navigation related options. All dates are in the format of MM/DD/YY. YY is the last two digits of the year. If there is EXTRA INFORMATION, pay attention to it, as it may provide more context for the ACTION EFFECT. "},
         {"role": "system",
          "content": "Reason through every single option I give you step-by-step thoughtfully. Give explanations for why every option I give you may be right or wrong. Pay close attention to options which let you view more information or navigate. Give the your final answer like this: \n '''1'''\n Or this: '''13'''. "},
         {"role": "system",
-         "content": "If you think that the task is completed after after choosing an option (for example, action 1), return '''STOP:1'''. Pay attention to what the current page's description, if the task requires you to find something or retrieve information and you are on the correct page, return '''STOP:INFORMATION YOU RETRIEVED'''. "},
+         "content": "If you think that the task is completed after after choosing an option (for example, action 1), return '''STOP:1'''. Pay attention to what the current page's description, if the task requires you to find something or retrieve information and you are on the correct page, return '''STOP:INFORMATION YOU RETRIEVED'''. If you think that multiple actions are required in a sequence to complete the task, choose the first action in that sequence. "},
         {"role": "system",
          "content": "Here is are a few examples of what your response should look like given their inputs: \n"}
     ]
