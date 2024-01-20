@@ -349,13 +349,9 @@ def navigate_interstate(start_node, intent, chunk_size=None):
 interstate_tree = load_interstate_from_file('webtreeflattened.json')
 
 
-#  "buy chocolate truffle ice cream, if there are options choose arbitrary ones"
-# intent = "Rate my recent purchase of PS3 Remote Controllers with 3 stars, using my nickname GamingEmma?"
-# intent = "View my past orders"
-# intent = "buy me a golf shirt, if there are options choose arbitrary ones"
-# intent = "subscribe to newsletter"
-intent = "change my password from Password.123 to Password..123"
-
+intent = "find the oldest order"
+intent = "Look at my past orders and find my most recent purchase of a lamp or screen protector, then rate the item with 3 stars, using my nickname GamingEmma?"
+intent = "look at my past orders, and find all food related orders from march 2023"
 async def match_unique_actions(node, usable, page, flags):
 
     html_list = [item['html'] for item in usable]
@@ -556,7 +552,7 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=10, intra_chu
 
         await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
         await page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
-        await page.get_by_label("Password", exact=True).fill('Password.123')
+        await page.get_by_label("Password", exact=True).fill('Password..123')
         await page.get_by_role("button", name="Sign In").click()
 
         search_flag = should_search(intent).strip()
@@ -573,6 +569,7 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=10, intra_chu
         # await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/gourmet-kitchn-breyers-classics-ice-cream-variety-pack-homemade-vanilla-breyers-classic-vanilla-chocolate-strawberry-ice-cream-and-chocolate-truffle-9-pack.html")
         # await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/mofiz-men-s-golf-shirts-short-sleeve-shirts-100-cotton-athletic-shirts-collared-t-shirt-comfortable-polo-shirts.html")
 
+        await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/")
 
         for iteration in range(10):
             accessibility_snapshot = await page.accessibility.snapshot()
@@ -620,9 +617,7 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=10, intra_chu
             # TODO INJECT STATE INFORMATION FOR CHECKBOXES, INPUT BOXES.ETC
             # els = [item[-1]['html'] for item in matched]
             # print(els)
-            debug_flag = input("continue? ")
-            if debug_flag != '':
-                exit()
+
 
             combined = []
             known_usable = []
@@ -714,6 +709,6 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=10, intra_chu
     return None
 
 
-flags = {'section': 'None', 'phase': 'navigation_unsearched'} # RESET EVERY NAVIGATION?
+flags = {'section': 'None', 'phase': 'navigation_unsearched'}  # RESET EVERY NAVIGATION?
 trackers = {}
 asyncio.run(do_task(interstate_tree, intent, flags, trackers, inter_chunk=15, intra_chunk=None))
