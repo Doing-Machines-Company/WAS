@@ -533,18 +533,10 @@
                 {
                     "url": "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/newsletter/manage",
                     "private": [
-                        "Subscribe or unsubscribe from the general newsletter",
-                        "Access and manage personal account information",
-                        "Review and manage orders and downloadable products",
-                        "Manage wish list and address book",
-                        "Save payment methods and product reviews"
+                        "Subscribe or unsubscribe from the general newsletter"
                     ],
                     "public": [
-                        "Subscribe or unsubscribe from the general newsletter",
-                        "Access and manage personal account information",
-                        "Review and manage orders and downloadable products",
-                        "Manage wish list and address book",
-                        "Save payment methods and product reviews"
+                        "Subscribe or unsubscribe from the general newsletter"
                     ],
                     "acc_tree": "[WebArea] 'Newsletter Subscription'\n\t[link] 'My Account'\n\t[link] 'My Wish List'\n\t[link] 'Sign Out'\n\t[link] 'Skip to Content'\n\t[link] 'store logo'\n\t[link] '\\ue611 My Cart'\n\t[text] '\\ue615'\n\t[text] 'Search'\n\t[combobox] '\\ue615 Search'\n\t[link] 'Advanced Search'\n\t[button] 'Search'\n\t[link] 'Beauty & Personal Care'\n\t[link] 'Sports & Outdoors'\n\t[link] 'Clothing, Shoes & Jewelry'\n\t[link] 'Home & Kitchen'\n\t[link] 'Office Products'\n\t[link] 'Tools & Home Improvement'\n\t[link] 'Health & Household'\n\t[link] 'Patio, Lawn & Garden'\n\t[link] 'Electronics'\n\t[link] 'Cell Phones & Accessories'\n\t[link] 'Video Games'\n\t[link] 'Grocery & Gourmet Food'\n\t[generic] ''\n\t[heading] 'Newsletter Subscription'\n\t[text] 'Subscription option'\n\t[checkbox] 'General Subscription'\n\t[text] 'General Subscription'\n\t[button] 'Save'\n\t[text] 'My Account'\n\t[link] 'My Account'\n\t[link] 'My Orders'\n\t[link] 'My Downloadable Products'\n\t[link] 'My Wish List'\n\t[link] 'Address Book'\n\t[link] 'Account Information'\n\t[link] 'Stored Payment Methods'\n\t[link] 'My Product Reviews'\n\t[text] 'Newsletter Subscriptions'\n\t[heading] 'Compare Products'\n\t[text] 'You have no items to compare.'\n\t[heading] 'My Wish List'\n\t[text] 'You have no items in your wish list.'\n\t[text] '\\ue61d'\n\t[text] 'Sign Up for Our Newsletter:'\n\t[textbox] 'Sign Up for Our Newsletter:'\n\t[button] 'Subscribe'\n\t[link] 'Privacy and Cookie Policy'\n\t[link] 'Search Terms'\n\t[link] 'Advanced Search'\n\t[link] 'Contact Us'\n\t[text] 'Copyright © 2013-present Magento, Inc. All rights reserved.'\n\t[text] 'Help Us Keep Magento Healthy'\n\t[text] ' '\n\t[link] 'Report All Bugs'\n",
                     "vec_embedding": null,
@@ -572,13 +564,11 @@
                     "url": "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/vault/cards/listaction",
                     "private": [
                         "Manage stored payment methods within the account",
-                        "Access and navigate through account-related sections like Orders, Downloadable Products, Wish List, Address Book, Account Information, Product Reviews, and Newsletter Subscriptions",
                         "Search for products using a basic or advanced search feature",
                         "Subscribe to the site's newsletter"
                     ],
                     "public": [
                         "Manage stored payment methods within the account",
-                        "Access and navigate through account-related sections like Orders, Downloadable Products, Wish List, Address Book, Account Information, Product Reviews, and Newsletter Subscriptions",
                         "Search for products using a basic or advanced search feature",
                         "Subscribe to the site's newsletter"
                     ],
@@ -1286,7 +1276,7 @@
             ],
             "public": [
                 "Enable or disable email and password changes",
-                "Access account management options like My Account, My Orders, My Wish List, downloadable products, address book, payment methods, product reviews, and newsletter subscriptions",
+                "Access account management options like newsletter subscriptions",
                 "Print order details or save changes to account information",
                 "Toggle the option for remote shopping assistance",
                 "Edit personal account information such as first and last name"

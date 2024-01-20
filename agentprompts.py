@@ -113,11 +113,11 @@ def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
     print(f"INTENT: {intent}")
     messages = [
         {"role": "system",
-         "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task, and an enumerated set of possible answers. Each answer is a list of functionalities associated with a separate web page. Your are to choose a web page which best fits the intended goal."},
+         "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task, and an enumerated set of possible answers. Each answer is a list of functionalities associated with a separate web page. Your are to choose a web page which best fits the intended goal, or is needed or contains information to help you achieve your goal. "},
         {"role": "system",
          "content": "If nothing in the user context fits the input box, return '''N/A''' as the input. If you choose an answer, you must only choose a single answer. If there are multiple possible answers, you must choose one. You only care about what is mentioned in each answer choice, the amount or emphasis of items in the list does not matter. Ignore any emphasis."},
         {"role": "system",
-         "content": "Reason through every single option I give you step-by-step thoughtfully. Give explanations for why every option I give you may be right or wrong. Try your best to choose an answer. After reasoning, give your final answer like this: \n '''1'''\n Or this: '''13'''."},
+         "content": "Reason through every single option I give you step-by-step thoughtfully. Give explanations for why every option I give you may be right or wrong. YOU MUST try your best to choose an answer. If one option may lead to more information or something to help you complete your task, it is a valid choice. After reasoning, give your final answer like this: \n '''1'''\n Or this: '''13'''."},
         {"role": "system",
          "content": "Here are a few examples of what your response should look like given their inputs."}
     ]
@@ -149,7 +149,7 @@ def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
         # model="gpt-3.5-turbo-1106",
         messages=messages,
         temperature=0,
-        max_tokens=1500,
+        max_tokens=3000,
         # top_p=0,
         seed=88888888
     )
@@ -218,6 +218,69 @@ def should_search(intent):
         return 'YES'
     else:
         return 'NO'
+
+def get_intrastate_full(intent, answers, page_desc, model_name="gpt-4-1106-preview"):
+
+    intrastate_shots = agentprompts["intrastate"]
+    messages = [
+        {"role": "system",
+         "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task and multiple choice answers. Each answer represents an action being taken on the same web page. If the action has an effect description called ACTION EFFECT, pay attention to it. You want to choose the action effect which will help you find the most optimal answer, which you may not currently see. "},
+        {"role": "system",
+         "content": "If nothing in the answers I give you will help you achieve the task, or if you think that the task is impossible, return '''N/A'''. If there are multiple correct answers available, return '''N/A'''. The answer you need may not be currently visible to you, pay attention to ACTION EFFECTs that fit your task. "},
+        {"role": "system",
+         "content": "You want to first pay attention to all of effects labelled ACTION EFFECTS in each of the options I give you, especially paying attention to the effects of navigation related options. All dates are in the format of MM/DD/YY. YY is the last two digits of the year. "},
+        {"role": "system",
+         "content": "Reason through every single option I give you step-by-step thoughtfully. Give explanations for why every option I give you may be right or wrong. Pay close attention to options which let you view more information or navigate. Give the your final answer like this: \n '''1'''\n Or this: '''13'''. "},
+        {"role": "system",
+         "content": "If you think that the task is completed after after choosing an option (for example, action 1), return '''STOP:1'''. Pay attention to what the current page's description, if the task requires you to find something or retrieve information and you are on the correct page, return '''STOP:INFORMATION YOU RETRIEVED'''. "},
+        {"role": "system",
+         "content": "Here is are a few examples of what your response should look like given their inputs: \n"}
+    ]
+
+    for prompts in intrastate_shots:
+        example_message = {
+            "role": "system",
+            "name": "example_user",
+            "content": f"Task: {prompts['intent']} \nPage description: {prompts['desc']}\nChoose from these possible answers:\n {prompts['question']}"
+        }
+        messages.append(example_message)
+        example_response = {
+            "role": "system",
+            "name": "example_agent",
+            "content": prompts['answer']
+        }
+        messages.append(example_response)
+    messages.append({"role": "user",
+        "content": f"Now here is your actual task. \nTask: {intent}\nPage description: {page_desc}\nChoose from these answers:\n{answers}"})
+
+    response = client.chat.completions.create(
+        model=model_name,
+        # model="gpt-3.5-turbo-1106",
+        messages=messages,
+        temperature=0,
+        max_tokens=1500,
+        # top_p=0,
+        seed=12345678
+    )
+
+    result = response.choices[0].message.content
+    print(f"GPT RAW RETURN: {result}")
+
+    pattern1 = r"\'\'\'(\d+)\'\'\'"
+    pattern2 = r"\'\'\'STOP:(\d+)\'\'\'"
+
+    match1 = re.search(pattern1, result, re.DOTALL)
+    match2 = re.search(pattern2, result, re.DOTALL)
+
+    if match1:
+        final_answer = match1.group(1).strip()
+        return (False, final_answer)
+    elif match2:
+        final_answer = match2.group(1).strip()
+        return (True, final_answer)
+    else:
+        print("OH FUCK! ")
+        return (True, "FAILURE")
 
 def get_intrastate(intent, answers, current_tree, model_name="gpt-4-1106-preview"):
     print("CURR TREE")
