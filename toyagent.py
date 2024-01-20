@@ -10,6 +10,8 @@ from agentprompts import get_interstate, get_intrastate, use_gpt_fill_input, sho
 from interstate_tree import InferenceWebPageNode
 from accessibility_tree_utils import parse_accessibility_tree
 from navigation_specific_filters import state_specific_filter
+from orderpage_extraction import extract_order_page
+from productpage_extraction import extract_product_page
 
 
 def normalize_html(html):
@@ -523,7 +525,8 @@ def process_trackers(item, trackers): # THIS IS SO HARD CODED
 
     return ''
 
-def grab_description(flags, unparsed_acctree):
+async def grab_description(flags, page):
+    unparsed_acctree = await page.accessibility.snapshot()
     name = unparsed_acctree['name']
     if flags['section'] == 'shoppingsection':
         return f"Shopping Section for {name}"
@@ -539,8 +542,12 @@ def grab_description(flags, unparsed_acctree):
         return f"Page titled {name}"
     elif flags['section'] == 'mynewsletter':
         return f"Page titled {name}"
-    elif flags['section'] == 'productpage':
-        return f"Product page for {name}"
+    elif flags['section'] == 'productpage': # TODO ADD INFORMATION RELEVANT
+        extracted_product_info = extract_product_page(await page.content())
+        return f"Product page for {name}\n{extracted_product_info}"
+    elif flags['section'] == 'orderpage': # TODO ADD INFORMATION RELEVANT
+        extracted_order_info = extract_order_page(await page.content())
+        return f"Order page for {extracted_order_info}"
 
 
 async def do_task(start_node, intent, flags, trackers, inter_chunk=10, intra_chunk=None):
@@ -569,7 +576,7 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=10, intra_chu
         # await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/gourmet-kitchn-breyers-classics-ice-cream-variety-pack-homemade-vanilla-breyers-classic-vanilla-chocolate-strawberry-ice-cream-and-chocolate-truffle-9-pack.html")
         # await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/mofiz-men-s-golf-shirts-short-sleeve-shirts-100-cotton-athletic-shirts-collared-t-shirt-comfortable-polo-shirts.html")
 
-        await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/")
+        # await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/")
 
         for iteration in range(10):
             accessibility_snapshot = await page.accessibility.snapshot()
@@ -597,6 +604,9 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=10, intra_chu
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/productpage.json')
                 flags['section'] = 'productpage'
                 print("AT PRODUCT PAGE!!!!!")
+            elif "Order #" in tree_str and "Order Date" in tree_str and "Print Order" in tree_str:
+                flags['section'] = 'orderpage'
+                print("AT ORDER PAGE")
             else:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/shoppingsection.json')
                 print("AT PRODUCT SECTION!!!!!!")
@@ -632,58 +642,12 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=10, intra_chu
                     else:
                         combined.append((info, action_desc))
 
-            question_for_gpt = [f"{i}) {item}\n" for i, item in enumerate(combined)]
-            # current_tree = parse_accessibility_tree(await page.accessibility.snapshot())
+            if flags['section'] == "orderpage":
+                combined.append(('VISIBLE TEXT: Go back to my orders page', 'ACTION EFFECT: Go back to page showing all user orders'))
 
-            # if intra_chunk != None:
-            #     chunked_questions = chunk_answers(question_for_gpt, intra_chunk)
-            #
-            #     possible_results = []
-            #
-            #     for chunk in chunked_questions:
-            #         # print(f"CHUNK: {chunk}")
-            #         # answer = get_interstate(intent, chunk, model_name="gpt-4-1106-preview")
-            #         print("CHUNK!!!")
-            #         print('\n'.joifn(chunk))
-            #
-            #         answer = get_intrastate(intent, '\n'.join(chunk), current_tree, model_name="gpt-3.5-turbo-1106")
-            #         if answer != "FAILURE" and answer != "N/A":
-            #             possible_results.append(answer)
-            #
-            #     if len(possible_results) == 0:
-            #
-            #         return input("FINISHED! ")
-            #     elif len(possible_results) == 1:
-            #         xpath = known_usable[int(possible_results[0])]['xpath']
-            #         interaction_info = known_usable[int(possible_results[0])]['interaction_info']
-            #         html = known_usable[int(possible_results[0])]['html']
-            #
-            #         await step_by_xpath(page, xpath, interaction_info, html)
-            #         continue_flag = input("PRESS ENTER TO CONTINUE")
-            #
-            #     else:  # Do recursive in future
-            #         filtered_questions = [combined[int(possible)] for possible in possible_results]
-            #         answer = get_intrastate(intent, filtered_questions, current_tree, model_name="gpt-3.5-turbo-1106")
-            #
-            #         print(f"ANSWER: {answer}")
-            #         if answer == "FAILURE" or answer == "N/A":
-            #             return input("FINISHED! ")
-            #         else:
-            #             xpath = known_usable[int(answer)]['xpath']
-            #             interaction_info = known_usable[int(answer)]['interaction_info']
-            #             html = known_usable[int(answer)]['html']
-            #             await step_by_xpath(page, xpath, interaction_info, html)
-            #             continue_flag = input("PRESS ENTER TO CONTINUE")
-            #
-            #     if continue_flag == '':
-            #         continue
-            #     else:
-            #         exit()
-            #
-            # else:
+            question_for_gpt = [f"{i}) {item}\n" for i, item in enumerate(combined)]
             print('\n'.join(question_for_gpt))
-            # answer = get_intrastate(intent, '\n'.join(question_for_gpt), current_tree, model_name="gpt-4-1106-preview")
-            desc = grab_description(flags, await page.accessibility.snapshot())
+            desc = await grab_description(flags, page)
             (stopped, answer) = get_intrastate_full(intent, '\n'.join(question_for_gpt), desc, model_name="gpt-4-1106-preview")
             if stopped:
                 print(answer)
@@ -694,12 +658,16 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=10, intra_chu
                 continue
             flags['phase'] = 'intrastate_unsearched'
             # answer = get_intrastate(intent, '\n'.join(question_for_gpt), model_name="gpt-4-turbo-1106")
-            xpath = known_usable[int(answer)]['xpath']
-            interaction_info = known_usable[int(answer)]['interaction_info']
-            html = known_usable[int(answer)]['html']
-
-
-            await step_by_xpath(page, xpath, interaction_info, html, trackers)
+            print("ANSWER HERE")
+            if int(answer) == len(combined) - 1 and flags['section'] == "orderpage":
+                print("GOING BACK TO ORDERS PAGE")
+                await page.go_back()
+                await page.wait_for_load_state('networkidle')
+            else:
+                xpath = known_usable[int(answer)]['xpath']
+                interaction_info = known_usable[int(answer)]['interaction_info']
+                html = known_usable[int(answer)]['html']
+                await step_by_xpath(page, xpath, interaction_info, html, trackers)
             continue_flag = input("PRESS ENTER TO CONTINUE")
             if continue_flag == '':
                 continue

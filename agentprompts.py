@@ -53,7 +53,7 @@ def get_interstate_instruct(intent, answers):
         {"role": "system",
          "content": "If nothing in the user context fits the input box, return '''N/A''' as the input. If you choose an answer, you must only choose a single answer. You only care about what is mentioned in each answer choice. Do your best to choose an answer."},
         {"role": "system",
-         "content": "Reason through every single option I give you step-by-step thoughtfully. Give explanations for why every option I give you may be right or wrong. After reasoning, give your final answer like this: \n '''answer'''."},
+         "content": "First generate subtasks to complete the task using only options available to you. Reason through every single option I give you step-by-step thoughtfully. Give explanations for why every option I give you may or may not align to completing the task or a subtask. After reasoning, give your final answer like this: \n '''answer'''."},
         {"role": "system",
          "content": "Here is a few example of what your response should look like given their inputs."}]
 
@@ -142,6 +142,7 @@ def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
     print(formatted_answers)
 
     messages.append({"role": "user",
+                     "name": "user",
         "content": f"Now here's your actual task. \nTask: {intent}\nChoose from these answers:\n {formatted_answers}"})
 
     response = client.chat.completions.create(
@@ -232,7 +233,7 @@ def get_intrastate_full(intent, answers, page_desc, model_name="gpt-4-1106-previ
         {"role": "system",
          "content": "First generate subtasks to complete the task using only options available to you. Reason through every single option I give you step-by-step thoughtfully. Give explanations for why every option I give you may or may not align to completing the task or a subtask. Pay close attention to options which let you view more information or navigate. Give the your final answer like this: \n '''1'''\n Or this: '''13'''. "},
         {"role": "system",
-         "content": "If you think that the task is completed after after choosing an option (for example, action 1), return '''STOP:1'''. Pay attention to what the current page's description, if the task requires you to find something or retrieve information and you are on the correct page, return '''STOP:INFORMATION YOU RETRIEVED'''. If you think that multiple actions are required in a sequence to complete the task, choose the first action in that sequence. "},
+         "content": "If you think that the task is completed after after choosing an option (for example, action 1), return '''1:STOP'''. Pay attention to what the current page's description, if the task requires you to find something or retrieve information and you are on the correct page, return '''INFORMATION YOU RETRIEVED:STOP'''. If you think that multiple actions are required in a sequence to complete the task, choose the first action in that sequence. "},
         {"role": "system",
          "content": "Here is are a few examples of what your response should look like given their inputs: \n"}
     ]
@@ -241,7 +242,7 @@ def get_intrastate_full(intent, answers, page_desc, model_name="gpt-4-1106-previ
         example_message = {
             "role": "system",
             "name": "example_user",
-            "content": f"Task: {prompts['intent']} \nPage description: {prompts['desc']}\nChoose from these possible answers:\n {prompts['question']}"
+            "content": f"Task: {prompts['intent']} \nPage information: '''\n{prompts['desc']}'''\n\nChoose from these possible answers:\n {prompts['question']}"
         }
         messages.append(example_message)
         example_response = {
@@ -266,8 +267,10 @@ def get_intrastate_full(intent, answers, page_desc, model_name="gpt-4-1106-previ
     result = response.choices[0].message.content
     print(f"GPT RAW RETURN: {result}")
 
-    pattern1 = r"\'\'\'(\d+)\'\'\'"
-    pattern2 = r"\'\'\'STOP:(\d+)\'\'\'"
+    pattern1 = r"\'\'\'([A-Za-z0-9]+):STOP\'\'\'"
+    pattern2 = r"\'\'\'(\d+):STOP\'\'\'"
+    pattern3 = r"\'\'\'(\d+)\'\'\'"
+    pattern4 = r"\'\'\'(\d+):([A-Za-z0-9]+)\'\'\'"
 
     match1 = re.search(pattern1, result, re.DOTALL)
     match2 = re.search(pattern2, result, re.DOTALL)

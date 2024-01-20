@@ -1,5 +1,7 @@
 import asyncio
 from playwright.async_api import async_playwright
+from orderpage_extraction import extract_order_page
+from productpage_extraction import extract_product_page
 import re
 import json
 import urllib.parse
@@ -17,10 +19,12 @@ async def main():
         page = await browser.new_page()
         await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
         await page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
-        await page.get_by_label("Password", exact=True).fill('Password.123')
+        await page.get_by_label("Password", exact=True).fill('Password..123')
         await page.get_by_role("button", name="Sign In").click()
-        await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/wzqwzj-summer-beach-swimming-upstream-shoes-snorkeling-shoes-tide-shoes-elastic-skin-waterproof-non-slip-diving-shoes-men-and-women-yoga-socks-shoes-outdoor-beach-shoes.html")
-        snapshot = await page.accessibility.snapshot()
-        print(snapshot['name'])
+        await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/mofiz-men-s-golf-shirts-short-sleeve-shirts-100-cotton-athletic-shirts-collared-t-shirt-comfortable-polo-shirts.html")
+        page_html = await page.content()
+        # print(page_html)
+        body = extract_product_page(page_html)
+        print(body)
 
 asyncio.run(main())
