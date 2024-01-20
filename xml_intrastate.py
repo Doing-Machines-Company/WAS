@@ -243,7 +243,7 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
         print("For some reason disabled")
         return None
 
-    before_tree = node.acc_tree
+    before_tree = node.acc_tree # TODO GET TREE DYNAMICALLY
     visible_text = get_visible_from_html(html)
     url1 = copy.deepcopy(page.url)
 
@@ -281,7 +281,7 @@ async def interact_element_by_xpath(page, xpath, interaction_info, html, node):
 
     await page.wait_for_load_state('networkidle')
     after_tree = parse_accessibility_tree(await page.accessibility.snapshot())
-
+    # GET DIFFERENCE USING GPT
     difference = "TESTING MODE"
     child_node = IntrastateWebPageNode(url=normalize_url(page.url), edge=edge_info, private=difference, acc_tree=after_tree)
     node.add_child(child_node)
