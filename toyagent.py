@@ -320,6 +320,7 @@ def navigate_interstate(start_node, intent, chunk_size=None):
             if len(possible_results) == 0:
                 return curr_node
             elif len(possible_results) == 1:
+                print("ONLY ONE! ")
                 index = int(possible_results[0])
                 child = get_child_from_index(curr_node, index)
                 curr_node = child
@@ -354,6 +355,7 @@ interstate_tree = load_interstate_from_file('webtreeflattened.json')
 intent = "find the oldest order"
 intent = "Look at my past orders and find my most recent purchase of a lamp or screen protector, then rate the item with 3 stars, using my nickname GamingEmma?"
 intent = "look at my past orders, and find all food related orders from march 2023"
+# intent = "what's in my wishlist?"
 async def match_unique_actions(node, usable, page, flags):
 
     html_list = [item['html'] for item in usable]
@@ -450,6 +452,8 @@ async def step_by_xpath(page, xpath, interaction_info, html, trackers):
         await locator.first.click()
         await page.wait_for_load_state('networkidle')
         trackers[normalize_html(html)] = 'visited' # TODO NEED TO MAKE BETTER, USE HREF???
+        print("LINK TRACKER ADDED")
+        print(normalize_html(html))
         # TODO TELL AGENT ALREADY PRESSED
 
     elif interaction_info == 'button':
@@ -477,18 +481,14 @@ async def step_by_xpath(page, xpath, interaction_info, html, trackers):
         tree_str = parse_accessibility_tree(await page.accessibility.snapshot())
         specific_html = html
         input_string = use_gpt_fill_input(tree_str, specific_html, intent)
-        print(input_string)
         trackers[normalize_html(html)] = input_string
-        print("NORMALIZED HTML")
-        print(normalize_html(html))
-        print("TRACKER FOR INPUT ADDED")
         await locator.first.fill(input_string)
 
         await page.wait_for_load_state('networkidle')
+        if "id(\"search\")" in xpath:
+            await page.keyboard.press('Enter')
 
-        # await page.keyboard.press('Enter')
-        #
-        # await page.wait_for_load_state('networkidle')
+            await page.wait_for_load_state('networkidle')
 
     else:
         print("FUCK3")
@@ -635,8 +635,10 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=10, intra_chu
             for i, (info, action_desc, element) in enumerate(matched):
                 if action_desc != "ACTION EFFECT: UNKNOWN" and action_desc != "ACTION EFFECT: N/A": # Unknown is not matched to a private, N/A is private generated didn't know
                     known_usable.append(element)
-                    if tables[i] and str(tables[i]).strip() != '':
-                        combined.append((info, action_desc, f"EXTRA INFO: {tables[i]}")) # TODO HOPEFULLY NO TABLE ITEM NEEDS TRACKERS
+                    if tables[i] and str(tables[i]).strip() != '' and tracked_information[i] and tracked_information[i].strip() != '':
+                        combined.append((info, action_desc, f"EXTRA INFO: {tables[i]}, {tracked_information[i]}")) # TODO HOPEFULLY NO TABLE ITEM NEEDS TRACKERS
+                    elif tables[i] and str(tables[i]).strip() != '':
+                        combined.append((info, action_desc, f"EXTRA INFO: {tables[i]}"))
                     elif tracked_information[i] and tracked_information[i].strip() != '':
                         combined.append((info, action_desc, f"EXTRA INFO: {tracked_information[i]}"))
                     else:
@@ -648,25 +650,28 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=10, intra_chu
             question_for_gpt = [f"{i}) {item}\n" for i, item in enumerate(combined)]
             print('\n'.join(question_for_gpt))
             desc = await grab_description(flags, page)
-            (stopped, answer) = get_intrastate_full(intent, '\n'.join(question_for_gpt), desc, model_name="gpt-4-1106-preview")
-            if stopped:
-                print(answer)
-                exit()
-            if iteration == 0 and (answer == "FAILURE" or answer == "N/A"):
+            (index, retrieved_info) = get_intrastate_full(intent, '\n'.join(question_for_gpt), desc, model_name="gpt-4-1106-preview") # TODO ADD TRACKERS FOR ORDERSPAGE.ETC GENERALISE AS MUCH AS POSSIBLE
+            print(f"INDEX: {index}, INFO: {retrieved_info}")
+            input("LOOK WITH EYES")
+            print(retrieved_info)
+            if iteration == 0 and index == -1:
                 end_state = navigate_interstate(start_node, intent, chunk_size=inter_chunk)
                 await page.goto(end_state.url)
                 continue
+            elif iteration != 0 and index == -1:
+                input("STOPPING!")
+                exit()
             flags['phase'] = 'intrastate_unsearched'
             # answer = get_intrastate(intent, '\n'.join(question_for_gpt), model_name="gpt-4-turbo-1106")
             print("ANSWER HERE")
-            if int(answer) == len(combined) - 1 and flags['section'] == "orderpage":
+            if int(index) == len(combined) - 1 and flags['section'] == "orderpage":
                 print("GOING BACK TO ORDERS PAGE")
                 await page.go_back()
                 await page.wait_for_load_state('networkidle')
             else:
-                xpath = known_usable[int(answer)]['xpath']
-                interaction_info = known_usable[int(answer)]['interaction_info']
-                html = known_usable[int(answer)]['html']
+                xpath = known_usable[int(index)]['xpath']
+                interaction_info = known_usable[int(index)]['interaction_info']
+                html = known_usable[int(index)]['html']
                 await step_by_xpath(page, xpath, interaction_info, html, trackers)
             continue_flag = input("PRESS ENTER TO CONTINUE")
             if continue_flag == '':

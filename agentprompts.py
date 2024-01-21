@@ -117,7 +117,7 @@ def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
         {"role": "system",
          "content": "If nothing in the user context fits the input box, return '''N/A''' as the input. If you choose an answer, you must only choose a single answer. If there are multiple possible answers, you must choose one. You only care about what is mentioned in each answer choice, the amount or emphasis of items in the list does not matter. Ignore any emphasis."},
         {"role": "system",
-         "content": "Reason through every single option I give you step-by-step thoughtfully. Give explanations for why every option I give you may be right or wrong. YOU MUST try your best to choose an answer. If one option may lead to more information or something to help you complete your task, it is a valid choice. After reasoning, give your final answer like this: \n '''1'''\n Or this: '''13'''."},
+         "content": "YOU MUST reason through EVERY SINGLE option I give you step-by-step thoughtfully. Give explanations for why every option I give you may be right or wrong. YOU MUST try your best to choose an answer. If one option may lead to more information or something to help you complete your task, it is a valid choice. After reasoning, give your final answer like this: \n '''1'''\n Or this: '''13'''."},
         {"role": "system",
          "content": "Here are a few examples of what your response should look like given their inputs."}
     ]
@@ -227,13 +227,13 @@ def get_intrastate_full(intent, answers, page_desc, model_name="gpt-4-1106-previ
         {"role": "system",
          "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task and multiple choice answers. Each answer represents an action being taken on the same web page. If the action has an effect description called ACTION EFFECT, pay attention to it. You want to choose the action effect which will help you find the most optimal answer, which you may not currently see. "},
         {"role": "system",
-         "content": "If nothing in the answers I give you will help you achieve the task, or if you think that the task is impossible, return '''N/A'''. If there are multiple correct answers available, return '''N/A'''. The answer you need may not be currently visible to you, pay attention to ACTION EFFECTs that fit your task. "},
+         "content": "If nothing in the answers I give you will help you achieve the task, or if you think that the task is impossible, return '''STOP'''. If there are multiple correct answers available, return '''STOP'''. The answer you need may not be currently visible to you, pay attention to ACTION EFFECTs that fit your task. "},
         {"role": "system",
          "content": "You want to first pay attention to all of effects labelled ACTION EFFECTS in each of the options I give you, especially paying attention to the effects of navigation related options. All dates are in the format of MM/DD/YY. YY is the last two digits of the year. If there is EXTRA INFORMATION, pay attention to it, as it may provide more context for the ACTION EFFECT. "},
         {"role": "system",
          "content": "First generate subtasks to complete the task using only options available to you. Reason through every single option I give you step-by-step thoughtfully. Give explanations for why every option I give you may or may not align to completing the task or a subtask. Pay close attention to options which let you view more information or navigate. Give the your final answer like this: \n '''1'''\n Or this: '''13'''. "},
         {"role": "system",
-         "content": "If you think that the task is completed after after choosing an option (for example, action 1), return '''1:STOP'''. Pay attention to what the current page's description, if the task requires you to find something or retrieve information and you are on the correct page, return '''INFORMATION YOU RETRIEVED:STOP'''. If you think that multiple actions are required in a sequence to complete the task, choose the first action in that sequence. "},
+         "content": "If you think that the task has been completed, and all possible subtasks have been complete, return '''STOP'''. Pay attention to what the current page's description, if the task requires you to find something or retrieve information and you are on the correct page, for example, finish with '''STOP:INFORMATION YOU RETRIEVED''' to retrieve information and stop, or '''4:INFORMATION YOU RETRIEVED''' to retrieve information and perform action 4. If you think that MULTIPLE ACTIONS are required in a sequence to complete the task, YOU MUST CHOOSE the first action in that sequence. "},
         {"role": "system",
          "content": "Here is are a few examples of what your response should look like given their inputs: \n"}
     ]
@@ -267,23 +267,23 @@ def get_intrastate_full(intent, answers, page_desc, model_name="gpt-4-1106-previ
     result = response.choices[0].message.content
     print(f"GPT RAW RETURN: {result}")
 
-    pattern1 = r"\'\'\'([A-Za-z0-9]+):STOP\'\'\'"
-    pattern2 = r"\'\'\'(\d+):STOP\'\'\'"
+    pattern1 = r"\'\'\'STOP:([A-Za-z0-9]+)\'\'\'"
+    pattern2 = r"\'\'\'(\d+):([A-Za-z0-9]+)\'\'\'"
     pattern3 = r"\'\'\'(\d+)\'\'\'"
-    pattern4 = r"\'\'\'(\d+):([A-Za-z0-9]+)\'\'\'"
+
 
     match1 = re.search(pattern1, result, re.DOTALL)
     match2 = re.search(pattern2, result, re.DOTALL)
+    match3 = re.search(pattern3, result, re.DOTALL)
 
     if match1:
-        final_answer = match1.group(1).strip()
-        return (False, final_answer)
+        return (-1, match1.group(1).strip())
     elif match2:
-        final_answer = match2.group(1).strip()
-        return (True, final_answer)
+        return (match2.group(1).strip(), match2.group(2).strip())
+    elif match3:
+        return (match3.group(1).strip(), "")
     else:
-        print("OH FUCK! ")
-        return (True, "FAILURE")
+        return (-1, "")
 
 def get_intrastate(intent, answers, current_tree, model_name="gpt-4-1106-preview"):
     print("CURR TREE")
