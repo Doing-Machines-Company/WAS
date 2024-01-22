@@ -697,7 +697,7 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=5, intra_chun
                 xpath = known_usable[int(index)]['xpath']
                 interaction_info = known_usable[int(index)]['interaction_info']
                 html = known_usable[int(index)]['html']
-                await step_by_xpath(page, xpath, interaction_info, html, trackers
+                await step_by_xpath(page, xpath, interaction_info, html, trackers)
             # continue_flag = input("PRESS ENTER TO CONTINUE")
             # if continue_flag == '':
             #     continue
