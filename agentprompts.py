@@ -40,8 +40,6 @@ def interstate_filter(intent, choice):
     ]
 
     output = llm.create_chat_completion(messages=messages, temperature=0.0)
-    print("RAW OUT")
-    print(output['choices'][0]['message']['content'])
     return output['choices'][0]['message']['content']
 
 
@@ -72,7 +70,6 @@ def get_interstate_instruct(intent, answers):
         messages.append(example_response)
 
         formatted_answers = '\n'.join(answers)
-        print(formatted_answers)
 
         messages.append({"role": "user",
                          "content": f"Now here's your actual task. \nTask: {intent}\nChoose from these answers:\n {formatted_answers}"})
@@ -88,7 +85,6 @@ def get_interstate_instruct(intent, answers):
 
 
     result = response.choices[0].message.content
-    print(f"GPT RAW RETURN: {result}")
 
     pattern1 = r"\'\'\'(\d+)\'\'\'"
     pattern2 = r"\`\`\`(\d+)\`\`\`"
@@ -110,7 +106,6 @@ def get_interstate_instruct(intent, answers):
 def get_interstate_old(intent, answers, model_name="gpt-4-1106-preview"):
     interstate_shots = agentprompts["interstate"]
 
-    print(f"INTENT: {intent}")
     messages = [
         {"role": "system",
          "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task, and an enumerated set of possible answers. Each answer is a list of functionalities associated with a separate web page. Your are to choose a web page which best fits the intended goal, or is needed or contains information to help you achieve your goal. "},
@@ -121,7 +116,6 @@ def get_interstate_old(intent, answers, model_name="gpt-4-1106-preview"):
         {"role": "system",
          "content": "Here are a few examples of what your response should look like given their inputs."}
     ]
-    print("INTERSTATE CHOICES")
 
     for prompts in interstate_shots:
         example_message = {
@@ -139,7 +133,6 @@ def get_interstate_old(intent, answers, model_name="gpt-4-1106-preview"):
 
 
     formatted_answers = '\n'.join(answers)
-    print(formatted_answers)
 
     messages.append({"role": "user",
                      "name": "user",
@@ -156,7 +149,6 @@ def get_interstate_old(intent, answers, model_name="gpt-4-1106-preview"):
     )
 
     result = response.choices[0].message.content
-    print(f"GPT RAW RETURN: {result}")
 
     pattern1 = r"\'\'\'(\d+)\'\'\'"
     pattern2 = r"\`\`\`(\d+)\`\`\`"
@@ -383,8 +375,8 @@ def get_intrastate_full(intent, answers, page_desc, memory, model_name="gpt-4-11
     messages.append({"role": "user",
         "content": f"Now here is your actual task. \nTask: {intent}\nSubtasks completed and memory: {memory} \nPage information: \n'''\n{page_desc}\n'''\n\nSubtasks completed and memory: {memory}\nChoose from these answers:\n{answers}"})
 
-    print("GPT MESSAGE")
-    print(f"Now here is your actual task. \nTask: {intent}\nSubtasks completed and memory: {memory} \nPage information: \n'''\n{page_desc}\n'''\n\nSubtasks completed and memory: {memory}\nChoose from these answers:\n{answers}")
+    # print("GPT MESSAGE")
+    # print(f"Now here is your actual task. \nTask: {intent}\nSubtasks completed and memory: {memory} \nPage information: \n'''\n{page_desc}\n'''\n\nSubtasks completed and memory: {memory}\nChoose from these answers:\n{answers}")
 
     response = client.chat.completions.create(
         model=model_name,
@@ -489,22 +481,27 @@ def use_gpt_fill_input(tree_str, specific_html, intent, memory):
         {"role": "system",
          "content": "If nothing in the user context fits the input box, use '''N/A''' as the input. Everything in the memory has been gathered, assume that they are relevant to you. Things stored in the memory are subtasks for the user intent which have been completed, and relevant information. Assume everything in the memory is relevant to you."},
         {"role": "system",
-         "content": "You must reason through your answer, then give the exact string you would input into the box enclosed by '''s, like this: \n '''I would input this string'''. If you are searching for a product and have its SKU, search using the SKU. If you are searching for a product and do not have an exact name or SKU, just input text into the search box that is as specific as possible. Do not include reasoning in your enclosed answer, do not include anything other than exactly what you want to input enclosed in '''."}
+         "content": "You must reason through your answer, then give the exact string you would input into the box enclosed by '''s, like this: \n '''I would input this string'''. If you are searching for a specific product and have its SKU, search using the SKU. If you are searching for a product and do not have an exact name or SKU, or just searching for a general type of product, just input text into the search box that is as specific as possible."},
+        {"role": "system",
+         "content": "Here is a example of what your response should look like given their inputs: \n'''\n"}
     ]
 
     for prompt in intrastate_shots:
         example_message = {
             "role": "system",
             "name": "example_user",
-            "content": f"What should be input into the element represented by the specific HTML? \nElement HTML: {prompt['html']}\nCurrent page accessibility tree:\n{prompt['tree_str']}\nUser intent: {prompt['intent']}\nMemory store: {prompt['memory']}"
+            "content": f"What should be input into the element represented by the specific HTML? \nElement HTML: {prompt['html']}\nCurrent page accessibility tree:\n{prompt['tree_str']}\nMemory store: {prompt['memory']}\nUser task: {prompt['intent']}"
         }
         messages.append(example_message)
         example_response = {
             "role": "system",
             "name": "example_agent",
-            "content": prompt['answer']
+            "content": prompt['answer'] + "\n'''\n"
         }
         messages.append(example_response)
+
+    messages.append({"role": "user",
+                     "content": f"Here's your actual task. What should be input into the element represented by the HTML? \nACTUAL Element HTML: {specific_html}\nACTUAL Current page accessibility tree:\n{tree_str}\nACTUAL Memory store: {memory}\nACTUAL User task: {intent}"})
 
     response = client.chat.completions.create(
         model="gpt-4-1106-preview",
@@ -513,14 +510,14 @@ def use_gpt_fill_input(tree_str, specific_html, intent, memory):
         temperature=0.0,
         max_tokens=400
     )
-    messages.append({"role": "user",
-        "content": f"Here's your actual task. What should be input into the element represented by the HTML? \nElement HTML: {specific_html}\nCurrent page accessibility tree:\n{tree_str}\nUser intent: {intent}\nMemory store: {memory}"})
 
     result = response.choices[0].message.content
 
     pattern = r"\'\'\'(.*?)\'\'\'"
 
     match = re.search(pattern, result, re.DOTALL)
+    print("GPT INPUT")
+    print(f"Here's your actual task. TASKS BEFORE THIS WERE EXAMPLES, NOT YOUR ACTUAL CURRENT TASK. What should be input into the element represented by the HTML? \nACTUAL Element HTML: {specific_html}\nACTUAL Current page accessibility tree:collapsed\nACTUAL Memory store: {memory}\nACTUAL User task: {intent}")
     print("GPT FILL OUTPUT")
     print(f"RESULT: {result}")
     if match:

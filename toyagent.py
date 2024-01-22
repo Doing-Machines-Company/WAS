@@ -672,13 +672,16 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=5, intra_chun
             desc = await grab_description(flags, page)
             (index, retrieved_info) = get_intrastate_full(intent, '\n'.join(question_for_gpt), desc, saved_info, model_name="gpt-4-1106-preview") # TODO ADD TRACKERS FOR ORDERSPAGE.ETC GENERALISE AS MUCH AS POSSIBLE
             # TODO GET SUBTASK COMPLETIONS AND RELEVANT INFORMATION FROM ANSWER
-            print(f"INDEX: {index}, INFO: {retrieved_info}")
-            print(f"ALL MEMORY: {saved_info}")
+
             if retrieved_info.strip() != 'N/A':
                 saved_info.append(retrieved_info)
+
+            print(f"INDEX: {index}, INFO: {retrieved_info}")
+            print(f"ALL MEMORY: {saved_info}")
             if iteration != 0 and index == -1:
                 # input("STOPPING!")
                 exit()
+
             flags['phase'] = 'intrastate_unsearched'
             # answer = get_intrastate(intent, '\n'.join(question_for_gpt), model_name="gpt-4-turbo-1106")
             if int(index) == len(combined) - 2 and flags['section'] == "orderpage":
@@ -711,5 +714,5 @@ flags = {'section': 'None', 'phase': 'navigation_unsearched'}  # RESET EVERY NAV
 trackers = {}
 intent = "Look at my past orders and find my most recent purchase of a lamp or screen protector, then rate the product with 3 stars, using my nickname GamingEmma."
 intent = "leave a 3 star review for the first lamp you find on the shop, using my nickname GamingEmma"
-intent = "find a lamp and leave a 3 star review for it, using my nickname GamingEmma"
+intent = "find cheddar cheese and leave a 3 star review for it, using my nickname GamingEmma"
 asyncio.run(do_task(interstate_tree, intent, flags, trackers, inter_chunk=10, intra_chunk=None))
