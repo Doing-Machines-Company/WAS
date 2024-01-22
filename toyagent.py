@@ -321,8 +321,7 @@ def navigate_interstate(start_node, intent, chunk_size=None):
                 return curr_node
             elif len(possible_results) == 1:
                 print("ONLY ONE! ")
-                index = int(possible_results[0])
-                child = get_child_from_index(curr_node, index)
+                child = get_child_from_index(curr_node, 0)
                 curr_node = child
             else: # Do recursive in future
                 # TODO ADD OPTION HERE TO ALLOW FOR SEARCH OPTION DURING NAVIGATION PHASE
@@ -352,12 +351,15 @@ def navigate_interstate(start_node, intent, chunk_size=None):
 interstate_tree = load_interstate_from_file('webtreeflattened.json')
 
 
-intent = "find the oldest order"
-intent = "Look at my past orders and find my most recent purchase of a lamp or screen protector, then rate the item with 3 stars, using my nickname GamingEmma?"
-intent = "look at my past orders, and find all food related orders from march 2023"
-# intent = "go to product section for GPT system accessories"
+# intent = "find the oldest order"
+# intent = "Look at my past orders and find my most recent purchase of a lamp or screen protector, then rate the product with 3 stars, using my nickname GamingEmma?"
+# intent = "look at my past orders, and find all food related orders from march 2023"
+# intent = "buy TNP Home Theater Speaker Wall Plate Outlet - Speaker Sound Audio Distribution Panel Gold Plated Copper Banana Plug Binding Post Connector Insert Jack Coupler (7.2 Surround)"
+# intent = "perform last action"
 # intent = "i need a face wash for oily skin"
 # intent = "what's in my wishlist?"
+
+
 async def match_unique_actions(node, usable, page, flags):
 
     html_list = [item['html'] for item in usable]
@@ -425,6 +427,10 @@ async def match_unique_actions(node, usable, page, flags):
                         matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", "ACTION EFFECT: Select VISIBLE TEXT option", usable[j]))
                     elif "input" in html_list[j]:
                         matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", f"ACTION EFFECT: Input text for {visible_text_list[j]}", usable[j])) # TODO TRIVIAL OPTION SELECTS FOR CHECK BOXES AND RADIO BUTTONS
+                    elif visible_text_list[j].strip() != '':
+                        matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", "ACTION EFFECT: CLICK VISIBLE TEXT BUTTON", usable[j]))
+                    else:
+                        matched_edges.append((f"VISIBLE TEXT: UNLABELLED", "ACTION EFFECT: N/A", usable[j]))
 
             # else:
             #     print("WHAT THE FUCK")
@@ -449,8 +455,8 @@ async def step_by_xpath(page, xpath, interaction_info, html, trackers):
         await page.wait_for_load_state('networkidle')
         await locator.first.click()
         await page.wait_for_load_state('networkidle')
-        trackers[normalize_html(html)] = 'pressed' # TODO MAKE STATE DEPENDENT, E.G., ADD TO CART ONLY PER PRODUCT, BUT NEXT PAGE DEPDENENT ON MENU
-
+        trackers[normalize_html(html)] = normalize_url(page.url) # TODO MAKE STATE DEPENDENT, E.G., ADD TO CART ONLY PER PRODUCT, BUT NEXT PAGE DEPDENENT ON MENU
+        # TODO USE CURRENT URL AND BUTTON HTML
     elif interaction_info == 'checkbox':
         await page.wait_for_load_state('networkidle')
         await locator.first.click()
@@ -470,8 +476,14 @@ async def step_by_xpath(page, xpath, interaction_info, html, trackers):
 
         tree_str = parse_accessibility_tree(await page.accessibility.snapshot())
         specific_html = html
-        input_string = use_gpt_fill_input(tree_str, specific_html, intent)
-        trackers[normalize_html(html)] = input_string
+        input_string = use_gpt_fill_input(tree_str, specific_html, intent, saved_info)
+        # print(f"INPUT STRING: {input_string}")
+        # print(f"HTML: {html}")
+        # input("CHECK WITH EYES")
+        if "<input id=\"search\"" not in specific_html:
+            if not trackers[normalize_html(html)]:
+                trackers[normalize_html(html)] = []
+            trackers[normalize_html(html)].append(input_string)
         await locator.first.fill(input_string)
 
         await page.wait_for_load_state('networkidle')
@@ -489,36 +501,29 @@ def convert_to_url_format(input_string):
     formatted_string = input_string.replace(' ', '+')
     return urllib.parse.quote_plus(formatted_string)
 
-def process_trackers(item, trackers): # THIS IS SO HARD CODED
+def process_trackers(page_url, item, trackers): # THIS IS SO HARD CODED
     norm_html = normalize_html(item['html'])
 
     interaction_info = item['interaction_info']
-    if "<span>Next</span>" in norm_html:
-        print("NEXT PAGE FLAG")
-        print(norm_html)
-        print("INTERACTION INFO")
-        print(interaction_info)
-        print("TRACKED INFO")
-        print([key for key in trackers])
-        input("USE EYES")
+
     if interaction_info == 'checkbox':
         if norm_html in trackers or "checked=\"checked\"" in item['html']:
             return 'OPTION OF ACTION EFFECT AND VISIBLE TEXT ALREADY ENABLED'
     elif interaction_info == 'radio' and norm_html in trackers:
         return 'RADIO BUTTON ALREADY SELECTED'
     elif interaction_info == 'input' and norm_html in trackers:
-        return f"\'{trackers[norm_html]}\' ALREADY INPUTTED"
+        return f"This list of items \'{trackers[norm_html]}\' ALREADY INPUTTED"
     elif interaction_info == 'link' and norm_html in trackers:
         return f"ALREADY VISITED"
-    elif interaction_info == 'button' and norm_html in trackers:
+    elif interaction_info == 'button' and norm_html in trackers and trackers[norm_html] == page_url:
         return f"ALREADY ATTEMPTED"
-
     return ''
 
 async def grab_description(flags, page):
     unparsed_acctree = await page.accessibility.snapshot()
     name = unparsed_acctree['name']
     if flags['section'] == 'shoppingsection':
+        print("SHOPPING SECTION")
         return f"Shopping Section for {name}"
     elif flags['section'] == 'accountedit':
         return f"Page titled {name}"
@@ -538,9 +543,11 @@ async def grab_description(flags, page):
     elif flags['section'] == 'orderpage': # TODO ADD INFORMATION RELEVANT
         extracted_order_info = extract_order_page(await page.content())
         return f"Order page for {extracted_order_info}"
+    else:
+        return f"Page titled {name}"
 
 
-async def do_task(start_node, intent, flags, trackers, inter_chunk=10, intra_chunk=None):
+async def do_task(start_node, intent, flags, trackers, inter_chunk=5, intra_chunk=None):
 
 
     async with async_playwright() as p:
@@ -549,12 +556,10 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=10, intra_chu
 
         await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
         await page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
-        await page.get_by_label("Password", exact=True).fill('Password..123')
+        await page.get_by_label("Password", exact=True).fill('Password.123')
         await page.get_by_role("button", name="Sign In").click()
 
         search_flag = should_search(intent).strip()
-        print("SEARCH FLAG! ")
-        print(search_flag)
         if search_flag == 'YES' and flags['phase'] == 'navigation_unsearched':
             await step_by_xpath(page, 'id(\"search\")', "input", "<input id=\"search\" type=\"text\" name=\"q\" value=\"\" placeholder=\"Search entire store here...\" class=\"input-text\" maxlength=\"128\" role=\"combobox\" aria-haspopup=\"false\" aria-autocomplete=\"both\" autocomplete=\"off\" aria-expanded=\"false\">", trackers)
             flags['phase'] = 'intrastate_searched'
@@ -568,7 +573,7 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=10, intra_chu
 
         # await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/")
 
-        for iteration in range(10):
+        for iteration in range(15):
             accessibility_snapshot = await page.accessibility.snapshot()
             tree_str = parse_accessibility_tree(accessibility_snapshot)
 
@@ -593,10 +598,21 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=10, intra_chu
             elif url_depth(aggressive_normalize_url(page.url)) == 1 and 'SKU' in tree_str:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/productpage.json')
                 flags['section'] = 'productpage'
-                print("AT PRODUCT PAGE!!!!!")
-            elif "Order #" in tree_str and "Order Date" in tree_str and "Print Order" in tree_str:
+            elif "Order #" in tree_str and "Order Date" in tree_str and "Print Order" in tree_str: # TODO SCRAPE SOMETHING
+                intrastate_tree = load_intrastate_from_json('intrastate_trees/myaccountedit.json')
                 flags['section'] = 'orderpage'
-                print("AT ORDER PAGE")
+            elif "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/checkout/cart" in page.url: # TODO SCRAPE SOMETHING
+                intrastate_tree = load_intrastate_from_json('intrastate_trees/shoppingsection.json')
+                flags['section'] = 'shoppingcart'
+            elif "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/multishipping/checkout" in page.url: # TODO SCRAPE SOMETHING
+                intrastate_tree = load_intrastate_from_json('intrastate_trees/shoppingsection.json')
+                flags['section'] = 'shoppingcart'
+            elif "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/checkout#shipping" in page.url: # TODO SCRAPE SOMETHING
+                intrastate_tree = load_intrastate_from_json('intrastate_trees/shoppingsection.json')
+                flags['section'] = 'checkout'
+            elif "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/checkout#payment" in page.url: # TODO SCRAPE SOMETHING
+                intrastate_tree = load_intrastate_from_json('intrastate_trees/shoppingsection.json')
+                flags['section'] = 'checkoutpayment'
             else:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/shoppingsection.json')
                 print("AT PRODUCT SECTION!!!!!!")
@@ -609,11 +625,8 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=10, intra_chu
 
 
             tables = [item['table_context'] for item in usable]
-            print("PROCESSING TRACKERS")
-            tracked_information = [process_trackers(item, trackers) for item in usable]
-            if len(usable) > 22:
-                print(usable[21]['html'])
-                print(tracked_information[21])
+            page_url = normalize_url(page.url)
+            tracked_information = [process_trackers(page_url, item, trackers) for item in usable]
 
             matched = await match_unique_actions(intrastate_tree, usable, page, flags)
             # TODO WE NEED TO ADD DEFAULT DESCRIPTORS FOR RADIO BUTTONS AND CHECKBOXES
@@ -644,18 +657,23 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=10, intra_chu
 
             if flags['section'] == "orderpage":
                 combined.append(('VISIBLE TEXT: Go back to my orders page', 'ACTION EFFECT: Go back to page showing all user orders'))
+            elif flags['section'] == "productpage":
+                combined.append(('VISIBLE TEXT: Go back to product category/query result page for products', 'ACTION EFFECT: Go back to product category/query result page for products'))
 
             question_for_gpt = [f"{i}) {item}\n" for i, item in enumerate(combined)]
-            print('\n'.join(question_for_gpt))
             desc = await grab_description(flags, page)
-            (index, retrieved_info) = get_intrastate_full(intent, '\n'.join(question_for_gpt), desc, model_name="gpt-4-1106-preview") # TODO ADD TRACKERS FOR ORDERSPAGE.ETC GENERALISE AS MUCH AS POSSIBLE
+            (index, retrieved_info) = get_intrastate_full(intent, '\n'.join(question_for_gpt), desc, saved_info, model_name="gpt-4-1106-preview") # TODO ADD TRACKERS FOR ORDERSPAGE.ETC GENERALISE AS MUCH AS POSSIBLE
+            # TODO GET SUBTASK COMPLETIONS AND RELEVANT INFORMATION FROM ANSWER
             print(f"INDEX: {index}, INFO: {retrieved_info}")
+            print(f"ALL MEMORY: {saved_info}")
+            if retrieved_info.strip() != '':
+                saved_info.append(retrieved_info)
             if iteration == 0 and index == -1:
                 end_state = navigate_interstate(start_node, intent, chunk_size=inter_chunk)
                 await page.goto(end_state.url)
                 continue
             elif iteration != 0 and index == -1:
-                input("STOPPING!")
+                # input("STOPPING!")
                 exit()
             flags['phase'] = 'intrastate_unsearched'
             # answer = get_intrastate(intent, '\n'.join(question_for_gpt), model_name="gpt-4-turbo-1106")
@@ -663,20 +681,25 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=10, intra_chu
                 print("GOING BACK TO ORDERS PAGE")
                 await page.go_back()
                 await page.wait_for_load_state('networkidle')
+            elif int(index) == len(combined) - 1 and flags['section'] == "productpage":
+                print("GOING BACK TO PRODUCT SECTIONS PAGE")
+                await page.go_back()
+                await page.wait_for_load_state('networkidle')
             else:
                 xpath = known_usable[int(index)]['xpath']
                 interaction_info = known_usable[int(index)]['interaction_info']
                 html = known_usable[int(index)]['html']
                 await step_by_xpath(page, xpath, interaction_info, html, trackers)
-            continue_flag = input("PRESS ENTER TO CONTINUE")
-            if continue_flag == '':
-                continue
-            else:
-                exit()
-
+            # continue_flag = input("PRESS ENTER TO CONTINUE")
+            # if continue_flag == '':
+            #     continue
+            # else:
+            #     exit()
+        print(saved_info)
     return None
 
-
+saved_info = []
 flags = {'section': 'None', 'phase': 'navigation_unsearched'}  # RESET EVERY NAVIGATION?
 trackers = {}
-asyncio.run(do_task(interstate_tree, intent, flags, trackers, inter_chunk=15, intra_chunk=None))
+intent = "Look at my past orders and find my most recent purchase of a lamp or screen protector, then rate the product with 3 stars, using my nickname GamingEmma?"
+asyncio.run(do_task(interstate_tree, intent, flags, trackers, inter_chunk=10, intra_chunk=None))
