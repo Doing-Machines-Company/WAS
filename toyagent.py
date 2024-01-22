@@ -425,6 +425,8 @@ async def match_unique_actions(node, usable, page, flags):
                         matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", "ACTION EFFECT: Select VISIBLE TEXT option, MUST CHOOSE ONE OF EACH TYPE", usable[j]))
                     elif "type=\"radio\"" in html_list[j] in html_list[j]:
                         matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", "ACTION EFFECT: Select VISIBLE TEXT option", usable[j]))
+                    elif "input" in html_list[j] and "required=\"true\"" in html_list[j]:
+                        matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", f"ACTION EFFECT: Input text for {visible_text_list[j]}, INPUT IS REQUIRED", usable[j]))
                     elif "input" in html_list[j]:
                         matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", f"ACTION EFFECT: Input text for {visible_text_list[j]}", usable[j])) # TODO TRIVIAL OPTION SELECTS FOR CHECK BOXES AND RADIO BUTTONS
                     elif visible_text_list[j].strip() != '':
@@ -585,6 +587,9 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=5, intra_chun
                 flags['section'] = 'myorders'
             elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/wishlist" in page.url:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/mywishlistNEW.json')
+                print("AT WISHLIST SECTION!!!!!!")
+                print("OOPS")
+                exit()
                 flags['section'] = 'mywishlist'
             elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/address" in page.url:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/myaddressbookNEW.json')
@@ -629,6 +634,8 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=5, intra_chun
             tracked_information = [process_trackers(page_url, item, trackers) for item in usable]
 
             matched = await match_unique_actions(intrastate_tree, usable, page, flags)
+            # print('\n'.join([str('\n'.join([str(i), str(j), str(k)])) for (i, j, k) in matched]))
+            # input("LOOK FLAG")
             # TODO WE NEED TO ADD DEFAULT DESCRIPTORS FOR RADIO BUTTONS AND CHECKBOXES
             # TODO INJECT STATE INFORMATION FOR CHECKBOXES, INPUT BOXES.ETC
             # els = [item[-1]['html'] for item in matched]
@@ -690,7 +697,7 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=5, intra_chun
                 xpath = known_usable[int(index)]['xpath']
                 interaction_info = known_usable[int(index)]['interaction_info']
                 html = known_usable[int(index)]['html']
-                await step_by_xpath(page, xpath, interaction_info, html, trackers)
+                await step_by_xpath(page, xpath, interaction_info, html, trackers
             # continue_flag = input("PRESS ENTER TO CONTINUE")
             # if continue_flag == '':
             #     continue
@@ -703,4 +710,7 @@ saved_info = []
 flags = {'section': 'None', 'phase': 'navigation_unsearched'}  # RESET EVERY NAVIGATION?
 trackers = {}
 intent = "Look at my past orders and find my most recent purchase of a lamp or screen protector, then rate the product with 3 stars, using my nickname GamingEmma."
+intent = "leave a 3 star review for the first lamp you find on the shop, using my nickname GamingEmma"
+intent = "find a lamp and leave a 3 star review for it, using my nickname GamingEmma"
+intent = "find the oldest order I have with food in it and find detailed information for that item"
 asyncio.run(do_task(interstate_tree, intent, flags, trackers, inter_chunk=10, intra_chunk=None))

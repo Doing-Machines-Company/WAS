@@ -10,7 +10,7 @@ async def state_specific_filter(html, xpath, visible_text, flags):
         if visible_text in ['Add to Cart', 'Add to Wish List', 'Add to Compare'] or 'Review' in visible_text or 'item' in visible_text or 'Page' in visible_text:
             return True
     elif flags['section'] == 'myorders':
-        if 'Page' in visible_text or '102050' in visible_text or 'Newsletter' in visible_text or 'Report All Bugs' in visible_text:
+        if ('Page' in visible_text and visible_text != 'PageNext' and visible_text != 'PagePrevious') or '102050' in visible_text or 'Newsletter' in visible_text or 'Report All Bugs' in visible_text:
             return True
     elif flags['section'] == 'orderpage':
         if'6505551212' in visible_text:

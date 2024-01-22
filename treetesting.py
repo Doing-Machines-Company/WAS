@@ -26,8 +26,8 @@ async def main():
         # # print(page_html)
         # body = extract_product_page(page_html)
         # print(body)
-        await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/tnp-home-theater-speaker-wall-plate-outlet-speaker-sound-audio-distribution-panel-gold-plated-copper-banana-plug-binding-post-connector-insert-jack-coupler-7-2-surround.html")
-
+        link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/floor-lamps-for-bedrooms-tall-traditional-standing-lamp-with-leaves-design-ambimall-rustic-tall-pole-lamps-for-living-room-office-reading-60-rustic-upright-floor-lights-with-linen-lampshade.html"
+        await page.goto(link)
         page_tree = await page.accessibility.snapshot()
         page_tree = parse_accessibility_tree(page_tree)
         print(page_tree)
