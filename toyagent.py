@@ -483,7 +483,7 @@ async def step_by_xpath(page, xpath, interaction_info, html, trackers):
         # print(f"HTML: {html}")
         # input("CHECK WITH EYES")
         if "<input id=\"search\"" not in specific_html:
-            if not trackers[normalize_html(html)]:
+            if normalize_html(html) not in trackers:
                 trackers[normalize_html(html)] = []
             trackers[normalize_html(html)].append(input_string)
         await locator.first.fill(input_string)
@@ -634,8 +634,8 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=5, intra_chun
             tracked_information = [process_trackers(page_url, item, trackers) for item in usable]
 
             matched = await match_unique_actions(intrastate_tree, usable, page, flags)
-            # print('\n'.join([str('\n'.join([str(i), str(j), str(k)])) for (i, j, k) in matched]))
-            # input("LOOK FLAG")
+            print('\n'.join([str('\n'.join([str(i), str(j), str(k)])) for (i, j, k) in matched]))
+            input("LOOK FLAG")
             # TODO WE NEED TO ADD DEFAULT DESCRIPTORS FOR RADIO BUTTONS AND CHECKBOXES
             # TODO INJECT STATE INFORMATION FOR CHECKBOXES, INPUT BOXES.ETC
             # els = [item[-1]['html'] for item in matched]
@@ -712,5 +712,4 @@ trackers = {}
 intent = "Look at my past orders and find my most recent purchase of a lamp or screen protector, then rate the product with 3 stars, using my nickname GamingEmma."
 intent = "leave a 3 star review for the first lamp you find on the shop, using my nickname GamingEmma"
 intent = "find a lamp and leave a 3 star review for it, using my nickname GamingEmma"
-intent = "find the oldest order I have with food in it and find detailed information for that item"
 asyncio.run(do_task(interstate_tree, intent, flags, trackers, inter_chunk=10, intra_chunk=None))
