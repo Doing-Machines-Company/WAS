@@ -658,33 +658,34 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=5, intra_chun
             if flags['section'] == "orderpage":
                 combined.append(('VISIBLE TEXT: Go back to my orders page', 'ACTION EFFECT: Go back to page showing all user orders'))
             elif flags['section'] == "productpage":
-                combined.append(('VISIBLE TEXT: Go back to product category/query result page for products', 'ACTION EFFECT: Go back to product category/query result page for products'))
+                combined.append(('VISIBLE TEXT: Go back to product category/query result page for products', 'ACTION EFFECT: Go back to product category/query result page for products. Use as last resort.'))
 
+            combined.append(('VISIBLE TEXT: Find other site sections or functionality', 'ACTION EFFECT: Discover other site functionality if other options and current page description definitely not relevant to task completion'))
             question_for_gpt = [f"{i}) {item}\n" for i, item in enumerate(combined)]
             desc = await grab_description(flags, page)
             (index, retrieved_info) = get_intrastate_full(intent, '\n'.join(question_for_gpt), desc, saved_info, model_name="gpt-4-1106-preview") # TODO ADD TRACKERS FOR ORDERSPAGE.ETC GENERALISE AS MUCH AS POSSIBLE
             # TODO GET SUBTASK COMPLETIONS AND RELEVANT INFORMATION FROM ANSWER
             print(f"INDEX: {index}, INFO: {retrieved_info}")
             print(f"ALL MEMORY: {saved_info}")
-            if retrieved_info.strip() != '':
+            if retrieved_info.strip() != 'N/A':
                 saved_info.append(retrieved_info)
-            if iteration == 0 and index == -1:
-                end_state = navigate_interstate(start_node, intent, chunk_size=inter_chunk)
-                await page.goto(end_state.url)
-                continue
-            elif iteration != 0 and index == -1:
+            if iteration != 0 and index == -1:
                 # input("STOPPING!")
                 exit()
             flags['phase'] = 'intrastate_unsearched'
             # answer = get_intrastate(intent, '\n'.join(question_for_gpt), model_name="gpt-4-turbo-1106")
-            if int(index) == len(combined) - 1 and flags['section'] == "orderpage":
+            if int(index) == len(combined) - 2 and flags['section'] == "orderpage":
                 print("GOING BACK TO ORDERS PAGE")
                 await page.go_back()
                 await page.wait_for_load_state('networkidle')
-            elif int(index) == len(combined) - 1 and flags['section'] == "productpage":
+            elif int(index) == len(combined) - 2 and flags['section'] == "productpage":
                 print("GOING BACK TO PRODUCT SECTIONS PAGE")
                 await page.go_back()
                 await page.wait_for_load_state('networkidle')
+            elif int(index) == len(combined) - 1:
+                end_state = navigate_interstate(start_node, intent, chunk_size=inter_chunk)
+                await page.goto(end_state.url) # TODO SOMEHOW PREVENT INFINITE STEPPING
+                continue
             else:
                 xpath = known_usable[int(index)]['xpath']
                 interaction_info = known_usable[int(index)]['interaction_info']
@@ -701,5 +702,5 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=5, intra_chun
 saved_info = []
 flags = {'section': 'None', 'phase': 'navigation_unsearched'}  # RESET EVERY NAVIGATION?
 trackers = {}
-intent = "Look at my past orders and find my most recent purchase of a lamp or screen protector, then rate the product with 3 stars, using my nickname GamingEmma?"
+intent = "Look at my past orders and find my most recent purchase of a lamp or screen protector, then rate the product with 3 stars, using my nickname GamingEmma."
 asyncio.run(do_task(interstate_tree, intent, flags, trackers, inter_chunk=10, intra_chunk=None))

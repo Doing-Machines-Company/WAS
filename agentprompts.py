@@ -244,7 +244,7 @@ def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
 def should_search(intent):
     messages = [
         {"role": "system",
-         "content": "You are an autonomous agent performing tasks for an user on a webshop given a specific task. I am going to you give the task the user wants to complete, and you are to evaluate whether or not the web shop's search bar should be used. The search bar is only used for searching for products you need to buy. "},
+         "content": "You are an autonomous agent performing tasks for an user on a webshop given a specific task. I am going to you give the task the user wants to complete, and you are to evaluate whether or not the web shop's search bar should be used. The search bar is only used for searching for products you need to buy. THE SEARCH ONLY WORKS FOR PRODUCTS YOU WANT TO BROWSE AND VIEW. IT DOES NOT NAVIGATE TO PAST ORDERS OR ACCOUNT MANAGEMENT."},
         {"role": "system",
          "content": "You only care about whether or not the search bar of the website should be used. Reason through your answer step-by-step, and give your final answer as '''YES''' or '''NO'''. GIVE ONLY ONE OF THESE AS YOUR FINAL ANSWER AFTER REASONING. "},
         {"role": "system",
@@ -356,15 +356,13 @@ def get_intrastate_full(intent, answers, page_desc, memory, model_name="gpt-4-11
     intrastate_shots = agentprompts["intrastate"]
     messages = [
         {"role": "system",
-         "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task and multiple choice answers. Each answer represents an action being taken on the same web page. If the action has an effect description called ACTION EFFECT, pay attention to it. You want to choose the action effect which will help you find the most optimal answer, which you may not currently see. "},
+         "content": "You are an autonomous agent performing tasks for an user. I am going to give you a task. Each answer represents an action being taken on the same web page. If the action has an effect description called ACTION EFFECT, pay attention to it. You may need to explore to more optimal options. "},
         {"role": "system",
-         "content": "If nothing in the answers I give you will help you achieve the task, or if you think that the task is impossible, return '''STOP:'''. The answer you need may not be currently visible to you, pay attention to ACTION EFFECTs that fit your task. "},
+         "content": "You must first pay attention ACTION EFFECTS in each of the options I give you, especially navigation ACTION EFFECTS. All dates are in the format of MM/DD/YY. If there is EXTRA INFORMATION may provide more context. "},
         {"role": "system",
-         "content": "You want to first pay attention to all of effects labelled ACTION EFFECTS in each of the options I give you, especially paying attention to the effects of navigation related options. All dates are in the format of MM/DD/YY. YY is the last two digits of the year. If there is EXTRA INFORMATION, pay attention to it, as it may provide more context for the ACTION EFFECT. "},
+         "content": "First generate subtasks to complete the task using only options available to you, and how these subtasks may relate to what is in 'Subtasks completed and memory'. Reason through every single option I give you step-by-step thoughtfully. If the 'Subtasks completed and memory' list contains information, they are relevant for completing the task. Give explanations for why every option I give you may or may not align to completing the task or a subtask. Reason through the 'Page information', if it contains information that may be helpful for completing any of the subtasks, or the task, you must save and return it. Pay close attention to options which let you view more information or navigate. "},
         {"role": "system",
-         "content": "First generate subtasks to complete the task using only options available to you. Reason through every single option I give you step-by-step thoughtfully. Give explanations for why every option I give you may or may not align to completing the task or a subtask. Pay close attention to options which let you view more information or navigate. Give the your final answer like this: \n '''1:'''\n Or this: '''13:'''. "},
-        {"role": "system",
-         "content": "If you think that the task has been completed, and all possible subtasks have been complete, return '''STOP:'''. Pay attention to the current page's description, if the task or a subtask requires you to find something or retrieve information and you are on the correct page, for example, finish with '''STOP:STRING HERE''' where you stop and STRING HERE is information about completing the subtask, or information that you may need later on to complete the task, or '''4:STRING HERE''' where you perform action 4 and where STRING HERE is information about completing the subtask, or information that you may need later on to complete the task. If you think that MULTIPLE ACTIONS are required in a sequence to complete the task, YOU MUST CHOOSE the first action in that sequence. ALWAYS TRY TO EXPLORE FURTHER."},
+         "content": "If you think that the task has been completed, and all possible subtasks have been completed and you have no information that is relevant to the task, finish with '''STOP:N/A'''. Pay attention to the current page's description, if any of the information is useful for completing the task or subtasks, store them like this: '''STOP:SUBTASK COMPLETED OR USEFUL INFORMATION''' or '''4:SUBTASK COMPLETED OR USEFUL INFORMATION'''. If MULTIPLE ACTIONS are required in a sequence to complete the task, YOU MUST CHOOSE the first action in that sequence. IF THERE IS INFORMATION IN THE PAGE INFORMATION THAT WILL HELP YOU COMPLETE THE TASK, YOU MUST STORE IT. YOU MUST STORE PRODUCT NAMES WITH ITS SKU."},
         {"role": "system",
          "content": "Here is are a few examples of what your response should look like given their inputs: \n"}
     ]
@@ -492,7 +490,7 @@ def use_gpt_fill_input(tree_str, specific_html, intent, memory):
         {"role": "system",
          "content": "If nothing in the user context fits the input box, use '''N/A''' as the input. Everything in the memory has been gathered, assume that they are relevant to you. Things stored in the memory are subtasks for the user intent which have been completed, and relevant information. Assume everything in the memory is relevant to you."},
         {"role": "system",
-         "content": "Reason through your answer, then give the exact string you would input into the box enclosed by '''s, like this: \n '''I would input this string'''. Do not include reasoning in your enclosed answer."},
+         "content": "You must reason through your answer, then give the exact string you would input into the box enclosed by '''s, like this: \n '''I would input this string'''. If you are searching for a product and have its SKU, search using the SKU. Do not include reasoning in your enclosed answer, do not include anything other than exactly what you want to input enclosed in '''."},
         {"role": "user",
         "content": f"Here's the information, what should be input into the element represented by the specific HTML? \nSpecific element HTML: {specific_html}\nCurrent page accessibility tree:\n{tree_str}\nUser intent: {intent}\nMemory store: {memory}"}
     ]
@@ -510,7 +508,7 @@ def use_gpt_fill_input(tree_str, specific_html, intent, memory):
     pattern = r"\'\'\'(.*?)\'\'\'"
 
     match = re.search(pattern, result, re.DOTALL)
-    print(f"FILL RESULT: {result}")
+    print(f"RESULT: {result}")
     if match:
         final_answer = match.group(1).strip()
         return final_answer
