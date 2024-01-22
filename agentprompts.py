@@ -478,6 +478,7 @@ def get_intrastate(intent, answers, current_tree, model_name="gpt-4-1106-preview
         return "FAILURE"
 
 def use_gpt_fill_input(tree_str, specific_html, intent, memory):
+    intrastate_shots = agentprompts["fill"]
     messages = [
         {"role": "system",
          "content": "You are an autonomous agent performing tasks for an user on a webshop. You are tasked with analyzing a web page based on the entire page's accessibility tree and one element's specific HTML."},
@@ -488,10 +489,22 @@ def use_gpt_fill_input(tree_str, specific_html, intent, memory):
         {"role": "system",
          "content": "If nothing in the user context fits the input box, use '''N/A''' as the input. Everything in the memory has been gathered, assume that they are relevant to you. Things stored in the memory are subtasks for the user intent which have been completed, and relevant information. Assume everything in the memory is relevant to you."},
         {"role": "system",
-         "content": "You must reason through your answer, then give the exact string you would input into the box enclosed by '''s, like this: \n '''I would input this string'''. If you are searching for a product and have its SKU, search using the SKU. If you are searching for a product and do not have an exact name or SKU, just input text into the search box that is as specific as possible. Do not include reasoning in your enclosed answer, do not include anything other than exactly what you want to input enclosed in '''."},
-        {"role": "user",
-        "content": f"Here's the information, what should be input into the element represented by the specific HTML? \nSpecific element HTML: {specific_html}\nCurrent page accessibility tree:\n{tree_str}\nUser intent: {intent}\nMemory store: {memory}"}
+         "content": "You must reason through your answer, then give the exact string you would input into the box enclosed by '''s, like this: \n '''I would input this string'''. If you are searching for a product and have its SKU, search using the SKU. If you are searching for a product and do not have an exact name or SKU, just input text into the search box that is as specific as possible. Do not include reasoning in your enclosed answer, do not include anything other than exactly what you want to input enclosed in '''."}
     ]
+
+    for prompt in intrastate_shots:
+        example_message = {
+            "role": "system",
+            "name": "example_user",
+            "content": f"What should be input into the element represented by the specific HTML? \nElement HTML: {prompt['html']}\nCurrent page accessibility tree:\n{prompt['tree_str']}\nUser intent: {prompt['intent']}\nMemory store: {prompt['memory']}"
+        }
+        messages.append(example_message)
+        example_response = {
+            "role": "system",
+            "name": "example_agent",
+            "content": prompt['answer']
+        }
+        messages.append(example_response)
 
     response = client.chat.completions.create(
         model="gpt-4-1106-preview",
@@ -500,12 +513,15 @@ def use_gpt_fill_input(tree_str, specific_html, intent, memory):
         temperature=0.0,
         max_tokens=400
     )
+    messages.append({"role": "user",
+        "content": f"Here's your actual task. What should be input into the element represented by the HTML? \nElement HTML: {specific_html}\nCurrent page accessibility tree:\n{tree_str}\nUser intent: {intent}\nMemory store: {memory}"})
 
     result = response.choices[0].message.content
 
     pattern = r"\'\'\'(.*?)\'\'\'"
 
     match = re.search(pattern, result, re.DOTALL)
+    print("GPT FILL OUTPUT")
     print(f"RESULT: {result}")
     if match:
         final_answer = match.group(1).strip()

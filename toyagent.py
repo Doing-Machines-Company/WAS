@@ -634,8 +634,8 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=5, intra_chun
             tracked_information = [process_trackers(page_url, item, trackers) for item in usable]
 
             matched = await match_unique_actions(intrastate_tree, usable, page, flags)
-            print('\n'.join([str('\n'.join([str(i), str(j), str(k)])) for (i, j, k) in matched]))
-            input("LOOK FLAG")
+            # print('\n'.join([str('\n'.join([str(i), str(j), str(k)])) for (i, j, k) in matched]))
+            # input("LOOK FLAG")
             # TODO WE NEED TO ADD DEFAULT DESCRIPTORS FOR RADIO BUTTONS AND CHECKBOXES
             # TODO INJECT STATE INFORMATION FOR CHECKBOXES, INPUT BOXES.ETC
             # els = [item[-1]['html'] for item in matched]
