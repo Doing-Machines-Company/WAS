@@ -375,8 +375,8 @@ def get_intrastate_full(intent, answers, page_desc, memory, model_name="gpt-4-11
     messages.append({"role": "user",
         "content": f"Now here is your actual task. \nTask: {intent}\nSubtasks completed and memory: {memory} \nPage information: \n'''\n{page_desc}\n'''\n\nSubtasks completed and memory: {memory}\nChoose from these answers:\n{answers}"})
 
-    # print("GPT MESSAGE")
-    # print(f"Now here is your actual task. \nTask: {intent}\nSubtasks completed and memory: {memory} \nPage information: \n'''\n{page_desc}\n'''\n\nSubtasks completed and memory: {memory}\nChoose from these answers:\n{answers}")
+    print("GPT MESSAGE")
+    print(f"Now here is your actual task. \nTask: {intent}\nSubtasks completed and memory: {memory} \nPage information: \n'''\n{page_desc}\n'''\n\nSubtasks completed and memory: {memory}\nChoose from these answers:\n{answers}")
 
     response = client.chat.completions.create(
         model=model_name,
