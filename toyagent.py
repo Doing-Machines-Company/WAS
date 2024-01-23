@@ -443,31 +443,70 @@ async def match_unique_actions(node, usable, page, flags):
 async def step_by_xpath(page, xpath, interaction_info, html, trackers):
 
     await page.wait_for_load_state('networkidle')
+
     locator = page.locator(f'xpath={xpath}')
+
+    # print(await locator.evaluate("element => element.outerHTML"))
+    # bounding_box = await locator.bounding_box()
+    # viewport_size = page.viewport_size
+    # print(viewport_size)
+    # input("LOOK AT VIEWPORT SIZE")
+    # if bounding_box:
+    #     center_x = bounding_box['x'] + bounding_box['width'] / 2
+    #     center_y = bounding_box['y'] + bounding_box['height'] / 2
+    #
+    # print(f"BOUNDING BOX: {bounding_box}")
+    # print(f"CENTER: {(center_x, center_y)}")
 
     # count = await locator.count()
 
     if interaction_info == 'link':
         await page.wait_for_load_state('networkidle')
-        await locator.first.click()
+        # if bounding_box:
+        #     print("Mouse click")
+        #     await page.mouse.click(center_x, center_y)
+        # else:
+        await locator.first.hover(force=True)
+        await page.wait_for_load_state('networkidle')
+        await locator.first.click(force=True)
         await page.wait_for_load_state('networkidle')
         trackers[normalize_html(html)] = 'visited' # TODO NEED TO MAKE BETTER, USE HREF???
 
     elif interaction_info == 'button':
         await page.wait_for_load_state('networkidle')
-        await locator.first.click()
+        # if bounding_box:
+        #     print("Mouse click")
+        #     await page.mouse.click(center_x, center_y)
+        # else:
+        await locator.first.hover(force=True)
+        await page.wait_for_load_state('networkidle')
+        await locator.first.click(force=True)
         await page.wait_for_load_state('networkidle')
         trackers[normalize_html(html)] = normalize_url(page.url) # TODO MAKE STATE DEPENDENT, E.G., ADD TO CART ONLY PER PRODUCT, BUT NEXT PAGE DEPDENENT ON MENU
         # TODO USE CURRENT URL AND BUTTON HTML
     elif interaction_info == 'checkbox':
         await page.wait_for_load_state('networkidle')
-        await locator.first.click()
+        # if bounding_box:
+        #     print("Mouse click")
+        #     await page.mouse.click(center_x, center_y)
+        # else:
+        await locator.first.hover(force=True)
+        await page.wait_for_load_state('networkidle')
+        await locator.first.click(force=True)
         await page.wait_for_load_state('networkidle')
         trackers[normalize_html(html)] = 'pressed'
 
     elif interaction_info == 'radio':
         await page.wait_for_load_state('networkidle')
-        await locator.first.click()
+        # if bounding_box:
+        #     print("Mouse click")
+        #     await page.mouse.click(center_x, center_y)
+        # else:
+        print("RADIO RADIO RADIO")
+        print(trackers)
+        await locator.first.hover(force=True)
+        await page.wait_for_load_state('networkidle')
+        await locator.first.click(force=True)
         await page.wait_for_load_state('networkidle')
         trackers[normalize_html(html)] = 'pressed'
 
@@ -490,7 +529,7 @@ async def step_by_xpath(page, xpath, interaction_info, html, trackers):
 
     else:
         print("UNASCRIBED ACTION")
-
+    # input("TONK")
 
 
 def convert_to_url_format(input_string):
@@ -510,7 +549,7 @@ def process_trackers(page_url, item, trackers): # THIS IS SO HARD CODED
     elif interaction_info == 'input' and norm_html in trackers:
         return f"This list of items \'{trackers[norm_html]}\' ALREADY INPUTTED"
     elif interaction_info == 'link' and norm_html in trackers:
-        return f"ALREADY VISITED AND ATTEMPTED"
+        return f"ALREADY VISITED/ATTEMPTED/ENABLED"
     elif interaction_info == 'button' and norm_html in trackers and trackers[norm_html] == page_url:
         return f"ALREADY ATTEMPTED"
     return ''
@@ -625,9 +664,10 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=5, intra_chun
 
             tables = [item['table_context'] for item in usable]
             page_url = normalize_url(page.url)
-            tracked_information = [process_trackers(page_url, item, trackers) for item in usable]
+
 
             matched = await match_unique_actions(intrastate_tree, usable, page, flags)
+            tracked_information = [process_trackers(page_url, item[-1], trackers) for item in usable]
             # print('\n'.join([str('\n'.join([str(i), str(j), str(k)])) for (i, j, k) in matched]))
             # input("LOOK FLAG")
             # TODO WE NEED TO ADD DEFAULT DESCRIPTORS FOR RADIO BUTTONS AND CHECKBOXES
@@ -696,6 +736,8 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=5, intra_chun
                 interaction_info = known_usable[int(index)]['interaction_info']
                 html = known_usable[int(index)]['html']
                 await step_by_xpath(page, xpath, interaction_info, html, trackers)
+                # await step_by_attributes(page, attributes, interaction_info, html, trackers)
+                # await step_by_html(page, interaction_info, html, trackers)
             # continue_flag = input("PRESS ENTER TO CONTINUE")
             # if continue_flag == '':
             #     continue

@@ -19,7 +19,10 @@ async def step_by_xpath(page, xpath, interaction_info):
     await page.wait_for_load_state('networkidle')
     locator = page.locator(f'xpath={xpath}')
 
-    # count = await locator.count()
+    count = await locator.count()
+    print(count)
+    await locator.first.click()
+    input("USE EYES LOOK COUNT")
 
     if interaction_info == 'link':
         await page.wait_for_load_state('networkidle')
