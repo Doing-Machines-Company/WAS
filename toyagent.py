@@ -299,7 +299,8 @@ def chunk_answers(answers, chunk_size):
     return chunked_list
 
 
-def navigate_interstate(start_node, intent, chunk_size=None):
+async def navigate_interstate(page, start_node, intent, chunk_size=None):
+    await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770")
     curr_node = start_node
     for _ in range(10):
         answers = construct_options_from_children(curr_node.children)
@@ -323,6 +324,7 @@ def navigate_interstate(start_node, intent, chunk_size=None):
                 print("ONLY ONE! ")
                 child = get_child_from_index(curr_node, 0)
                 curr_node = child
+                await page.goto(curr_node.url)
             else: # Do recursive in future
                 # TODO ADD OPTION HERE TO ALLOW FOR SEARCH OPTION DURING NAVIGATION PHASE
                 possible_nodes = [get_child_from_index(curr_node, int(result)) for result in possible_results]
@@ -332,6 +334,7 @@ def navigate_interstate(start_node, intent, chunk_size=None):
                     index = int(answer)
                     child = possible_nodes[index]
                     curr_node = child
+                    await page.goto(curr_node.url)
                 else:
                     break
         else:
@@ -344,7 +347,7 @@ def navigate_interstate(start_node, intent, chunk_size=None):
                 curr_node = child
             else:
                 break
-    return curr_node
+    return
 
 
 # interstate_tree = load_interstate_from_file('webpage_MVP_V5.json')
@@ -418,18 +421,18 @@ async def match_unique_actions(node, usable, page, flags):
             if visible_text_list[j].strip() != '': # TODO CASE ON LINKS
                 if flags['section'] == 'shoppingsection':
                     matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", f"ACTION EFFECT: Go to page for {visible_text_list[j]}", usable[j]))
-                else:
-                    if "type=\"checkbox\"" in html_list[j]: # TODO CHOOSE REQUIRED
+                else: # TODO CLEAN UP
+                    if usable[j]['interaction_info'] == 'checkbox': # TODO CHOOSE REQUIRED
                         matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", "ACTION EFFECT: Select VISIBLE TEXT option", usable[j]))
-                    elif "type=\"radio\"" in html_list[j] and "required=\"true\"" in html_list[j]:
+                    elif usable[j]['interaction_info'] == 'checkbox' and "required=\"true\"" in html_list[j]:
                         matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", "ACTION EFFECT: Select VISIBLE TEXT option, MUST CHOOSE ONE OF EACH TYPE", usable[j]))
-                    elif "type=\"radio\"" in html_list[j] in html_list[j]:
+                    elif usable[j]['interaction_info'] == 'checkbox':
                         matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", "ACTION EFFECT: Select VISIBLE TEXT option", usable[j]))
-                    elif "input" in html_list[j] and "required=\"true\"" in html_list[j]:
+                    elif usable[j]['interaction_info'] == 'input' and ("required=\"true\"" in html_list[j] or "required:true" in html_list[j]):
                         matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", f"ACTION EFFECT: Input text for {visible_text_list[j]}, INPUT IS REQUIRED", usable[j]))
-                    elif "input" in html_list[j]:
+                    elif usable[j]['interaction_info'] == 'input':
                         matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", f"ACTION EFFECT: Input text for {visible_text_list[j]}", usable[j])) # TODO TRIVIAL OPTION SELECTS FOR CHECK BOXES AND RADIO BUTTONS
-                    elif visible_text_list[j].strip() != '':
+                    elif usable[j]['interaction_info'] == 'button':
                         matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", "ACTION EFFECT: CLICK VISIBLE TEXT BUTTON", usable[j]))
                     else:
                         matched_edges.append((f"VISIBLE TEXT: UNLABELLED", "ACTION EFFECT: N/A", usable[j]))
@@ -446,67 +449,43 @@ async def step_by_xpath(page, xpath, interaction_info, html, trackers):
 
     locator = page.locator(f'xpath={xpath}')
 
-    # print(await locator.evaluate("element => element.outerHTML"))
-    # bounding_box = await locator.bounding_box()
-    # viewport_size = page.viewport_size
-    # print(viewport_size)
-    # input("LOOK AT VIEWPORT SIZE")
-    # if bounding_box:
-    #     center_x = bounding_box['x'] + bounding_box['width'] / 2
-    #     center_y = bounding_box['y'] + bounding_box['height'] / 2
-    #
-    # print(f"BOUNDING BOX: {bounding_box}")
-    # print(f"CENTER: {(center_x, center_y)}")
-
-    # count = await locator.count()
-
     if interaction_info == 'link':
         await page.wait_for_load_state('networkidle')
-        # if bounding_box:
-        #     print("Mouse click")
-        #     await page.mouse.click(center_x, center_y)
-        # else:
-        await locator.first.hover(force=True)
-        await page.wait_for_load_state('networkidle')
-        await locator.first.click(force=True)
+        await page.evaluate(f"""(xpath) => {{
+                    const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null);
+                    const element = iterator.iterateNext();
+                    if (element) element.click();
+                }}""", xpath)
         await page.wait_for_load_state('networkidle')
         trackers[normalize_html(html)] = 'visited' # TODO NEED TO MAKE BETTER, USE HREF???
 
     elif interaction_info == 'button':
         await page.wait_for_load_state('networkidle')
-        # if bounding_box:
-        #     print("Mouse click")
-        #     await page.mouse.click(center_x, center_y)
-        # else:
-        await locator.first.hover(force=True)
-        await page.wait_for_load_state('networkidle')
-        await locator.first.click(force=True)
+        await page.evaluate(f"""(xpath) => {{
+                    const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null);
+                    const element = iterator.iterateNext();
+                    if (element) element.click();
+                }}""", xpath)
         await page.wait_for_load_state('networkidle')
         trackers[normalize_html(html)] = normalize_url(page.url) # TODO MAKE STATE DEPENDENT, E.G., ADD TO CART ONLY PER PRODUCT, BUT NEXT PAGE DEPDENENT ON MENU
         # TODO USE CURRENT URL AND BUTTON HTML
     elif interaction_info == 'checkbox':
         await page.wait_for_load_state('networkidle')
-        # if bounding_box:
-        #     print("Mouse click")
-        #     await page.mouse.click(center_x, center_y)
-        # else:
-        await locator.first.hover(force=True)
-        await page.wait_for_load_state('networkidle')
-        await locator.first.click(force=True)
+        await page.evaluate(f"""(xpath) => {{
+                    const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null);
+                    const element = iterator.iterateNext();
+                    if (element) element.click();
+                }}""", xpath)
         await page.wait_for_load_state('networkidle')
         trackers[normalize_html(html)] = 'pressed'
 
     elif interaction_info == 'radio':
         await page.wait_for_load_state('networkidle')
-        # if bounding_box:
-        #     print("Mouse click")
-        #     await page.mouse.click(center_x, center_y)
-        # else:
-        print("RADIO RADIO RADIO")
-        print(trackers)
-        await locator.first.hover(force=True)
-        await page.wait_for_load_state('networkidle')
-        await locator.first.click(force=True)
+        await page.evaluate(f"""(xpath) => {{
+            const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null);
+            const element = iterator.iterateNext();
+            if (element) element.click();
+        }}""", xpath)
         await page.wait_for_load_state('networkidle')
         trackers[normalize_html(html)] = 'pressed'
 
@@ -549,7 +528,7 @@ def process_trackers(page_url, item, trackers): # THIS IS SO HARD CODED
     elif interaction_info == 'input' and norm_html in trackers:
         return f"This list of items \'{trackers[norm_html]}\' ALREADY INPUTTED"
     elif interaction_info == 'link' and norm_html in trackers:
-        return f"ALREADY VISITED/ATTEMPTED/ENABLED"
+        return f"ALREADY VISITED/ATTEMPTED/ENABLED/NAVIGATED TO"
     elif interaction_info == 'button' and norm_html in trackers and trackers[norm_html] == page_url:
         return f"ALREADY ATTEMPTED"
     return ''
@@ -599,10 +578,7 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=5, intra_chun
             await step_by_xpath(page, 'id(\"search\")', "input", "<input id=\"search\" type=\"text\" name=\"q\" value=\"\" placeholder=\"Search entire store here...\" class=\"input-text\" maxlength=\"128\" role=\"combobox\" aria-haspopup=\"false\" aria-autocomplete=\"both\" autocomplete=\"off\" aria-expanded=\"false\">", trackers)
             flags['phase'] = 'intrastate_searched'
         else:
-            end_state = navigate_interstate(start_node, intent, chunk_size=inter_chunk)
-            await page.goto(end_state.url)
-            print(f"END URL: {end_state.url}")
-            print(f"END PUBLIC: {end_state.public}")
+            await navigate_interstate(page, start_node, intent, chunk_size=inter_chunk)
         # await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/gourmet-kitchn-breyers-classics-ice-cream-variety-pack-homemade-vanilla-breyers-classic-vanilla-chocolate-strawberry-ice-cream-and-chocolate-truffle-9-pack.html")
         # await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/mofiz-men-s-golf-shirts-short-sleeve-shirts-100-cotton-athletic-shirts-collared-t-shirt-comfortable-polo-shirts.html")
 
@@ -667,7 +643,7 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=5, intra_chun
 
 
             matched = await match_unique_actions(intrastate_tree, usable, page, flags)
-            tracked_information = [process_trackers(page_url, item[-1], trackers) for item in usable]
+            tracked_information = [process_trackers(page_url, item[-1], trackers) for item in matched]
             # print('\n'.join([str('\n'.join([str(i), str(j), str(k)])) for (i, j, k) in matched]))
             # input("LOOK FLAG")
             # TODO WE NEED TO ADD DEFAULT DESCRIPTORS FOR RADIO BUTTONS AND CHECKBOXES
@@ -728,8 +704,8 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=5, intra_chun
                 await page.go_back()
                 await page.wait_for_load_state('networkidle')
             elif int(index) == len(combined) - 1:
-                end_state = navigate_interstate(start_node, intent, chunk_size=inter_chunk)
-                await page.goto(end_state.url) # TODO SOMEHOW PREVENT INFINITE STEPPING
+                await navigate_interstate(page, start_node, intent, chunk_size=inter_chunk)
+                # await page.goto(end_state.url) # TODO SOMEHOW PREVENT INFINITE STEPPING
                 continue
             else:
                 xpath = known_usable[int(index)]['xpath']
