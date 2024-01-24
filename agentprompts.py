@@ -236,7 +236,7 @@ def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
 def should_search(intent):
     messages = [
         {"role": "system",
-         "content": "You are an autonomous agent performing tasks for an user on a webshop given a specific task. I am going to you give the task the user wants to complete, and you are to evaluate whether or not the web shop's search bar should be used. The search bar is only used for searching for products you need to buy. THE SEARCH ONLY WORKS FOR PRODUCTS YOU WANT TO BROWSE AND VIEW. IT DOES NOT NAVIGATE TO PAST ORDERS OR ACCOUNT MANAGEMENT."},
+         "content": "You are an autonomous agent performing tasks for an user on a webshop given a specific task. I am going to you give the task the user wants to complete, and you are to evaluate whether or not the web shop's search bar should be used. The search bar is only used for searching for products you need to buy, view detailed information for, or review. THE SEARCH ONLY WORKS FOR PRODUCTS YOU WANT TO BROWSE AND VIEW. IT DOES NOT NAVIGATE TO PAST ORDERS OR ACCOUNT MANAGEMENT."},
         {"role": "system",
          "content": "You only care about whether or not the search bar of the website should be used. Reason through your answer step-by-step, and give your final answer as '''YES''' or '''NO'''. GIVE ONLY ONE OF THESE AS YOUR FINAL ANSWER AFTER REASONING. "},
         {"role": "system",
@@ -343,7 +343,7 @@ def get_intrastate_v2(intent, answers, page_desc, model_name="gpt-4-1106-preview
     else:
         return (-1, "")
 
-def get_intrastate_full(intent, answers, page_desc, memory, model_name="gpt-4-1106-preview"):
+def get_intrastate_full(intent, questions, page_desc, memory, model_name="gpt-4-1106-preview"):
 
     intrastate_shots = agentprompts["intrastate"]
     messages = [
@@ -354,9 +354,9 @@ def get_intrastate_full(intent, answers, page_desc, memory, model_name="gpt-4-11
         {"role": "system",
          "content": "First generate subtasks to complete the task using only options available to you, and how these subtasks may relate to what is in 'Subtasks completed and memory'. The most recent items in 'Subtasks completed and memory' are stored towards the right of the list. Reason through every single option I give you step-by-step thoughtfully. If the 'Subtasks completed and memory' list contains information, they are relevant for completing the task. Give explanations for why every option I give you may or may not align to completing the task or a subtask. Reason through the 'Page information', if it contains information that may be helpful for completing any of the subtasks, or the task, you must save and return it. Pay close attention to options which let you view more information or navigate. "},
         {"role": "system",
-         "content": "If you think that the task has been completed, and all possible subtasks have been completed and you have no information that is relevant to the task, finish with '''STOP:N/A'''. Pay attention to the current page's description, if any of the information is useful for completing the task or subtasks, store them like this: '''STOP:SUBTASK COMPLETED OR USEFUL INFORMATION''' or '''4:SUBTASK COMPLETED OR USEFUL INFORMATION'''. If MULTIPLE ACTIONS are required in a sequence to complete the task, YOU MUST CHOOSE THE FIRST ACTION THAT HAS NOT BEEN PERFORMED. The EXTRA INFO will tell you if an action has already been performed, pay attention to it. EVERY TIME YOU COMPLETE A TASK IN THE USER INTENT, STORE THAT INFORMATION. IF THERE IS INFORMATION IN THE PAGE INFORMATION THAT WILL HELP YOU COMPLETE THE TASK, YOU MUST STORE IT. YOU MUST STORE PRODUCT NAMES WITH ITS SKU."},
+         "content": "If you think that the task has been completed, and all possible subtasks have been completed and you have no information that is relevant to the task, finish with '''STOP:N/A'''. Pay attention to the current page's description, if any of the information is useful for completing the task or subtasks, store them. If MULTIPLE ACTIONS are required in a sequence to complete the task, YOU MUST CHOOSE THE FIRST ACTION THAT HAS NOT BEEN PERFORMED. The EXTRA INFO will tell you if an action has already been performed, pay attention to it. EVERY TIME YOU COMPLETE A TASK IN THE USER INTENT, STORE THAT INFORMATION. IF THERE IS INFORMATION IN THE PAGE INFORMATION THAT WILL HELP YOU COMPLETE THE TASK, YOU MUST STORE IT. YOU MUST STORE PRODUCT NAMES WITH ITS SKU. If you have visited something, assume that you have stored all important information from it. "},
         {"role": "system",
-         "content": "Here is are a few examples of what your response should look like given their inputs: \n"}
+         "content": "Here is are a few examples of what your response should look like given their inputs, pay attention to when and how information is being stored: \n'''\n"}
     ]
 
     for prompts in intrastate_shots:
@@ -373,10 +373,11 @@ def get_intrastate_full(intent, answers, page_desc, memory, model_name="gpt-4-11
         }
         messages.append(example_response)
     messages.append({"role": "user",
-        "content": f"Now here is your actual task. \nTask: {intent}\nSubtasks completed and memory: {memory} \nPage information: \n'''\n{page_desc}\n'''\n\nSubtasks completed and memory: {memory}\nChoose from these answers:\n{answers}"})
+        "content": f"Now here is your actual task. \nTask: {intent}\nSubtasks completed and memory: {memory} \nPage information: \n'''\n{page_desc}\n'''\n\nChoose from these answers:\n {questions}"})
 
-    print("GPT MESSAGE")
-    print(f"Now here is your actual task. \nTask: {intent}\nSubtasks completed and memory: {memory} \nPage information: \n'''\n{page_desc}\n'''\n\nSubtasks completed and memory: {memory}\nChoose from these answers:\n{answers}")
+    # print("GPT MESSAGE")
+    # print(f"Now here is your actual task. \nTask: {intent}\nSubtasks completed and memory: {memory} \nPage information: \n'''\n{page_desc}\n'''\n\nChoose from these answers:\n {questions}")
+    print(f"Now here is your actual task. \nTask: {intent}\nSubtasks completed and memory: {memory} \nPage information: \n'''\n{page_desc}\n'''\n\nChoose from these answers:\n {questions}")
 
     response = client.chat.completions.create(
         model=model_name,
@@ -516,10 +517,6 @@ def use_gpt_fill_input(tree_str, specific_html, intent, memory):
     pattern = r"\'\'\'(.*?)\'\'\'"
 
     match = re.search(pattern, result, re.DOTALL)
-    print("GPT INPUT")
-    print(f"Here's your actual task. TASKS BEFORE THIS WERE EXAMPLES, NOT YOUR ACTUAL CURRENT TASK. What should be input into the element represented by the HTML? \nACTUAL Element HTML: {specific_html}\nACTUAL Current page accessibility tree:collapsed\nACTUAL Memory store: {memory}\nACTUAL User task: {intent}")
-    print("GPT FILL OUTPUT")
-    print(f"RESULT: {result}")
     if match:
         final_answer = match.group(1).strip()
         return final_answer

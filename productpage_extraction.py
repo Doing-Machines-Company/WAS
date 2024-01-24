@@ -11,6 +11,13 @@ def extract_product_page(html_content):
     if not product_info_div:
         return "Product information not found."
 
+    sku_div = soup.find('div', class_='value', itemprop='sku')
+
+    # Extract the text
+    if sku_div:
+        sku_text = sku_div.text
+        print(f'SKU: {sku_text}')
+
     # Initialize a string to hold all formatted information
     formatted_info = ''
 
@@ -35,6 +42,9 @@ def extract_product_page(html_content):
                 key = ' '.join(cells[0].get_text(strip=True).split())
                 value = ' '.join(cells[1].get_text(strip=True).split())
                 formatted_info += f"{key}: {value}\n"
+
+    if sku_div:
+        formatted_info += f'SKU: {sku_text}\n'  # Add some space between sections
 
     return formatted_info
 

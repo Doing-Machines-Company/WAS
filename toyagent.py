@@ -300,7 +300,8 @@ def chunk_answers(answers, chunk_size):
 
 
 async def navigate_interstate(page, start_node, intent, chunk_size=None):
-    await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770")
+    # TODO SOMETHING BROKEN HERE
+    await page.goto(start_node.url)
     curr_node = start_node
     for _ in range(10):
         answers = construct_options_from_children(curr_node.children)
@@ -319,10 +320,9 @@ async def navigate_interstate(page, start_node, intent, chunk_size=None):
             #     possible_results.append("SEARCH") # TODO ADD OPTION HERE TO ALLOW FOR SEARCH OPTION DURING NAVIGATION PHASE
 
             if len(possible_results) == 0:
-                return curr_node
+                return
             elif len(possible_results) == 1:
-                print("ONLY ONE! ")
-                child = get_child_from_index(curr_node, 0)
+                child = get_child_from_index(curr_node, int(possible_results[0]))
                 curr_node = child
                 await page.goto(curr_node.url)
             else: # Do recursive in future
@@ -335,8 +335,9 @@ async def navigate_interstate(page, start_node, intent, chunk_size=None):
                     child = possible_nodes[index]
                     curr_node = child
                     await page.goto(curr_node.url)
+                    return
                 else:
-                    break
+                    return
         else:
             # print(f"POSSIBLES: {answers}")
             answer = get_interstate(intent, answers, model_name="gpt-4-1106-preview")
@@ -425,7 +426,7 @@ async def match_unique_actions(node, usable, page, flags):
                     if usable[j]['interaction_info'] == 'checkbox': # TODO CHOOSE REQUIRED
                         matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", "ACTION EFFECT: Select VISIBLE TEXT option", usable[j]))
                     elif usable[j]['interaction_info'] == 'checkbox' and "required=\"true\"" in html_list[j]:
-                        matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", "ACTION EFFECT: Select VISIBLE TEXT option, MUST CHOOSE ONE OF EACH TYPE", usable[j]))
+                        matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", f"ACTION EFFECT: Select {visible_text_list[j]} option, MUST CHOOSE ONE OF EACH TYPE", usable[j]))
                     elif usable[j]['interaction_info'] == 'checkbox':
                         matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", "ACTION EFFECT: Select VISIBLE TEXT option", usable[j]))
                     elif usable[j]['interaction_info'] == 'input' and ("required=\"true\"" in html_list[j] or "required:true" in html_list[j]):
@@ -433,9 +434,17 @@ async def match_unique_actions(node, usable, page, flags):
                     elif usable[j]['interaction_info'] == 'input':
                         matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", f"ACTION EFFECT: Input text for {visible_text_list[j]}", usable[j])) # TODO TRIVIAL OPTION SELECTS FOR CHECK BOXES AND RADIO BUTTONS
                     elif usable[j]['interaction_info'] == 'button':
-                        matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", "ACTION EFFECT: CLICK VISIBLE TEXT BUTTON", usable[j]))
-                    else:
-                        matched_edges.append((f"VISIBLE TEXT: UNLABELLED", "ACTION EFFECT: N/A", usable[j]))
+                        matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", f"ACTION EFFECT: CLICK {visible_text_list[j]} BUTTON", usable[j]))
+                    elif usable[j]['interaction_info'] == 'radio' and 'required="true"' in html_list[j]:
+                        matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", "ACTION EFFECT: Select VISIBLE TEXT option, MUST CHOOSE ONE OF EACH TYPE", usable[j]))
+                    elif usable[j]['interaction_info'] == 'radio':
+                        matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", f"ACTION EFFECT: Select {visible_text_list[j]}", usable[j]))
+                    elif usable[j]['interaction_info'] == 'link':
+                        matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", f"ACTION EFFECT: Go to page for {visible_text_list[j]}", usable[j]))
+            else:
+                # print("UNMATCHED")
+                # print(usable[j])
+                matched_edges.append((f"VISIBLE TEXT: UNLABELLED", "ACTION EFFECT: N/A", usable[j]))
 
             # else:
             #     print("WHAT THE FUCK")
@@ -447,35 +456,39 @@ async def step_by_xpath(page, xpath, interaction_info, html, trackers):
 
     await page.wait_for_load_state('networkidle')
 
+
     locator = page.locator(f'xpath={xpath}')
 
     if interaction_info == 'link':
         await page.wait_for_load_state('networkidle')
-        await page.evaluate(f"""(xpath) => {{
-                    const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null);
-                    const element = iterator.iterateNext();
-                    if (element) element.click();
-                }}""", xpath)
+        # await page.evaluate(f"""(xpath) => {{
+        #             const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null);
+        #             const element = iterator.iterateNext();
+        #             if (element) element.click();
+        #         }}""", xpath)
+        await locator.first.click()
         await page.wait_for_load_state('networkidle')
         trackers[normalize_html(html)] = 'visited' # TODO NEED TO MAKE BETTER, USE HREF???
 
     elif interaction_info == 'button':
         await page.wait_for_load_state('networkidle')
-        await page.evaluate(f"""(xpath) => {{
-                    const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null);
-                    const element = iterator.iterateNext();
-                    if (element) element.click();
-                }}""", xpath)
+        # await page.evaluate(f"""(xpath) => {{
+        #             const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null);
+        #             const element = iterator.iterateNext();
+        #             if (element) element.click();
+        #         }}""", xpath)
+        await locator.first.click()
         await page.wait_for_load_state('networkidle')
         trackers[normalize_html(html)] = normalize_url(page.url) # TODO MAKE STATE DEPENDENT, E.G., ADD TO CART ONLY PER PRODUCT, BUT NEXT PAGE DEPDENENT ON MENU
         # TODO USE CURRENT URL AND BUTTON HTML
     elif interaction_info == 'checkbox':
         await page.wait_for_load_state('networkidle')
-        await page.evaluate(f"""(xpath) => {{
-                    const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null);
-                    const element = iterator.iterateNext();
-                    if (element) element.click();
-                }}""", xpath)
+        # await page.evaluate(f"""(xpath) => {{
+        #             const iterator = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null);
+        #             const element = iterator.iterateNext();
+        #             if (element) element.click();
+        #         }}""", xpath)
+        await locator.first.click()
         await page.wait_for_load_state('networkidle')
         trackers[normalize_html(html)] = 'pressed'
 
@@ -508,7 +521,6 @@ async def step_by_xpath(page, xpath, interaction_info, html, trackers):
 
     else:
         print("UNASCRIBED ACTION")
-    # input("TONK")
 
 
 def convert_to_url_format(input_string):
@@ -585,8 +597,18 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=5, intra_chun
         # await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/")
 
         for iteration in range(15):
-            accessibility_snapshot = await page.accessibility.snapshot()
-            tree_str = parse_accessibility_tree(accessibility_snapshot)
+            # page_url = page.url
+            # print(page_url)
+            # await page.goto(page_url)
+            #
+
+            # print(tree_str_new)
+
+            # await page.goto(page.url) # Somehow going to its own URL gets the actuall accessibility tree
+            tree_str_new = parse_accessibility_tree(await page.accessibility.snapshot()) # just to get page to refresh/reload so url updates
+            tree_str_new = parse_accessibility_tree(await page.accessibility.snapshot())
+            # print(tree_str_new)
+            # input("USE EYES HERE!")
 
             if "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/edit" in page.url:  # some are sublinks need better system
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/myaccountedit.json')
@@ -609,10 +631,10 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=5, intra_chun
             elif "ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/newsletter/manage" in page.url:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/mynewsletter.json')
                 flags['section'] = 'mynewsletter'
-            elif url_depth(aggressive_normalize_url(page.url)) == 1 and 'SKU' in tree_str:
+            elif url_depth(aggressive_normalize_url(page.url)) == 1 and 'SKU' in tree_str_new:
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/productpage.json')
                 flags['section'] = 'productpage'
-            elif "Order #" in tree_str and "Order Date" in tree_str and "Print Order" in tree_str: # TODO SCRAPE SOMETHING
+            elif "Order #" in tree_str_new and "Order Date" in tree_str_new and "Print Order" in tree_str_new: # TODO SCRAPE SOMETHING
                 intrastate_tree = load_intrastate_from_json('intrastate_trees/myaccountedit.json')
                 flags['section'] = 'orderpage'
             elif "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/checkout/cart" in page.url: # TODO SCRAPE SOMETHING
@@ -705,6 +727,7 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=5, intra_chun
                 await page.wait_for_load_state('networkidle')
             elif int(index) == len(combined) - 1:
                 await navigate_interstate(page, start_node, intent, chunk_size=inter_chunk)
+                await page.wait_for_load_state('networkidle')
                 # await page.goto(end_state.url) # TODO SOMEHOW PREVENT INFINITE STEPPING
                 continue
             else:
@@ -712,6 +735,7 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=5, intra_chun
                 interaction_info = known_usable[int(index)]['interaction_info']
                 html = known_usable[int(index)]['html']
                 await step_by_xpath(page, xpath, interaction_info, html, trackers)
+                await page.wait_for_load_state('networkidle')
                 # await step_by_attributes(page, attributes, interaction_info, html, trackers)
                 # await step_by_html(page, interaction_info, html, trackers)
             # continue_flag = input("PRESS ENTER TO CONTINUE")
@@ -727,5 +751,11 @@ flags = {'section': 'None', 'phase': 'navigation_unsearched'}  # RESET EVERY NAV
 trackers = {}
 intent = "Look at my past orders and find my most recent purchase of a lamp or screen protector, then rate the product with 3 stars, using my nickname GamingEmma."
 intent = "leave a 3 star review for the first lamp you find on the shop, using my nickname GamingEmma"
+intent = "find the 45W Super Fast Charger Type C,Samsung Fast Charger for Samsung Galaxy S22 Ultra/S22+/S22/S21 Ultra/S21 Plus/S21/S20/S20 Ultra/Note 20/S10,USB-C Fast Charging Wall Charger with 6.6FT USB C-C Cable Cord with SKU B09FRXSNR2 and leave a review"
+# TODO FOR SOME REASON REVIEW BUTTON HIDDEN????
+intent = "find the charger section of the website, do not search"
+# intent = "finds a nintentdo game cartridge that holds at least 13 games"
+# intent = "find me the most expensive lamp"
+intent = "find the most expensive thing I've bought in 2023 and leave a review saying it's too expensive"
 # intent = "find cheddar cheese and leave a 3 star review for it, using my nickname GamingEmma"
 asyncio.run(do_task(interstate_tree, intent, flags, trackers, inter_chunk=10, intra_chunk=None))

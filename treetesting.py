@@ -78,7 +78,8 @@ async def main():
         # # print(page_html)
         # body = extract_product_page(page_html)
         # print(body)
-        link = "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/floor-lamps-for-bedrooms-tall-traditional-standing-lamp-with-leaves-design-ambimall-rustic-tall-pole-lamps-for-living-room-office-reading-60-rustic-upright-floor-lights-with-linen-lampshade.html"
+        # input("LOOK")
+        link = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/45w-super-fast-charger-type-c-samsung-fast-charger-for-samsung-galaxy-s22-ultra-s22-s22-s21-ultra-s21-plus-s21-s20-s20-ultra-note-20-s10-usb-c-fast-charging-wall-charger-with-6-6ft-usb-c-c-cable-cord.html'
         await page.goto(link)
 
 
@@ -87,8 +88,6 @@ async def main():
 
         page_tree = parse_accessibility_tree(await page.accessibility.snapshot())
         print(page_tree)
-        await step_by_xpath(page, 'id("Rating_4")', 'radio')
-        await page.wait_for_load_state('networkidle')
         input("TNK")
 
         # print(page_tree)
