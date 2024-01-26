@@ -82,13 +82,14 @@ async def main():
         link = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/45w-super-fast-charger-type-c-samsung-fast-charger-for-samsung-galaxy-s22-ultra-s22-s22-s21-ultra-s21-plus-s21-s20-s20-ultra-note-20-s10-usb-c-fast-charging-wall-charger-with-6-6ft-usb-c-c-cable-cord.html'
         await page.goto(link)
 
+        while True:
+            await page.wait_for_load_state('networkidle')
+            page_tree = parse_accessibility_tree(await page.accessibility.snapshot())
+            print(page_tree)
+            flag = input("TNK")
 
-        await page.wait_for_load_state('networkidle')
-        input("LOOK")
-
-        page_tree = parse_accessibility_tree(await page.accessibility.snapshot())
-        print(page_tree)
-        input("TNK")
+            if flag != '':
+                break
 
         # print(page_tree)
 asyncio.run(main())

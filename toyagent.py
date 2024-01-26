@@ -796,5 +796,6 @@ def do_thing(intent):
 
 
 
-intent = "find me five potato chip options"
+# intent = "find me five potato chip options"
+intent = "buy me a medium black shiny padded winter coat"
 do_thing(intent)

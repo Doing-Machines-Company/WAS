@@ -2,7 +2,6 @@ from openai import OpenAI
 import os
 import re
 import json
-from llama_cpp import Llama
 
 
 api_key = os.getenv('OPENAI_API_KEY')
