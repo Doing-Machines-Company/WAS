@@ -312,7 +312,7 @@ async def navigate_interstate(page, start_node, intent, chunk_size=None):
 
             for chunk in chunked_questions:
                 answer = get_interstate(intent, chunk, model_name="gpt-3.5-turbo-1106")
-                if answer != "FAILURE" and answer != "N/A":
+                if answer != "FAILURE" and answer != "N/A" and answer != "FLAG 1":
                     possible_results.append(answer)
 
             # if flags['phase'] == 'navigation_unsearched':
@@ -426,7 +426,7 @@ async def match_unique_actions(node, usable, page, flags):
                     if usable[j]['interaction_info'] == 'checkbox': # TODO CHOOSE REQUIRED
                         matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", "ACTION EFFECT: Select VISIBLE TEXT option", usable[j]))
                     elif usable[j]['interaction_info'] == 'checkbox' and "required=\"true\"" in html_list[j]:
-                        matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", f"ACTION EFFECT: Select {visible_text_list[j]} option, MUST CHOOSE ONE OF EACH TYPE", usable[j]))
+                        matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", f"ACTION EFFECT: Select {visible_text_list[j]} option, REQUIRED TO CHOOSE ONE OF EACH TYPE", usable[j])) # TODO CHANGE TO REQUIRED
                     elif usable[j]['interaction_info'] == 'checkbox':
                         matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", "ACTION EFFECT: Select VISIBLE TEXT option", usable[j]))
                     elif usable[j]['interaction_info'] == 'input' and ("required=\"true\"" in html_list[j] or "required:true" in html_list[j]):
@@ -436,7 +436,7 @@ async def match_unique_actions(node, usable, page, flags):
                     elif usable[j]['interaction_info'] == 'button':
                         matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", f"ACTION EFFECT: CLICK {visible_text_list[j]} BUTTON", usable[j]))
                     elif usable[j]['interaction_info'] == 'radio' and 'required="true"' in html_list[j]:
-                        matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", "ACTION EFFECT: Select VISIBLE TEXT option, MUST CHOOSE ONE OF EACH TYPE", usable[j]))
+                        matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", f"ACTION EFFECT: Select {visible_text_list[j]} option, REQUIRED TO CHOOSE ONE OF EACH TYPE", usable[j]))
                     elif usable[j]['interaction_info'] == 'radio':
                         matched_edges.append((f"VISIBLE TEXT: {visible_text_list[j]}", f"ACTION EFFECT: Select {visible_text_list[j]}", usable[j]))
                     elif usable[j]['interaction_info'] == 'link':
@@ -596,7 +596,7 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=5, intra_chun
 
         # await page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/")
 
-        for iteration in range(15):
+        for iteration in range(25):
             # page_url = page.url
             # print(page_url)
             # await page.goto(page_url)
@@ -697,9 +697,9 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=5, intra_chun
             if flags['section'] == "orderpage":
                 combined.append(('VISIBLE TEXT: Go back to my orders page', 'ACTION EFFECT: Go back to page showing all user orders'))
             elif flags['section'] == "productpage":
-                combined.append(('VISIBLE TEXT: Go back to product category/query result page for products', 'ACTION EFFECT: Go back to product category/query result page for products. Use as last resort.'))
+                combined.append(('VISIBLE TEXT: Go back to product category/query result page for products', 'ACTION EFFECT: Go back to product category/query result page for products related to current product. '))
 
-            combined.append(('VISIBLE TEXT: Find other site sections or functionality', 'ACTION EFFECT: Discover other site functionality if other options and current page description definitely not relevant to task completion'))
+            combined.append(('VISIBLE TEXT: Find other site sections or functionality', 'ACTION EFFECT: Discover other site functionality if other options and current page description definitely not relevant to task completion. Use as last resort.'))
             question_for_gpt = [f"{i}) {item}\n" for i, item in enumerate(combined)]
             desc = await grab_description(flags, page)
             (index, retrieved_info) = get_intrastate_full(intent, '\n'.join(question_for_gpt), desc, saved_info, model_name="gpt-4-1106-preview") # TODO ADD TRACKERS FOR ORDERSPAGE.ETC GENERALISE AS MUCH AS POSSIBLE
@@ -712,7 +712,7 @@ async def do_task(start_node, intent, flags, trackers, inter_chunk=5, intra_chun
             print(f"INDEX: {index}, INFO: {retrieved_info}")
             print(f"ALL MEMORY: {saved_info}")
             if iteration != 0 and index == -1:
-                # input("STOPPING!")
+                input("STOPPING!")
                 exit()
 
             flags['phase'] = 'intrastate_unsearched'
@@ -754,8 +754,47 @@ intent = "leave a 3 star review for the first lamp you find on the shop, using m
 intent = "find the 45W Super Fast Charger Type C,Samsung Fast Charger for Samsung Galaxy S22 Ultra/S22+/S22/S21 Ultra/S21 Plus/S21/S20/S20 Ultra/Note 20/S10,USB-C Fast Charging Wall Charger with 6.6FT USB C-C Cable Cord with SKU B09FRXSNR2 and leave a review"
 # TODO FOR SOME REASON REVIEW BUTTON HIDDEN????
 intent = "find the charger section of the website, do not search"
-# intent = "finds a nintentdo game cartridge that holds at least 13 games"
-# intent = "find me the most expensive lamp"
-intent = "find the most expensive thing I've bought in 2023 and leave a review saying it's too expensive"
-# intent = "find cheddar cheese and leave a 3 star review for it, using my nickname GamingEmma"
-asyncio.run(do_task(interstate_tree, intent, flags, trackers, inter_chunk=10, intra_chunk=None))
+
+
+def do_thing(intent):
+    asyncio.run(do_task(interstate_tree, intent, flags, trackers, inter_chunk=10, intra_chunk=None))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+intent = "find me five potato chip options"
+do_thing(intent)

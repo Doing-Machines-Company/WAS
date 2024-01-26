@@ -169,7 +169,7 @@ def get_interstate_old(intent, answers, model_name="gpt-4-1106-preview"):
 def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
     interstate_shots = agentprompts["interstate"]
 
-    print(f"INTENT: {intent}")
+    # print(f"INTENT: {intent}")
     messages = [
         {"role": "system",
          "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task, and an enumerated set of possible answers. Each answer is a list of functionalities associated with a separate web page. Your are to choose a web page which best fits the intended goal, or is needed or contains information to help you achieve your goal. "},
@@ -180,7 +180,7 @@ def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
         {"role": "system",
          "content": "Here are a few examples of what your response should look like given their inputs."}
     ]
-    print("INTERSTATE CHOICES")
+    # print("INTERSTATE CHOICES")
 
     for prompts in interstate_shots:
         example_message = {
@@ -198,7 +198,7 @@ def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
 
 
     formatted_answers = '\n'.join(answers)
-    print(formatted_answers)
+    # print(formatted_answers)
 
     messages.append({"role": "user",
                      "name": "user",
@@ -215,7 +215,7 @@ def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
     )
 
     result = response.choices[0].message.content
-    print(f"GPT RAW RETURN: {result}")
+    # print(f"GPT RAW RETURN: {result}")
 
     pattern1 = r"\'\'\'(\d+)\'\'\'"
     pattern2 = r"\`\`\`(\d+)\`\`\`"
@@ -230,8 +230,8 @@ def get_interstate(intent, answers, model_name="gpt-4-1106-preview"):
         final_answer = match2.group(1).strip()
         return final_answer
     else:
-        print("OH FUCK! ")
-        return "FAILURE"
+        # print("OH FUCK! ")
+        return "FLAG 1"
 
 def should_search(intent):
     messages = [
@@ -343,7 +343,7 @@ def get_intrastate_v2(intent, answers, page_desc, model_name="gpt-4-1106-preview
     else:
         return (-1, "")
 
-def get_intrastate_full(intent, questions, page_desc, memory, model_name="gpt-4-1106-preview"):
+def get_intrastate_full_old(intent, questions, page_desc, memory, model_name="gpt-4-1106-preview"):
 
     intrastate_shots = agentprompts["intrastate"]
     messages = [
@@ -354,7 +354,7 @@ def get_intrastate_full(intent, questions, page_desc, memory, model_name="gpt-4-
         {"role": "system",
          "content": "First generate subtasks to complete the task using only options available to you, and how these subtasks may relate to what is in 'Subtasks completed and memory'. The most recent items in 'Subtasks completed and memory' are stored towards the right of the list. Reason through every single option I give you step-by-step thoughtfully. If the 'Subtasks completed and memory' list contains information, they are relevant for completing the task. Give explanations for why every option I give you may or may not align to completing the task or a subtask. Reason through the 'Page information', if it contains information that may be helpful for completing any of the subtasks, or the task, you must save and return it. Pay close attention to options which let you view more information or navigate. "},
         {"role": "system",
-         "content": "If you think that the task has been completed, and all possible subtasks have been completed and you have no information that is relevant to the task, finish with '''STOP:N/A'''. Pay attention to the current page's description, if any of the information is useful for completing the task or subtasks, store them. If MULTIPLE ACTIONS are required in a sequence to complete the task, YOU MUST CHOOSE THE FIRST ACTION THAT HAS NOT BEEN PERFORMED. The EXTRA INFO will tell you if an action has already been performed, pay attention to it. EVERY TIME YOU COMPLETE A TASK IN THE USER INTENT, STORE THAT INFORMATION. IF THERE IS INFORMATION IN THE PAGE INFORMATION THAT WILL HELP YOU COMPLETE THE TASK, YOU MUST STORE IT. YOU MUST STORE PRODUCT NAMES WITH ITS SKU. If you have visited something, assume that you have stored all important information from it. "},
+         "content": "If you think that the task has been completed, and all possible subtasks have been completed and you have no information that is relevant to the task, finish with '''STOP:N/A'''. If you have visited something, assume that you have stored all important information from it. If any of the options say 'REQUIRED' in their 'ACTION EFFECT', you must choose them if they are relevant to your task. Pay attention to the current page's description, if any of the information is useful for completing the task or subtasks, store them. If MULTIPLE ACTIONS are required in a sequence to complete the task, YOU MUST CHOOSE THE FIRST ACTION THAT HAS NOT BEEN PERFORMED. The EXTRA INFO will tell you if an action has already been performed, pay attention to it. EVERY TIME YOU COMPLETE A TASK IN THE USER INTENT, STORE THAT INFORMATION. IF THERE IS INFORMATION IN THE PAGE INFORMATION THAT WILL HELP YOU COMPLETE THE TASK, YOU MUST STORE IT. YOU MUST STORE PRODUCT NAMES WITH ITS SKU. "},
         {"role": "system",
          "content": "Here is are a few examples of what your response should look like given their inputs, pay attention to when and how information is being stored: \n'''\n"}
     ]
@@ -377,7 +377,7 @@ def get_intrastate_full(intent, questions, page_desc, memory, model_name="gpt-4-
 
     # print("GPT MESSAGE")
     # print(f"Now here is your actual task. \nTask: {intent}\nSubtasks completed and memory: {memory} \nPage information: \n'''\n{page_desc}\n'''\n\nChoose from these answers:\n {questions}")
-    print(f"Now here is your actual task. \nTask: {intent}\nSubtasks completed and memory: {memory} \nPage information: \n'''\n{page_desc}\n'''\n\nChoose from these answers:\n {questions}")
+    # print(f"Now here is your actual task. \nTask: {intent}\nSubtasks completed and memory: {memory} \nPage information: \n'''\n{page_desc}\n'''\n\nChoose from these answers:\n {questions}")
 
     response = client.chat.completions.create(
         model=model_name,
@@ -405,6 +405,71 @@ def get_intrastate_full(intent, questions, page_desc, memory, model_name="gpt-4-
         return (match2.group(1).strip(), match2.group(2).strip())
     else:
         return (-1, "")
+
+
+def get_intrastate_full(intent, questions, page_desc, memory, model_name="gpt-4-1106-preview"):
+
+    intrastate_shots = agentprompts["intrastate"]
+    messages = [
+        {"role": "system",
+         "content": "You are an autonomous agent performing tasks for an user. I am going to give you a task. Each answer represents an action being taken on the same web page. If the action has an effect description called ACTION EFFECT, pay attention to it. You may need to explore to more optimal options. "},
+        {"role": "system",
+         "content": "You must first pay attention ACTION EFFECTS in each of the options I give you, especially navigation ACTION EFFECTS. All dates are in the format of MM/DD/YY. If there is EXTRA INFORMATION may provide more context. "},
+        {"role": "system",
+         "content": "First generate subtasks to complete the task using only options available to you, and how these subtasks may relate to what is in 'Subtasks completed and memory'. The most recent items in 'Subtasks completed and memory' are stored towards the right of the list. Reason through every single option I give you step-by-step thoughtfully. If the 'Subtasks completed and memory' list contains information, they are relevant for completing the task. Give explanations for why every option I give you may or may not align to completing the task or a subtask. Reason through the 'Page information', if it contains information that may be helpful for completing any of the subtasks, or the task, you must save and return it. Pay close attention to options which let you view more information or navigate. "},
+        {"role": "system",
+         "content": "If you think that the task has been completed, and all possible subtasks have been completed and you have no information that is relevant to the task, finish with '''STOP:N/A'''. If you have visited something, assume that you have stored all important information from it. If any of the options say 'REQUIRED' in their 'ACTION EFFECT', you must choose them if they are relevant to your task. Only the EXTRA INFO will tell you if an action has already been performed, pay attention to it. If MULTIPLE ACTIONS are required in a sequence to complete the task, choose the first uncompleted task. EVERY TIME YOU COMPLETE A TASK OR SUBTASK, INCLUDE THE COMPLETED TASK OR SUBTASK IN YOUR REPLY. IF THERE IS INFORMATION IN THE PAGE INFORMATION THAT WILL HELP YOU COMPLETE THE TASK, YOU MUST INCLUDE THIS INFORMATION IN YOUR REPLY. YOU MUST INCLUDE PRODUCT NAMES WITH ITS SKU. YOU MUST REPLY WITH INFORMATION RELEVANT TO OR HELPFUL FOR THE TASK. If there is a potentially better answer that an option allows you to access, and that option does not have VISITED/ATTEMPTED in its ACTION EFFECT, you MUST choose that option. Assume you have all useful information from options with VISITED/ATTEMPTED in their ACTION EFFECT. "},
+        {"role": "system",
+         "content": "Here is are a few examples of what your response should look like given their inputs, pay attention to when and how information is being stored: \n'''\n"}
+    ]
+
+    for prompts in intrastate_shots:
+        example_message = {
+            "role": "system",
+            "name": "example_user",
+            "content": f"EXAMPLE: Intent: {prompts['intent']}\nSubtasks completed and memory: {prompts['memory']} \nPage information: '''\n{prompts['desc']}\n'''\n\nChoose from these answers:\n {prompts['question']}"
+        }
+        messages.append(example_message)
+        example_response = {
+            "role": "system",
+            "name": "example_agent",
+            "content": f"{prompts['answer']}\n'''\n"
+        }
+        messages.append(example_response)
+    messages.append({"role": "user",
+        "content": f"Now here is your actual task. \nIntent: {intent}\nSubtasks completed and memory: {memory} \nPage information: \n'''\n{page_desc}\n'''\n\nChoose from these answers:\n {questions}"})
+
+    # print("GPT MESSAGE")
+    # print(f"Now here is your actual task. \nTask: {intent}\nSubtasks completed and memory: {memory} \nPage information: \n'''\n{page_desc}\n'''\n\nChoose from these answers:\n {questions}")
+    print(f"Now here is your actual task. \nIntent: {intent}\nSubtasks completed and memory: {memory} \nPage information: \n'''\n{page_desc}\n'''\n\nChoose from these answers:\n {questions}")
+
+    response = client.chat.completions.create(
+        model=model_name,
+        # model="gpt-3.5-turbo-1106",
+        messages=messages,
+        temperature=0,
+        max_tokens=1500,
+        # top_p=0,
+        seed=12345678
+    )
+
+    result = response.choices[0].message.content
+    print(f"GPT RAW RETURN: {result}")
+
+    pattern1 = r"\'\'\'STOP:(.*)\'\'\'"
+    pattern2 = r"\'\'\'(\d+):(.*)\'\'\'"
+
+
+    match1 = re.search(pattern1, result, re.DOTALL)
+    match2 = re.search(pattern2, result, re.DOTALL)
+
+    if match1:
+        return (-1, match1.group(1).strip())
+    elif match2:
+        return (match2.group(1).strip(), match2.group(2).strip())
+    else:
+        return (-1, "")
+
 
 def get_intrastate(intent, answers, current_tree, model_name="gpt-4-1106-preview"):
     print("CURR TREE")
@@ -452,7 +517,7 @@ def get_intrastate(intent, answers, current_tree, model_name="gpt-4-1106-preview
     )
 
     result = response.choices[0].message.content
-    print(f"GPT RAW RETURN: {result}")
+    # print(f"GPT RAW RETURN: {result}")
 
     pattern1 = r"\'\'\'(\d+)\'\'\'"
     pattern2 = r"\`\`\`(\d+)\`\`\`"
@@ -467,8 +532,8 @@ def get_intrastate(intent, answers, current_tree, model_name="gpt-4-1106-preview
         final_answer = match2.group(1).strip()
         return final_answer
     else:
-        print("OH FUCK! ")
-        return "FAILURE"
+        # print("OH FUCK! ")
+        return ""
 
 def use_gpt_fill_input(tree_str, specific_html, intent, memory):
     intrastate_shots = agentprompts["fill"]
@@ -513,7 +578,8 @@ def use_gpt_fill_input(tree_str, specific_html, intent, memory):
     )
 
     result = response.choices[0].message.content
-
+    print("FILL RESPONSE")
+    print(result)
     pattern = r"\'\'\'(.*?)\'\'\'"
 
     match = re.search(pattern, result, re.DOTALL)
@@ -521,9 +587,9 @@ def use_gpt_fill_input(tree_str, specific_html, intent, memory):
         final_answer = match.group(1).strip()
         return final_answer
     else:
-        return "FAILURE"
+        return ""
 
-    return "FAILURE"
+    return ""
 
 
 def geintrastate_type(intent, answers, model_name="gpt-4-1106-preview"):
