@@ -15,33 +15,6 @@ with open('agentprompts_fewshot.json', 'r') as file:
 
 
 
-def interstate_filter(intent, choice):
-    llm = Llama(model_path="./mistral-7b-instruct-v0.2.Q5_K_M.gguf",
-                chat_format="llama-2")  # Set chat_format according to the model you are using
-
-    messages = [
-        {"role": "system",
-         "content": "You are an assitant tasked with filtering out irrelevant information for an user on a website by doing Question and Answer tasks. I am going to give you a task, and a list of functionalities for a web page. "},
-        {"role": "system",
-         "content": "Tell me if this list of functionalities can help me accomplish the task. "},
-        {"role": "system",
-         "content": "Reason through every single option I give you step-by-step thoughtfully. Your final reply can only be '''YES''' or '''NO'''."},
-        {"role": "user",
-         "content": f"Task: Buy milk\nFunctionalities: [Change password, change email, change address, view eggs, view chicken, view dairy]"},
-        {"role": "assistant",
-         "content": "The user needs to buy milk. Milk is a dairy. This option allows me to view dairy. So hence my final answer is: \n'''YES'''."},
-        {"role": "user",
-         "content": f"Task: Sign up for newsletter\nFunctionalities: [Change password, change email, change address, view eggs, view chicken, view dairy]"},
-        {"role": "assistant",
-         "content": "While account options are mentioned in this list of functionalities, the newsletter is not mentioned. So hence my final answer is: \n'''NO'''."},
-        {"role": "user",
-         "content": f"Task: {intent}\nFunctionalities: {choice}"}
-    ]
-
-    output = llm.create_chat_completion(messages=messages, temperature=0.0)
-    return output['choices'][0]['message']['content']
-
-
 def get_interstate_instruct(intent, answers):
     interstate_shots = agentprompts["interstate"]
     messages = [
