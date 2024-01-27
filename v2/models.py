@@ -35,7 +35,7 @@ class Click(ActionBase):
         return f"Click[{self.elem_xpath}]"
 
 # all actions
-# Action = Stop | Click[xpath_str] | Input[xpath_str, input_str]
+# Action = Stop | Click[xpath_str] | Input[xpath_str, input_str] | GOTO[url_str]
 Action = Union[Stop, Click]
 
 Model = str
@@ -54,7 +54,7 @@ class Agent(ABC):
 
     # maybe prompt the model, a response from the model
     @abstractmethod
-    def get_next_action(self) -> Action:
+    def get_next_action(self) -> Action: # Needs some sense of current task
         pass
 
     # forget your memory (if you have any)

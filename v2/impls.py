@@ -41,3 +41,48 @@ class PromptingSummarizing(Agent):
     def get_next_action(self) -> Action:
         res = self.prompt()
         return self.parse_response(res)
+
+class Action:
+    pass
+class InteractionAgent(Agent):
+    def __init__(self, intent : str, starting_observation : PageObservation):
+        self.intent = intent
+
+    def register_action(action : Action, new_observation : PageObservation):
+        # Should really do nothing for this agent
+        pass
+
+
+    def get_next_action(self, cur_obs : PageObservation) -> Action:
+        # TODO Get URL from scrape
+        pass
+
+
+class MemorizingAgent(Agent):
+    def __init__(self, intent: str, starting_observation: PageObservation):
+        self.intent = intent
+        self.old_observation = None
+        self.newer_observation = starting_observation
+
+    def register_action(action: Action, new_observation: PageObservation):
+        # TODO GET RELEVANT KNOWLEDGE FROM ACTION and OBSERVATION DIFFERENCES
+        pass
+
+    def get_next_action(self, cur_obs: PageObservation) -> Action:
+        self.old_observation = self.newer_observation
+        self.newer_observation = cur_obs
+        pass
+
+
+class URLAgent(Agent):
+    def __init__(self, intent : str, starting_observation : PageObservation):
+        self.intent = intent
+
+    def register_action(action : Action, new_observation : PageObservation):
+        # Should really do nothing for this agent
+        pass
+
+    def get_next_action(self, cur_obs: PageObservation) -> Action:
+        # TODO Get URL from scrape, NEEDS TO KNOW WHAT HAS BEEN DONE
+        # TODO NEEDS TO GRAB FROM WEB DRIVER OR ENVIRONMENT
+        pass
