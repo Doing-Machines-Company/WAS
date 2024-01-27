@@ -46,14 +46,14 @@ def get_interstate_instruct(intent, answers):
         messages.append({"role": "user",
                          "content": f"Now here's your actual task. \nTask: {intent}\nChoose from these answers:\n {formatted_answers}"})
 
-        response = client.completions.create(
-            model="gpt-3.5-turbo-instruct",
-            messages=messages,
-            temperature=0,
-            max_tokens=1500,
-            # top_p=0,
-            seed=88888888
-        )
+    response = client.completions.create(
+        model="gpt-3.5-turbo-instruct",
+        messages=messages,
+        temperature=0,
+        max_tokens=1500,
+        # top_p=0,
+        seed=88888888
+    )
 
 
     result = response.choices[0].message.content
