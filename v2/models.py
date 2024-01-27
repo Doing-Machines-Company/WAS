@@ -1,5 +1,5 @@
 from __future__ import annotations
-from abc import ABC, abstractmethod, classmethod
+from abc import ABC, abstractmethod
 from typing import Any, Optional, Union
 
 # Terminology:
@@ -70,10 +70,9 @@ class WebDriver(ABC):
     def __init__(self, agent, knowledge_base: Any):
         self.agent = agent
         self.knowledge_base = knowledge_base
-
-    @abstractmethod
-    def init(self, intent: str, starting_url: str):
-        pass
+    # @abstractmethod
+    # def init(self, intent: str, starting_url: str):
+    #     pass
 
     @abstractmethod
     def observe_state() -> PageObservation:
