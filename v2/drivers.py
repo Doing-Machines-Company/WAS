@@ -2,6 +2,7 @@ import re
 from playwright.sync_api import sync_playwright
 from models import WebDriver, Action
 from models import PageObservation
+from impls import *
 class AxObservation(PageObservation):
     def __init__(self, axtree):
         self.axtree = axtree
@@ -102,9 +103,12 @@ class AxObservation(PageObservation):
             tree_str += f"{node['indent']}[{node['nodeId']}] {node['role']} {repr(node['name'])} " + " ".join(node["properties"]) + "\n"
         return tree_str
 class MyDriver(WebDriver):
-    def __init__(self, agent, knowledge_base, client): 
+    def __init__(self, agent, knowledge_base, client):
         super().__init__(agent, knowledge_base)
         self.client = client
+        agent.new_obs = self.observe_state()
+        # print(agent.new_obs.nodes_info)
+
     def observe_state(self) -> PageObservation:
         accessibility_tree = self.client.send(
             "Accessibility.getFullAXTree", {}
@@ -155,8 +159,9 @@ page.goto(url)
 # set the first page as the current page
 page = context.pages[0]
 page.bring_to_front()
-
-
-driver = MyDriver("agent", "poopfare", page.client)
-print(str(driver.observe_state()))
+intent = "go to my cart"
+agent = BaseAgent(intent)
+driver = MyDriver(agent,"poopfare", page.client)
+agent.get_next_action(driver.observe_state())
+# print(str(driver.observe_state()))
 
