@@ -16,8 +16,5 @@ class Action:
     def set_input_string(self, input_string: str):
         self.input_string = input_string
 
-    def __repr__(self) -> (str, str, str):
-        return (self.action_type.name, self.html, self.input_string if self.input_string else 'N/A')
-
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
         return str(f"{self.action_type.name}, {self.html}, {self.input_string if self.input_string else 'N/A'}")

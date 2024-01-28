@@ -80,7 +80,7 @@ class WebDriver(ABC):
 
     # user may want to store state here, ie. summarizing memory to be passed in next observation
     @abstractmethod
-    def apply(a : Action):
+    def apply(self, a : Action):
         pass
 
     def process_intent(self, intent: str, starting_url: str):

@@ -143,8 +143,18 @@ class MyDriver(WebDriver):
                 continue
         observation = AxObservation(accessibility_tree)
         return observation
-    def apply(a : Action):
-        pass
+
+    def apply(self, a : Action):
+        action_type = a.action_type
+        html = a.html
+        match action_type:
+            case Action.Type.CLICK:
+                pass
+            case Action.Type.INPUT:
+                pass
+            case Action.Type.STOP:
+                input("ABOUT TO STOP")
+                exit()
 
 
 
