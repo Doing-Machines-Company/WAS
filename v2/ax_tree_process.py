@@ -34,5 +34,5 @@ def process_axtree(obs: AxObservation):
                 cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
         else:
             cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
-
+    print(cleaned_tree)
     return cleaned_tree, action_list

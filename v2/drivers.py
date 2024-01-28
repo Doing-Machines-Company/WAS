@@ -97,7 +97,7 @@ class AxObservation(PageObservation):
                 if found:
                     continue
             cleaned_nodes.append(node)
-        self.nodes_info = cleaned_nodes
+        # self.nodes_info = cleaned_nodes
     def __eq__(self):
         pass
     def __str__(self):
