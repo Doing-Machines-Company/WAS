@@ -1,17 +1,17 @@
 from drivers import AxObservation
 from impls import *
 from action import Action
-def extract_interaction_info(html): #use general input type
+def extract_interaction_info(xpath, html): #use general input type
     if '<a' in html:
-        return Action(Action.Type.CLICK, html)
+        return Action(Action.Type.CLICK, xpath, html)
     if ('<button' in html or "type='button'" in html or "role='button'" in html or "role=\"button\"" in html or "type=\"radio\"" in html or "[onclick]" in html or "onclick=" in html or "[role='button']" in html) and ("<div" not in html): # filter out div?
-        return Action(Action.Type.CLICK, html)
+        return Action(Action.Type.CLICK, xpath, html)
     if ("<input" in html or "textarea" in html) and "type=\"checkbox\"" not in html and "type=\"radio\"" not in html:
-        return Action(Action.Type.INPUT, html)
+        return Action(Action.Type.INPUT, xpath, html)
     if "type=\"checkbox\"" in html:
-        return Action(Action.Type.CLICK, html)
+        return Action(Action.Type.CLICK, xpath, html)
     if "<option" in html: # TODO DOUBLE CHECK THIS CAN ACTUALLY BE CLICKED
-        return Action(Action.Type.CLICK, html)
+        return Action(Action.Type.CLICK, xpath, html)
 
     return None
 
@@ -22,8 +22,10 @@ def process_axtree(obs: AxObservation):
     cleaned_tree = ""
 
     for i in range(len(obs.nodes_info)):
+        # print("XPATHH")
+        # print(obs.nodes_info[i]['xpath'])
         if obs.nodes_info[i]['role'] != 'RootWebArea':
-            node_action = extract_interaction_info(obs.nodes_info[i]['html'])
+            node_action = extract_interaction_info(obs.nodes_info[i]['xpath'], obs.nodes_info[i]['html'])
             if node_action:
                 action_list.append(node_action)
                 cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
