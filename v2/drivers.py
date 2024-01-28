@@ -5,14 +5,12 @@ from models import PageObservation
 class AxObservation(PageObservation):
     def __init__(self, axtree):
         self.axtree = axtree
-    def __eq__(self):
-        pass
-    def __str__(self):
+    
         node_id_to_idx = {}
         for idx, node in enumerate(self.axtree):
             node_id_to_idx[node["nodeId"]] = idx
 
-        obs_nodes_info = {}
+        self.nodes_info = []
 
         def dfs(idx: int, obs_node_id: str, depth: int) -> str:
             tree_str = ""
@@ -22,7 +20,6 @@ class AxObservation(PageObservation):
             try:
                 role = node["role"]["value"]
                 name = node["name"]["value"]
-                node_str = f"[{obs_node_id}] {role} {repr(name)}"
                 properties = []
                 for property in node.get("properties", []):
                     try:
@@ -34,12 +31,8 @@ class AxObservation(PageObservation):
                         )
                     except KeyError:
                         pass
-
-                if properties:
-                    node_str += " " + " ".join(properties)
-
                 # check valid
-                if not node_str.strip():
+                if not role and not name:
                     valid_node = False
 
                 # empty generic node
@@ -64,12 +57,15 @@ class AxObservation(PageObservation):
     
                 if valid_node:
                     #print("HERE")
-                    tree_str += f"{indent}{node_str}"
-                    obs_nodes_info[obs_node_id] = {
-                        "backend_id": node["backendDOMNodeId"],
-                        "text": node_str,
-                        "html" : node["html"]
+                    node_info = {
+                        "nodeId": obs_node_id,
+                        "name" : name,
+                        "role" : role,
+                        "indent" : indent,
+                        "properties" : properties,
+                        "html" : node['html'], 
                     }
+                    self.nodes_info.append(node_info)
             except Exception as e:
                 valid_node = False
 
@@ -78,37 +74,33 @@ class AxObservation(PageObservation):
                     continue
                 # mark this to save some tokens
                 child_depth = depth + 1 if valid_node else depth
-                child_str = dfs(
+                dfs(
                     node_id_to_idx[child_node_id], child_node_id, child_depth
                 )
-                if child_str.strip():
-                    if tree_str.strip():
-                        tree_str += "\n"
-                    tree_str += child_str
 
-            return tree_str
-
-        tree_str = dfs(0, self.axtree[0]["nodeId"], 0)
+        dfs(0, self.axtree[0]["nodeId"], 0)
         """further clean accesibility tree"""
-        clean_lines: list[str] = []
-        for line in tree_str.split("\n"):
+        #maybe make this part single pass? - TODO CEM
+        cleaned_nodes = []
+        for node in self.nodes_info:
             # remove statictext if the content already appears in the previous line
-            if "statictext" in line.lower():
-                prev_lines = clean_lines[-3:]
-                pattern = r"\[\d+\] StaticText (.+)"
-
-                match = re.search(pattern, line, re.DOTALL)
-                if match:
-                    static_text = match.group(1)[1:-1]  # remove the quotes
-                    if static_text and all(
-                        static_text not in prev_line
-                        for prev_line in prev_lines
-                    ):
-                        clean_lines.append(line)
-            else:
-                clean_lines.append(line)
-
-        return "\n".join(clean_lines)
+            if node["role"] == "StaticText":
+                prev_nodes = cleaned_nodes[-3:]
+                found = False
+                for prev in prev_nodes:
+                    if node["name"] in prev["name"]:
+                        found = True
+                if found:
+                    continue
+            cleaned_nodes.append(node)
+        self.nodes_info = cleaned_nodes
+    def __eq__(self):
+        pass
+    def __str__(self):
+        tree_str = ''
+        for node in self.nodes_info:
+            tree_str += f"{node['indent']}[{node['nodeId']}] {node['role']} {repr(node['name'])} " + " ".join(node["properties"]) + "\n"
+        return tree_str
 class MyDriver(WebDriver):
     def __init__(self, agent, knowledge_base, client): 
         super().__init__(agent, knowledge_base)
@@ -157,7 +149,7 @@ context = browser.new_context()
 page = context.new_page()
 client = page.context.new_cdp_session(page)  # talk to chrome devtools
 client.send("Accessibility.enable")
-page.client = client  # type: ignore # TODO[shuyanzh], fix this hackey client
+page.client = client  
 url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sports-outdoors.html'
 page.goto(url)
 # set the first page as the current page
