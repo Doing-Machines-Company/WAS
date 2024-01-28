@@ -14,6 +14,7 @@ class AxObservation(PageObservation):
         self.nodes_info = []
 
         def dfs(idx: int, obs_node_id: str, depth: int) -> str:
+            pua_cleaner = re.compile('[\ue000-\uf8ff]')
             tree_str = ""
             node = self.axtree[idx]
             indent = "\t" * depth
@@ -21,6 +22,7 @@ class AxObservation(PageObservation):
             try:
                 role = node["role"]["value"]
                 name = node["name"]["value"]
+                name = pua_cleaner.sub('', name)
                 properties = []
                 for property in node.get("properties", []):
                     try:
@@ -144,24 +146,5 @@ class MyDriver(WebDriver):
     def apply(a : Action):
         pass
 
-#temporary setup
-context_manager = sync_playwright()
-playwright = context_manager.__enter__()
-browser = playwright.chromium.launch(
-headless=False)
-context = browser.new_context()
-page = context.new_page()
-client = page.context.new_cdp_session(page)  # talk to chrome devtools
-client.send("Accessibility.enable")
-page.client = client  
-url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sports-outdoors.html'
-page.goto(url)
-# set the first page as the current page
-page = context.pages[0]
-page.bring_to_front()
-intent = "go to my cart"
-agent = BaseAgent(intent)
-driver = MyDriver(agent,"poopfare", page.client)
-agent.get_next_action(driver.observe_state())
-# print(str(driver.observe_state()))
+
 

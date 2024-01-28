@@ -7,8 +7,8 @@ api_key = os.getenv('OPENAI_API_KEY')
 
 client = OpenAI(api_key=api_key)
 
-def call_llm(prompt, mode_namel='gpt-3.5-turbo-1106'):
-    if mode_namel.startswith('gpt'):
+def call_llm(prompt, model_name='gpt-3.5-turbo-1106'):
+    if model_name.startswith('gpt'):
         response = client.chat.completions.create(
             model=model_name,
             # model="gpt-3.5-turbo-1106",
@@ -29,10 +29,10 @@ def call_llm(prompt, mode_namel='gpt-3.5-turbo-1106'):
         match2 = re.search(pattern2, result, re.DOTALL)
 
         if match1:
-            final_answer = match1.group(1).strip()
+            final_answer = int(match1.group(1).strip())
             return final_answer
         elif match2:
-            final_answer = match2.group(1).strip()
+            final_answer = int(match2.group(1).strip())
             return final_answer
         else:
             Exception("CALL RETURN FORMATTING FAIL")
