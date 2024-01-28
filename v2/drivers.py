@@ -3,6 +3,7 @@ from playwright.sync_api import sync_playwright
 from models import WebDriver, Action
 from models import PageObservation
 from impls import *
+from action import Action
 class AxObservation(PageObservation):
     def __init__(self, axtree):
         self.axtree = axtree
@@ -104,6 +105,7 @@ class AxObservation(PageObservation):
         for node in self.nodes_info:
             tree_str += f"{node['indent']}[{node['nodeId']}] {node['role']} {repr(node['name'])} " + " ".join(node["properties"]) + "\n"
         return tree_str
+
 class MyDriver(WebDriver):
     def __init__(self, agent, knowledge_base, client):
         super().__init__(agent, knowledge_base)
@@ -144,14 +146,43 @@ class MyDriver(WebDriver):
         observation = AxObservation(accessibility_tree)
         return observation
 
-    def apply(self, a : Action):
+    def apply(self, a : Action): # TODO NEED TO MAKE LESS BAD
         action_type = a.action_type
-        html = a.html
+        target_html = a.html
+        print(target_html)
         match action_type:
             case Action.Type.CLICK:
-                pass
+                click_script = f"""
+                    (function() {{
+                        const elements = document.querySelectorAll('body *');
+                        for (let element of elements) {{
+                            if (element.outerHTML === `{target_html}`) {{
+                                element.click();
+                                return true;
+                            }}
+                        }}
+                        return false;
+                    }})();
+                    """
+
+                result = self.client.send("Runtime.evaluate", {"expression": click_script})
+                print(f"CLICK FLAG {result['result']['value']}")
             case Action.Type.INPUT:
-                pass
+                input_text = "TESTING MODE"
+                input_script = f"""
+                    (function() {{
+                        const elements = document.querySelectorAll('input');
+                        for (let element of elements) {{
+                            if (element.outerHTML === `{target_html}`) {{
+                                element.value = `{input_text}`;
+                                return true;
+                            }}
+                        }}
+                        return false;
+                    }})();
+                    """
+                result = self.client.send("Runtime.evaluate", {"expression": input_script})
+                print(f"INPUT FLAG {result['result']['value']}")
             case Action.Type.STOP:
                 input("ABOUT TO STOP")
                 exit()
