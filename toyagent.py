@@ -751,9 +751,9 @@ flags = {'section': 'None', 'phase': 'navigation_unsearched'}  # RESET EVERY NAV
 trackers = {}
 intent = "Look at my past orders and find my most recent purchase of a lamp or screen protector, then rate the product with 3 stars, using my nickname GamingEmma."
 intent = "leave a 3 star review for the first lamp you find on the shop, using my nickname GamingEmma"
-intent = "find the 45W Super Fast Charger Type C,Samsung Fast Charger for Samsung Galaxy S22 Ultra/S22+/S22/S21 Ultra/S21 Plus/S21/S20/S20 Ultra/Note 20/S10,USB-C Fast Charging Wall Charger with 6.6FT USB C-C Cable Cord with SKU B09FRXSNR2 and leave a review"
+# intent = "find the 45W Super Fast Charger Type C,Samsung Fast Charger for Samsung Galaxy S22 Ultra/S22+/S22/S21 Ultra/S21 Plus/S21/S20/S20 Ultra/Note 20/S10,USB-C Fast Charging Wall Charger with 6.6FT USB C-C Cable Cord with SKU B09FRXSNR2 and leave a review"
 # TODO FOR SOME REASON REVIEW BUTTON HIDDEN????
-intent = "find the charger section of the website, do not search"
+# intent = "find the charger section of the website, do not search"
 
 
 def do_thing(intent):
