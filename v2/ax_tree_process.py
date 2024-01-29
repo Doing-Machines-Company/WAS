@@ -26,9 +26,14 @@ def process_axtree(obs: AxObservation):
         # print(obs.nodes_info[i]['xpath'])
         if obs.nodes_info[i]['role'] != 'RootWebArea':
             node_action = extract_interaction_info(obs.nodes_info[i]['xpath'], obs.nodes_info[i]['html'])
+            reqs = [prop for prop in obs.nodes_info[i]['properties'] if 'required' in prop]
             if node_action:
                 action_list.append(node_action)
-                cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
+                if ('radio' in obs.nodes_info[i]['html'] or 'checkbox' in obs.nodes_info[i]['html'] or '<input' in obs.nodes_info[i]['html']) and len(reqs) > 0:
+                    print(f"{i}: {obs.nodes_info[i]['html']}")
+                    cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {reqs}\n"
+                else:
+                    cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
                 counter += 1
             else:
                 cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
