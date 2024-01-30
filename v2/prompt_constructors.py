@@ -9,11 +9,11 @@ def construct_elements_prompt(intent: str, new_obs: PageObservation, model_name:
         cleaned_tree, action_list = process_axtree(new_obs)
         messages = [
             {"role": "system",
-             "content": "You are an autonomous agent performing tasks for an user on a webshop. I am going to give you a task, and an accessibility tree. Some lines are labelled with a number, these lines are actions you can choose, you must choose one action from the accessibility tree that is labeled with a number."},
+             "content": "You are an autonomous agent performing tasks for an user on a webshop. I am going to give you a task, and an accessibility tree. Some lines are labelled with a number, these lines are actions you can choose, you must choose one action from the accessibility tree that is labeled with a number. All actions labelled with numbers in square brackets can be completed. "},
             {"role": "system",
              "content": "The accessibility tree is reflective of the layout of the webpage. Only actions starting with a number enclosed in brackets, like [96], are available action choices. Infer from the text of each line what that action does. "},
             {"role": "system",
-             "content": "First look at the available action choices, then generate subtasks, using the available options as subtasks when they are relevant. Then reason through every single possible action I give you step-by-step thoughtfully. Do your best to choose an answer. You must return your final answer as a number enclosed in ''', like '''102''' if the final action you choose is the line on the accessibility tree starting with [102]."}]
+             "content": "First look at the available action choices, then generate subtasks, using the available options as subtasks when they are relevant. Then reason through every single possible action I give you step-by-step thoughtfully. Do your best to choose an answer. You must return your final answer as a number and a colon enclosed in ''', like '''102:''' if the final action you choose is the line on the accessibility tree starting with [102]. If the final action you choose is an action with input, you must also reply with what you wish to input into that option, like '''102:something''', and it will be inputted for that action. "}]
 
 
 

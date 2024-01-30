@@ -30,8 +30,10 @@ def process_axtree(obs: AxObservation):
             if node_action:
                 action_list.append(node_action)
                 if ('radio' in obs.nodes_info[i]['html'] or 'checkbox' in obs.nodes_info[i]['html'] or '<input' in obs.nodes_info[i]['html']) and len(reqs) > 0:
-                    print(f"{i}: {obs.nodes_info[i]['html']}")
-                    cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {reqs}\n"
+                    if node_action.action_type == Action.Type.INPUT:
+                        cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}input: {obs.nodes_info[i]['name']} {reqs}\n"
+                    else:
+                        cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {reqs}\n"
                 else:
                     cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
                 counter += 1

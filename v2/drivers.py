@@ -220,7 +220,6 @@ class MyDriver(WebDriver):
                     print(f"Error clicking element: {e}")
             case Action.Type.INPUT:
                 input_text = a.input_string
-                input_text = "TESTING MODE"
                 try:
                     element_handle_response = self.client.send(
                         "Runtime.evaluate",
