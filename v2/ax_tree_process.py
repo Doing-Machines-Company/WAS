@@ -16,7 +16,7 @@ def extract_interaction_info(xpath, html): #use general input type
     return None
 
 
-def process_axtree(obs: AxObservation):
+def process_axtree_action(obs: AxObservation):
     counter = 1
     action_list = [Action(Action.Type.STOP, None, None)]
     cleaned_tree = "[0] STOP: STOP AND FINISH\n"
@@ -44,3 +44,47 @@ def process_axtree(obs: AxObservation):
             cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
     print(cleaned_tree)
     return cleaned_tree, action_list
+
+def process_axtree_memory(old_obs: AxObservation, new_obs: AxObservation):
+    old_tree_cleaned = "[0] STOP: STOP AND FINISH\n"
+    new_tree_cleaned = "[0] STOP: STOP AND FINISH\n"
+    old_obs_counter = 1
+    new_obs_counter = 1
+
+    for i in range(len(old_obs.nodes_info)):
+        if old_obs.nodes_info[i]['role'] != 'RootWebArea':
+            node_action = extract_interaction_info(old_obs.nodes_info[i]['xpath'], old_obs.nodes_info[i]['html'])
+            reqs = [prop for prop in old_obs.nodes_info[i]['properties'] if 'required' in prop]
+            if node_action:
+                if ('radio' in old_obs.nodes_info[i]['html'] or 'checkbox' in old_obs.nodes_info[i]['html'] or '<input' in
+                    old_obs.nodes_info[i]['html']) and len(reqs) > 0:
+                    if node_action.action_type == Action.Type.INPUT:
+                        old_tree_cleaned += f"[{old_obs_counter}]{old_obs.nodes_info[i]['indent']}input: {old_obs.nodes_info[i]['name']} {reqs}\n"
+                    else:
+                        old_tree_cleaned += f"[{old_obs_counter}]{old_obs.nodes_info[i]['indent']}{old_obs.nodes_info[i]['role']}: {old_obs.nodes_info[i]['name']} {reqs}\n"
+                else:
+                    old_tree_cleaned += f"[{old_obs_counter}]{old_obs.nodes_info[i]['indent']}{old_obs.nodes_info[i]['role']}: {old_obs.nodes_info[i]['name']}\n"
+            else:
+                old_tree_cleaned += f"{old_obs.nodes_info[i]['indent']}{old_obs.nodes_info[i]['role']}: {old_obs.nodes_info[i]['name']}\n"
+        else:
+            old_tree_cleaned += f"{old_obs.nodes_info[i]['indent']}{old_obs.nodes_info[i]['role']}: {old_obs.nodes_info[i]['name']}\n"
+
+    for i in range(len(new_obs.nodes_info)):
+        if new_obs.nodes_info[i]['role'] != 'RootWebArea':
+            node_action = extract_interaction_info(new_obs.nodes_info[i]['xpath'], new_obs.nodes_info[i]['html'])
+            reqs = [prop for prop in new_obs.nodes_info[i]['properties'] if 'required' in prop]
+            if node_action:
+                if ('radio' in new_obs.nodes_info[i]['html'] or 'checkbox' in new_obs.nodes_info[i]['html'] or '<input' in
+                    new_obs.nodes_info[i]['html']) and len(reqs) > 0:
+                    if node_action.action_type == Action.Type.INPUT:
+                        new_tree_cleaned += f"[{new_obs_counter}]{new_obs.nodes_info[i]['indent']}input: {new_obs.nodes_info[i]['name']} {reqs}\n"
+                    else:
+                        new_tree_cleaned += f"[{new_obs_counter}]{new_obs.nodes_info[i]['indent']}{new_obs.nodes_info[i]['role']}: {new_obs.nodes_info[i]['name']} {reqs}\n"
+                else:
+                    new_tree_cleaned += f"[{new_obs_counter}]{new_obs.nodes_info[i]['indent']}{new_obs.nodes_info[i]['role']}: {new_obs.nodes_info[i]['name']}\n"
+            else:
+                new_tree_cleaned += f"{new_obs.nodes_info[i]['indent']}{new_obs.nodes_info[i]['role']}: {new_obs.nodes_info[i]['name']}\n"
+        else:
+            new_tree_cleaned += f"{new_obs.nodes_info[i]['indent']}{new_obs.nodes_info[i]['role']}: {new_obs.nodes_info[i]['name']}\n"
+
+    return old_tree_cleaned, new_tree_cleaned

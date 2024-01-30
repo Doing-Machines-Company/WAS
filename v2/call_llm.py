@@ -56,20 +56,21 @@ def llm_manage_memory(prompt, model_name='gpt-3.5-turbo-1106'):
         result = response.choices[0].message.content
         print(f"GPT RAW RETURN MEMORY: {result}")
 
-        pattern1 = r"'''([^']*):([^']*)'''"
-        pattern2 = r"```([^']*):([^']*)```"
+        pattern1 = r"'''(.*?)\|(.*?)'''"
+        pattern2 = r"```(.*?)\|(.*?)```"
 
 
-        match1 = re.search(pattern1, result, re.DOTALL)
-        match2 = re.search(pattern2, result, re.DOTALL)
-
+        match1 = re.search(pattern1, result)
+        match2 = re.search(pattern2, result)
         if match1:
-            final_index = match1.group(1).strip()
-            final_string = match1.group(2).strip()
-            return (final_index, final_string)
+            string_left = match1.group(1).strip()
+            string_right = match1.group(2).strip()
+            result = (string_left, string_right)
+            return result
         elif match2:
-            final_index = match2.group(1).strip()
-            final_string = match2.group(2).strip()
-            return (final_index, final_string)
+            string_left = match2.group(1).strip()
+            string_right = match2.group(2).strip()
+            result = (string_left, string_right)
+            return result
         else:
             Exception("CALL RETURN FORMATTING FAIL")

@@ -23,13 +23,13 @@ page.bring_to_front()
 intent = "buy Image Maryia Men 3D Creative Printed Graphic T Shirts Casual Short Sleeve Crewneck Muscle Tees Personality Realistic Suit"
 intent = "go to the next page"
 intent = "find me teeth guard"
-intent = "stop"
 # intent = "click a link"
 agent = BaseAgent(intent)
 driver = MyDriver(agent,"poopfare", page)
 while True:
     next_action = agent.get_next_action(driver.observe_state())
     driver.apply(next_action)
+    agent.handle_memory(driver.observe_state())
     flag = input("input stop?")
     if flag != "":
         exit()

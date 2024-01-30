@@ -22,18 +22,16 @@ class BaseAgent(Agent):
         self.last_action = None
         self.old_obs = None
         self.phase = Phase.CHOOSING_ELEMENTS # or 'choosing_elements' (or 'handling_memory') # TODO MAKE ENUM TYPE
+        self.last_action = None
 
         self.archive = []
         self.task_memory = []  #
         self.info_memory = []  # should really only need to remember information that needs to be synthesised
         self.environmental_changes = dict()
-    def register_action(action: Action, new_observation: PageObservation):
-        pass
 
-    def reset():
-        pass
 
-    def construct_prompt(self, last_action: Action, cur_obs: PageObservation, model_name) -> str:
+
+    def construct_prompt(self, cur_obs: AxObservation, model_name) -> str:
         match self.phase:
             case Phase.CHOOSING_URL:
                 return construct_url_prompt(self.intent, cur_obs, model_name)
@@ -43,16 +41,21 @@ class BaseAgent(Agent):
                 raise Exception(f'Invalid phase prompt construct, HOW????? {self.phase}')
 
 
-    def get_next_action(self, cur_obs: PageObservation) -> Action:
+    def get_next_action(self, cur_obs: AxObservation) -> Action:
         self.old_obs = cur_obs
-        prompt_for_agent, answer_values = self.construct_prompt(self.last_action, self.old_obs, model_name = 'gpt-4-0125-preview') # prompt_for_agent: str, answer_values: list[Actions]
+        prompt_for_agent, answer_values = self.construct_prompt(cur_obs, model_name = 'gpt-4-0125-preview') # prompt_for_agent: str, answer_values: list[Actions]
         (final_index, final_string) = call_llm(prompt_for_agent, model_name = 'gpt-4-0125-preview')
         if final_index and final_index != -1:
             desired_action = answer_values[int(final_index)]
             if desired_action.action_type == Action.Type.INPUT:
                 desired_action.set_input_string(final_string)
+            self.last_action = desired_action
             return desired_action
-        return Action(Action.Type.STOP, None, None)
+        return Action(Action.Type.STOP, None, None) # TODO HANDLE FAILED GPT RETURNS BETTER
 
-    def handle_memory(self, new_obs: PageObservation):
-        prompt_for_agent = construct_memory_prompt(self.intent, self.old_obs, new_obs, model_name = 'gpt-4-0125-preview')
+    def handle_memory(self, new_obs: AxObservation):
+        memory_prompt_for_agent = construct_memory_prompt(self.intent, self.last_action, self.old_obs, new_obs, model_name = 'gpt-4-0125-preview')
+        (info_mem, task_mem) = llm_manage_memory(memory_prompt_for_agent, model_name = 'gpt-4-0125-preview')
+        print(info_mem)
+        print("\n")
+        print(task_mem)

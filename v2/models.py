@@ -48,18 +48,22 @@ class Agent(ABC):
         pass
 
     # take note of a transition (in the "observation graph"). A sequence of these calls forms a trajectory
-    @abstractmethod
-    def register_action(action : Action, new_observation : PageObservation):
-        pass
+    # @abstractmethod
+    # def register_action(action : Action, new_observation : PageObservation):
+    #     pass
 
     # maybe prompt the model, a response from the model
     @abstractmethod
     def get_next_action(self) -> Action: # Needs some sense of current task
         pass
 
+    # @abstractmethod
+    # def reset() -> Action:  # Needs some sense of current task
+    #     pass
+
     # forget your memory (if you have any)
     @abstractmethod
-    def reset():
+    def handle_memory(self, new_observation : PageObservation):
         pass
 
 class WebDriver(ABC):
