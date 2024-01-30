@@ -22,24 +22,21 @@ def call_llm(prompt, model_name='gpt-3.5-turbo-1106'):
         result = response.choices[0].message.content
         print(f"GPT RAW RETURN: {result}")
 
-        pattern1 = r"'''(\d+):([^\']+)'''"
-        pattern2 = r"```(\d+):([^\']+)```"
+        pattern1 = r"'''(\d+):([^']*)'''"
+        pattern2 = r"```(\d+):([^']*)```"
 
 
         match1 = re.search(pattern1, result, re.DOTALL)
         match2 = re.search(pattern2, result, re.DOTALL)
 
+        print("HERE!")
         if match1:
             final_index = match1.group(1).strip()
-            final_stirng = match1.group(2).strip()
-            if not final_stirng:
-                final_stirng = ""
-            return (final_index, final_stirng)
+            final_string = match1.group(2).strip()
+            return (final_index, final_string)
         elif match2:
             final_index = match2.group(1).strip()
-            final_stirng = match2.group(2).strip()
-            if not final_stirng:
-                final_stirng = ""
-            return (final_index, final_stirng)
+            final_string = match2.group(2).strip()
+            return (final_index, final_string)
         else:
             Exception("CALL RETURN FORMATTING FAIL")

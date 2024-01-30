@@ -107,9 +107,10 @@ class AxObservation(PageObservation):
         return tree_str
 
 class MyDriver(WebDriver):
-    def __init__(self, agent, knowledge_base, client):
+    def __init__(self, agent, knowledge_base, page):
         super().__init__(agent, knowledge_base)
-        self.client = client
+        self.client = page.client
+        self.page = page
         agent.new_obs = self.observe_state()
         # print(agent.new_obs.nodes_info)
 
@@ -241,19 +242,25 @@ class MyDriver(WebDriver):
                     )
 
                     if 'search' in target_html:
+                        print("ENTERING!!!")
+                        self.client.send(
+                            "Runtime.callFunctionOn",
+                            {
+                                "objectId": element_object_id,
+                                "functionDeclaration": "function() { this.focus(); }",
+                                "returnByValue": False
+                            }
+                        )
+
+                        print("ENTERING! V2")
                         self.client.send("Input.dispatchKeyEvent", {
                             "type": "keyDown",
-                            "windowsVirtualKeyCode": 13,
-                            "nativeVirtualKeyCode": 13,
-                            "macCharCode": 13,
                             "key": "Enter"
                         })
 
+                        # Send the keyUp event
                         self.client.send("Input.dispatchKeyEvent", {
                             "type": "keyUp",
-                            "windowsVirtualKeyCode": 13,
-                            "nativeVirtualKeyCode": 13,
-                            "macCharCode": 13,
                             "key": "Enter"
                         })
 
