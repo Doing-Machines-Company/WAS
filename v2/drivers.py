@@ -188,6 +188,7 @@ class MyDriver(WebDriver):
         action_type = a.action_type
         target_html = a.html
         target_xpath = a.xpath
+        locator = self.page.locator(f'xpath={target_xpath}')
         match action_type:
             case Action.Type.CLICK:
                 try:
@@ -222,47 +223,13 @@ class MyDriver(WebDriver):
             case Action.Type.INPUT:
                 input_text = a.input_string
                 try:
-                    element_handle_response = self.client.send(
-                        "Runtime.evaluate",
-                        {
-                            "expression": f"document.evaluate('{target_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue",
-                            "returnByValue": False
-                        }
-                    )
-                    element_object_id = element_handle_response['result']['objectId']
-
-                    self.client.send(
-                        "Runtime.callFunctionOn",
-                        {
-                            "objectId": element_object_id,
-                            "functionDeclaration": f"function(text) {{ this.value = text; }}",
-                            "arguments": [{"value": input_text}],
-                            "returnByValue": False
-                        }
-                    )
-
-                    if 'search' in target_html:
-                        print("ENTERING!!!")
-                        self.client.send(
-                            "Runtime.callFunctionOn",
-                            {
-                                "objectId": element_object_id,
-                                "functionDeclaration": "function() { this.focus(); }",
-                                "returnByValue": False
-                            }
-                        )
-
-                        print("ENTERING! V2")
-                        self.client.send("Input.dispatchKeyEvent", {
-                            "type": "keyDown",
-                            "key": "Enter"
-                        })
-
-                        # Send the keyUp event
-                        self.client.send("Input.dispatchKeyEvent", {
-                            "type": "keyUp",
-                            "key": "Enter"
-                        })
+                    self.page.wait_for_load_state('networkidle')
+                    locator.first.fill(input_text)
+                    self.page.wait_for_load_state('networkidle')
+                    if "search" in target_html:
+                        print("SEARCHING PRESS ENTER")
+                        self.page.keyboard.press('Enter')
+                        self.page.wait_for_load_state('networkidle')
 
                 except Exception as e:
                     print(f"Error inputting element: {e}")
