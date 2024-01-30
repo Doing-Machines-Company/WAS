@@ -17,11 +17,11 @@ class Phase(Enum):
 
 class BaseAgent(Agent):
 
-    def __init__(self, intent: str, starting_observation: PageObservation = None):
+    def __init__(self, intent: str):
         self.intent = intent
         self.last_action = None
         self.old_obs = None
-        self.new_obs = starting_observation
+        self.new_obs = None
         self.phase = Phase.CHOOSING_ELEMENTS # or 'choosing_elements' (or 'handling_memory') # TODO MAKE ENUM TYPE
 
         self.archive = []
@@ -34,26 +34,26 @@ class BaseAgent(Agent):
     def reset():
         pass
 
-    def construct_prompt(self, last_action: Action, old_obs: PageObservation, new_obs: PageObservation, model_name) -> str:
+    def construct_prompt(self, last_action: Action, cur_obs: PageObservation, model_name) -> str:
         match self.phase:
             case Phase.CHOOSING_URL:
-                return construct_url_prompt(self.intent, new_obs, model_name)
+                return construct_url_prompt(self.intent, cur_obs, model_name)
             case Phase.CHOOSING_ELEMENTS:
-                return construct_elements_prompt(self.intent, new_obs, model_name)
-            # case Phase.HANDLING_MEMORY:
-                # return construct_memory_prompt(self.intent, last_action, old_obs, new_obs, model_name)
+                return construct_elements_prompt(self.intent, cur_obs, model_name)
             case _:
                 raise Exception(f'Invalid phase prompt construct, HOW????? {self.phase}')
 
 
     def get_next_action(self, cur_obs: PageObservation) -> Action:
-        self.old_obs = self.new_obs
-        self.new_obs = cur_obs # TODO PROCESS THESE cur_obs to reflect environmental changes cause by the agents action history
+        self.old_obs = cur_obs
         prompt_for_agent, answer_values = self.construct_prompt(self.last_action, self.old_obs, self.new_obs, model_name = 'gpt-4-0125-preview') # prompt_for_agent: str, answer_values: list[Actions]
-        (final_index, final_stirng) = call_llm(prompt_for_agent, model_name = 'gpt-4-0125-preview')
+        (final_index, final_string) = call_llm(prompt_for_agent, model_name = 'gpt-4-0125-preview')
         if final_index:
             desired_action = answer_values[int(final_index)]
             if desired_action.action_type == Action.Type.INPUT:
-                desired_action.set_input_string(final_stirng)
+                desired_action.set_input_string(final_string)
             return desired_action
         return Action(Action.Type.STOP, None, None)
+
+    def handle_memory(self, new_obs: PageObservation):
+        pass

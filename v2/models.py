@@ -44,7 +44,7 @@ class Agent(ABC):
     model : Model
 
     @abstractmethod
-    def __init__(intent: str, starting_observation : PageObservation):
+    def __init__(intent: str):
         pass
 
     # take note of a transition (in the "observation graph"). A sequence of these calls forms a trajectory

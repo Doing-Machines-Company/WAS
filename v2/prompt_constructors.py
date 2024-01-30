@@ -4,9 +4,9 @@ from ax_tree_process import process_axtree
 def construct_url_prompt(intent: str, new_obs: PageObservation, model_name: str) -> str: # TODO, ignored for now
     pass
 
-def construct_elements_prompt(intent: str, new_obs: PageObservation, model_name: str) -> (str, list[Action]): # MOSTLY FOR GPT
+def construct_elements_prompt(intent: str, cur_obs: PageObservation, model_name: str) -> (str, list[Action]): # MOSTLY FOR GPT
     if model_name.startswith('gpt'):
-        cleaned_tree, action_list = process_axtree(new_obs)
+        cleaned_tree, action_list = process_axtree(cur_obs)
         messages = [
             {"role": "system",
              "content": "You are an autonomous agent performing tasks for an user on a webshop. I am going to give you a task, and an accessibility tree. Some lines are labelled with a number, these lines are actions you can choose, you must choose one action from the accessibility tree that is labeled with a number. All actions labelled with numbers in square brackets can be completed. "},
@@ -23,5 +23,12 @@ def construct_elements_prompt(intent: str, new_obs: PageObservation, model_name:
         return messages, action_list
     return ''
 
-def construct_memory_prompt(intent: str, new_obs: PageObservation, model_name: str) -> str: # NOT NEEDED FOR MemGPT
-    pass
+def construct_memory_prompt(intent: str, old_tree: str, new_tree: str, model_name: str) -> str: # NOT NEEDED FOR MemGPT
+    if model_name.startswith('gpt'):
+        messages = []
+
+        messages.append({"role": "user",
+                         f"content": f""})
+
+        return messages, action_list
+    return ''
