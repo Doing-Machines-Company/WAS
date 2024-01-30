@@ -47,7 +47,7 @@ class BaseAgent(Agent):
         self.old_obs = cur_obs
         prompt_for_agent, answer_values = self.construct_prompt(self.last_action, self.old_obs, model_name = 'gpt-4-0125-preview') # prompt_for_agent: str, answer_values: list[Actions]
         (final_index, final_string) = call_llm(prompt_for_agent, model_name = 'gpt-4-0125-preview')
-        if final_index:
+        if final_index and final_index != -1:
             desired_action = answer_values[int(final_index)]
             if desired_action.action_type == Action.Type.INPUT:
                 desired_action.set_input_string(final_string)

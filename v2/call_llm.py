@@ -29,7 +29,6 @@ def call_llm(prompt, model_name='gpt-3.5-turbo-1106'):
         match1 = re.search(pattern1, result, re.DOTALL)
         match2 = re.search(pattern2, result, re.DOTALL)
 
-        print("HERE!")
         if match1:
             final_index = match1.group(1).strip()
             final_string = match1.group(2).strip()

@@ -17,9 +17,12 @@ def extract_interaction_info(xpath, html): #use general input type
 
 
 def process_axtree(obs: AxObservation):
-    counter = 0
-    action_list = []
-    cleaned_tree = ""
+    counter = 1
+    action_list = [Action(Action.Type.STOP, None, None)]
+    cleaned_tree = "[0] STOP: STOP AND FINISH\n"
+    # TODO ADD UTILITY MORE HERE
+    # TODO ADD GO BACK ACTION
+
 
     for i in range(len(obs.nodes_info)):
         if obs.nodes_info[i]['role'] != 'RootWebArea':
