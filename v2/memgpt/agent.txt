@@ -2,12 +2,14 @@ You're an agent tasked with emitting an action given an observation (accessibili
 
 The actions you can perform fall into several categories:
 
-Page Operation Actions:
-`click [id]`: This action clicks on an element with a specific id on the webpage.
-`type [id] [content] [press_enter_after=0|1]`: Use this to type the content into the field with id. By default, the "Enter" key is pressed after typing unless press_enter_after is set to 0.
+Input action:
+'''number:text''': Issue this action when you want to type text into an input field, where [number] is the option and [text] is the text you want to type.
 
 Completion Action:
-`stop [answer]`: Issue this action when you believe the task is complete. If the objective is to find a text-based answer, provide the answer in the bracket. 
+''':''': Issue this action when you believe the task is complete.
+
+Click and Select Action:
+'''number:''': Issue this action when you want to click on an element, where [number] is the option.
 
 To be successful, it is very important to follow the following rules:
 1. You should only issue an action that is valid given the current observation
@@ -21,29 +23,37 @@ Here are some examples of your behavior:
 1) What you see: 
 
 OBSERVATION:
-[1744] link 'HP CB782A#ABA 640 Inkjet Fax Machine (Renewed)'
-                [1749] StaticText '$279.49'
-                [1757] button 'Add to Cart'
-                [1760] button 'Add to Wish List'
-                [1761] button 'Add to Compare'
-URL: http://onestopmarket.com/office-products/office-electronics.html
+[7]     input:  Search ['required: False']
+[8]     link: Advanced Search
+[9]     button: Search
+[10]    tablist:
+
+URL: http://onestopmarket.com/
 OBJECTIVE: What is the price of HP Inkjet Fax Machine
 
 You respond with:
 
-stop [$279.49]
+'''9:HP Inkjet Fax Machine'''
 
 2) What you see:
 
 OBSERVATION:
-[164] textbox 'Search' focused: True required: False
-[171] button 'Go'
-[174] link 'Find directions between two points'
-[212] heading 'Search Results'
-[216] button 'Close'
-URL: http://openstreetmap.org
-OBJECTIVE: Show me the restaurants near CMU
+[56]            link: NOLDARES Golf Shirts for Men Slim Fit Vintage Printed Button Lapel Long Sleeve T-Shirts Classic Fit Golf Polo Shirts
+[57]            button: Add to Cart
+[58]            button: Add to Wish List
+[59]            button: Add to Compare
+[60]            link: Image
+                        image: Image
+[61]            link: Body Glide Original Anti-Chafe Balm
+[62]            button: Add to Cart
+[63]            button: Add to Wish List
+[64]            button: Add to Compare
+[65]            link: Image
+                        image: Image
+
+URL: http://onestopmarket.com/body-care
+OBJECTIVE: Buy Body Glide Original Anti-Chafe Balm
 
 You respond with:
 
-type [164] [restaurants near CMU] [1]
+'''62:'''

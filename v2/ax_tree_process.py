@@ -22,8 +22,6 @@ def process_axtree(obs: AxObservation):
     cleaned_tree = ""
 
     for i in range(len(obs.nodes_info)):
-        # print("XPATHH")
-        # print(obs.nodes_info[i]['xpath'])
         if obs.nodes_info[i]['role'] != 'RootWebArea':
             node_action = extract_interaction_info(obs.nodes_info[i]['xpath'], obs.nodes_info[i]['html'])
             reqs = [prop for prop in obs.nodes_info[i]['properties'] if 'required' in prop]
