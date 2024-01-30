@@ -21,7 +21,6 @@ class BaseAgent(Agent):
         self.intent = intent
         self.last_action = None
         self.old_obs = None
-        self.new_obs = None
         self.phase = Phase.CHOOSING_ELEMENTS # or 'choosing_elements' (or 'handling_memory') # TODO MAKE ENUM TYPE
 
         self.archive = []
@@ -46,7 +45,7 @@ class BaseAgent(Agent):
 
     def get_next_action(self, cur_obs: PageObservation) -> Action:
         self.old_obs = cur_obs
-        prompt_for_agent, answer_values = self.construct_prompt(self.last_action, self.old_obs, self.new_obs, model_name = 'gpt-4-0125-preview') # prompt_for_agent: str, answer_values: list[Actions]
+        prompt_for_agent, answer_values = self.construct_prompt(self.last_action, self.old_obs, model_name = 'gpt-4-0125-preview') # prompt_for_agent: str, answer_values: list[Actions]
         (final_index, final_string) = call_llm(prompt_for_agent, model_name = 'gpt-4-0125-preview')
         if final_index:
             desired_action = answer_values[int(final_index)]
@@ -56,4 +55,4 @@ class BaseAgent(Agent):
         return Action(Action.Type.STOP, None, None)
 
     def handle_memory(self, new_obs: PageObservation):
-        pass
+        prompt_for_agent = construct_memory_prompt(self.intent, self.old_obs, new_obs, model_name = 'gpt-4-0125-preview')

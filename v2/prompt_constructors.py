@@ -30,5 +30,5 @@ def construct_memory_prompt(intent: str, old_tree: str, new_tree: str, model_nam
         messages.append({"role": "user",
                          f"content": f""})
 
-        return messages, action_list
+        return ''
     return ''
