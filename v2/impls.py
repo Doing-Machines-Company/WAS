@@ -22,13 +22,10 @@ class BaseAgent(Agent):
         self.last_action = None
         self.old_obs = None
         self.phase = Phase.CHOOSING_ELEMENTS # or 'choosing_elements' (or 'handling_memory') # TODO MAKE ENUM TYPE
-        self.last_action = None
 
-        self.archive = []
         self.task_memory = []  #
         self.info_memory = []  # should really only need to remember information that needs to be synthesised
         self.environmental_changes = dict()
-
 
 
     def construct_prompt(self, cur_obs: AxObservation, model_name) -> str:
@@ -52,6 +49,7 @@ class BaseAgent(Agent):
             self.last_action = desired_action
             return desired_action
         return Action(Action.Type.STOP, None, None) # TODO HANDLE FAILED GPT RETURNS BETTER
+
 
     def handle_memory(self, new_obs: AxObservation):
         memory_prompt_for_agent = construct_memory_prompt(self.intent, self.last_action, self.old_obs, new_obs, model_name = 'gpt-4-0125-preview')
