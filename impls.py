@@ -32,12 +32,12 @@ class BaseAgent(Agent):
         self.info_memory = []  # should really only need to remember information that needs to be synthesised
         self.environmental_changes = dict()
 
-    def construct_url_prompt(self, intent: str, new_obs: AxObservation, model_name: str) -> str:  # TODO, ignored for now
+    def __construct_url_prompt(self, intent: str, new_obs: AxObservation, model_name: str) -> str:  # TODO, ignored for now
         pass
 
-    def construct_elements_prompt(self, intent: str, cur_obs: AxObservation, model_name: str) -> (str, list[Action]):  # MOSTLY FOR GPT
+    def __construct_elements_prompt(self, intent: str, cur_obs: AxObservation, model_name: str) -> (str, list[Action]):  # MOSTLY FOR GPT
         if model_name.startswith('gpt'):
-            cleaned_tree, action_list = self.process_axtree_action(cur_obs)
+            cleaned_tree, action_list = self.__process_axtree_action(cur_obs)
             messages = [
                 {"role": "system",
                  "content": "You are an autonomous agent performing tasks for an user on a webshop. I am going to give you a task, and an accessibility tree. Some lines are labelled with a number, these lines are actions you can choose, you must choose one action from the accessibility tree that is labeled with a number. All actions labelled with numbers in square brackets can be completed. "},
@@ -52,7 +52,7 @@ class BaseAgent(Agent):
             return messages, action_list
         return ''
 
-    def construct_memory_prompt(self, intent: str, last_action: Action, old_obs: AxObservation, new_obs: AxObservation,
+    def __construct_memory_prompt(self, intent: str, last_action: Action, old_obs: AxObservation, new_obs: AxObservation,
                                 model_name: str) -> str:  # NOT NEEDED FOR MemGPT
         if model_name.startswith('gpt'):
             messages = [{"role": "system",
@@ -64,40 +64,50 @@ class BaseAgent(Agent):
                         {"role": "system",
                          "content": "Give your final reply in the form '''info memory you reply with|important subtask summaries you reply with''', where | is used to delimit the information memory and task memory you want to reply with. If you don't want to store a field, just reply with that side empty. Remember to enclose your final reply with '''."}
                         ]
-            old_tree_cleaned = self.process_axtree_memory(old_obs)
-            new_tree_cleaned = self.process_axtree_memory(new_obs)
+            old_tree_cleaned = self.__process_axtree_memory(old_obs)
+            new_tree_cleaned = self.__process_axtree_memory(new_obs)
             messages.append({"role": "user",
                              f"content": f"Intended task: {intent}\nLast action performed: {last_action}\nOld accessibility tree: \n'''\n {old_tree_cleaned}\n'''\nNew accessibility tree: \n'''\n {new_tree_cleaned}\n'''"})
 
             return messages
         return ''
-    def construct_prompt(self, cur_obs: AxObservation, model_name) -> str:
+    def __construct_prompt(self, cur_obs: AxObservation, model_name) -> str:
         match self.phase:
             case Phase.CHOOSING_URL:
-                return self.construct_url_prompt(self.intent, cur_obs, model_name)
+                return self.__construct_url_prompt(self.intent, cur_obs, model_name)
             case Phase.CHOOSING_ELEMENTS:
-                return self.construct_elements_prompt(self.intent, cur_obs, model_name)
+                return self.__construct_elements_prompt(self.intent, cur_obs, model_name)
             case _:
                 raise Exception(f'Invalid phase prompt construct, HOW????? {self.phase}')
 
-    def extract_interaction_info(self, xpath, html):  # TODO USE AXTREE ROLES
-        if '<a' in html:
-            return Action(Action.Type.CLICK, xpath, html)
-        if (
-                '<button' in html or "type='button'" in html or "role='button'" in html or "role=\"button\"" in html or "type=\"radio\"" in html or "[onclick]" in html or "onclick=" in html or "[role='button']" in html) and (
-                "<div" not in html):  # filter out div?
-            return Action(Action.Type.CLICK, xpath, html)
-        if (
-                "<input" in html or "textarea" in html) and "type=\"checkbox\"" not in html and "type=\"radio\"" not in html:
-            return Action(Action.Type.INPUT, xpath, html)
-        if "type=\"checkbox\"" in html:
-            return Action(Action.Type.CLICK, xpath, html)
-        if "<option" in html:  # TODO DOUBLE CHECK THIS CAN ACTUALLY BE CLICKED
-            return Action(Action.Type.CLICK, xpath, html)
+    def __extract_interaction_info(self, xpath, html, role):
+        clickable_roles = [
+            'button', 'link', 'checkbox', 'radio', 'menuitem',
+            'tab', 'treeitem', 'switch', 'option', 'menuitemcheckbox',
+            'menuitemradio', 'gridcell', 'columnheader', 'rowheader',
+            'slider', 'spinbutton', 'listbox', 'tree',
+            'grid', 'tabpanel', 'alert', 'alertdialog', 'dialog',
+            'log', 'marquee', 'timer', 'tooltip', 'banner',
+            'complementary', 'contentinfo', 'form', 'main', 'navigation',
+            'region', 'search', 'status', 'img', 'note', 'application',
+            'article', 'cell', 'definition', 'directory', 'document',
+            'feed', 'figure', 'group', 'heading', 'img', 'list',
+            'listitem', 'math', 'progressbar', 'row', 'rowgroup',
+            'separator', 'toolbar', 'tooltip', 'presentation'
+        ]
 
+        input_roles = [
+            'textbox', 'searchbox', 'slider', 'spinbutton', 'radiogroup',
+            'checkbox', 'radio', 'switch', 'option', 'listbox',
+            'combobox', 'textarea'
+        ]
+        if role.strip() in clickable_roles:
+            return Action(Action.Type.CLICK, xpath, html)
+        elif role.strip() in input_roles:
+            return Action(Action.Type.INPUT, xpath, html)
         return None
 
-    def process_axtree_action(self, obs: AxObservation):
+    def __process_axtree_action(self, obs: AxObservation):
         counter = 1
         action_list = [Action(Action.Type.STOP, None, None)]
         cleaned_tree = "[0] STOP: STOP AND FINISH\n"
@@ -105,7 +115,7 @@ class BaseAgent(Agent):
 
         for i in range(len(obs.nodes_info)):
             if obs.nodes_info[i]['role'] != 'RootWebArea':
-                node_action = self.extract_interaction_info(obs.nodes_info[i]['xpath'], obs.nodes_info[i]['html'])
+                node_action = self.__extract_interaction_info(obs.nodes_info[i]['xpath'], obs.nodes_info[i]['html'], obs.nodes_info[i]['role'])
                 reqs = [prop for prop in obs.nodes_info[i]['properties'] if 'required' in prop]
                 if node_action:
                     action_list.append(node_action)
@@ -125,13 +135,13 @@ class BaseAgent(Agent):
         print(cleaned_tree)
         return cleaned_tree, action_list
 
-    def process_axtree_memory(self, obs: AxObservation):
+    def __process_axtree_memory(self, obs: AxObservation):
         tree_cleaned = "[0] STOP: STOP AND FINISH\n"
         obs_counter = 1
 
         for i in range(len(obs.nodes_info)):
             if obs.nodes_info[i]['role'] != 'RootWebArea':
-                node_action = self.extract_interaction_info(obs.nodes_info[i]['xpath'], obs.nodes_info[i]['html'])
+                node_action = self.__extract_interaction_info(obs.nodes_info[i]['xpath'], obs.nodes_info[i]['html'], obs.nodes_info[i]['role'])
                 reqs = [prop for prop in obs.nodes_info[i]['properties'] if 'required' in prop]
                 if node_action:
                     if ('radio' in obs.nodes_info[i]['html'] or 'checkbox' in obs.nodes_info[i]['html'] or '<input' in
@@ -151,25 +161,28 @@ class BaseAgent(Agent):
 
     def get_next_action(self, cur_obs: AxObservation) -> Action:
         self.old_obs = cur_obs
-        prompt_for_agent, answer_values = self.construct_prompt(cur_obs, model_name = 'gpt-4-0125-preview') # prompt_for_agent: str, answer_values: list[Actions]
-        (final_index, final_string) = self.call_llm_action(prompt_for_agent, model_name = 'gpt-4-0125-preview')
+        prompt_for_agent, answer_values = self.__construct_prompt(cur_obs, model_name = 'gpt-4-0125-preview') # prompt_for_agent: str, answer_values: list[Actions]
+        (final_index, final_string) = self.__call_llm_action(prompt_for_agent, model_name = 'gpt-4-0125-preview')
         if final_index and final_index != -1:
             desired_action = answer_values[int(final_index)]
             if desired_action.action_type == Action.Type.INPUT:
                 desired_action.set_input_string(final_string)
+            print("FINALS")
+            print(final_index)
+            print(desired_action)
             self.last_action = desired_action
             return desired_action
         return Action(Action.Type.STOP, None, None) # TODO HANDLE FAILED GPT RETURNS BETTER
 
 
     def handle_memory(self, new_obs: AxObservation):
-        memory_prompt_for_agent = self.construct_memory_prompt(self.intent, self.last_action, self.old_obs, new_obs, model_name = 'gpt-4-0125-preview')
-        (info_mem, task_mem) = self.llm_manage_memory(memory_prompt_for_agent, model_name = 'gpt-4-0125-preview')
-        print(info_mem)
-        print("\n")
-        print(task_mem)
+        memory_prompt_for_agent = self.__construct_memory_prompt(self.intent, self.last_action, self.old_obs, new_obs, model_name = 'gpt-4-0125-preview')
+        (info_mem, task_mem) = self.__llm_manage_memory(memory_prompt_for_agent, model_name = 'gpt-4-0125-preview')
+        # print(info_mem)
+        # print("\n")
+        # print(task_mem)
 
-    def call_llm_action(self, prompt, model_name='gpt-3.5-turbo-1106'):
+    def __call_llm_action(self, prompt, model_name='gpt-3.5-turbo-1106'):
         if model_name.startswith('gpt'):
             response = client.chat.completions.create(
                 model=model_name,
@@ -201,7 +214,7 @@ class BaseAgent(Agent):
             else:
                 Exception("CALL RETURN FORMATTING FAIL")
 
-    def llm_manage_memory(self, prompt, model_name='gpt-3.5-turbo-1106'):
+    def __llm_manage_memory(self, prompt, model_name='gpt-3.5-turbo-1106'):
         if model_name.startswith('gpt'):
             response = client.chat.completions.create(
                 model=model_name,
