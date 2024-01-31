@@ -2,13 +2,18 @@ from __future__ import annotations
 from models import *
 from typing import Any, Optional, Union
 from drivers import *
-from call_llm import *
 from typing import Optional
 from action import Action
 from enum import Enum, auto
+from openai import OpenAI
+import os
+import re
+import json
 from typing import Optional
 
+api_key = os.getenv('OPENAI_API_KEY')
 
+client = OpenAI(api_key=api_key)
 
 class Phase(Enum):
     CHOOSING_URL = auto()
@@ -147,7 +152,7 @@ class BaseAgent(Agent):
     def get_next_action(self, cur_obs: AxObservation) -> Action:
         self.old_obs = cur_obs
         prompt_for_agent, answer_values = self.construct_prompt(cur_obs, model_name = 'gpt-4-0125-preview') # prompt_for_agent: str, answer_values: list[Actions]
-        (final_index, final_string) = call_llm(prompt_for_agent, model_name = 'gpt-4-0125-preview')
+        (final_index, final_string) = self.call_llm_action(prompt_for_agent, model_name = 'gpt-4-0125-preview')
         if final_index and final_index != -1:
             desired_action = answer_values[int(final_index)]
             if desired_action.action_type == Action.Type.INPUT:
@@ -159,7 +164,77 @@ class BaseAgent(Agent):
 
     def handle_memory(self, new_obs: AxObservation):
         memory_prompt_for_agent = self.construct_memory_prompt(self.intent, self.last_action, self.old_obs, new_obs, model_name = 'gpt-4-0125-preview')
-        (info_mem, task_mem) = llm_manage_memory(memory_prompt_for_agent, model_name = 'gpt-4-0125-preview')
+        (info_mem, task_mem) = self.llm_manage_memory(memory_prompt_for_agent, model_name = 'gpt-4-0125-preview')
         print(info_mem)
         print("\n")
         print(task_mem)
+
+    def call_llm_action(self, prompt, model_name='gpt-3.5-turbo-1106'):
+        if model_name.startswith('gpt'):
+            response = client.chat.completions.create(
+                model=model_name,
+                # model="gpt-3.5-turbo-1106",
+                messages=prompt,
+                temperature=0,
+                max_tokens=1500,
+                # top_p=0,
+                seed=12345678
+            )
+
+            result = response.choices[0].message.content
+            print(f"GPT RAW RETURN CALL: {result}")
+
+            pattern1 = r"'''(\d+):([^']*)'''"
+            pattern2 = r"```(\d+):([^']*)```"
+
+            match1 = re.search(pattern1, result, re.DOTALL)
+            match2 = re.search(pattern2, result, re.DOTALL)
+
+            if match1:
+                final_index = match1.group(1).strip()
+                final_string = match1.group(2).strip()
+                return (final_index, final_string)
+            elif match2:
+                final_index = match2.group(1).strip()
+                final_string = match2.group(2).strip()
+                return (final_index, final_string)
+            else:
+                Exception("CALL RETURN FORMATTING FAIL")
+
+    def llm_manage_memory(self, prompt, model_name='gpt-3.5-turbo-1106'):
+        if model_name.startswith('gpt'):
+            response = client.chat.completions.create(
+                model=model_name,
+                # model="gpt-3.5-turbo-1106",
+                messages=prompt,
+                temperature=0,
+                max_tokens=1500,
+                # top_p=0,
+                seed=12345678
+            )
+
+            result = response.choices[0].message.content
+            print(f"GPT RAW RETURN MEMORY: {result}")
+
+            pattern1 = r"'''(.*?)\|(.*?)'''"
+            pattern2 = r"```(.*?)\|(.*?)```"
+
+            match1 = re.search(pattern1, result)
+            match2 = re.search(pattern2, result)
+            if match1:
+                string_left = match1.group(1).strip()
+                string_right = match1.group(2).strip()
+                result = (string_left, string_right)
+                print("RESULT 1")
+                print(result)
+                return result
+            elif match2:
+                string_left = match2.group(1).strip()
+                string_right = match2.group(2).strip()
+                result = (string_left, string_right)
+                print("RESULT 2")
+                print(result)
+                return result
+            else:
+                print("FUCK!!!!")
+                Exception("CALL RETURN FORMATTING FAIL")
