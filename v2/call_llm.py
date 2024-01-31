@@ -66,11 +66,16 @@ def llm_manage_memory(prompt, model_name='gpt-3.5-turbo-1106'):
             string_left = match1.group(1).strip()
             string_right = match1.group(2).strip()
             result = (string_left, string_right)
+            print("RESULT 1")
+            print(result)
             return result
         elif match2:
             string_left = match2.group(1).strip()
             string_right = match2.group(2).strip()
             result = (string_left, string_right)
+            print("RESULT 2")
+            print(result)
             return result
         else:
+            print("FUCK!!!!")
             Exception("CALL RETURN FORMATTING FAIL")

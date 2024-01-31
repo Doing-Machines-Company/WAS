@@ -1,7 +1,7 @@
 from drivers import AxObservation
 from impls import *
 from action import Action
-def extract_interaction_info(xpath, html): #use general input type
+def extract_interaction_info(xpath, html): # TODO USE AXTREE ROLES
     if '<a' in html:
         return Action(Action.Type.CLICK, xpath, html)
     if ('<button' in html or "type='button'" in html or "role='button'" in html or "role=\"button\"" in html or "type=\"radio\"" in html or "[onclick]" in html or "onclick=" in html or "[role='button']" in html) and ("<div" not in html): # filter out div?
