@@ -86,7 +86,7 @@ class AxObservation(PageObservation):
                 )
 
         dfs(0, self.axtree[0]["nodeId"], 0)
-        print(self.nodes_info)
+        # print(self.nodes_info)
         """further clean accesibility tree"""
         #maybe make this part single pass? - TODO CEM
         cleaned_nodes = []

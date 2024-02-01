@@ -11,6 +11,7 @@ import re
 import json
 from typing import Optional
 from environment_logger import EnvironmentChange
+import copy
 
 api_key = os.getenv('OPENAI_API_KEY')
 
@@ -116,7 +117,6 @@ class BaseAgent(Agent):
         action_list = [(Action(Action.Type.STOP, None, None), EnvironmentChange(obs.url, None, Action.Type.STOP))]
         cleaned_tree = "[0] STOP: STOP AND FINISH\n"
 
-
         for i in range(len(obs.nodes_info)):
             if obs.nodes_info[i]['role'] != 'RootWebArea':
                 node_action = self.__extract_interaction_info(obs.nodes_info[i]['xpath'], obs.nodes_info[i]['html'], obs.nodes_info[i]['role'])
@@ -128,9 +128,9 @@ class BaseAgent(Agent):
                     action_list.append((node_action, env_tags))
                     if env_tags in EnvironmentChange.change_log:
                         if node_action.action_type == Action.Type.INPUT:
-                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}input: {obs.nodes_info[i]['name']} {reqs} {str(env_tags)}\n"
+                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}input: {obs.nodes_info[i]['name']} {reqs} ENV TAG FOUND\n"
                         else:
-                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {reqs} {str(env_tags)}\n"
+                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {reqs} ENV TAG FOUND\n"
                     else:
                         if node_action.action_type == Action.Type.INPUT:
                             cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}input: {obs.nodes_info[i]['name']} {reqs}\n"
@@ -173,10 +173,17 @@ class BaseAgent(Agent):
             if desired_action.action_type == Action.Type.INPUT:
                 desired_action.set_input_string(final_string)
             self.last_action = desired_action
-            new_change = EnvironmentChange(cur_obs.url, desired_action.html, desired_action.action_type)
+            new_change = answer_values[int(final_index)][1]
+
+
 
             EnvironmentChange.change_log[new_change] = desired_action.input_string
-
+            print("LOGS")
+            print(len(EnvironmentChange.change_log))
+            print([str(key) for key in EnvironmentChange.change_log])
+            print(new_change in EnvironmentChange.change_log)
+            print(copy.deepcopy(new_change) in EnvironmentChange.change_log)
+            input("LOOK AT LOGS!")
 
             return desired_action
         return Action(Action.Type.STOP, None, None) # TODO HANDLE FAILED GPT RETURNS BETTER
@@ -185,9 +192,7 @@ class BaseAgent(Agent):
     def handle_memory(self, new_obs: AxObservation):
         memory_prompt_for_agent = self.__construct_memory_prompt(self.intent, self.last_action, self.old_obs, new_obs, model_name = 'gpt-4-0125-preview')
         (info_mem, task_mem) = self.__llm_manage_memory(memory_prompt_for_agent, model_name = 'gpt-4-0125-preview')
-        print(info_mem)
-        print("\n")
-        print(task_mem)
+
 
     def __call_llm_action(self, prompt, model_name='gpt-3.5-turbo-1106'):
         if model_name.startswith('gpt'):
@@ -256,5 +261,5 @@ class BaseAgent(Agent):
                 print(result)
                 return result
             else:
-                print("FUCK!!!!")
-                Exception("CALL RETURN FORMATTING FAIL")
+                print("FAILED")
+                return ('', '')
