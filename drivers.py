@@ -7,7 +7,10 @@ from action import Action
 class AxObservation(PageObservation):
     def __init__(self, axtree, client):
         self.axtree = axtree
-
+        self.url = client.send("Runtime.evaluate", {
+            "expression": "location.href",
+            "returnByValue": True
+        })["result"]["value"]
         node_id_to_idx = {}
         for idx, node in enumerate(self.axtree):
             node_id_to_idx[node["nodeId"]] = idx
@@ -190,7 +193,7 @@ class MyDriver(WebDriver):
         target_xpath = a.xpath
         locator = self.page.locator(f'xpath={target_xpath}')
         match action_type:
-            case Action.Type.CLICK:
+            case Action.Type.CLICK_LINK:
                 try:
                     element_handle_response = self.client.send(
                         "Runtime.evaluate",
@@ -220,6 +223,38 @@ class MyDriver(WebDriver):
                     )
                 except Exception as e:
                     print(f"Error clicking element: {e}")
+
+            case Action.Type.CLICK_NON_LINK:
+                try:
+                    element_handle_response = self.client.send(
+                        "Runtime.evaluate",
+                        {
+                            "expression": f"document.evaluate('{target_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue",
+                            "returnByValue": False
+                        }
+                    )
+                    element_object_id = element_handle_response['result']['objectId']
+
+                    self.client.send(  # SHOULD I SCROLL???
+                        "Runtime.callFunctionOn",
+                        {
+                            "objectId": element_object_id,
+                            "functionDeclaration": "function() { this.scrollIntoViewIfNeeded(); }",
+                            "returnByValue": False
+                        }
+                    )
+
+                    self.client.send(
+                        "Runtime.callFunctionOn",
+                        {
+                            "objectId": element_object_id,
+                            "functionDeclaration": "function() { this.click(); }",
+                            "returnByValue": False
+                        }
+                    )
+                except Exception as e:
+                    print(f"Error clicking element: {e}")
+
             case Action.Type.INPUT:
                 input_text = a.input_string
                 try:

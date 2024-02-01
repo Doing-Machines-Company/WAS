@@ -10,6 +10,7 @@ import os
 import re
 import json
 from typing import Optional
+from environment_logger import EnvironmentChange
 
 api_key = os.getenv('OPENAI_API_KEY')
 
@@ -31,11 +32,12 @@ class BaseAgent(Agent):
         self.task_memory = []  #
         self.info_memory = []  # should really only need to remember information that needs to be synthesised
         self.environmental_changes = dict()
+        self.current_subtask = ""
 
     def __construct_url_prompt(self, intent: str, new_obs: AxObservation, model_name: str) -> str:  # TODO, ignored for now
         pass
 
-    def __construct_elements_prompt(self, intent: str, cur_obs: AxObservation, model_name: str) -> (str, list[Action]):  # MOSTLY FOR GPT
+    def __construct_elements_prompt(self, cur_obs: AxObservation, model_name: str) -> (str, list[Action]):  # MOSTLY FOR GPT
         if model_name.startswith('gpt'):
             cleaned_tree, action_list = self.__process_axtree_action(cur_obs)
             messages = [
@@ -47,7 +49,7 @@ class BaseAgent(Agent):
                  "content": "First look at the available action choices, then generate subtasks, using the available options as subtasks when they are relevant. Then reason through every single possible action I give you step-by-step thoughtfully. Do your best to choose an answer. You must return your final answer as a number and a colon enclosed in ''', like '''102:''' if the final action you choose is the line on the accessibility tree starting with [102]. If the final action you choose is an action with input, you must also reply with what you wish to input into that option, like '''102:something''', and it will be inputted for that action. "}]
 
             messages.append({"role": "user",
-                             f"content": f"This is your task: {intent}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"})
+                             f"content": f"This is your task: {self.intent}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"})
 
             return messages, action_list
         return ''
@@ -60,7 +62,7 @@ class BaseAgent(Agent):
                         {"role": "system",
                          "content": "A IMPORTANT SUBTASK is a subtask that is essential to the completion of a task. For example if a task was adding a list of items to the cart, then adding an item on the list to cart would be an IMPORTANT SUBTASK, while clicking on a link to a different page would be an UNIMPORTANT SUBTASK, as clicking on a link is not essential to completing this example task. Any subtasks that involve discovery or navigation are UNIMPORTANT. "},
                         {"role": "system",
-                         "content": f"First look at the task, then you must generate subtasks that can help you complete this task, reasong through these step-by-step. If any of the information in only the new accessibility tree is relevant to the task, that is a INFORMATION MEMORY you want to reply with. Then look at the last action performed, if the two accessibility trees indicates that the action was successful. Only include concise and summarized information of successful actions that complete IMPORTANT SUBTASKS as a TASK MEMORY you want to reply with. "},
+                         "content": f"First look at the task, then you must generate subtasks that can help you complete this task, reasong through these step-by-step. If any of the information in only the new accessibility tree is relevant to the task, that is a INFORMATION MEMORY you want to reply with. Then look at the last action performed, if the two accessibility trees indicates that the action was successful. Only include concise and human-understandable information of successful actions that complete IMPORTANT SUBTASKS as a TASK MEMORY you want to reply with. "},
                         {"role": "system",
                          "content": "Give your final reply in the form '''info memory you reply with|important subtask summaries you reply with''', where | is used to delimit the information memory and task memory you want to reply with. If you don't want to store a field, just reply with that side empty. Remember to enclose your final reply with '''."}
                         ]
@@ -76,13 +78,13 @@ class BaseAgent(Agent):
             case Phase.CHOOSING_URL:
                 return self.__construct_url_prompt(self.intent, cur_obs, model_name)
             case Phase.CHOOSING_ELEMENTS:
-                return self.__construct_elements_prompt(self.intent, cur_obs, model_name)
+                return self.__construct_elements_prompt(cur_obs, model_name)
             case _:
                 raise Exception(f'Invalid phase prompt construct, HOW????? {self.phase}')
 
     def __extract_interaction_info(self, xpath, html, role):
-        clickable_roles = [
-            'button', 'link', 'checkbox', 'radio', 'menuitem',
+        clickable_roles_without_link = [
+            'button', 'checkbox', 'radio', 'menuitem',
             'tab', 'treeitem', 'switch', 'option', 'menuitemcheckbox',
             'menuitemradio', 'gridcell', 'columnheader', 'rowheader',
             'slider', 'spinbutton', 'listbox', 'tree',
@@ -101,8 +103,10 @@ class BaseAgent(Agent):
             'checkbox', 'radio', 'switch', 'option', 'listbox',
             'combobox', 'textarea'
         ]
-        if role.strip() in clickable_roles:
-            return Action(Action.Type.CLICK, xpath, html)
+        if role.strip() == 'link':
+            return Action(Action.Type.CLICK_LINK, xpath, html)
+        elif role.strip() in clickable_roles_without_link:
+            return Action(Action.Type.CLICK_NON_LINK, xpath, html)
         elif role.strip() in input_roles:
             return Action(Action.Type.INPUT, xpath, html)
         return None
@@ -116,7 +120,9 @@ class BaseAgent(Agent):
         for i in range(len(obs.nodes_info)):
             if obs.nodes_info[i]['role'] != 'RootWebArea':
                 node_action = self.__extract_interaction_info(obs.nodes_info[i]['xpath'], obs.nodes_info[i]['html'], obs.nodes_info[i]['role'])
-                reqs = [prop for prop in obs.nodes_info[i]['properties'] if 'required' in prop]
+                self.env_tags = None # TODO
+                # reqs = [prop for prop in obs.nodes_info[i]['properties'] if 'required' in prop]
+                reqs = obs.nodes_info[i]['properties']
                 if node_action:
                     action_list.append(node_action)
                     if ('radio' in obs.nodes_info[i]['html'] or 'checkbox' in obs.nodes_info[i]['html'] or '<input' in
@@ -167,10 +173,16 @@ class BaseAgent(Agent):
             desired_action = answer_values[int(final_index)]
             if desired_action.action_type == Action.Type.INPUT:
                 desired_action.set_input_string(final_string)
-            print("FINALS")
-            print(final_index)
-            print(desired_action)
             self.last_action = desired_action
+            new_change = EnvironmentChange(cur_obs.url, desired_action.html, desired_action.action_type)
+
+
+            if new_change not in EnvironmentChange.change_log:
+                if new_change.action_type == Action.Type.INPUT:
+                    EnvironmentChange.change_log[new_change] = desired_action.input_string
+                else:
+                    EnvironmentChange.change_log[new_change] = None
+
             return desired_action
         return Action(Action.Type.STOP, None, None) # TODO HANDLE FAILED GPT RETURNS BETTER
 
@@ -178,9 +190,9 @@ class BaseAgent(Agent):
     def handle_memory(self, new_obs: AxObservation):
         memory_prompt_for_agent = self.__construct_memory_prompt(self.intent, self.last_action, self.old_obs, new_obs, model_name = 'gpt-4-0125-preview')
         (info_mem, task_mem) = self.__llm_manage_memory(memory_prompt_for_agent, model_name = 'gpt-4-0125-preview')
-        # print(info_mem)
-        # print("\n")
-        # print(task_mem)
+        print(info_mem)
+        print("\n")
+        print(task_mem)
 
     def __call_llm_action(self, prompt, model_name='gpt-3.5-turbo-1106'):
         if model_name.startswith('gpt'):
@@ -232,8 +244,8 @@ class BaseAgent(Agent):
             pattern1 = r"'''(.*?)\|(.*?)'''"
             pattern2 = r"```(.*?)\|(.*?)```"
 
-            match1 = re.search(pattern1, result)
-            match2 = re.search(pattern2, result)
+            match1 = re.search(pattern1, result, re.DOTALL)
+            match2 = re.search(pattern2, result, re.DOTALL)
             if match1:
                 string_left = match1.group(1).strip()
                 string_right = match1.group(2).strip()
