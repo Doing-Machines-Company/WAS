@@ -86,6 +86,7 @@ class AxObservation(PageObservation):
                 )
 
         dfs(0, self.axtree[0]["nodeId"], 0)
+        print(self.nodes_info)
         """further clean accesibility tree"""
         #maybe make this part single pass? - TODO CEM
         cleaned_nodes = []
@@ -224,7 +225,7 @@ class MyDriver(WebDriver):
                 except Exception as e:
                     print(f"Error clicking element: {e}")
 
-            case Action.Type.CLICK_NON_LINK:
+            case Action.Type.CLICK_GENERAL:
                 try:
                     element_handle_response = self.client.send(
                         "Runtime.evaluate",

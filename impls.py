@@ -106,33 +106,36 @@ class BaseAgent(Agent):
         if role.strip() == 'link':
             return Action(Action.Type.CLICK_LINK, xpath, html)
         elif role.strip() in clickable_roles_without_link:
-            return Action(Action.Type.CLICK_NON_LINK, xpath, html)
+            return Action(Action.Type.CLICK_GENERAL, xpath, html)
         elif role.strip() in input_roles:
             return Action(Action.Type.INPUT, xpath, html)
         return None
 
-    def __process_axtree_action(self, obs: AxObservation):
+    def __process_axtree_action(self, obs: AxObservation, include_changed = True):
         counter = 1
-        action_list = [Action(Action.Type.STOP, None, None)]
+        action_list = [(Action(Action.Type.STOP, None, None), EnvironmentChange(obs.url, None, Action.Type.STOP))]
         cleaned_tree = "[0] STOP: STOP AND FINISH\n"
 
 
         for i in range(len(obs.nodes_info)):
             if obs.nodes_info[i]['role'] != 'RootWebArea':
                 node_action = self.__extract_interaction_info(obs.nodes_info[i]['xpath'], obs.nodes_info[i]['html'], obs.nodes_info[i]['role'])
-                self.env_tags = None # TODO
                 # reqs = [prop for prop in obs.nodes_info[i]['properties'] if 'required' in prop]
                 reqs = obs.nodes_info[i]['properties']
+
                 if node_action:
-                    action_list.append(node_action)
-                    if ('radio' in obs.nodes_info[i]['html'] or 'checkbox' in obs.nodes_info[i]['html'] or '<input' in
-                        obs.nodes_info[i]['html']) and len(reqs) > 0:
+                    env_tags = EnvironmentChange(obs.url, obs.nodes_info[i]['html'], node_action.action_type)
+                    action_list.append((node_action, env_tags))
+                    if env_tags in EnvironmentChange.change_log:
+                        if node_action.action_type == Action.Type.INPUT:
+                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}input: {obs.nodes_info[i]['name']} {reqs} {str(env_tags)}\n"
+                        else:
+                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {reqs} {str(env_tags)}\n"
+                    else:
                         if node_action.action_type == Action.Type.INPUT:
                             cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}input: {obs.nodes_info[i]['name']} {reqs}\n"
                         else:
                             cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {reqs}\n"
-                    else:
-                        cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
                     counter += 1
                 else:
                     cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
@@ -143,21 +146,17 @@ class BaseAgent(Agent):
 
     def __process_axtree_memory(self, obs: AxObservation):
         tree_cleaned = "[0] STOP: STOP AND FINISH\n"
-        obs_counter = 1
 
         for i in range(len(obs.nodes_info)):
             if obs.nodes_info[i]['role'] != 'RootWebArea':
                 node_action = self.__extract_interaction_info(obs.nodes_info[i]['xpath'], obs.nodes_info[i]['html'], obs.nodes_info[i]['role'])
-                reqs = [prop for prop in obs.nodes_info[i]['properties'] if 'required' in prop]
+                # reqs = [prop for prop in obs.nodes_info[i]['properties'] if 'required' in prop]
+                reqs = obs.nodes_info[i]['properties']
                 if node_action:
-                    if ('radio' in obs.nodes_info[i]['html'] or 'checkbox' in obs.nodes_info[i]['html'] or '<input' in
-                        obs.nodes_info[i]['html']) and len(reqs) > 0:
-                        if node_action.action_type == Action.Type.INPUT:
-                            tree_cleaned += f"[{obs_counter}]{obs.nodes_info[i]['indent']}input: {obs.nodes_info[i]['name']} {reqs}\n"
-                        else:
-                            tree_cleaned += f"[{obs_counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {reqs}\n"
+                    if node_action.action_type == Action.Type.INPUT:
+                        tree_cleaned += f"{obs.nodes_info[i]['indent']}input: {obs.nodes_info[i]['name']} {reqs}\n"
                     else:
-                        tree_cleaned += f"[{obs_counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
+                        tree_cleaned += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {reqs}\n"
                 else:
                     tree_cleaned += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
             else:
@@ -170,18 +169,14 @@ class BaseAgent(Agent):
         prompt_for_agent, answer_values = self.__construct_prompt(cur_obs, model_name = 'gpt-4-0125-preview') # prompt_for_agent: str, answer_values: list[Actions]
         (final_index, final_string) = self.__call_llm_action(prompt_for_agent, model_name = 'gpt-4-0125-preview')
         if final_index and final_index != -1:
-            desired_action = answer_values[int(final_index)]
+            desired_action = answer_values[int(final_index)][0]
             if desired_action.action_type == Action.Type.INPUT:
                 desired_action.set_input_string(final_string)
             self.last_action = desired_action
             new_change = EnvironmentChange(cur_obs.url, desired_action.html, desired_action.action_type)
 
+            EnvironmentChange.change_log[new_change] = desired_action.input_string
 
-            if new_change not in EnvironmentChange.change_log:
-                if new_change.action_type == Action.Type.INPUT:
-                    EnvironmentChange.change_log[new_change] = desired_action.input_string
-                else:
-                    EnvironmentChange.change_log[new_change] = None
 
             return desired_action
         return Action(Action.Type.STOP, None, None) # TODO HANDLE FAILED GPT RETURNS BETTER

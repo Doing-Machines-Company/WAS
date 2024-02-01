@@ -5,7 +5,8 @@ class EnvironmentChange:
     change_log = dict()
     def __init__(self, url, html, action_type : Action.Type):
         self.url = self.__normalize_url(url)
-        self.html = self.__normalize_html(html)
+        if html:
+            self.html = self.__normalize_html(html)
         self.action_type = action_type
 
     def __normalize_url(self, url):
@@ -26,7 +27,18 @@ class EnvironmentChange:
         return str(soup)
 
 
-
+    def __str__(self):
+        match self.action_type:
+            case Action.Type.STOP:  # Should never really ever happen for now
+                return "STOP"
+            case Action.Type.CLICK_LINK:
+                return "Already visited"
+            case Action.Type.CLICK_GENERAL:
+                return "Previously attempted"
+            case Action.Type.CLICK_SELECT:
+                return ""
+            case Action.Type.INPUT:
+                return hash((self.url, self.action_type, self.html))
     def __repr__(self):
         return f"{self.url}, {self.html}, {self.action_type.name}"
     def __hash__(self):
@@ -35,7 +47,7 @@ class EnvironmentChange:
                 return hash((self.url, self.action_type))
             case Action.Type.CLICK_LINK:
                 return hash((self.action_type, self.html))
-            case Action.Type.CLICK_NON_LINK:
+            case Action.Type.CLICK_GENERAL:
                 return hash((self.url, self.action_type, self.html))
             case Action.Type.INPUT:
                 return hash((self.url, self.action_type, self.html))
