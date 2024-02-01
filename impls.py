@@ -12,6 +12,9 @@ import json
 from typing import Optional
 from environment_logger import EnvironmentChange
 
+from dotenv import load_dotenv
+load_dotenv()
+
 api_key = os.getenv('OPENAI_API_KEY')
 
 client = OpenAI(api_key=api_key)
