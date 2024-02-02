@@ -34,7 +34,6 @@ class BaseAgent(Agent):
         self.phase = Phase.CHOOSING_ELEMENTS # or 'choosing_elements' (or 'handling_memory') # TODO MAKE ENUM TYPE
 
         self.task_memory = []  #
-        self.info_memory = []  # should really only need to remember information that needs to be synthesised
         self.environmental_changes = dict()
         self.current_subtask = ""
 
@@ -46,14 +45,16 @@ class BaseAgent(Agent):
             cleaned_tree, action_list = self.__process_axtree_action(cur_obs)
             messages = [
                 {"role": "system",
-                 "content": "You are an autonomous agent performing tasks for an user on a webshop. I am going to give you a task, and an accessibility tree. Some lines are labelled with a number, these lines are actions you can choose, you must choose one action from the accessibility tree that is labeled with a number. All actions labelled with numbers in square brackets can be completed. "},
+                 "content": "You are an autonomous agent performing tasks for an user on a webshop. You only work by calling python functions to select an option. I am going to give you a task, and an accessibility tree. Some lines are labelled with a number, these lines are actions you can select, you must select one action from the accessibility tree that is labeled with a number. All actions labelled with numbers in square brackets can be completed. "},
                 {"role": "system",
-                 "content": "The accessibility tree is reflective of the layout of the webpage. Only actions starting with a number enclosed in brackets, like [96], are available action choices. Infer from the text of each line what that action does. "},
+                 "content": "The accessibility tree is reflective of the layout of the webpage. If an option has PROPERTIES, it will tell you if an option has already been selected and if an option is required. "},
                 {"role": "system",
-                 "content": "First look at the available action choices, then generate subtasks, using the available options as subtasks when they are relevant. Then reason through every single possible action I give you step-by-step thoughtfully. Do your best to choose an answer. You must return your final answer as a number and a colon enclosed in ''', like '''102:''' if the final action you choose is the line on the accessibility tree starting with [102]. If the final action you choose is an action with input, you must also reply with what you wish to input into that option, like '''102:something''', and it will be inputted for that action. "}]
+                 "content": "You have the python function choose_option(task_number: int, input_string: Optional[str]) which takes in a number and an optional string. You must call the python function choose_option in your reply. The input_string parameter is only used when the action you select is an action with input. "},
+                {"role": "system",
+                 "content": "First look at the available action choices, and the tasks which have already been completed, then generate subtasks that need to be done using the available options as subtasks when they are relevant. Reason through every single possible action I give you step-by-step thoughtfully. Do your best to select an answer. If multiple steps are needed, select only the first step as your option. For example, if the final action you choose is actio [102] with input \"something\", you will reply with choose_option(102, \"something\"). YOU MUST USE THE PYTHON FUNCTION choose_option to select an option. "}]
 
             messages.append({"role": "user",
-                             f"content": f"This is your task: {self.intent}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"})
+                             f"content": f"This is your task: {self.intent}\nThese are subtasks that have been completed: {self.task_memory}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"})
 
             return messages, action_list
         return ''
@@ -62,13 +63,14 @@ class BaseAgent(Agent):
                                 model_name: str) -> str:  # NOT NEEDED FOR MemGPT
         if model_name.startswith('gpt'):
             messages = [{"role": "system",
-                         "content": f"You are an evaluator for an autonomous agent performing tasks for an user on a webshop. I am going to give you a task, the last action performed on the webshop, and two accessibility trees. The first accessibility tree is the previous state of the webpage, and the second accessibility tree is the current state of the webpage. "},
+                         "content": f"You are a python function calling evaluation robot for an agent on a website. I am going to give you a task, the last action performed on a webshop, and two accessibility trees. The first accessibility tree is the previous state of the webpage, and the second accessibility tree is the current state of the webpage after the action was performed. "},
                         {"role": "system",
                          "content": "A IMPORTANT SUBTASK is a subtask that is essential to the completion of a task. For example if a task was adding a list of items to the cart, then adding an item on the list to cart would be an IMPORTANT SUBTASK, while clicking on a link to a different page would be an UNIMPORTANT SUBTASK, as clicking on a link is not essential to completing this example task. Any subtasks that involve discovery or navigation are UNIMPORTANT. "},
                         {"role": "system",
-                         "content": f"First look at the task, then you must generate subtasks that can help you complete this task, reasong through these step-by-step. If any of the information in only the new accessibility tree is relevant to the task, that is a INFORMATION MEMORY you want to reply with. Then look at the last action performed, if the two accessibility trees indicates that the action was successful. Only include concise and human-understandable information of successful actions that complete IMPORTANT SUBTASKS as a TASK MEMORY you want to reply with. "},
+                         "content": "You are given the python function store_IMPORTANT_SUBTASK(subtask_info: str) which takes in a string. You must call the python function store_IMPORTANT_SUBTASK in your reply."},
                         {"role": "system",
-                         "content": "Give your final reply in the form '''info memory you reply with|important subtask summaries you reply with''', where | is used to delimit the information memory and task memory you want to reply with. If you don't want to store a field, just reply with that side empty. Remember to enclose your final reply with '''."}
+                         "content": f"First look at the task, then you must generate subtasks that can help you complete this task, reasong through these step-by-step. Look at the last action performed, if the two accessibility trees indicates that the action was successful, include concise and human-understandable information of successful actions that complete IMPORTANT SUBTASKS in the store_IMPORTANT_SUBTASK function parameter you call. IMPORTANT SUBTASKS are subtasks that must be completed in order for your task to be completed. YOU MUST CALL THE PYTHON FUNCTION store_IMPORTANT_SUBTASK."},
+
                         ]
             old_tree_cleaned = self.__process_axtree_memory(old_obs)
             new_tree_cleaned = self.__process_axtree_memory(new_obs)
@@ -126,26 +128,26 @@ class BaseAgent(Agent):
             if obs.nodes_info[i]['role'] != 'RootWebArea':
                 node_action = self.__extract_interaction_info(obs.nodes_info[i]['xpath'], obs.nodes_info[i]['html'], obs.nodes_info[i]['role'])
                 # reqs = [prop for prop in obs.nodes_info[i]['properties'] if 'required' in prop]
-                reqs = obs.nodes_info[i]['properties']
+                props = obs.nodes_info[i]['properties']
 
                 if node_action:
                     env_tags = EnvironmentChange(obs.url, obs.nodes_info[i]['html'], node_action.action_type)
                     action_list.append((node_action, env_tags))
                     if env_tags in EnvironmentChange.change_log:
-                        if node_action.action_type == Action.Type.INPUT:
-                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}input: {obs.nodes_info[i]['name']} {reqs}. Already input: {EnvironmentChange.change_log[env_tags]} \n"
+                        if node_action.action_type == Action.Type.INPUT and 'required: True' in props:
+                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}input: {obs.nodes_info[i]['name']} {f"PROPERTIES: {props}" if 'required: True' in str(props) else ""}. Already input: {EnvironmentChange.change_log[env_tags]} \n"
                         elif node_action.action_type == Action.Type.CLICK_LINK:
-                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {reqs} Already visited\n"
+                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} Already visited\n"
                         elif node_action.action_type == Action.Type.CLICK_GENERAL:
-                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {reqs}\n"
+                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {f"PROPERTIES: {props}" if ('require' in str(props) or obs.nodes_info[i]['role'] in ['radio', 'checkbox']) else ""}\n"
                         else:
                             print(node_action.action_type)
                             Exception("UNKNOWN ACTION TYPE")
                     else:
                         if node_action.action_type == Action.Type.INPUT:
-                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}input: {obs.nodes_info[i]['name']} {reqs}\n"
+                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}input: {obs.nodes_info[i]['name']} {f"PROPERTIES: {props}" if 'required: True' in str(props) else ""}\n"
                         else:
-                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {reqs}\n"
+                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {f"PROPERTIES: {props}" if ('required: True' in str(props) or obs.nodes_info[i]['role'] in ['radio', 'checkbox']) else ""}\n"
                     counter += 1
                 else:
                     cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
@@ -176,8 +178,8 @@ class BaseAgent(Agent):
 
     def get_next_action(self, cur_obs: AxObservation) -> Action:
         self.old_obs = cur_obs
-        prompt_for_agent, answer_values = self.__construct_prompt(cur_obs, model_name = 'gpt-4-0125-preview') # prompt_for_agent: str, answer_values: list[Actions]
-        (final_index, final_string) = self.__call_llm_action(prompt_for_agent, model_name = 'gpt-4-0125-preview')
+        prompt_for_agent, answer_values = self.__construct_prompt(cur_obs, model_name = 'gpt-3.5-turbo-0125') # prompt_for_agent: str, answer_values: list[Actions]
+        (final_index, final_string) = self.__call_llm_action(prompt_for_agent, model_name = 'gpt-3.5-turbo-0125')
         if final_index and final_index != -1:
             desired_action = answer_values[int(final_index)][0]
             if desired_action.action_type == Action.Type.INPUT:
@@ -195,8 +197,13 @@ class BaseAgent(Agent):
 
 
     def handle_memory(self, new_obs: AxObservation):
-        memory_prompt_for_agent = self.__construct_memory_prompt(self.intent, self.last_action, self.old_obs, new_obs, model_name = 'gpt-4-0125-preview')
-        (info_mem, task_mem) = self.__llm_manage_memory(memory_prompt_for_agent, model_name = 'gpt-4-0125-preview')
+        memory_prompt_for_agent = self.__construct_memory_prompt(self.intent, self.last_action, self.old_obs, new_obs, model_name = 'gpt-3.5-turbo-0125')
+        task_mem = self.__llm_manage_task_memory(memory_prompt_for_agent, model_name = 'gpt-3.5-turbo-0125')
+        if task_mem != "":
+            print("TASK MEM STORED")
+            print(task_mem)
+            self.task_memory.append(task_mem)
+            print(self.task_memory)
 
 
     def __call_llm_action(self, prompt, model_name='gpt-3.5-turbo-1106'):
@@ -214,24 +221,19 @@ class BaseAgent(Agent):
             result = response.choices[0].message.content
             print(f"GPT RAW RETURN CALL: {result}")
 
-            pattern1 = r"'''(\d+):([^']*)'''"
-            pattern2 = r"```(\d+):([^']*)```"
+            pattern = r'choose_option\((\d+),?\s*(?:\'([^\']*)\'|"([^"]*)"|None)?\)'
 
-            match1 = re.search(pattern1, result, re.DOTALL)
-            match2 = re.search(pattern2, result, re.DOTALL)
+            # Searching the LLM output for the pattern
+            matches = re.findall(pattern, result)
 
-            if match1:
-                final_index = match1.group(1).strip()
-                final_string = match1.group(2).strip()
-                return (final_index, final_string)
-            elif match2:
-                final_index = match2.group(1).strip()
-                final_string = match2.group(2).strip()
-                return (final_index, final_string)
-            else:
-                Exception("CALL RETURN FORMATTING FAIL")
+            # Printing the matches
+            for match in matches:
+                task_number, input_string_single, input_string_double = match[:3]
+                input_string = input_string_single or input_string_double or ""
+                return task_number, input_string
+            print("FAILED CALLING ACTION")
 
-    def __llm_manage_memory(self, prompt, model_name='gpt-3.5-turbo-1106'):
+    def __llm_manage_task_memory(self, prompt, model_name='gpt-3.5-turbo-1106'):
         if model_name.startswith('gpt'):
             response = client.chat.completions.create(
                 model=model_name,
@@ -245,26 +247,19 @@ class BaseAgent(Agent):
 
             result = response.choices[0].message.content
             print(f"GPT RAW RETURN MEMORY: {result}")
+            pattern1 = r"store_IMPORTANT_SUBTASK\(\"(.*?)\"\)"
+            pattern2 = r"store_IMPORTANT_SUBTASK\(\'(.*?)\'\)"
 
-            pattern1 = r"'''(.*?)\|(.*?)'''"
-            pattern2 = r"```(.*?)\|(.*?)```"
+            # Searching the LLM output for the pattern
+            matches1 = re.findall(pattern1, result)
+            matches2 = re.findall(pattern2, result)
 
-            match1 = re.search(pattern1, result, re.DOTALL)
-            match2 = re.search(pattern2, result, re.DOTALL)
-            if match1:
-                string_left = match1.group(1).strip()
-                string_right = match1.group(2).strip()
-                result = (string_left, string_right)
-                print("RESULT 1")
-                print(result)
-                return result
-            elif match2:
-                string_left = match2.group(1).strip()
-                string_right = match2.group(2).strip()
-                result = (string_left, string_right)
-                print("RESULT 2")
-                print(result)
-                return result
+            if len(matches1) > 0:
+                for match in matches1:
+                    return match.strip()
+            elif len(matches2) > 0:
+                for match in matches2:
+                    return match.strip()
             else:
-                print("FAILED")
-                return ('', '')
+                print("FAILED STORING MEMORY")
+                return ""
