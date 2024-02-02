@@ -7,7 +7,7 @@ class Action:
         CLICK_GENERAL = 1
         INPUT = 2
         CLICK_LINK = 3
-        CLICK_SELECT = 4
+        GOTO_URL = 4
 
     def __init__(self, action_type: 'Action.Type', xpath: str, html: str, input_string: Optional[str] = None):
         self.action_type = action_type

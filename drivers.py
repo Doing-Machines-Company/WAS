@@ -137,7 +137,7 @@ class MyDriver(WebDriver):
                 remote_object = self.client.send(
                     "DOM.resolveNode", {"backendNodeId": int(backend_node_id)}
                 )
-                remote_object_id = remote_object["object"]["objectId"]
+                remote_object_id = remote_object["object"]["objectId"] # MAY BE ABLE TO FIND ELEMENT GIVEN REMOTE OBJECT ID, NO NEED FOR XPATHS
                 xpath_script = '''
                         function() {
                             function getXPath(element) {

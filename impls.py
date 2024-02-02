@@ -87,8 +87,10 @@ class BaseAgent(Agent):
                 raise Exception(f'Invalid phase prompt construct, HOW????? {self.phase}')
 
     def __extract_interaction_info(self, xpath, html, role):
-        clickable_roles_without_link = [
-            'button', 'checkbox', 'radio', 'menuitem',
+
+
+        clickables = [
+            'button', 'menuitem', 'checkbox', 'radio',
             'tab', 'treeitem', 'switch', 'option', 'menuitemcheckbox',
             'menuitemradio', 'gridcell', 'columnheader', 'rowheader',
             'slider', 'spinbutton', 'listbox', 'tree',
@@ -109,7 +111,7 @@ class BaseAgent(Agent):
         ]
         if role.strip() == 'link':
             return Action(Action.Type.CLICK_LINK, xpath, html)
-        elif role.strip() in clickable_roles_without_link:
+        elif role.strip() in clickables:
             return Action(Action.Type.CLICK_GENERAL, xpath, html)
         elif role.strip() in input_roles:
             return Action(Action.Type.INPUT, xpath, html)
@@ -131,9 +133,14 @@ class BaseAgent(Agent):
                     action_list.append((node_action, env_tags))
                     if env_tags in EnvironmentChange.change_log:
                         if node_action.action_type == Action.Type.INPUT:
-                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}input: {obs.nodes_info[i]['name']} {reqs} ENV TAG FOUND\n"
+                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}input: {obs.nodes_info[i]['name']} {reqs}. Already input: {EnvironmentChange.change_log[env_tags]} \n"
+                        elif node_action.action_type == Action.Type.CLICK_LINK:
+                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {reqs} Already visited\n"
+                        elif node_action.action_type == Action.Type.CLICK_GENERAL:
+                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {reqs}\n"
                         else:
-                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {reqs} ENV TAG FOUND\n"
+                            print(node_action.action_type)
+                            Exception("UNKNOWN ACTION TYPE")
                     else:
                         if node_action.action_type == Action.Type.INPUT:
                             cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}input: {obs.nodes_info[i]['name']} {reqs}\n"
@@ -181,12 +188,7 @@ class BaseAgent(Agent):
 
 
             EnvironmentChange.change_log[new_change] = desired_action.input_string
-            print("LOGS")
-            print(len(EnvironmentChange.change_log))
-            print([str(key) for key in EnvironmentChange.change_log])
-            print(new_change in EnvironmentChange.change_log)
-            print(copy.deepcopy(new_change) in EnvironmentChange.change_log)
-            input("LOOK AT LOGS!")
+
 
             return desired_action
         return Action(Action.Type.STOP, None, None) # TODO HANDLE FAILED GPT RETURNS BETTER
