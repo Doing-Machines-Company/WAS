@@ -101,7 +101,7 @@ class AxObservation(PageObservation):
                 if found:
                     continue
             cleaned_nodes.append(node)
-        # self.nodes_info = cleaned_nodes
+        self.nodes_info = cleaned_nodes
     def __eq__(self):
         pass
     def __str__(self):
@@ -184,6 +184,9 @@ class MyDriver(WebDriver):
                 node["html"]=response["outerHTML"]
                 node["xpath"] = node_xpath
             except Exception as e:
+                node['xpath'] = ''
+                if 'html' not in node:
+                    node['html'] = ''
                 continue
         observation = AxObservation(accessibility_tree, self.client)
         return observation
