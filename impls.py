@@ -45,35 +45,35 @@ class BaseAgent(Agent):
             cleaned_tree, action_list = self.__process_axtree_action(cur_obs)
             messages = [
                 {"role": "system",
-                 "content": "You are an autonomous agent performing tasks for an user on a webshop. You only work by calling python functions to select options. I am going to give you a task, and an accessibility tree. Some lines are labelled with a number, these lines are actions you can select, you must select ten (10) actions from the accessibility tree that is labeled with a number in square brackets at the start of each row. "},
+                 "content": "You are an autonomous agent performing tasks for an user on a webshop. You only work by calling python functions to select options. I am going to give you a task, and an accessibility tree. Some lines are labelled with a number in square brackets, these lines are actions you can select. You must select actions from the accessibility tree that are labeled with a number in square brackets at the start of each row. "},
                 {"role": "system",
-                 "content": "You have the python function choose_options(task_numbers: List[int]) which takes in a list of numbers. You must call the python function choose_options in your reply. "},
+                 "content": "You have the python function choose_options(selected_numbers: list[int]) which takes in a list of numbers. You must call the python function choose_options in your reply. selected_numbers is a list you must call the function with."},
                 {"role": "system",
-                 "content": "First look at the available action choices, and the tasks which have already been completed, then generate subtasks that need to be done using the available options as subtasks when they are relevant. Select the top 10 actions you want to perform by calling the python function choose_options, where the parameter is the list of the integers in square brackets at the start of each row associated with each of the ten options you want. For example, choose_options([1,5,7,22,25,31,72,88,94,95])."}]
+                 "content": "First look at the available action choices, and the tasks which have already been completed, then generate subtasks that need to be done using the available options as subtasks when they are relevant. If an action has PROPERTIES, it will tell you if an option is required or already selected. Select all actions that may help you complete the task, by giving me the code to the python function choose_options with the action numbers passed through as a list of integers selected_numbers."}]
 
             messages.append({"role": "user",
-                             f"content": f"This is your task: {self.intent}\nCompleted subtasks: {self.task_memory}\nChoose your top ten actions from this accessibility tree: \n'''\n {cleaned_tree}\n'''"})
+                             f"content": f"This is your task: {self.intent}\nCompleted subtasks: {self.task_memory}\nChoose your helpful actions from this accessibility tree: \n'''\n {cleaned_tree}\n'''"})
 
             return messages, action_list
         return ''
 
-    def __construct_elements_prompt(self, cur_obs: AxObservation, model_name: str) -> (str, list[Action]):  # MOSTLY FOR GPT
+    def __construct_elements_prompt(self, cur_obs: AxObservation, wanted_indexes: list[int], model_name: str) -> (str, list[Action]):  # MOSTLY FOR GPT
         if model_name.startswith('gpt'):
-            cleaned_tree, action_list = self.__process_axtree_action(cur_obs)
+            cleaned_tree = self.__process_axtree_action_pruned(cur_obs, wanted_indexes)
             messages = [
                 {"role": "system",
-                 "content": "You are an autonomous agent performing tasks for an user on a webshop. You only work by calling python functions to select an option. I am going to give you a task, and an accessibility tree. Some lines are labelled with a number, these lines are actions you can select, you must select one action from the accessibility tree that is labeled with a number. "},
+                 "content": "You are an autonomous agent performing tasks for an user on a webshop. You only work by calling python functions to select an option. I am going to give you a task, and an accessibility tree. Some lines are labelled with a number in square brackets, these lines are actions you can select, you must select one action from the accessibility tree that is labeled with a number. "},
                 {"role": "system",
                  "content": "The accessibility tree is reflective of the layout of the webpage. If an option has PROPERTIES, it will tell you if an option has already been selected and if an option is required. "},
                 {"role": "system",
-                 "content": "You have the python function choose_option(task_number: int, input_string: Optional[str]) which takes in a number and an optional string. You must call the python function choose_option in your reply. The input_string parameter is only used when the action you select is an action with input. "},
+                 "content": "You have the python function choose_option(task_number: int, input_string: Optional[str]) which takes in a number and an optional string. You must call the python function choose_option in your reply. The input_string parameter is only used when the action you select is an action with INPUT FIELD in it's text. "},
                 {"role": "system",
-                 "content": "First look at the available action choices, and the tasks which have already been completed, then generate subtasks that need to be done using the available options as subtasks when they are relevant. Reason through every single possible action I give you step-by-step thoughtfully. Do your best to select an answer. If multiple steps are needed, select only the first step as your option. For example, if the final action you choose is actio [102] with input \"something\", you will reply with choose_option(102, \"something\"). YOU MUST USE THE PYTHON FUNCTION choose_option to select an option. "}]
+                 "content": "First look at the available action choices, and the tasks which have already been completed, then generate subtasks that need to be done using the available options as subtasks when they are relevant. Reason through every single possible action labelled with a number in brackets at the start carefully, step-by-step. Do your best to select an answer. If multiple steps are needed, select only the first step as your option. For example, if the final action you choose is action [102] with input \"something\", you will reply with choose_option(102, \"something\"). Give me the code for calling choose_option to select an option. "}]
 
             messages.append({"role": "user",
                              f"content": f"This is your task: {self.intent}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"})
 
-            return messages, action_list
+            return messages
         return ''
 
     def __construct_memory_prompt(self, intent: str, last_action: Action, old_obs: AxObservation, new_obs: AxObservation,
@@ -86,7 +86,7 @@ class BaseAgent(Agent):
                         {"role": "system",
                          "content": "You are given the python function store_IMPORTANT_SUBTASK(subtask_info: str) which takes in a string. You must call the python function store_IMPORTANT_SUBTASK in your reply."},
                         {"role": "system",
-                         "content": f"First look at the task, then you must generate subtasks that can help you complete this task, reasong through these step-by-step. Look at the last action performed, if the two accessibility trees indicates that the action was successful, include concise and human-understandable information of successful actions that complete IMPORTANT SUBTASKS in the store_IMPORTANT_SUBTASK function parameter you call, include why the subtask was needed for the task to be completed. IMPORTANT SUBTASKS are subtasks that must be completed in order for your task to be completed. YOU MUST CALL THE PYTHON FUNCTION store_IMPORTANT_SUBTASK."},
+                         "content": f"First look at the task, then you must generate subtasks that can help you complete this task, reasong through these step-by-step. Look at the last action performed, include concise and human-understandable information of successful actions that complete IMPORTANT SUBTASKS in the store_IMPORTANT_SUBTASK function parameter you call, include why the subtask was needed for the task to be completed. If the last_action failed, include the reason it failed. IMPORTANT SUBTASKS are subtasks that must be completed in order for your task to be completed. Give me the code for calling store_IMPORTANT_SUBTASK with relevant information."},
 
                         ]
             old_tree_cleaned = self.__process_axtree_memory(old_obs)
@@ -102,11 +102,16 @@ class BaseAgent(Agent):
                 return self.__construct_url_prompt(self.intent, cur_obs, model_name)
             case Phase.CHOOSING_ELEMENTS:
                 filter_prompt, action_list = self.__construct_elements_filter(cur_obs, model_name)
-                numbers = self.__call_llm_action_filter(filter_prompt)
-                print(numbers)
-                input("LOOK!")
-                filtered_actions = [action_list[i] for i in range(len(action_list)) if i in numbers]
-                return self.__construct_elements_prompt(cur_obs, model_name)
+                numbers = sorted(self.__call_llm_action_filter(filter_prompt))
+                filtered_actions = []
+                for i in numbers:
+                    filtered_actions.append(action_list[i])
+
+
+
+
+
+                return self.__construct_elements_prompt(cur_obs, numbers, model_name), filtered_actions
             case _:
                 raise Exception(f'Invalid phase prompt construct, HOW????? {self.phase}')
 
@@ -156,20 +161,24 @@ class BaseAgent(Agent):
                     env_tags = EnvironmentChange(obs.url, obs.nodes_info[i]['html'], node_action.action_type)
                     action_list.append((node_action, env_tags))
                     if env_tags in EnvironmentChange.change_log:
+                        properties_string_1 = f"PROPERTIES: {props}" if 'required: True' in str(props) else ""
+                        properties_string_2 = f"PROPERTIES: {props}" if ('require' in str(props) or obs.nodes_info[i]['role'] in ['radio', 'checkbox']) else ""
                         if node_action.action_type == Action.Type.INPUT and 'required: True' in props:
-                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}input: {obs.nodes_info[i]['name']} {f"PROPERTIES: {props}" if 'required: True' in str(props) else ""}. Already input: {EnvironmentChange.change_log[env_tags]} \n"
+                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}INPUT FIELD: {obs.nodes_info[i]['name']} {properties_string_1}. Already input: {EnvironmentChange.change_log[env_tags]} \n"
                         elif node_action.action_type == Action.Type.CLICK_LINK:
                             cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} Already visited\n"
                         elif node_action.action_type == Action.Type.CLICK_GENERAL:
-                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {f"PROPERTIES: {props}" if ('require' in str(props) or obs.nodes_info[i]['role'] in ['radio', 'checkbox']) else ""}\n"
+                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {properties_string_2}\n"
                         else:
                             print(node_action.action_type)
                             Exception("UNKNOWN ACTION TYPE")
                     else:
+                        properties_string_1 = f"PROPERTIES: {props}" if 'required: True' in str(props) else ""
+                        properties_string_2 = f"PROPERTIES: {props}" if ('required: True' in str(props) or obs.nodes_info[i]['role'] in ['radio', 'checkbox']) else ""
                         if node_action.action_type == Action.Type.INPUT:
-                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}input: {obs.nodes_info[i]['name']} {f"PROPERTIES: {props}" if 'required: True' in str(props) else ""}\n"
+                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}input: {obs.nodes_info[i]['name']} {properties_string_1}\n"
                         else:
-                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {f"PROPERTIES: {props}" if ('required: True' in str(props) or obs.nodes_info[i]['role'] in ['radio', 'checkbox']) else ""}\n"
+                            cleaned_tree += f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {properties_string_2}\n"
                     counter += 1
                 else:
                     cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
@@ -177,6 +186,52 @@ class BaseAgent(Agent):
                 cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
         print(cleaned_tree)
         return cleaned_tree, action_list
+
+    def __process_axtree_action_pruned(self, obs: AxObservation, wanted_indexes, include_changed = True):
+        counter = 1
+        true_counter = 1 if 0 in wanted_indexes else 0
+        # print("TRUE COUNTER")
+        # print(true_counter)
+        # input("LOOK TRUE COUNT")
+        cleaned_tree = "[0] STOP: STOP AND FINISH\n" if 0 in wanted_indexes else ""
+
+        for i in range(len(obs.nodes_info)):
+            if obs.nodes_info[i]['role'] != 'RootWebArea':
+                node_action = self.__extract_interaction_info(obs.nodes_info[i]['xpath'], obs.nodes_info[i]['html'], obs.nodes_info[i]['role'])
+                # reqs = [prop for prop in obs.nodes_info[i]['properties'] if 'required' in prop]
+                props = obs.nodes_info[i]['properties']
+
+                if node_action:
+                    env_tags = EnvironmentChange(obs.url, obs.nodes_info[i]['html'], node_action.action_type)
+                    if env_tags in EnvironmentChange.change_log:
+                        true_counter_string = f"[{true_counter}]" if counter in wanted_indexes else ""
+                        properties_string_1 = f"PROPERTIES: {props}" if 'required: True' in str(props) else ""
+                        properties_string_2 = f"PROPERTIES: {props}" if ('require' in str(props) or obs.nodes_info[i]['role'] in ['radio', 'checkbox']) else ""
+                        if node_action.action_type == Action.Type.INPUT and 'required: True' in props:
+                            cleaned_tree += f"{true_counter_string}{obs.nodes_info[i]['indent']}input: {obs.nodes_info[i]['name']} {properties_string_1}. Already input: {EnvironmentChange.change_log[env_tags]} \n"
+                        elif node_action.action_type == Action.Type.CLICK_LINK:
+                            cleaned_tree += f"{true_counter_string}{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} Already visited\n"
+                        elif node_action.action_type == Action.Type.CLICK_GENERAL:
+                            cleaned_tree += f"{true_counter_string}{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {properties_string_2}\n"
+                        else:
+                            print(node_action.action_type)
+                            Exception("UNKNOWN ACTION TYPE")
+                    else:
+                        properties_string_1 = f"PROPERTIES: {props}" if 'required: True' in str(props) else ""
+                        properties_string_2 = f"PROPERTIES: {props}" if ('required: True' in str(props) or obs.nodes_info[i]['role'] in ['radio', 'checkbox']) else ""
+                        if node_action.action_type == Action.Type.INPUT:
+                            cleaned_tree += f"{f"[{true_counter}]" if counter in wanted_indexes else ""}{obs.nodes_info[i]['indent']}input: {obs.nodes_info[i]['name']} {properties_string_1}\n"
+                        else:
+                            cleaned_tree += f"{f"[{true_counter}]" if counter in wanted_indexes else ""}{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {properties_string_2}\n"
+                    if counter in wanted_indexes:
+                        true_counter += 1
+                    counter += 1
+                else:
+                    cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
+            else:
+                cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
+        print(cleaned_tree)
+        return cleaned_tree
 
     def __process_axtree_memory(self, obs: AxObservation):
         tree_cleaned = "[0] STOP: STOP AND FINISH\n"
@@ -207,6 +262,7 @@ class BaseAgent(Agent):
             if desired_action.action_type == Action.Type.INPUT:
                 desired_action.set_input_string(final_string)
             self.last_action = desired_action
+            input("LOOK AT DESIRED")
             new_change = answer_values[int(final_index)][1]
 
 
@@ -240,7 +296,7 @@ class BaseAgent(Agent):
             )
 
             result = response.choices[0].message.content
-            print(f"GPT RAW RETURN CALL: {result}")
+            print(f"RAW FILTER CALL: {result}")
 
             pattern = r"choose_options\(\[([0-9, ]+)\]\)"
 
@@ -253,7 +309,6 @@ class BaseAgent(Agent):
             if match:
                 numbers_str = match.group(1)
                 task_numbers = [int(num.strip()) for num in numbers_str.split(',')]
-                print(task_numbers)
                 return task_numbers
             else:
                 return list()
@@ -272,7 +327,7 @@ class BaseAgent(Agent):
             )
 
             result = response.choices[0].message.content
-            print(f"GPT RAW RETURN CALL: {result}")
+            print(f"NEXT ACTION RAW: {result}")
 
             pattern = r'choose_option\((\d+),?\s*(?:\'([^\']*)\'|"([^"]*)"|None)?\)'
 
