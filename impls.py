@@ -45,7 +45,7 @@ class BaseAgent(Agent):
             cleaned_tree, action_list = self.__process_axtree_action(cur_obs)
             messages = [
                 {"role": "system",
-                 "content": "You are an autonomous agent performing tasks for an user on a webshop. You only work by calling python functions to select options. I am going to give you a task, and an accessibility tree. Some lines are labelled with a number in square brackets, these lines are actions you can select. You must select actions from the accessibility tree that are labeled with a number in square brackets at the start of each row. "},
+                 "content": "You are an autonomous agent performing tasks for an user on a webshop. You only work by calling python functions to select options. I am going to give you a task, and an accessibility tree. Some lines are labelled with a number in square brackets, these lines are actions you can select. You can select actions from the accessibility tree that are labeled with a number in square brackets at the start of each row. "},
                 {"role": "system",
                  "content": "You have the python function choose_options(selected_numbers: list[int]) which takes in a list of numbers. You must call the python function choose_options in your reply. selected_numbers is a list you must call the function with."},
                 {"role": "system",
@@ -203,8 +203,8 @@ class BaseAgent(Agent):
 
                 if node_action:
                     env_tags = EnvironmentChange(obs.url, obs.nodes_info[i]['html'], node_action.action_type)
+                    true_counter_string = f"[{true_counter}]" if counter in wanted_indexes else ""
                     if env_tags in EnvironmentChange.change_log:
-                        true_counter_string = f"[{true_counter}]" if counter in wanted_indexes else ""
                         properties_string_1 = f"PROPERTIES: {props}" if 'required: True' in str(props) else ""
                         properties_string_2 = f"PROPERTIES: {props}" if ('require' in str(props) or obs.nodes_info[i]['role'] in ['radio', 'checkbox']) else ""
                         if node_action.action_type == Action.Type.INPUT and 'required: True' in props:
@@ -220,9 +220,9 @@ class BaseAgent(Agent):
                         properties_string_1 = f"PROPERTIES: {props}" if 'required: True' in str(props) else ""
                         properties_string_2 = f"PROPERTIES: {props}" if ('required: True' in str(props) or obs.nodes_info[i]['role'] in ['radio', 'checkbox']) else ""
                         if node_action.action_type == Action.Type.INPUT:
-                            cleaned_tree += f"{f"[{true_counter}]" if counter in wanted_indexes else ""}{obs.nodes_info[i]['indent']}input: {obs.nodes_info[i]['name']} {properties_string_1}\n"
+                            cleaned_tree += f"{true_counter_string}{obs.nodes_info[i]['indent']}input: {obs.nodes_info[i]['name']} {properties_string_1}\n"
                         else:
-                            cleaned_tree += f"{f"[{true_counter}]" if counter in wanted_indexes else ""}{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {properties_string_2}\n"
+                            cleaned_tree += f"{true_counter_string}{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {properties_string_2}\n"
                     if counter in wanted_indexes:
                         true_counter += 1
                     counter += 1
