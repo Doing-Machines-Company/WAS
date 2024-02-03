@@ -24,7 +24,7 @@ page.bring_to_front()
 intent = "buy Image Maryia Men 3D Creative Printed Graphic T Shirts Casual Short Sleeve Crewneck Muscle Tees Personality Realistic Suit"
 intent = "go to the next page"
 intent = "change my wishlist comments"
-intent = 'buy this polo in navy and medium'
+intent = 'buy this polo'
 # intent = "click a link"
 agent = BaseAgent(intent)
 driver = MyDriver(agent,"poopfare", page)
