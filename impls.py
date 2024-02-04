@@ -79,7 +79,7 @@ class BaseAgent(Agent):
 
             messages.append({"role": "user",
                              f"content": f"This is your task: {self.intent}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"})
-                             f"content": f"This is your task: {self.intent}\nTask completion progress: {self.task_memory}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"})
+
         if model_name.startswith('gemini'):
             messages = (
                  "You are an autonomous agent performing tasks for an user on a webshop. You only work by calling python functions to select an option. I am going to give you a task, and an accessibility tree. Some lines are start with a number in square brackets on the very left, these lines are actions you can select, you must select one action from the accessibility tree that is labeled with a number. "
@@ -87,7 +87,7 @@ class BaseAgent(Agent):
                  "You have the python function choose_option(task_number: int, input_string: Optional[str]) which takes in a number and an optional string. You must call the python function choose_option in your reply. The task_number is the option number you want to choose. The input_string parameter is only used when the action you select is an action with INPUT FIELD in it's text. Pay attention to anything that is required."
                  "First look at the task, then look at the task completion progress, then you must generate subtasks using both pieces of information, reasong through these step-by-step. Reason through every single possible action labelled with a number in brackets at the start carefully, step-by-step, to decide which action you should perform first. Do your best to select an answer. If multiple steps are needed, select the first step as your option. Give me the code for choose_option.\n")
 
-            messages += f"This is your task: {self.intent}\nTask completion progress: {self.task_memory}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"
+            messages += f"This is your task: {self.intent}\nTask completion progress: DNE FIX THIS!!!!!! \nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"
 
         return messages, action_list
         return ''
@@ -276,8 +276,8 @@ class BaseAgent(Agent):
         #
         #
         self.old_obs = cur_obs
-        prompt_for_agent, answer_values = self.__construct_prompt(cur_obs, model_name = 'gemini-pro') # prompt_for_agent: str, answer_values: list[Actions]
-        (final_index, final_string) = self.__call_llm_action(prompt_for_agent, model_name = 'gemini-pro')
+        prompt_for_agent, answer_values = self.__construct_prompt(cur_obs, model_name = 'gpt-3.5-turbo-0125') # prompt_for_agent: str, answer_values: list[Actions]
+        (final_index, final_string) = self.__call_llm_action(prompt_for_agent, model_name = 'gpt-3.5-turbo-0125')
         if final_index and final_index != -1:
             desired_action = answer_values[int(final_index)][0]
             if desired_action.action_type == Action.Type.INPUT:
