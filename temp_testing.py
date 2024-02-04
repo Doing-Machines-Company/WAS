@@ -29,9 +29,15 @@ intent = 'buy this polo'
 # intent = "click a link"
 agent = BaseAgent(intent)
 driver = MyDriver(agent,"poopfare", page)
+
 while True:
+
+
+    driver.page.wait_for_load_state('networkidle')
     next_action = agent.get_next_action(driver.observe_state())
     driver.apply(next_action)
+    driver.page.wait_for_load_state('networkidle')
+    input("WAIT A BIT")
     agent.handle_memory(driver.observe_state())
     flag = input("input stop?")
     if flag != "":
