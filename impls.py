@@ -75,7 +75,13 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "You have the python function choose_option(task_number: int, input_string: Optional[str]) which takes in a number and an optional string. You must call the python function choose_option in your reply. The task_number is the option number you want to choose. The input_string parameter is only used when the action you select is an action with INPUT FIELD in it's text. Do not choose options that are labelled 'Already selected'. "},
                 {"role": "system",
-                 "content": "First repeat all of the actions with the 'Important information' labelling with all of their information and important information. Then generate subtasks. Then using your 'Important information' action list, reason through your generated subtasks one-by-one to judge which subtasks could have been completed by actions that you listed out. The first incomplete subtask is the action you want. Do your best to select an answer. Then finally, please give me python code using the python choose_option function. "}]
+                 "content": "First repeat list all of the actions with the 'Important information' label along with all of their information, using the action number in the square brackets. "},
+                {"role": "system",
+                 "content": "Then you must generate all subtasks needed to complete your task. Note that one of many actions from the tree may be sufficient for completing one subtask. "},
+                {"role": "system",
+                 "content": "Then using your 'Important information' action list, reason through your generated subtasks one-by-one to judge which subtasks are already completed by the actions that you listed out with important information. "},
+                {"role": "system",
+                 "content": "Then reason through your subtasks one-by-one to decide which subtasks are incomplete. You the first incomplete subtask is the optimal action. Then finally, please give me python code using the python choose_option function. "}]
 
             messages.append({"role": "user",
                              f"content": f"This is your task: {self.intent}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"})
@@ -112,6 +118,7 @@ class BaseAgent(Agent):
             messages.append({"role": "user",
                              f"content": f"Intended task: {intent}\nLast action performed: {last_action.tree_line}\nOld accessibility tree:\n'''{base_tree_cleaned}\n'''\nNew accessibility tree: \n'''\n {new_tree_cleaned}\n'''"})
 
+            return messages
         if model_name.startswith('gemini'):
             messages =  ("You are a python function calling task evaluation robot for a shopping website. I am going to give you a task, the last action performed on a webshop, and two accessibility trees. The base tree is basic state of the page, and the new accessibility tree is the state of the website after the last action was performed. "
                          "A IMPORTANT SUBTASK is a subtask that is essential to the completion of a task. IMPORTANT SUBTASKS are subtasks that must be completed in order for your task to be completed. Tasks cannot be completed without completing all IMPORTANT SUBTASKS. Any subtasks that involve discovery or navigation are UNIMPORTANT. "
@@ -194,11 +201,11 @@ class BaseAgent(Agent):
         # selected_flag = False
 
         if "checked: true" in str(props_raw):
-            props.append("This option already selected. ")
+            props.append("This option already selected")
             # selected_flag = True
 
         if "required: True" in props_raw or "required=\"true\"" in html:
-            props.append("Required to only select one option for each type. ")
+            props.append("Only one of each type required")
 
 
 
@@ -315,7 +322,7 @@ class BaseAgent(Agent):
                 # model="gpt-3.5-turbo-1106",
                 messages=prompt,
                 temperature=0,
-                max_tokens=1500,
+                max_tokens=2500,
                 # top_p=0,
                 seed=12345678
             )
@@ -345,7 +352,7 @@ class BaseAgent(Agent):
                 # model="gpt-3.5-turbo-1106",
                 messages=prompt,
                 temperature=0,
-                max_tokens=1500,
+                max_tokens=2500,
                 # top_p=0,
                 seed=12345678
             )
@@ -389,7 +396,7 @@ class BaseAgent(Agent):
                 # model="gpt-3.5-turbo-1106",
                 messages=prompt,
                 temperature=0,
-                max_tokens=1500,
+                max_tokens=2500,
                 # top_p=0,
                 seed=12345678
             )
