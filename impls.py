@@ -12,6 +12,7 @@ import os
 import re
 import json
 from typing import Optional
+from bs4 import BeautifulSoup
 from environment_logger import EnvironmentChange
 import copy
 import urllib.parse
@@ -73,15 +74,15 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "The accessibility tree is reflective of the layout of the webpage. If an option has 'Important information', pay attention to all important information of that option. "},
                 {"role": "system",
-                 "content": "You have the python function choose_option(task_number: int, input_string: Optional[str]) which takes in a number and an optional string. You must call the python function choose_option in your reply. The task_number is the option number you want to choose. The input_string parameter is only used when the action you select is an action with INPUT FIELD in it's text. Do not choose options that are labelled 'Already selected'. "},
+                 "content": "You have the python function choose_option(task_number: int, input_string: Optional[str]) which takes in a number and an optional string. You must call the python function choose_option in your reply. The task_number is the option number you want to choose. The input_string parameter is only used when the action you select is an action with INPUT FIELD in it's text. "},
                 {"role": "system",
-                 "content": "First repeat list all of the actions with the 'Important information' label along with all of their information, using the action number in the square brackets. "},
+                 "content": "First you must generate detailed subtasks needed to complete your task. "},
                 {"role": "system",
-                 "content": "Then you must generate all subtasks needed to complete your task. Note that one of many actions from the tree may be sufficient for completing one subtask. "},
+                 "content": "Then list (using the action number in the square brackets) all of the actions with the 'Important information' label along with all of their information. "},
                 {"role": "system",
-                 "content": "Then using your 'Important information' action list, reason through your generated subtasks one-by-one to judge which subtasks are already completed by the actions that you listed out with important information. "},
+                 "content": "Then reason through your generated subtasks step-by-step to identify which subtasks have been completed by actions which have 'Important information'. "},
                 {"role": "system",
-                 "content": "Then reason through your subtasks one-by-one to decide which subtasks are incomplete. You the first incomplete subtask is the optimal action. Then finally, please give me python code using the python choose_option function. "}]
+                 "content": "Then summarize your findings. The first subtask that has not been completed is the optimal action. Then finally, please give me python code using the python choose_option function. "}]
 
             messages.append({"role": "user",
                              f"content": f"This is your task: {self.intent}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"})
@@ -149,7 +150,11 @@ class BaseAgent(Agent):
         ]
 
         select_clickables = [
-            'checkbox', 'radio', 'menuitem',
+            'checkbox', 'radio',
+        ]
+
+        general_clickables = [
+            'menuitem',
             'tab', 'treeitem', 'switch', 'option', 'menuitemcheckbox',
             'menuitemradio', 'gridcell', 'columnheader', 'rowheader',
             'slider', 'listbox', 'tree',
@@ -160,8 +165,7 @@ class BaseAgent(Agent):
             'article', 'cell', 'definition', 'directory', 'document',
             'feed', 'figure', 'group', 'heading', 'img', 'list',
             'listitem', 'math', 'progressbar', 'row', 'rowgroup',
-            'separator', 'toolbar', 'tooltip', 'presentation'
-        ]
+            'separator', 'toolbar', 'tooltip', 'presentation']
 
         input_roles = [
             'textbox', 'searchbox', 'slider', 'spinbutton', 'radiogroup',
@@ -178,6 +182,9 @@ class BaseAgent(Agent):
         elif role.strip() in select_clickables:
             return Action(Action.Type.CLICK_SELECT, xpath, html)
 
+        elif role.strip() in general_clickables:
+            return Action(Action.Type.CLICK_GENERAL, xpath, html)
+
         elif role.strip() in input_roles:
             return Action(Action.Type.INPUT, xpath, html)
 
@@ -185,45 +192,62 @@ class BaseAgent(Agent):
 
     def process_node_properties(self, props_raw, html, env_tags=None):
         props = []
-        if env_tags and env_tags in EnvironmentChange.change_log:
-            match env_tags.action_type:
-                case Action.Type.INPUT:
+        role_name = ""
+
+        match env_tags.action_type:
+            case Action.Type.INPUT:
+                role_name = "Input field: "
+                if env_tags and env_tags in EnvironmentChange.change_log:
                     props.append(f"|Already input: {EnvironmentChange.change_log[env_tags]}|")
-                case Action.Type.CLICK_LINK:
-                    props.append("|Already visited|")
-                case Action.Type.CLICK_IMPORTANT:
-                    if EnvironmentChange.change_log[env_tags] != "":
-                        props.append(f"|{EnvironmentChange.change_log[env_tags]}|")
-                case Action.Type.CLICK_SELECT:
-                    # Should be dealt with by checked.etc below
-                    pass
 
-        # selected_flag = False
+                if "required: True" in props_raw or "required=\"true\"" in html:
+                    props.append("Required to input")
 
-        if "checked: true" in str(props_raw):
-            props.append("This option already selected")
-            # selected_flag = True
+            case Action.Type.CLICK_LINK:
+                role_name = "Click: "
+                if env_tags and env_tags in EnvironmentChange.change_log:
+                    props.append("Already visited")
 
-        if "required: True" in props_raw or "required=\"true\"" in html:
-            props.append("Only one of each type required")
+            case Action.Type.CLICK_IMPORTANT:
+                role_name = "Click: "
+                if env_tags and env_tags in EnvironmentChange.change_log and EnvironmentChange.change_log[env_tags] != "":
+                    props.append(f"|{EnvironmentChange.change_log[env_tags]}|")
 
+            case Action.Type.CLICK_SELECT:
 
-
-
+                soup = BeautifulSoup(html, 'html.parser')
+                input_element = soup.find('input')
+                name_field = input_element.get('name', '')
 
 
+                role_name = "Select option: "
+                if "checked: true" in str(props_raw):
+                    props.append("This option already selected")
 
+                elif ("required: True" in props_raw or "required=\"true\"" in html) and name_field == "":
+                    props.append("Required")
+
+                # TODO MAKE ABOVE MORE EFFICEINT, THIS IS KIND OF REDUNDENT
+
+
+            case Action.Type.CLICK_GENERAL:
+                role_name = ""
+                if "checked: true" in str(props_raw):
+                    props.append("This option already selected")
+                if "required: True" in props_raw or "required=\"true\"" in html:
+                    props.append("Required")
 
         if len(props) > 0:
             result = "| Important information: " + ". ".join(props)
-            return result
-        return ""
+            return result, role_name
+        return "", role_name
 
 
     def __process_axtree_action(self, obs: AxObservation):
         counter = 1
         action_list = [(Action(Action.Type.STOP, None, None), EnvironmentChange(obs.url, None, Action.Type.STOP))]
-        cleaned_tree = "[0] CHOOSE THIS IF TASK FINISHED\n"
+        cleaned_tree = "[0] CHOOSE THIS IF TASK FINISHED OR IMPOSSIBLE\n"
+        tabled_options = set()
 
         for i in range(len(obs.nodes_info)):
             if obs.nodes_info[i]['role'] != 'RootWebArea':
@@ -233,22 +257,44 @@ class BaseAgent(Agent):
 
                 if node_action:
                     env_tags = EnvironmentChange(obs.url, obs.nodes_info[i]['html'], node_action.action_type)
-                    props = self.process_node_properties(obs.nodes_info[i]['properties'], obs.nodes_info[i]['html'], env_tags)
+                    props, role_name = self.process_node_properties(obs.nodes_info[i]['properties'], obs.nodes_info[i]['html'], env_tags)
+                    if role_name == "":
+                        role_name = obs.nodes_info[i]['role'] + ": "
 
 
                     if node_action.action_type == Action.Type.INPUT:
-                        tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}INPUT FIELD: {obs.nodes_info[i]['name']} {props}\n"
+                        tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
+
+                    elif node_action.action_type == Action.Type.CLICK_SELECT:
+
+                        soup = BeautifulSoup(obs.nodes_info[i]['html'], 'html.parser')
+                        input_element = soup.find('input')
+                        name_field = input_element.get('name', '').strip()
+
+                        if name_field != '':
+                            if name_field not in tabled_options:
+                                if ("required: True" in obs.nodes_info[i]['properties'] or "required=\"true\"" in obs.nodes_info[i]['html']):
+                                    cleaned_tree += f"{obs.nodes_info[i]['indent']}Select {name_field} (Required): \n"
+                                else:
+                                    cleaned_tree += f"{obs.nodes_info[i]['indent']}Select {name_field}: \n"
+                                tabled_options.add(name_field)
+
+                            tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}           {role_name}{name_field} {props}\n"
+
+                        else:
+                            tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
+
                     else:
-                        tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {props}\n"
+                        tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
 
                     counter += 1
                     cleaned_tree += tree_add
                     node_action.set_tree_line(tree_add)
                     action_list.append((node_action, env_tags))
                 else:
-                    cleaned_tree += f"(Not an action){obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
+                    cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
             else:
-                cleaned_tree += f"(Not an action){obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
+                cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
         print(cleaned_tree)
         return cleaned_tree, action_list
 
@@ -259,12 +305,15 @@ class BaseAgent(Agent):
             if obs.nodes_info[i]['role'] != 'RootWebArea':
                 node_action = self.__extract_interaction_info(obs.nodes_info[i]['xpath'], obs.nodes_info[i]['html'], obs.nodes_info[i]['role'])
                 # reqs = [prop for prop in obs.nodes_info[i]['properties'] if 'required' in prop]
-                props = self.process_node_properties(obs.nodes_info[i]['properties'], obs.nodes_info[i]['html'])
+                props, role_name = self.process_node_properties(obs.nodes_info[i]['properties'], obs.nodes_info[i]['html'])
+                if role_name == "":
+                    role_name = obs.nodes_info[i]['role'] + ": "
+
                 if node_action:
                     if node_action.action_type == Action.Type.INPUT:
-                        tree_cleaned += f"{obs.nodes_info[i]['indent']}INPUT FIELD: {obs.nodes_info[i]['name']} {props}\n"
+                        tree_cleaned += f"{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
                     else:
-                        tree_cleaned += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']} {props}\n"
+                        tree_cleaned += f"{obs.nodes_info[i]['indent']}{role_name}: {obs.nodes_info[i]['name']} {props}\n"
                 else:
                     tree_cleaned += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
             else:

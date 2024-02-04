@@ -9,6 +9,7 @@ class Action:
         CLICK_LINK = 3
         GOTO_URL = 4
         CLICK_SELECT = 5
+        CLICK_GENERAL = 6
 
     def __init__(self, action_type: 'Action.Type', xpath: str, html: str, tree_line: str = "", input_string: Optional[str] = None):
         self.action_type = action_type
