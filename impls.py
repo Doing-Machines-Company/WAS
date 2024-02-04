@@ -86,25 +86,24 @@ class BaseAgent(Agent):
                                 model_name: str) -> str:  # NOT NEEDED FOR MemGPT
         if model_name.startswith('gpt'):
             messages = [{"role": "system",
-                         "content": f"You are a python function calling task evaluation robot for a shopping website. I am going to give you a task, the last action performed on a webshop, and two accessibility trees. The base tree is basic state of the page, and the new accessibility tree is the state of the website after the last action was performed. "},
+                         "content": f"You are a python function calling task evaluation robot for a shopping website. I am going to give you a task, the last action performed on a webshop, and a accessibility trees. The accessibility tree is the state of the website after the last action was performed. "},
                         {"role": "system",
                          "content": "A IMPORTANT SUBTASK is a subtask that is essential to the completion of a task. IMPORTANT SUBTASKS are subtasks that must be completed in order for your task to be completed. Tasks cannot be completed without completing all IMPORTANT SUBTASKS. Any subtasks that involve discovery or navigation are UNIMPORTANT. "},
                         {"role": "system",
-                         "content": "FAILURE INFORMATION is information about the failure of the last action performed. If the difference between the two trees indicate that the last action's intended goal failed, you need to return FAILURE INFORMATION. FAILURE INFORMATION includes: \n1. The action that failed\n2. All the reasons why the action failed"},
+                         "content": "FAILURE INFORMATION is information about the failure of the last action performed. If the tree indicates that the last action's intended goal failed, you need to return FAILURE INFORMATION. FAILURE INFORMATION includes: \n1. The action that failed\n2. All the reasons why the action failed"},
                         {"role": "system",
-                         "content": "SUCCESS INFORMATION is information about the success of the last action performed. If the difference between the two trees indicate that the last action's intended goal succeeded or already completed, you need to return SUCCESS INFORMATION. SUCCESS INFORMATION is a concise string that includes: \n1. The action that was successful\n2. A summary of the subtask that was successfully completed and how it's relevant to completing the TASK"},
+                         "content": "SUCCESS INFORMATION is information about the success of the last action performed. If the tree indicates that the last action's intended goal succeeded or already completed, you need to return SUCCESS INFORMATION. SUCCESS INFORMATION is a concise string that includes: \n1. The action that was successful\n2. A summary of the subtask that was successfully completed and how it's relevant to completing the TASK"},
                         {"role": "system",
                          "content": "You are given three python functions:\nstore_FAILURE_INFOMRATION(failure_info: str)\nstore_SUCCESS_INFORMATION(subtask_info: str)\nMOVE_ON()\nYou must reply with only one of these functions in your reply. "},
                         {"role": "system",
                          "content": f"List the differences between the two accessibility trees. Then step-by-step reason about if an action was IMPORTANT. Then step-by-step reason about if an action was successful. If the action attempted to complete an IMPORTANT SUBTASK, give me the python code for calling either store_FAILURE_INFOMRATION to store either FAILURE INFORMATION if the action failed or store_SUCCESS_INFORMATION to store SUCCESS INFORMATION if the action succeeded. If the last action was UNIMPORTANT, give me the python function MOVE_ON(). Give me the python code for one of these functions. "},
 
                         ]
-            base_tree_cleaned = self.__process_axtree_memory(base_obs)
             new_tree_cleaned = self.__process_axtree_memory(new_obs)
 
 
             messages.append({"role": "user",
-                             f"content": f"Intended task: {intent}\nLast action performed: {last_action.tree_line}\nBase accessibility tree: \n'''\n {base_tree_cleaned}\n'''\nNew accessibility tree: \n'''\n {new_tree_cleaned}\n'''"})
+                             f"content": f"Intended task: {intent}\nLast action performed: {last_action.tree_line}\nNew accessibility tree: \n'''\n {new_tree_cleaned}\n'''"})
 
             return messages
         return ''
