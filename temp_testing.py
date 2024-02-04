@@ -44,7 +44,8 @@ while True:
     apply_time = time.time() - prev_time
 
     prev_time = time.time()
-    agent.handle_memory(driver.observe_state())
+    if next_action.action_type == Action.Type.CLICK_IMPORTANT:
+        agent.handle_memory(driver.observe_state())
     memory_time = time.time() - prev_time
 
     print(f"Observation took: {observation_time} seconds")
