@@ -1,4 +1,6 @@
 from __future__ import annotations
+import google.generativeai as genai
+import time
 from models import *
 from typing import Any, Optional, Union
 from drivers import *
@@ -21,7 +23,7 @@ load_dotenv()
 api_key = os.getenv('OPENAI_API_KEY')
 
 client = OpenAI(api_key=api_key)
-
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/home/cem/.config/gcloud/application_default_credentials.json"
 class Phase(Enum):
     CHOOSING_URL = auto()
     CHOOSING_ELEMENTS = auto()
@@ -63,8 +65,8 @@ class BaseAgent(Agent):
 
 
     def __construct_elements_prompt(self, cur_obs: AxObservation, model_name: str) -> (str, list[Action]):  # MOSTLY FOR GPT
+        cleaned_tree, action_list = self.__process_axtree_action(cur_obs)
         if model_name.startswith('gpt'):
-            cleaned_tree, action_list = self.__process_axtree_action(cur_obs)
             messages = [
                 {"role": "system",
                  "content": "You are an autonomous agent performing tasks for an user on a webshop. You only work by calling python functions to select an option. I am going to give you a task, and an accessibility tree. Some lines are start with a number in square brackets on the very left, these lines are actions you can select, you must select one action from the accessibility tree that is labeled with a number. "},
@@ -77,12 +79,24 @@ class BaseAgent(Agent):
 
             messages.append({"role": "user",
                              f"content": f"This is your task: {self.intent}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"})
+                             f"content": f"This is your task: {self.intent}\nTask completion progress: {self.task_memory}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"})
+        if model_name.startswith('gemini'):
+            messages = (
+                 "You are an autonomous agent performing tasks for an user on a webshop. You only work by calling python functions to select an option. I am going to give you a task, and an accessibility tree. Some lines are start with a number in square brackets on the very left, these lines are actions you can select, you must select one action from the accessibility tree that is labeled with a number. "
+                 "The accessibility tree is reflective of the layout of the webpage. If an option has '|', pay attention to what's between those lines, it will tell you if an option has already been selected and if an option is required. Do not choose options that are already selected. "
+                 "You have the python function choose_option(task_number: int, input_string: Optional[str]) which takes in a number and an optional string. You must call the python function choose_option in your reply. The task_number is the option number you want to choose. The input_string parameter is only used when the action you select is an action with INPUT FIELD in it's text. Pay attention to anything that is required."
+                 "First look at the task, then look at the task completion progress, then you must generate subtasks using both pieces of information, reasong through these step-by-step. Reason through every single possible action labelled with a number in brackets at the start carefully, step-by-step, to decide which action you should perform first. Do your best to select an answer. If multiple steps are needed, select the first step as your option. Give me the code for choose_option.\n")
 
-            return messages, action_list
+            messages += f"This is your task: {self.intent}\nTask completion progress: {self.task_memory}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"
+
+        return messages, action_list
         return ''
 
     def __construct_memory_prompt(self, intent: str, last_action: (Action, EnvironmentChange), base_obs: AxObservation, new_obs: AxObservation,
                                 model_name: str) -> str:  # NOT NEEDED FOR MemGPT
+        base_tree_cleaned = self.__process_axtree_memory(base_obs)
+        new_tree_cleaned = self.__process_axtree_memory(new_obs)
+            
         if model_name.startswith('gpt'):
             messages = [{"role": "system",
                          "content": "You are a very attentive robot who is responsible for judging if an action was successful, and why if it is unsuccessful why it failed. You exist on a web shop. "},
@@ -95,13 +109,20 @@ class BaseAgent(Agent):
                         {"role": "system",
                          "content": "You must call the python function store_information in your reply where the 'judgement' parameter for store_information is your summary. Finally, please give me the python code using the python store_information function I gave you."},
                         ]
-            base_tree_cleaned = self.__process_axtree_memory(base_obs)
-            new_tree_cleaned = self.__process_axtree_memory(new_obs)
-
-
             messages.append({"role": "user",
                              f"content": f"Intended task: {intent}\nLast action performed: {last_action.tree_line}\nOld accessibility tree:\n'''{base_tree_cleaned}\n'''\nNew accessibility tree: \n'''\n {new_tree_cleaned}\n'''"})
 
+        if model_name.startswith('gemini'):
+            messages =  ("You are a python function calling task evaluation robot for a shopping website. I am going to give you a task, the last action performed on a webshop, and two accessibility trees. The base tree is basic state of the page, and the new accessibility tree is the state of the website after the last action was performed. "
+                         "A IMPORTANT SUBTASK is a subtask that is essential to the completion of a task. IMPORTANT SUBTASKS are subtasks that must be completed in order for your task to be completed. Tasks cannot be completed without completing all IMPORTANT SUBTASKS. Any subtasks that involve discovery or navigation are UNIMPORTANT. "
+                         "FAILURE INFORMATION is information about the failure of the last action performed. If the difference between the two trees indicate that the last action's intended goal failed, you need to return FAILURE INFORMATION. FAILURE INFORMATION includes: \n1. The action that failed\n2. All the reasons why the action failed"
+                         "SUCCESS INFORMATION is information about the success of the last action performed. If the difference between the two trees indicate that the last action's intended goal succeeded or already completed, you need to return SUCCESS INFORMATION. SUCCESS INFORMATION is a concise string that includes: \n1. The action that was successful\n2. A summary of the subtask that was successfully completed and how it's relevant to completing the TASK"
+                         "You are given three python functions:\nstore_FAILURE_INFOMRATION(failure_info: str)\nstore_SUCCESS_INFORMATION(subtask_info: str)\nMOVE_ON()\nYou must reply with only one of these functions in your reply. "
+                         "List the differences between the two accessibility trees. Then step-by-step reason about if an action was IMPORTANT. Then step-by-step reason about if an action was successful. If the action attempted to complete an IMPORTANT SUBTASK, give me the python code for calling either store_FAILURE_INFOMRATION to store either FAILURE INFORMATION if the action failed or store_SUCCESS_INFORMATION to store SUCCESS INFORMATION if the action succeeded. If the last action was UNIMPORTANT, give me the python function MOVE_ON(). Give me the python code for one of these functions.\n")
+            messages +=  f"Intended task: {intent}\nLast action performed: {last_action.tree_line}\nBase accessibility tree: \n'''\n {base_tree_cleaned}\n'''\nNew accessibility tree: \n'''\n {new_tree_cleaned}\n'''"
+
+
+           
             return messages
         return ''
     def __construct_prompt(self, cur_obs: AxObservation, model_name) -> str:
@@ -255,8 +276,8 @@ class BaseAgent(Agent):
         #
         #
         self.old_obs = cur_obs
-        prompt_for_agent, answer_values = self.__construct_prompt(cur_obs, model_name = 'gpt-3.5-turbo-0125') # prompt_for_agent: str, answer_values: list[Actions]
-        (final_index, final_string) = self.__call_llm_action(prompt_for_agent, model_name = 'gpt-3.5-turbo-0125')
+        prompt_for_agent, answer_values = self.__construct_prompt(cur_obs, model_name = 'gemini-pro') # prompt_for_agent: str, answer_values: list[Actions]
+        (final_index, final_string) = self.__call_llm_action(prompt_for_agent, model_name = 'gemini-pro')
         if final_index and final_index != -1:
             desired_action = answer_values[int(final_index)][0]
             if desired_action.action_type == Action.Type.INPUT:
@@ -298,25 +319,24 @@ class BaseAgent(Agent):
                 # top_p=0,
                 seed=12345678
             )
-
             result = response.choices[0].message.content
-            print(f"RAW FILTER CALL: {result}")
+        print(f"RAW FILTER CALL: {result}")
+        
+        pattern = r"choose_options\(\[([0-9, ]+)\]\)"
 
-            pattern = r"choose_options\(\[([0-9, ]+)\]\)"
+        # Searching the LLM output for the pattern
+        match = re.search(pattern, result)
 
-            # Searching the LLM output for the pattern
-            match = re.search(pattern, result)
+        # Initialize an empty list to store integers
+        task_numbers = []
 
-            # Initialize an empty list to store integers
-            task_numbers = []
-
-            if match:
-                numbers_str = match.group(1)
-                task_numbers = [int(num.strip()) for num in numbers_str.split(',')]
-                return task_numbers
-            else:
-                return list()
-            print("FAILED CALLING ACTION")
+        if match:
+            numbers_str = match.group(1)
+            task_numbers = [int(num.strip()) for num in numbers_str.split(',')]
+            return task_numbers
+        else:
+            return list()
+        print("FAILED CALLING ACTION")
 
     def __call_llm_action(self, prompt, model_name='gpt-3.5-turbo-1106'):
         if model_name.startswith('gpt'):
@@ -331,19 +351,36 @@ class BaseAgent(Agent):
             )
 
             result = response.choices[0].message.content
-            print(f"NEXT ACTION RAW: {result}")
+        elif model_name.startswith('gemini'):
+            GOOGLE_API_KEY = 'AIzaSyBu8ecdjq4gzAGbT5Tk-bQm38S0WZikyDs'
+            genai.configure(api_key=GOOGLE_API_KEY)
+            model = genai.GenerativeModel('gemini-pro')
+            # Generate the response
+            response = model.generate_content(prompt)
 
-            pattern = r'choose_option\((\d+),?\s*(?:\'([^\']*)\'|"([^"]*)"|None)?\)'
+            # Introduce a delay of 1 second to limit to 60 requests per minute
+            #time.sleep(1)
 
-            # Searching the LLM output for the pattern
-            matches = re.findall(pattern, result)
+            # Return the text response
+            #print(response.candidates)
+            if len(response.candidates) > 0:
+                response = response.candidates[0].content.parts[0].text.strip()
+            else:
+                response = response.text.strip()
+            result = response
+        print(f"NEXT ACTION RAW: {result}")
 
-            # Printing the matches
-            for match in matches:
-                task_number, input_string_single, input_string_double = match[:3]
-                input_string = input_string_single or input_string_double or ""
-                return task_number, input_string
-            print("FAILED CALLING ACTION")
+        pattern = r'choose_option\((\d+),?\s*(?:\'([^\']*)\'|"([^"]*)"|None)?\)'
+
+        # Searching the LLM output for the pattern
+        matches = re.findall(pattern, result)
+
+        # Printing the matches
+        for match in matches:
+            task_number, input_string_single, input_string_double = match[:3]
+            input_string = input_string_single or input_string_double or ""
+            return task_number, input_string
+        print("FAILED CALLING ACTION")
 
     def __llm_manage_task_memory(self, prompt, model_name='gpt-3.5-turbo-1106'):
         if model_name.startswith('gpt'):
@@ -356,7 +393,6 @@ class BaseAgent(Agent):
                 # top_p=0,
                 seed=12345678
             )
-
             result = response.choices[0].message.content
             print(f"GPT RAW RETURN MEMORY: {result}")
             pattern1 = r"store_information\(\"(.*?)\"\)"
@@ -372,6 +408,51 @@ class BaseAgent(Agent):
             elif len(matches2) > 0:
                 for match in matches2:
                     return match.strip()
+
+        if model_name.startswith('gemini'):
+            GOOGLE_API_KEY = 'AIzaSyBu8ecdjq4gzAGbT5Tk-bQm38S0WZikyDs'
+            genai.configure(api_key=GOOGLE_API_KEY)
+            model = genai.GenerativeModel('gemini-pro')
+            # Generate the response
+            response = model.generate_content(prompt)
+
+            # Introduce a delay of 1 second to limit to 60 requests per minute
+            #time.sleep(1)
+
+            # Return the text response
+            #print(response.candidates)
+            if len(response.candidates) > 0:
+                response = response.candidates[0].content.parts[0].text.strip()
             else:
-                print("FAILED STORING MEMORY")
-                return ""
+                response = response.text.strip()
+            result = response
+
+        print(f"GPT RAW RETURN MEMORY: {result}")
+        pattern1 = r"store_SUCCESS_INFORMATION\(\"(.*?)\"\)"
+        pattern2 = r"store_SUCCESS_INFORMATION\(\'(.*?)\'\)"
+        pattern3 = r"store_FAILURE_INFOMRATION\(\"(.*?)\"\)"
+        pattern4 = r"store_FAILURE_INFOMRATION\(\'(.*?)\'\)"
+        pattern5 = r"MOVE_ON\(\)"
+
+        # Searching the LLM output for the pattern
+        matches1 = re.findall(pattern1, result)
+        matches2 = re.findall(pattern2, result)
+        matches3 = re.findall(pattern3, result)
+        matches4 = re.findall(pattern4, result)
+        matches5 = re.findall(pattern5, result)
+
+        if len(matches1) > 0:
+            for match in matches1:
+                return match.strip()
+        elif len(matches2) > 0:
+            for match in matches2:
+                return match.strip()
+        elif len(matches3) > 0:
+            for match in matches3:
+                return match.strip()
+        elif len(matches4) > 0:
+            for match in matches4:
+                return match.strip()
+        else:
+            print("FAILED STORING MEMORY")
+            return ""
