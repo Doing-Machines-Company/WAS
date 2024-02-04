@@ -9,14 +9,18 @@ class Action:
         CLICK_LINK = 3
         GOTO_URL = 4
 
-    def __init__(self, action_type: 'Action.Type', xpath: str, html: str, input_string: Optional[str] = None):
+    def __init__(self, action_type: 'Action.Type', xpath: str, html: str, tree_line: str = "", input_string: Optional[str] = None):
         self.action_type = action_type
         self.html = html
         self.xpath = xpath
         self.input_string = input_string if action_type == Action.Type.INPUT else None
+        self.tree_line = tree_line
 
     def set_input_string(self, input_string: str):
         self.input_string = input_string
+
+    def set_tree_line(self, tree_line: str):
+        self.tree_line = tree_line
 
     def __repr__(self) -> str:
         return str(f"{self.action_type.name}, {self.xpath}, {self.html}, {self.input_string if self.input_string else 'N/A'}")
