@@ -48,8 +48,8 @@ class BaseAgent(Agent):
         self.old_obs = None
         self.phase = Phase.CHOOSING_ELEMENTS # or 'choosing_elements' (or 'handling_memory') # TODO MAKE ENUM TYPE
 
-
-        self.current_subtask = ""
+        with open('auxillary_jsons/external_links.json', 'r') as file:
+            self.all_links = json.load(file)
 
     def aggressive_normalize_url(self, url):  # Very aggressive normalization
         parsed_url = urlparse(url)
@@ -72,17 +72,13 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "You are an autonomous agent performing tasks for an user on a webshop. You only work by calling python functions to select an option. I am going to give you a task, and an accessibility tree. Some lines are start with a number in square brackets on the very left, these lines are actions you can select, you must select one action from the accessibility tree that is labeled with a number. "},
                 {"role": "system",
-                 "content": "The accessibility tree is reflective of the layout of the webpage. If an option has 'Important information', pay attention to all important information of that option. "},
+                 "content": "The accessibility tree is reflective of the layout of the webpage. If an actions have 'Important information', pay attention to all important information of that option. "},
                 {"role": "system",
                  "content": "You have the python function choose_option(task_number: int, input_string: Optional[str]) which takes in a number and an optional string. You must call the python function choose_option in your reply. The task_number is the option number you want to choose. The input_string parameter is only used when the action you select is an action with INPUT FIELD in it's text. "},
                 {"role": "system",
-                 "content": "First you must generate detailed subtasks needed to complete your task. "},
+                 "content": "First you must generate detailed subtasks needed to complete your task. Do not go Home."},
                 {"role": "system",
-                 "content": "Then list (using the action number in the square brackets) all of the actions with the 'Important information' label along with all of their information. "},
-                {"role": "system",
-                 "content": "Then reason through your generated subtasks step-by-step to identify which subtasks have been completed by actions which have 'Important information'. "},
-                {"role": "system",
-                 "content": "Then summarize your findings. The first subtask that has not been completed is the optimal action. Then finally, please give me python code using the python choose_option function. "}]
+                 "content": "Then reason step-by-step through the subtasks. The first subtask that has not been completed is the optimal action. Then finally, please give me python code using the python choose_option function. "}]
 
             messages.append({"role": "user",
                              f"content": f"This is your task: {self.intent}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"})
@@ -155,16 +151,16 @@ class BaseAgent(Agent):
 
         general_clickables = [
             'menuitem',
-            'tab', 'treeitem', 'switch', 'option', 'menuitemcheckbox',
-            'menuitemradio', 'gridcell', 'columnheader', 'rowheader',
+             'treeitem', 'switch', 'option', 'menuitemcheckbox',
+            'menuitemradio',
             'slider', 'listbox', 'tree',
-            'grid', 'tabpanel', 'alert', 'alertdialog', 'dialog',
+            'grid',  'alert', 'alertdialog', 'dialog',
             'log', 'marquee', 'timer', 'tooltip', 'banner',
             'complementary', 'contentinfo', 'form', 'main', 'navigation',
             'region', 'search', 'status', 'img', 'note', 'application',
             'article', 'cell', 'definition', 'directory', 'document',
             'feed', 'figure', 'group', 'heading', 'img', 'list',
-            'listitem', 'math', 'progressbar', 'row', 'rowgroup',
+            'listitem', 'math', 'progressbar',
             'separator', 'toolbar', 'tooltip', 'presentation']
 
         input_roles = [
@@ -172,6 +168,10 @@ class BaseAgent(Agent):
             'checkbox', 'radio', 'switch', 'option', 'listbox',
             'combobox', 'textarea', 'spinbutton'
         ]
+
+        currently_ignored = ['gridcell', 'columnheader', 'rowheader', 'tab',
+            'tabpanel', 'row', 'rowgroup']
+
 
         if role.strip() == 'link':
             return Action(Action.Type.CLICK_LINK, xpath, html)
@@ -204,7 +204,7 @@ class BaseAgent(Agent):
                     props.append("Required to input")
 
             case Action.Type.CLICK_LINK:
-                role_name = "Click: "
+                role_name = "Click link: "
                 if env_tags and env_tags in EnvironmentChange.change_log:
                     props.append("Already visited")
 
@@ -221,8 +221,12 @@ class BaseAgent(Agent):
 
 
                 role_name = "Select option: "
+                # if "checked: true" not in str(props_raw):
+                #     props.append("Unselected")
+
                 if "checked: true" in str(props_raw):
                     props.append("This option already selected")
+
 
                 elif ("required: True" in props_raw or "required=\"true\"" in html) and name_field == "":
                     props.append("Required")
@@ -234,15 +238,46 @@ class BaseAgent(Agent):
                 role_name = ""
                 if "checked: true" in str(props_raw):
                     props.append("This option already selected")
-                if "required: True" in props_raw or "required=\"true\"" in html:
-                    props.append("Required")
+                # if "required: True" in props_raw or "required=\"true\"" in html:
+                #     props.append("Required")
 
         if len(props) > 0:
             result = "| Important information: " + ". ".join(props)
             return result, role_name
         return "", role_name
 
+    def __skip_option(self, node_info):
+        ignored_roles = ["ListMarker", "Image"]
+        if node_info['role'] in ignored_roles:
+            return True
+        return False
 
+    def __skip_action(self, node_info, node_action, obs_url: str):
+        match node_action.action_type:
+            case Action.Type.CLICK_LINK:
+                href_regex = r'href="([^"]*)"'
+                href_values = re.findall(href_regex, node_info['html'])
+                if len(href_values) > 0:
+                    for href_value in href_values:
+                        if href_value.startswith('#') and href_value != '#':
+                            return True
+                        if self.aggressive_normalize_url(href_value) in self.all_links and self.aggressive_normalize_url(href_value) != self.aggressive_normalize_url(obs_url):
+                            return True
+            case Action.Type.CLICK_GENERAL:
+                href_regex = r'href="([^"]*)"'
+                href_values = re.findall(href_regex, node_info['html'])
+                if len(href_values) > 0:
+                    for href_value in href_values:
+                        if href_value.startswith('#') and href_value != '#':
+                            return True
+                        if self.aggressive_normalize_url(
+                                href_value) in self.all_links and self.aggressive_normalize_url(
+                                href_value) != self.aggressive_normalize_url(obs_url):
+                            return True
+            case Action.Type.CLICK_IMPORTANT:
+                if "<img src" in node_info['html']:
+                    return True
+        return False
     def __process_axtree_action(self, obs: AxObservation):
         counter = 1
         action_list = [(Action(Action.Type.STOP, None, None), EnvironmentChange(obs.url, None, Action.Type.STOP))]
@@ -250,12 +285,15 @@ class BaseAgent(Agent):
         tabled_options = set()
 
         for i in range(len(obs.nodes_info)):
+            if self.__skip_option(obs.nodes_info[i]):
+                continue
             if obs.nodes_info[i]['role'] != 'RootWebArea':
                 node_action = self.__extract_interaction_info(obs.nodes_info[i]['xpath'], obs.nodes_info[i]['html'], obs.nodes_info[i]['role'])
                 # reqs = [prop for prop in obs.nodes_info[i]['properties'] if 'required' in prop]
 
-
                 if node_action:
+                    if self.__skip_action(obs.nodes_info[i], node_action, obs.url):
+                        continue
                     env_tags = EnvironmentChange(obs.url, obs.nodes_info[i]['html'], node_action.action_type)
                     props, role_name = self.process_node_properties(obs.nodes_info[i]['properties'], obs.nodes_info[i]['html'], env_tags)
                     if role_name == "":
@@ -274,12 +312,12 @@ class BaseAgent(Agent):
                         if name_field != '':
                             if name_field not in tabled_options:
                                 if ("required: True" in obs.nodes_info[i]['properties'] or "required=\"true\"" in obs.nodes_info[i]['html']):
-                                    cleaned_tree += f"{obs.nodes_info[i]['indent']}Select {name_field} (Required): \n"
+                                    cleaned_tree += f"{obs.nodes_info[i]['indent']}Select {name_field} (Required to choose one): \n"
                                 else:
                                     cleaned_tree += f"{obs.nodes_info[i]['indent']}Select {name_field}: \n"
                                 tabled_options.add(name_field)
 
-                            tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}           {role_name}{name_field} {props}\n"
+                            tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}       {role_name}{obs.nodes_info[i]['name']} {props}\n"
 
                         else:
                             tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
