@@ -8,10 +8,9 @@ class Action:
         INPUT = 2
         CLICK_LINK = 3
         GOTO_URL = 4
-        CLICK_SELECT = 5
-        CLICK_GENERAL = 6
-        CLICK_RADIO = 7
-        CLICK_CHECKBOX = 8
+        CLICK_GENERAL = 5
+        CLICK_RADIO = 6
+        CLICK_CHECKBOX = 7
 
     def __init__(self, action_type: 'Action.Type', xpath: str, html: str, tree_line: str = "", input_string: Optional[str] = None):
         self.action_type = action_type

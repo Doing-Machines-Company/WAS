@@ -222,7 +222,7 @@ class BaseAgent(Agent):
                 case Action.Type.CLICK_IMPORTANT:
                     role_name = "Click: "
                     if env_tags and env_tags in EnvironmentChange.change_log and EnvironmentChange.change_log[env_tags] != "":
-                        props.append(f"|{EnvironmentChange.change_log[env_tags]}|")
+                        props.append(f"({EnvironmentChange.change_log[env_tags]})")
 
                 case Action.Type.CLICK_CHECKBOX:
 
@@ -231,12 +231,12 @@ class BaseAgent(Agent):
                     name_field = input_element.get('name', '')
 
 
-                    role_name = "Select option: "
+                    role_name = "Select: "
                     # if "checked: true" not in str(props_raw):
                     #     props.append("Unselected")
 
                     if "checked: true" in str(props_raw):
-                        props.append("This one option already selected")
+                        props.append("Already selected")
                     #
                     elif name_field != "":
                         props.append("Unselected")
@@ -250,7 +250,7 @@ class BaseAgent(Agent):
                 case Action.Type.CLICK_GENERAL:
                     role_name = ""
                     if "checked: true" in str(props_raw):
-                        props.append("This option already selected")
+                        props.append("Already selected")
                     # if "required: True" in props_raw or "required=\"true\"" in html:
                     #     props.append("Required")
 
