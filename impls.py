@@ -74,13 +74,13 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "The accessibility tree is reflective of the layout of the webpage. The indents are reflective of the structure of the page and the actions on it. "},
                 {"role": "system",
-                 "content": "You have the python function choose_option(task_number: int, input_string: Optional[str]) which takes in a number and an optional string. You must call the python function choose_option in your reply. The task_number is the option number you want to choose. The input_string parameter is only used when the action you select is an action with INPUT FIELD in it's text. "},
+                 "content": "You have the python function choose_option(task_number: int, input_string: Optional[str]) which takes in a number and an optional string. You must call the python function choose_option in your reply. The task_number is the option number you want to choose. The input_string parameter is only used when the action you select is an action with INPUT FIELD in it's text. Pay attention to all information enclosed in in parentheses. Information parentheses will tell you if an action has already been completed. Using the information in parentheses, list out all the actions and tasks that have already been completed. "},
                 {"role": "system",
-                 "content": "A IMPORTANT SUBTASK is a subtask that is essential to the completion of a task. IMPORTANT SUBTASKS are subtasks that must be completed in order for your task to be completed. IMPORTANT SUBTASKs can be completed by a single action on the page. Tasks cannot be completed without completing all IMPORTANT SUBTASKS. Any subtasks that involve discovery or navigation are UNIMPORTANT. There are many ways in which to compelte an IMPORTANT SUBTASK, so keep them general. "},
+                 "content": "An IMPORTANT SUBTASK is a subtask that is essential to the completion of a task. IMPORTANT SUBTASKS are subtasks that must be completed in order for your task to be completed. IMPORTANT SUBTASKs can be completed by a single action on the page. Tasks cannot be completed without completing all IMPORTANT SUBTASKS. Any subtasks that involve discovery or navigation are UNIMPORTANT. "},
                 {"role": "system",
-                 "content": "Tell me what page you are currently on, and the functionality of the page. First you must generate general IMPORTANT SUBTASKs to complete your task starting from the current page you are on. "},
+                 "content": "Tell me what page you are currently on, and the functionality of the page. First you must generate general IMPORTANT SUBTASKs that are incomplete. "},
                 {"role": "system",
-                 "content": "Then you must go through your generated IMPORTANT SUBTASKs one-by-one, marking the IMPORTANT SUBTASKs which have already been completed. The optimal action is the first action that completes a subtask that is still incomplete. Then finally, please give me python code using the python choose_option function. "}]
+                 "content": "The optimal action is the first action that completes a subtask that is still incomplete. Then finally, please give me python code using the python choose_option function. "}]
 
             messages.append({"role": "user",
                              f"content": f"This is your task: {self.intent}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"})
@@ -258,7 +258,7 @@ class BaseAgent(Agent):
                     print("RADIO NOT PROCESSED BY THIS FUNCTION")
 
         if len(props) > 0:
-            result = "| Extra information: " + ". ".join(props)
+            result = " (" + ". ".join(props) + ")"
             return result, role_name
         return "", role_name
 
@@ -307,24 +307,32 @@ class BaseAgent(Agent):
         for i in range(len(radio_nodes)):
             node_info = radio_nodes[i][0]
             counter = radio_nodes[i][1]
-            action_list.append((radio_nodes[i][2][0], radio_nodes[i][2][1]))
+            node_action = radio_nodes[i][2][0]
+            env_tags = radio_nodes[i][2][1]
+
 
             soup = BeautifulSoup(node_info['html'], 'html.parser')
             input_element = soup.find('input')
             name_field = input_element.get('name', '').strip()
 
             if "checked: true" in node_info['properties']:
-                tree_insert +=  f"[{counter}]{node_info['indent']}       Select: {node_info['name']} (Currently selected)\n"
+                node_action.set_tree_line(f"[{counter}]{node_info['indent']}       Select: {node_info['name']} (already selected)")
+                tree_insert +=  f"[{counter}]{node_info['indent']}       Select: {node_info['name']} (already selected)\n"
+                action_list.append((node_action, env_tags))
             elif checked_flag:
+                node_action.set_tree_line(f"[{counter}]{node_info['indent']}       Select: {node_info['name']}")
                 tree_insert +=  f"[{counter}]{node_info['indent']}       Select: {node_info['name']}\n"
+                action_list.append((node_action, env_tags))
             else:
+                node_action.set_tree_line(f"[{counter}]{node_info['indent']}       Select: {node_info['name']}")
                 tree_insert += f"[{counter}]{node_info['indent']}       Select: {node_info['name']}\n"
+                action_list.append((node_action, env_tags))
 
         if len(radio_nodes) > 0:
             if checked_flag:
-                tree_insert = f"{radio_nodes[0][0]['indent']}Select option (already selected): \n" + tree_insert
+                tree_insert = f"{radio_nodes[0][0]['indent']}Select option (already completed): \n" + tree_insert
             elif required_flag:
-                tree_insert = f"{radio_nodes[0][0]['indent']}Select option (required): \n" + tree_insert
+                tree_insert = f"{radio_nodes[0][0]['indent']}Select option (incomplete, required to select): \n" + tree_insert
             else:
                 tree_insert = f"{radio_nodes[0][0]['indent']}Select option: \n" + tree_insert
 
