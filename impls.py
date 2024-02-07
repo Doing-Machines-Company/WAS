@@ -80,7 +80,7 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "Tell me what page you are currently on, and the functionality of the page. First you must generate general IMPORTANT SUBTASKs to complete your task starting from the current page you are on. "},
                 {"role": "system",
-                 "content": "Then look at all actions with 'Extra information: '. Pay attention to 'Extra information: '. 'Extra information: ' will tell you if an action has already been completed and if an option has already been selected. Then you must go through your generated IMPORTANT SUBTASKs one-by-one, marking the IMPORTANT SUBTASKs which have already been completed. The optimal action is the first action that completes a subtask that is still incomplete. Then finally, please give me python code using the python choose_option function. "}]
+                 "content": "Then you must go through your generated IMPORTANT SUBTASKs one-by-one, marking the IMPORTANT SUBTASKs which have already been completed. The optimal action is the first action that completes a subtask that is still incomplete. Then finally, please give me python code using the python choose_option function. "}]
 
             messages.append({"role": "user",
                              f"content": f"This is your task: {self.intent}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"})
@@ -314,15 +314,15 @@ class BaseAgent(Agent):
             name_field = input_element.get('name', '').strip()
 
             if "checked: true" in node_info['properties']:
-                tree_insert +=  f"[{counter}]{node_info['indent']}       Already selected {node_info['name']}\n"
+                tree_insert +=  f"[{counter}]{node_info['indent']}       Select: {node_info['name']} (Currently selected)\n"
             elif checked_flag:
-                tree_insert +=  f"[{counter}]{node_info['indent']}       Change to: {node_info['name']}\n"
+                tree_insert +=  f"[{counter}]{node_info['indent']}       Select: {node_info['name']}\n"
             else:
                 tree_insert += f"[{counter}]{node_info['indent']}       Select: {node_info['name']}\n"
 
         if len(radio_nodes) > 0:
             if checked_flag:
-                tree_insert = f"{radio_nodes[0][0]['indent']}Change option to: \n" + tree_insert
+                tree_insert = f"{radio_nodes[0][0]['indent']}Select option (already selected): \n" + tree_insert
             elif required_flag:
                 tree_insert = f"{radio_nodes[0][0]['indent']}Select option (required): \n" + tree_insert
             else:
@@ -429,7 +429,7 @@ class BaseAgent(Agent):
         print(cleaned_tree)
         return cleaned_tree, action_list
 
-    def __process_axtree_action(self, obs: AxObservation):
+    def __process_axtree_memory(self, obs: AxObservation):
         counter = 1
         cleaned_tree = "[0] CHOOSE THIS IF TASK FINISHED OR IMPOSSIBLE\n"
 
