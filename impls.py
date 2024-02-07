@@ -360,10 +360,11 @@ class BaseAgent(Agent):
                     if node_action.action_type == Action.Type.INPUT:
                         if scanning_radios:
                             scanning_radios = False
-                            tree_strings, radio_actions = self.__process_radios(current_radio_nodes)
-                            cleaned_tree += tree_strings
-                            action_list.extend(radio_actions)
-                            current_radio_nodes = []
+                            if len(current_radio_nodes) > 0:
+                                tree_strings, radio_actions = self.__process_radios(current_radio_nodes)
+                                cleaned_tree += tree_strings
+                                action_list.extend(radio_actions)
+                                current_radio_nodes = []
                         tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
 
                     elif node_action.action_type == Action.Type.CLICK_RADIO:
@@ -382,6 +383,7 @@ class BaseAgent(Agent):
                                     cleaned_tree += tree_strings
                                     action_list.extend(radio_actions)
                                     current_radio_nodes = []
+                                    tabled_options.add(name_field)
                                     current_radio_nodes.append((obs.nodes_info[i], counter, (node_action, env_tags)))
                                 else:
                                     tabled_options.add(name_field)
@@ -393,10 +395,11 @@ class BaseAgent(Agent):
                     else:
                         if scanning_radios:
                             scanning_radios = False
-                            tree_strings, radio_actions = self.__process_radios(current_radio_nodes)
-                            cleaned_tree += tree_strings
-                            action_list.extend(radio_actions)
-                            current_radio_nodes = []
+                            if len(current_radio_nodes) > 0:
+                                tree_strings, radio_actions = self.__process_radios(current_radio_nodes)
+                                cleaned_tree += tree_strings
+                                action_list.extend(radio_actions)
+                                current_radio_nodes = []
                         tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
 
                     counter += 1
@@ -407,16 +410,18 @@ class BaseAgent(Agent):
                 else:
                     if scanning_radios:
                         scanning_radios = False
-                        tree_strings, radio_actions = self.__process_radios(current_radio_nodes)
-                        cleaned_tree += tree_strings
-                        action_list.extend(radio_actions)
-                        current_radio_nodes = []
+                        if len(current_radio_nodes) > 0:
+                            tree_strings, radio_actions = self.__process_radios(current_radio_nodes)
+                            cleaned_tree += tree_strings
+                            action_list.extend(radio_actions)
+                            current_radio_nodes = []
                     cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
             else:
                 cleaned_tree += f"{obs.nodes_info[i]['indent']}You are currently on the page for: {obs.nodes_info[i]['name']}\n"
 
-            if scanning_radios:
-                scanning_radios = False
+        if scanning_radios:
+            scanning_radios = False
+            if len(current_radio_nodes) > 0:
                 tree_strings, radio_actions = self.__process_radios(current_radio_nodes)
                 cleaned_tree += tree_strings
                 action_list.extend(radio_actions)
@@ -424,10 +429,9 @@ class BaseAgent(Agent):
         print(cleaned_tree)
         return cleaned_tree, action_list
 
-    def __process_axtree_memory(self, obs: AxObservation):
+    def __process_axtree_action(self, obs: AxObservation):
         counter = 1
         cleaned_tree = "[0] CHOOSE THIS IF TASK FINISHED OR IMPOSSIBLE\n"
-
 
         scanning_radios = False
         current_radio_nodes = []
@@ -437,7 +441,8 @@ class BaseAgent(Agent):
             if self.__skip_option(obs.nodes_info[i]):
                 continue
             if obs.nodes_info[i]['role'] != 'RootWebArea':
-                node_action = self.__extract_interaction_info(obs.nodes_info[i]['xpath'], obs.nodes_info[i]['html'], obs.nodes_info[i]['role'])
+                node_action = self.__extract_interaction_info(obs.nodes_info[i]['xpath'], obs.nodes_info[i]['html'],
+                                                              obs.nodes_info[i]['role'])
 
                 if node_action:
                     tree_add = None
@@ -446,16 +451,18 @@ class BaseAgent(Agent):
 
                     env_tags = EnvironmentChange(obs.url, obs.nodes_info[i]['html'], node_action.action_type)
 
-                    props, role_name = self.process_node_properties(obs.nodes_info[i]['properties'], obs.nodes_info[i]['html'], env_tags)
+                    props, role_name = self.process_node_properties(obs.nodes_info[i]['properties'],
+                                                                    obs.nodes_info[i]['html'], env_tags)
                     if role_name == "":
                         role_name = obs.nodes_info[i]['role'] + ": "
 
                     if node_action.action_type == Action.Type.INPUT:
                         if scanning_radios:
                             scanning_radios = False
-                            tree_strings, radio_actions = self.__process_radios(current_radio_nodes)
-                            cleaned_tree += tree_strings
-                            current_radio_nodes = []
+                            if len(current_radio_nodes) > 0:
+                                tree_strings, _ = self.__process_radios(current_radio_nodes)
+                                cleaned_tree += tree_strings
+                                current_radio_nodes = []
                         tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
 
                     elif node_action.action_type == Action.Type.CLICK_RADIO:
@@ -469,10 +476,15 @@ class BaseAgent(Agent):
                             if name_field in tabled_options:
                                 current_radio_nodes.append((obs.nodes_info[i], counter, (node_action, env_tags)))
                             else:
-                                tree_strings, _ = self.__process_radios(current_radio_nodes)
-                                cleaned_tree += tree_strings
-                                current_radio_nodes = []
-                                current_radio_nodes.append((obs.nodes_info[i], counter, (node_action, env_tags)))
+                                if len(current_radio_nodes) > 0:
+                                    tree_strings, _ = self.__process_radios(current_radio_nodes)
+                                    cleaned_tree += tree_strings
+                                    current_radio_nodes = []
+                                    tabled_options.add(name_field)
+                                    current_radio_nodes.append((obs.nodes_info[i], counter, (node_action, env_tags)))
+                                else:
+                                    tabled_options.add(name_field)
+                                    current_radio_nodes.append((obs.nodes_info[i], counter, (node_action, env_tags)))
                         else:
                             tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
 
@@ -480,9 +492,10 @@ class BaseAgent(Agent):
                     else:
                         if scanning_radios:
                             scanning_radios = False
-                            tree_strings, _ = self.__process_radios(current_radio_nodes)
-                            cleaned_tree += tree_strings
-                            current_radio_nodes = []
+                            if len(current_radio_nodes) > 0:
+                                tree_strings, _ = self.__process_radios(current_radio_nodes)
+                                cleaned_tree += tree_strings
+                                current_radio_nodes = []
                         tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
 
                     counter += 1
@@ -492,16 +505,18 @@ class BaseAgent(Agent):
                 else:
                     if scanning_radios:
                         scanning_radios = False
-                        tree_strings, _ = self.__process_radios(current_radio_nodes)
-                        cleaned_tree += tree_strings
-                        current_radio_nodes = []
+                        if len(current_radio_nodes) > 0:
+                            tree_strings, _ = self.__process_radios(current_radio_nodes)
+                            cleaned_tree += tree_strings
+                            current_radio_nodes = []
                     cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
             else:
                 cleaned_tree += f"{obs.nodes_info[i]['indent']}You are currently on the page for: {obs.nodes_info[i]['name']}\n"
 
-            if scanning_radios:
-                scanning_radios = False
-                tree_strings, radio_actions = self.__process_radios(current_radio_nodes)
+        if scanning_radios:
+            scanning_radios = False
+            if len(current_radio_nodes) > 0:
+                tree_strings, _ = self.__process_radios(current_radio_nodes)
                 cleaned_tree += tree_strings
                 current_radio_nodes = []
         return cleaned_tree
