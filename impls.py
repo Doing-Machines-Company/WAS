@@ -76,11 +76,11 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "You have the python function choose_option(task_number: int, input_string: Optional[str]) which takes in a number and an optional string. You must call the python function choose_option in your reply. The task_number is the option number you want to choose. The input_string parameter is only used when the action you select is an action with INPUT FIELD in it's text. "},
                 {"role": "system",
-                 "content": "A IMPORTANT SUBTASK is a subtask that is essential to the completion of a task. IMPORTANT SUBTASKS are subtasks that must be completed in order for your task to be completed. Tasks cannot be completed without completing all IMPORTANT SUBTASKS. Any subtasks that involve discovery or navigation are UNIMPORTANT. Note that many available actions may complete one IMPORTANT SUBTASK. "},
+                 "content": "A IMPORTANT SUBTASK is a subtask that is essential to the completion of a task. IMPORTANT SUBTASKS are subtasks that must be completed in order for your task to be completed. IMPORTANT SUBTASKs can be completed by a single action on the page. Tasks cannot be completed without completing all IMPORTANT SUBTASKS. Any subtasks that involve discovery or navigation are UNIMPORTANT. There are many ways in which to compelte an IMPORTANT SUBTASK, so keep them general. "},
                 {"role": "system",
-                 "content": "Tell me what page you are currently on, and the functionality of the page. First you must generate detailed IMPORTANT SUBTASKs to complete your task starting from the current page you are on. "},
+                 "content": "Tell me what page you are currently on, and the functionality of the page. First you must generate general IMPORTANT SUBTASKs to complete your task starting from the current page you are on. "},
                 {"role": "system",
-                 "content": "Then look at all actions with 'Extra information: '. Pay attention to 'Extra information: '. 'Extra information: ' will tell you if an action has already been completed and if an option has already been selected. Then through your generated IMPORTANT SUBTASKs one-by-one, marking the IMPORTANT SUBTASKs which have already been completed. The optimal action is the first action that completes a subtask that is still incomplete. Then finally, please give me python code using the python choose_option function. "}]
+                 "content": "Then look at all actions with 'Extra information: '. Pay attention to 'Extra information: '. 'Extra information: ' will tell you if an action has already been completed and if an option has already been selected. Then you must go through your generated IMPORTANT SUBTASKs one-by-one, marking the IMPORTANT SUBTASKs which have already been completed. The optimal action is the first action that completes a subtask that is still incomplete. Then finally, please give me python code using the python choose_option function. "}]
 
             messages.append({"role": "user",
                              f"content": f"This is your task: {self.intent}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"})
@@ -102,6 +102,12 @@ class BaseAgent(Agent):
         base_tree_cleaned = self.__process_axtree_memory(base_obs)
         new_tree_cleaned = self.__process_axtree_memory(new_obs)
 
+        print("NEW TREE")
+        print(new_tree_cleaned)
+        print("BASE TREE")
+        print(base_tree_cleaned)
+        input("LOOK AT TREES")
+
         if model_name.startswith('gpt'):
             messages = [{"role": "system",
                          "content": "You are a very attentive robot who is responsible for judging if an action was successful, and why if it is unsuccessful why it failed. You exist on a web shop. "},
@@ -112,7 +118,7 @@ class BaseAgent(Agent):
                         {"role": "system",
                          "content": "First list list all the differences between the two trees. Then reason through the differences to judge whether the action succeeded or failed. Successful actions are explicitly clear. Reason through the differences to give reasons why the action may have failed. Then give me a summary of your reasoning. This summary is your 'judgement'. "},
                         {"role": "system",
-                         "content": "You must call the python function store_information in your reply where the 'judgement' parameter for store_information is your summary. Finally, please give me the python code using the python store_information function I gave you."},
+                         "content": "You must call the python function store_information in your reply where the 'judgement' parameter for store_information is your summary. Finally, please give me the python code using the python store_information function I gave you. Pay attention to all options with 'alert'."},
                         ]
             messages.append({"role": "user",
                              f"content": f"Intended task: {intent}\nLast action performed: {last_action.tree_line}\nOld accessibility tree:\n'''{base_tree_cleaned}\n'''\nNew accessibility tree: \n'''\n {new_tree_cleaned}\n'''"})
@@ -174,25 +180,28 @@ class BaseAgent(Agent):
         currently_ignored = ['gridcell', 'columnheader', 'rowheader', 'tab',
             'tabpanel', 'row', 'rowgroup']
 
+        if xpath.strip() != "" and html.strip() != "":
+            if role.strip() == 'link':
+                return Action(Action.Type.CLICK_LINK, xpath, html)
 
-        if role.strip() == 'link':
-            return Action(Action.Type.CLICK_LINK, xpath, html)
+            elif role.strip() in important_clickables:
+                return Action(Action.Type.CLICK_IMPORTANT, xpath, html)
 
-        elif role.strip() in important_clickables:
-            return Action(Action.Type.CLICK_IMPORTANT, xpath, html)
+            elif role.strip() == 'radio':
+                return Action(Action.Type.CLICK_RADIO, xpath, html)
 
-        elif role.strip() in select_clickables:
-            return Action(Action.Type.CLICK_SELECT, xpath, html)
+            elif role.strip() == 'checkbox':
+                return Action(Action.Type.CLICK_CHECKBOX, xpath, html)
 
-        elif role.strip() in general_clickables:
-            return Action(Action.Type.CLICK_GENERAL, xpath, html)
+            elif role.strip() in general_clickables:
+                return Action(Action.Type.CLICK_GENERAL, xpath, html)
 
-        elif role.strip() in input_roles:
-            return Action(Action.Type.INPUT, xpath, html)
+            elif role.strip() in input_roles:
+                return Action(Action.Type.INPUT, xpath, html)
 
         return None
 
-    def process_node_properties(self, props_raw, html, env_tags=None):
+    def process_node_properties(self, props_raw, html, env_tags=None): # DOES NOT DO ANYTHING WITH RADIO
         props = []
         role_name = ""
         if env_tags:
@@ -215,7 +224,7 @@ class BaseAgent(Agent):
                     if env_tags and env_tags in EnvironmentChange.change_log and EnvironmentChange.change_log[env_tags] != "":
                         props.append(f"|{EnvironmentChange.change_log[env_tags]}|")
 
-                case Action.Type.CLICK_SELECT:
+                case Action.Type.CLICK_CHECKBOX:
 
                     soup = BeautifulSoup(html, 'html.parser')
                     input_element = soup.find('input')
@@ -227,11 +236,13 @@ class BaseAgent(Agent):
                     #     props.append("Unselected")
 
                     if "checked: true" in str(props_raw):
-                        props.append("This option already selected")
+                        props.append("This one option already selected")
+                    #
+                    elif name_field != "":
+                        props.append("Unselected")
 
-
-                    elif ("required: True" in props_raw or "required=\"true\"" in html) and name_field == "":
-                        props.append("Required")
+                        if ("required: True" in props_raw or "required=\"true\"" in html) and name_field == "": # TODO This casing structure may cauase logical issues later on
+                            props.append("Required")
 
                     # TODO MAKE ABOVE MORE EFFICEINT, THIS IS KIND OF REDUNDENT
 
@@ -242,6 +253,9 @@ class BaseAgent(Agent):
                         props.append("This option already selected")
                     # if "required: True" in props_raw or "required=\"true\"" in html:
                     #     props.append("Required")
+
+                case Action.Type.CLICK_RADIO:
+                    print("RADIO NOT PROCESSED BY THIS FUNCTION")
 
         if len(props) > 0:
             result = "| Extra information: " + ". ".join(props)
@@ -280,10 +294,50 @@ class BaseAgent(Agent):
                 if "<img src" in node_info['html']:
                     return True
         return False
+
+    def __process_radios(self, radio_nodes):
+        properties_stacked = str([radio_nodes[i][0]['properties'] for i in range(len(radio_nodes))])
+        html_stacked = str([radio_nodes[i][0]['html'] for i in range(len(radio_nodes))])
+        checked_flag = "checked: true" in properties_stacked
+        required_flag = "required: True" in properties_stacked or "required=\"true\"" in html_stacked
+        tree_insert = ""
+        name_field = ""
+        action_list = []
+
+        for i in range(len(radio_nodes)):
+            node_info = radio_nodes[i][0]
+            counter = radio_nodes[i][1]
+            action_list.append((radio_nodes[i][2][0], radio_nodes[i][2][1]))
+
+            soup = BeautifulSoup(node_info['html'], 'html.parser')
+            input_element = soup.find('input')
+            name_field = input_element.get('name', '').strip()
+
+            if "checked: true" in node_info['properties']:
+                tree_insert +=  f"[{counter}]{node_info['indent']}       Already selected {node_info['name']}\n"
+            elif checked_flag:
+                tree_insert +=  f"[{counter}]{node_info['indent']}       Change to: {node_info['name']}\n"
+            else:
+                tree_insert += f"[{counter}]{node_info['indent']}       Select: {node_info['name']}\n"
+
+        if len(radio_nodes) > 0:
+            if checked_flag:
+                tree_insert = f"{radio_nodes[0][0]['indent']}Change option to: \n" + tree_insert
+            elif required_flag:
+                tree_insert = f"{radio_nodes[0][0]['indent']}Select option (required): \n" + tree_insert
+            else:
+                tree_insert = f"{radio_nodes[0][0]['indent']}Select option: \n" + tree_insert
+
+        return tree_insert, action_list
+
     def __process_axtree_action(self, obs: AxObservation):
         counter = 1
         action_list = [(Action(Action.Type.STOP, None, None), EnvironmentChange(obs.url, None, Action.Type.STOP))]
         cleaned_tree = "[0] CHOOSE THIS IF TASK FINISHED OR IMPOSSIBLE\n"
+
+
+        scanning_radios = False
+        current_radio_nodes = []
         tabled_options = set()
 
         for i in range(len(obs.nodes_info)):
@@ -291,55 +345,92 @@ class BaseAgent(Agent):
                 continue
             if obs.nodes_info[i]['role'] != 'RootWebArea':
                 node_action = self.__extract_interaction_info(obs.nodes_info[i]['xpath'], obs.nodes_info[i]['html'], obs.nodes_info[i]['role'])
-                # reqs = [prop for prop in obs.nodes_info[i]['properties'] if 'required' in prop]
 
                 if node_action:
+                    tree_add = None
                     if self.__skip_action(obs.nodes_info[i], node_action, obs.url):
                         continue
+
                     env_tags = EnvironmentChange(obs.url, obs.nodes_info[i]['html'], node_action.action_type)
+
                     props, role_name = self.process_node_properties(obs.nodes_info[i]['properties'], obs.nodes_info[i]['html'], env_tags)
                     if role_name == "":
                         role_name = obs.nodes_info[i]['role'] + ": "
 
-
                     if node_action.action_type == Action.Type.INPUT:
+                        if scanning_radios:
+                            scanning_radios = False
+                            tree_strings, radio_actions = self.__process_radios(current_radio_nodes)
+                            cleaned_tree += tree_strings
+                            action_list.extend(radio_actions)
+                            current_radio_nodes = []
                         tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
 
-                    elif node_action.action_type == Action.Type.CLICK_SELECT:
+                    elif node_action.action_type == Action.Type.CLICK_RADIO:
+                        scanning_radios = True
 
                         soup = BeautifulSoup(obs.nodes_info[i]['html'], 'html.parser')
                         input_element = soup.find('input')
                         name_field = input_element.get('name', '').strip()
 
                         if name_field != '':
-                            if name_field not in tabled_options:
-                                if ("required: True" in obs.nodes_info[i]['properties'] or "required=\"true\"" in obs.nodes_info[i]['html']):
-                                    cleaned_tree += f"{obs.nodes_info[i]['indent']}Select {name_field} (Choose one from below): \n"
+                            if name_field in tabled_options:
+                                current_radio_nodes.append((obs.nodes_info[i], counter, (node_action, env_tags)))
+                            else:
+                                if len(current_radio_nodes) > 0:
+                                    tree_strings, radio_actions = self.__process_radios(current_radio_nodes)
+                                    cleaned_tree += tree_strings
+                                    action_list.extend(radio_actions)
+                                    current_radio_nodes = []
+                                    current_radio_nodes.append((obs.nodes_info[i], counter, (node_action, env_tags)))
                                 else:
-                                    cleaned_tree += f"{obs.nodes_info[i]['indent']}Select {name_field}: \n"
-                                tabled_options.add(name_field)
-
-                            tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}       {role_name}{obs.nodes_info[i]['name']} {props}\n"
-
+                                    tabled_options.add(name_field)
+                                    current_radio_nodes.append((obs.nodes_info[i], counter, (node_action, env_tags)))
                         else:
                             tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
 
+
                     else:
+                        if scanning_radios:
+                            scanning_radios = False
+                            tree_strings, radio_actions = self.__process_radios(current_radio_nodes)
+                            cleaned_tree += tree_strings
+                            action_list.extend(radio_actions)
+                            current_radio_nodes = []
                         tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
 
                     counter += 1
-                    cleaned_tree += tree_add
-                    node_action.set_tree_line(tree_add)
-                    action_list.append((node_action, env_tags))
+                    if tree_add:
+                        cleaned_tree += tree_add
+                        node_action.set_tree_line(tree_add)
+                        action_list.append((node_action, env_tags))
                 else:
+                    if scanning_radios:
+                        scanning_radios = False
+                        tree_strings, radio_actions = self.__process_radios(current_radio_nodes)
+                        cleaned_tree += tree_strings
+                        action_list.extend(radio_actions)
+                        current_radio_nodes = []
                     cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
             else:
                 cleaned_tree += f"{obs.nodes_info[i]['indent']}You are currently on the page for: {obs.nodes_info[i]['name']}\n"
+
+            if scanning_radios:
+                scanning_radios = False
+                tree_strings, radio_actions = self.__process_radios(current_radio_nodes)
+                cleaned_tree += tree_strings
+                action_list.extend(radio_actions)
+                current_radio_nodes = []
         print(cleaned_tree)
         return cleaned_tree, action_list
 
     def __process_axtree_memory(self, obs: AxObservation):
-        cleaned_tree = ""
+        counter = 1
+        cleaned_tree = "[0] CHOOSE THIS IF TASK FINISHED OR IMPOSSIBLE\n"
+
+
+        scanning_radios = False
+        current_radio_nodes = []
         tabled_options = set()
 
         for i in range(len(obs.nodes_info)):
@@ -347,50 +438,73 @@ class BaseAgent(Agent):
                 continue
             if obs.nodes_info[i]['role'] != 'RootWebArea':
                 node_action = self.__extract_interaction_info(obs.nodes_info[i]['xpath'], obs.nodes_info[i]['html'], obs.nodes_info[i]['role'])
-                # reqs = [prop for prop in obs.nodes_info[i]['properties'] if 'required' in prop]
 
                 if node_action:
+                    tree_add = None
                     if self.__skip_action(obs.nodes_info[i], node_action, obs.url):
                         continue
+
                     env_tags = EnvironmentChange(obs.url, obs.nodes_info[i]['html'], node_action.action_type)
+
                     props, role_name = self.process_node_properties(obs.nodes_info[i]['properties'], obs.nodes_info[i]['html'], env_tags)
                     if role_name == "":
                         role_name = obs.nodes_info[i]['role'] + ": "
 
-
                     if node_action.action_type == Action.Type.INPUT:
-                        tree_add = f"{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
+                        if scanning_radios:
+                            scanning_radios = False
+                            tree_strings, radio_actions = self.__process_radios(current_radio_nodes)
+                            cleaned_tree += tree_strings
+                            current_radio_nodes = []
+                        tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
 
-                    elif node_action.action_type == Action.Type.CLICK_SELECT:
+                    elif node_action.action_type == Action.Type.CLICK_RADIO:
+                        scanning_radios = True
 
                         soup = BeautifulSoup(obs.nodes_info[i]['html'], 'html.parser')
                         input_element = soup.find('input')
                         name_field = input_element.get('name', '').strip()
 
                         if name_field != '':
-                            if name_field not in tabled_options:
-                                if ("required: True" in obs.nodes_info[i]['properties'] or "required=\"true\"" in obs.nodes_info[i]['html']):
-                                    cleaned_tree += f"{obs.nodes_info[i]['indent']}Select {name_field} (Choose one from below): \n"
-                                else:
-                                    cleaned_tree += f"{obs.nodes_info[i]['indent']}Select {name_field}: \n"
-                                tabled_options.add(name_field)
-
-                            tree_add = f"{obs.nodes_info[i]['indent']}       {role_name}{obs.nodes_info[i]['name']} {props}\n"
-
+                            if name_field in tabled_options:
+                                current_radio_nodes.append((obs.nodes_info[i], counter, (node_action, env_tags)))
+                            else:
+                                tree_strings, _ = self.__process_radios(current_radio_nodes)
+                                cleaned_tree += tree_strings
+                                current_radio_nodes = []
+                                current_radio_nodes.append((obs.nodes_info[i], counter, (node_action, env_tags)))
                         else:
-                            tree_add = f"{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
+                            tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
+
 
                     else:
-                        tree_add = f"{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
+                        if scanning_radios:
+                            scanning_radios = False
+                            tree_strings, _ = self.__process_radios(current_radio_nodes)
+                            cleaned_tree += tree_strings
+                            current_radio_nodes = []
+                        tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
 
-                    cleaned_tree += tree_add
-                    node_action.set_tree_line(tree_add)
+                    counter += 1
+                    if tree_add:
+                        cleaned_tree += tree_add
+                        node_action.set_tree_line(tree_add)
                 else:
+                    if scanning_radios:
+                        scanning_radios = False
+                        tree_strings, _ = self.__process_radios(current_radio_nodes)
+                        cleaned_tree += tree_strings
+                        current_radio_nodes = []
                     cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
             else:
                 cleaned_tree += f"{obs.nodes_info[i]['indent']}You are currently on the page for: {obs.nodes_info[i]['name']}\n"
-        return cleaned_tree
 
+            if scanning_radios:
+                scanning_radios = False
+                tree_strings, radio_actions = self.__process_radios(current_radio_nodes)
+                cleaned_tree += tree_strings
+                current_radio_nodes = []
+        return cleaned_tree
 
     def get_next_action(self, cur_obs: AxObservation) -> Action:
         # if self.base_url is None:
