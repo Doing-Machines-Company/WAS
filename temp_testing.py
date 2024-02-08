@@ -45,6 +45,7 @@ while True:
 
     prev_time = time.time()
     if next_action.action_type == Action.Type.CLICK_IMPORTANT:
+        page.wait_for_selector('role=alert', timeout=5000) # Hard coded as fuck
         agent.handle_memory(driver.observe_state())
     memory_time = time.time() - prev_time
 

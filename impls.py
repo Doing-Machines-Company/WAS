@@ -74,7 +74,9 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "The accessibility tree is reflective of the layout of the webpage. The indents are reflective of the structure of the page and the actions on it. "},
                 {"role": "system",
-                 "content": "You have the python function choose_option(task_number: int, input_string: Optional[str]) which takes in a number and an optional string. You must call the python function choose_option in your reply. The task_number is the option number you want to choose. The input_string parameter is only used when the action you select is an action with INPUT FIELD in it's text. Pay attention to all information enclosed in in parentheses. Information parentheses will tell you if an action has already been completed. Using the information in parentheses, list out all the actions and tasks that have already been completed. "},
+                 "content": "You have the python function choose_option(task_number: int, input_string: Optional[str]) which takes in a number and an optional string. You must call the python function choose_option in your reply. The task_number is the option number you want to choose. The input_string parameter is only used when the action you select is an action with INPUT FIELD in it's text. Pay attention to all information enclosed in in parentheses. Information in parentheses will tell you if an action has already been completed. Using the information in parentheses, list out all the actions and tasks that have already been completed. "},
+                {"role": "system",
+                 "content": "If the information in parentheses indicated that the task that needs to be performed on this page is impossible, move on to your next task or stop."},
                 {"role": "system",
                  "content": "An IMPORTANT SUBTASK is a subtask that is essential to the completion of a task. IMPORTANT SUBTASKS are subtasks that must be completed in order for your task to be completed. IMPORTANT SUBTASKs can be completed by a single action on the page. Tasks cannot be completed without completing all IMPORTANT SUBTASKS. Any subtasks that involve discovery or navigation are UNIMPORTANT. "},
                 {"role": "system",
@@ -116,9 +118,9 @@ class BaseAgent(Agent):
                         {"role": "system",
                          "content": "I am going to give you two accessibility trees and an action. The accessibility trees represent the states of the website before the last action was performed. "},
                         {"role": "system",
-                         "content": "First list list all the differences between the two trees. Then reason through the differences to judge whether the action succeeded or failed. Successful actions are explicitly clear. Reason through the differences to give reasons why the action may have failed. Then give me a summary of your reasoning. This summary is your 'judgement'. "},
+                         "content": "First list list all the differences between the two trees. Then reason through the differences to judge whether the action succeeded or failed. Successful actions are explicitly clear. Reason through the differences to give reasons why the action may have failed. Then give me a summary of your reasoning. "},
                         {"role": "system",
-                         "content": "You must call the python function store_information in your reply where the 'judgement' parameter for store_information is your summary. Finally, please give me the python code using the python store_information function I gave you. Pay attention to all options with 'alert'."},
+                         "content": "If the action succeded, your 'judgement' is the intent of the action. If the action failed, your 'judgement' is the reasons why the action failed. You must call the python function store_information in your reply where the 'judgement' parameter for store_information is your summary. Finally, please give me the python code using the python store_information function I gave you. Pay attention to all options with 'alert'."},
                         ]
             messages.append({"role": "user",
                              f"content": f"Intended task: {intent}\nLast action performed: {last_action.tree_line}\nOld accessibility tree:\n'''{base_tree_cleaned}\n'''\nNew accessibility tree: \n'''\n {new_tree_cleaned}\n'''"})
@@ -222,7 +224,7 @@ class BaseAgent(Agent):
                 case Action.Type.CLICK_IMPORTANT:
                     role_name = "Click: "
                     if env_tags and env_tags in EnvironmentChange.change_log and EnvironmentChange.change_log[env_tags] != "":
-                        props.append(f"({EnvironmentChange.change_log[env_tags]})")
+                        props.append(f"{EnvironmentChange.change_log[env_tags]}")
 
                 case Action.Type.CLICK_CHECKBOX:
 
@@ -316,8 +318,8 @@ class BaseAgent(Agent):
             name_field = input_element.get('name', '').strip()
 
             if "checked: true" in node_info['properties']:
-                node_action.set_tree_line(f"[{counter}]{node_info['indent']}       Select: {node_info['name']} (already selected)")
-                tree_insert +=  f"[{counter}]{node_info['indent']}       Select: {node_info['name']} (already selected)\n"
+                node_action.set_tree_line(f"[{counter}]{node_info['indent']}       Select: {node_info['name']} (this option selected)")
+                tree_insert +=  f"[{counter}]{node_info['indent']}       Select: {node_info['name']} (this option selected)\n"
                 action_list.append((node_action, env_tags))
             elif checked_flag:
                 node_action.set_tree_line(f"[{counter}]{node_info['indent']}       Select: {node_info['name']}")
@@ -330,11 +332,12 @@ class BaseAgent(Agent):
 
         if len(radio_nodes) > 0:
             if checked_flag:
-                tree_insert = f"{radio_nodes[0][0]['indent']}Select option (already completed): \n" + tree_insert
+                tree_insert = f"{radio_nodes[0][0]['indent']}Select option (selection already completed): \n" + tree_insert
             elif required_flag:
                 tree_insert = f"{radio_nodes[0][0]['indent']}Select option (incomplete, required to select): \n" + tree_insert
             else:
                 tree_insert = f"{radio_nodes[0][0]['indent']}Select option: \n" + tree_insert
+            tree_insert += '\n'
 
         return tree_insert, action_list
 
