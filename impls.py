@@ -74,18 +74,18 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "The accessibility tree is reflective of the layout of the webpage. The indents are reflective of the structure of the page and the actions on it. "},
                 {"role": "system",
-                 "content": "You have the python function choose_option(task_number: int, input_string: Optional[str]) which takes in a number and an optional string. You must call the python function choose_option in your reply. The task_number is the option number you want to choose. The input_string parameter is only used when the action you select is an action with INPUT FIELD in it's text. Pay attention to all information enclosed in in parentheses. Information in parentheses will tell you if an action has already been completed. Using the information in parentheses, list out all the actions and tasks that have already been completed. "},
-                {"role": "system",
-                 "content": "If the information in parentheses indicated that the task that needs to be performed on this page is impossible, move on to your next task or stop."},
+                 "content": "You have the python function choose_option(task_number: int, input_string: Optional[str]) which takes in a number and an optional string. You must call the python function choose_option in your reply. The task_number is the option number you want to choose. The input_string parameter is only used when the action you select is an action with INPUT FIELD in it's text. If any of the information on this web page indicates that the task cannot be completed, move on to your next task or stop if you are finished. Pay attention to all information enclosed in in parentheses. Information in parentheses will tell you if an action has already been completed. Using the information in parentheses, list out all the actions and tasks that have already been completed. "},
                 {"role": "system",
                  "content": "An IMPORTANT SUBTASK is a subtask that is essential to the completion of a task. IMPORTANT SUBTASKS are subtasks that must be completed in order for your task to be completed. IMPORTANT SUBTASKs can be completed by a single action on the page. Tasks cannot be completed without completing all IMPORTANT SUBTASKS. Any subtasks that involve discovery or navigation are UNIMPORTANT. "},
                 {"role": "system",
                  "content": "Tell me what page you are currently on, and the functionality of the page. First you must generate general IMPORTANT SUBTASKs that are incomplete. "},
                 {"role": "system",
+                 "content": "Then reason step-by-step through all information in the tree that is enclosed in parentheses, and determine if that information indicates that your task is impossible. If this is your final task and it's impossible, issue a stop command. If this is not your final task, move on to your next task. "},
+                {"role": "system",
                  "content": "The optimal action is the first action that completes a subtask that is still incomplete. Then finally, please give me python code using the python choose_option function. "}]
 
             messages.append({"role": "user",
-                             f"content": f"This is your task: {self.intent}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"})
+                             f"content": f"This is your main task: {self.intent}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"})
 
         if model_name.startswith('gemini'):
             messages = (
@@ -116,11 +116,11 @@ class BaseAgent(Agent):
                         {"role": "system",
                          "content": "I'm giving you the python function store_information(judgement: str), where the string 'judgement' is the result of your reasoning. You must call the python function store_information in your reply. "},
                         {"role": "system",
-                         "content": "I am going to give you two accessibility trees and an action. The accessibility trees represent the states of the website before the last action was performed. "},
+                         "content": "I am going to give you two accessibility trees and an action. The 'Old accessibility tree' represents the state of the website before the last action was performed. The 'New accessibility tree' represents the state of the website after the last action was performed. Pay attention to all options with 'alert'. Pay attention to all information in parantheses. Some options may be selected in the old accessibility tree. "},
                         {"role": "system",
-                         "content": "First list list all the differences between the two trees. Then reason through the differences to judge whether the action succeeded or failed. Successful actions are explicitly clear. Reason through the differences to give reasons why the action may have failed. Then give me a summary of your reasoning. "},
+                         "content": "First list all the differences between the two trees. Then reason through the differences to judge whether the action succeeded or failed. Successful actions are explicitly clear. Reason through the differences to give reasons why the action may have failed. Then give me a summary of your reasoning. "},
                         {"role": "system",
-                         "content": "If the action succeded, your 'judgement' is the intent of the action. If the action failed, your 'judgement' is the reasons why the action failed. You must call the python function store_information in your reply where the 'judgement' parameter for store_information is your summary. Finally, please give me the python code using the python store_information function I gave you. Pay attention to all options with 'alert'."},
+                         "content": "If the action succeded, your 'judgement' is about the success of the intent of the action. If the action failed, your 'judgement' is the reasons why the action failed. You must call the python function store_information in your reply where the 'judgement' parameter for store_information is your summary. Finally, please give me the python code using the python store_information function I gave you. "},
                         ]
             messages.append({"role": "user",
                              f"content": f"Intended task: {intent}\nLast action performed: {last_action.tree_line}\nOld accessibility tree:\n'''{base_tree_cleaned}\n'''\nNew accessibility tree: \n'''\n {new_tree_cleaned}\n'''"})
