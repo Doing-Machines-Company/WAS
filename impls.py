@@ -51,9 +51,6 @@ class BaseAgent(Agent):
         with open('auxillary_jsons/external_links.json', 'r') as file:
             self.all_links = json.load(file)
 
-        with open('auxillary_jsons/decorator_links.json', 'r') as file: # Shown but not clickable, should use vision model to judge completion in the future
-            self.decorator_links = json.load(file)
-
     def aggressive_normalize_url(self, url):  # Very aggressive normalization
         parsed_url = urlparse(url)
         scheme = parsed_url.scheme if parsed_url.scheme else 'http'
@@ -83,7 +80,7 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "An IMPORTANT SUBTASK is a subtask that is essential to the completion of a task. IMPORTANT SUBTASKS are subtasks that must be completed in order for your task to be completed. IMPORTANT SUBTASKs can be completed by a single action on the page. Tasks cannot be completed without completing all IMPORTANT SUBTASKS. Any subtasks that involve discovery or navigation are UNIMPORTANT. "},
                 {"role": "system",
-                 "content": "Tell me what page you are currently on, and the functionality of the page. First reason step-by-step if your task can be completed without leaving this web page. Then you must generate general IMPORTANT SUBTASKs that are incomplete. "},
+                 "content": "Tell me what page you are currently on, and what can be done on the page that is relevant to your task. First reason step-by-step if your task can be completed without leaving this web page. Then you must generate general IMPORTANT SUBTASKs that are incomplete. "},
                 {"role": "system",
                  "content": "Then reason step-by-step through all information in the tree that is enclosed in parentheses, and determine if that information indicates that your task is impossible. If this is your final task and it's impossible, choose the stop command. If this is not your final task, move on to your next task. "},
                 {"role": "system",
@@ -116,20 +113,20 @@ class BaseAgent(Agent):
         print(new_tree_cleaned)
         input("LOOK AT TREES")
 
-        if model_name.startswith('gpt'):
+        if model_name.startswith('gpt'): # task no longer passed in
             messages = [{"role": "system",
-                         "content": "You are a very attentive agent who is responsible for judging if an action was successful, and why if it is unsuccessful why it failed. You exist on a web shop. "},
+                         "content": "You are a very attentive agent who is responsible for judging if an action was successful, and why if it is unsuccessful why it failed. You operate on a web shop. "},
                         {"role": "system",
-                         "content": "You have the python function store_information(judgement: str), where the string 'judgement' is the result of your reasoning. You must call the python function store_information in your reply. "},
+                         "content": "You have the python function store_information(judgement: str), where the string 'judgement' is a summary of your reasoning. "},
                         {"role": "system",
-                         "content": "I am going to give you two accessibility trees and an action. The 'Old accessibility tree' represents the state of the website before the last action was performed. The 'New accessibility tree' represents the state of the website after the last action was performed. Pay attention to all options with 'alert'. Pay attention to all information in parantheses. Some options may be selected in the old accessibility tree. "},
+                         "content": "I am going to give you two accessibility trees and the last action. The two accessibility trees are the state of the website before and after the last action. Pay attention to all options with 'alert' and all changes with lines labelled 'StaticText'. Pay attention to all information in parantheses in the accessibility tree before the action, these will tell you what options where selected/interacted with before the last action was performed. "},
                         {"role": "system",
-                         "content": "First list all the differences between the two trees. Then reason through the differences to judge whether the action succeeded or failed. Successful actions are explicitly clear. Reason through the differences to give reasons why the action may have failed. Then give me a summary of your reasoning. "},
+                         "content": "First look at your last action, and tell me why it was taken. Then you must list all the differences between the two trees. Then reason through the differences to judge whether the action succeeded or failed. Any action that starts an intended process is a fully succesful action. Then give me a summary of your reasoning. "},
                         {"role": "system",
-                         "content": "If the action succeded, your 'judgement' is about the success of the intent of the action. If the action failed, your 'judgement' is the reasons why the action failed. You must call the python function store_information in your reply where the 'judgement' parameter for store_information is your summary. Finally, please give me the python code using the python store_information function I gave you. "},
+                         "content": "If the action succeded, your 'judgement' is about the success of the intent of the action. If the action failed, your 'judgement' is the reasons why the action failed. 'judgement' must be concise. You must call the python function store_information in your reply where the 'judgement' parameter for store_information is your summary. Finally, give me the python code using the python store_information function I gave you. "},
                         ]
             messages.append({"role": "user",
-                             f"content": f"Last action performed: {last_action.tree_line}\nOld accessibility tree:\n'''{base_tree_cleaned}\n'''\nNew accessibility tree: \n'''\n {new_tree_cleaned}\n'''"})
+                             f"content": f"Main task: {intent}\nLast action performed: {last_action.tree_line}\nAccessibility tree before last action:\n'''{base_tree_cleaned}\n'''\nAccessibility tree after last action: \n'''\n {new_tree_cleaned}\n'''"})
 
             return messages
         if model_name.startswith('gemini'):
@@ -190,16 +187,6 @@ class BaseAgent(Agent):
 
         if xpath.strip() != "" and html.strip() != "":
             if role.strip() == 'link':
-                href_regex = r'href="([^"]*)"'
-                href_values = re.findall(href_regex, html)
-                if len(href_values) > 0:
-                    for href_value in href_values:
-                        if href_value.startswith('#') and href_value != '#':
-                            return None
-                        if self.aggressive_normalize_url(
-                                href_value) in self.decorator_links and self.aggressive_normalize_url(
-                                href_value) != self.aggressive_normalize_url(obs_url):
-                            return None
                 return Action(Action.Type.CLICK_LINK, xpath, html)
 
             elif role.strip() in important_clickables:
@@ -350,7 +337,7 @@ class BaseAgent(Agent):
             if checked_flag:
                 tree_insert = f"{radio_nodes[0][0]['indent']}Select option (selection already completed): \n" + tree_insert
             elif required_flag:
-                tree_insert = f"{radio_nodes[0][0]['indent']}Select option (incomplete, required to select): \n" + tree_insert
+                tree_insert = f"{radio_nodes[0][0]['indent']}Select option (need doing, required to select): \n" + tree_insert
             else:
                 tree_insert = f"{radio_nodes[0][0]['indent']}Select option: \n" + tree_insert
             tree_insert += '\n'
@@ -442,10 +429,8 @@ class BaseAgent(Agent):
                             cleaned_tree += tree_strings
                             action_list.extend(radio_actions)
                             current_radio_nodes = []
-                    if obs.nodes_info[i]['role'].strip == "link":
-                        cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['name']}\n"
-                    else:
-                        cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
+
+                    cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
             else:
                 cleaned_tree += f"{obs.nodes_info[i]['indent']}You are currently on the page for: {obs.nodes_info[i]['name']}\n"
 
@@ -526,10 +511,7 @@ class BaseAgent(Agent):
                                 tree_strings, _ = self.__process_radios(current_radio_nodes)
                                 cleaned_tree += tree_strings
                                 current_radio_nodes = []
-                        if obs.nodes_info[i]['role'].strip == "link":
-                            cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['name']}\n"
-                        else:
-                            cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
+                        cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
                         # tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
 
                     counter += 1
@@ -543,6 +525,7 @@ class BaseAgent(Agent):
                             tree_strings, _ = self.__process_radios(current_radio_nodes)
                             cleaned_tree += tree_strings
                             current_radio_nodes = []
+
                     cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
             else:
                 cleaned_tree += f"{obs.nodes_info[i]['indent']}You are currently on the page for: {obs.nodes_info[i]['name']}\n"
@@ -593,41 +576,14 @@ class BaseAgent(Agent):
             case Action.Type.CLICK_LINK:
                 return
             case Action.Type.CLICK_IMPORTANT:
+                # don't do this if new url is diff from old url
                 memory_prompt_for_agent = self.__construct_memory_prompt(self.intent, self.last_action_and_envtag[0], self.old_obs, new_obs, model_name = 'gpt-3.5-turbo-0125')
                 task_mem = self.__llm_manage_task_memory(memory_prompt_for_agent, model_name = 'gpt-3.5-turbo-0125')
                 # task_mem = "Previously failed because requested quantity is unavailable"
                 if task_mem != "":
                     EnvironmentChange.change_log[self.last_action_and_envtag[1]] = task_mem
 
-    def __call_llm_action_filter(self, prompt, model_name='gpt-3.5-turbo-1106'):
-        if model_name.startswith('gpt'):
-            response = client.chat.completions.create(
-                model=model_name,
-                # model="gpt-3.5-turbo-1106",
-                messages=prompt,
-                temperature=0,
-                max_tokens=2500,
-                # top_p=0,
-                seed=12345678
-            )
-            result = response.choices[0].message.content
-        print(f"RAW FILTER CALL: {result}")
-        
-        pattern = r"choose_options\(\[([0-9, ]+)\]\)"
 
-        # Searching the LLM output for the pattern
-        match = re.search(pattern, result)
-
-        # Initialize an empty list to store integers
-        task_numbers = []
-
-        if match:
-            numbers_str = match.group(1)
-            task_numbers = [int(num.strip()) for num in numbers_str.split(',')]
-            return task_numbers
-        else:
-            return list()
-        print("FAILED CALLING ACTION")
 
     def __call_llm_action(self, prompt, model_name='gpt-3.5-turbo-1106'):
         if model_name.startswith('gpt'):
