@@ -51,6 +51,9 @@ class BaseAgent(Agent):
         with open('auxillary_jsons/external_links.json', 'r') as file:
             self.all_links = json.load(file)
 
+        with open('auxillary_jsons/decorator_links.json', 'r') as file: # Shown but not clickable, should use vision model to judge completion in the future
+            self.decorator_links = json.load(file)
+
     def aggressive_normalize_url(self, url):  # Very aggressive normalization
         parsed_url = urlparse(url)
         scheme = parsed_url.scheme if parsed_url.scheme else 'http'
@@ -61,16 +64,18 @@ class BaseAgent(Agent):
         return normalized_url
 
     def __construct_url_prompt(self, intent: str, new_obs: AxObservation, model_name: str) -> str:  # TODO, ignored for now
-        pass
+        if model_name.startswith('gpt'):
+            messages = {}
+        return messages
 
 
 
-    def __construct_elements_prompt(self, cur_obs: AxObservation, model_name: str) -> (str, list[Action]):  # MOSTLY FOR GPT
+    def __construct_elements_prompt(self, cur_obs: AxObservation, model_name: str) -> (str, list[Action]):  # MOSTLY FOR GPT, NEED MORE CODE GEN STABILITY
         cleaned_tree, action_list = self.__process_axtree_action(cur_obs)
         if model_name.startswith('gpt'):
             messages = [
                 {"role": "system",
-                 "content": "You are an autonomous agent performing tasks for an user on a webshop. You only work by calling python functions to select an option. I am going to give you a task, and an accessibility tree. Some lines are start with a number in square brackets on the very left, these lines are actions you can select, you must select one action from the accessibility tree that is labeled with a number. "},
+                 "content": "You are an autonomous agent performing tasks for an user on a webshop. You only work by calling python functions to select an option. I am going to give you a main task, and an accessibility tree. Some lines are start with a number in square brackets on the very left, these lines are actions you can select, you must select one action from the accessibility tree that is labeled with a number. The main task is your overall objective. "},
                 {"role": "system",
                  "content": "The accessibility tree is reflective of the layout of the webpage. The indents are reflective of the structure of the page and the actions on it. "},
                 {"role": "system",
@@ -78,11 +83,11 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "An IMPORTANT SUBTASK is a subtask that is essential to the completion of a task. IMPORTANT SUBTASKS are subtasks that must be completed in order for your task to be completed. IMPORTANT SUBTASKs can be completed by a single action on the page. Tasks cannot be completed without completing all IMPORTANT SUBTASKS. Any subtasks that involve discovery or navigation are UNIMPORTANT. "},
                 {"role": "system",
-                 "content": "Tell me what page you are currently on, and the functionality of the page. First you must generate general IMPORTANT SUBTASKs that are incomplete. "},
+                 "content": "Tell me what page you are currently on, and the functionality of the page. First reason step-by-step if your task can be completed without leaving this web page. Then you must generate general IMPORTANT SUBTASKs that are incomplete. "},
                 {"role": "system",
-                 "content": "Then reason step-by-step through all information in the tree that is enclosed in parentheses, and determine if that information indicates that your task is impossible. If this is your final task and it's impossible, issue a stop command. If this is not your final task, move on to your next task. "},
+                 "content": "Then reason step-by-step through all information in the tree that is enclosed in parentheses, and determine if that information indicates that your task is impossible. If this is your final task and it's impossible, choose the stop command. If this is not your final task, move on to your next task. "},
                 {"role": "system",
-                 "content": "The optimal action is the first action that completes a subtask that is still incomplete. Then finally, please give me python code using the python choose_option function. "}]
+                 "content": "Then you must reasonstep-by-step through all of your IMPORTANT SUBTASKs to determine the first incomplete IMPORTANT SUBTASK. The optimal action is the first action that completes a subtask that is still incomplete. Then finally, please give me python code using the python choose_option function. "}]
 
             messages.append({"role": "user",
                              f"content": f"This is your main task: {self.intent}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"})
@@ -104,17 +109,18 @@ class BaseAgent(Agent):
         base_tree_cleaned = self.__process_axtree_memory(base_obs)
         new_tree_cleaned = self.__process_axtree_memory(new_obs)
 
-        print("NEW TREE")
-        print(new_tree_cleaned)
+
         print("BASE TREE")
         print(base_tree_cleaned)
+        print("NEW TREE")
+        print(new_tree_cleaned)
         input("LOOK AT TREES")
 
         if model_name.startswith('gpt'):
             messages = [{"role": "system",
-                         "content": "You are a very attentive robot who is responsible for judging if an action was successful, and why if it is unsuccessful why it failed. You exist on a web shop. "},
+                         "content": "You are a very attentive agent who is responsible for judging if an action was successful, and why if it is unsuccessful why it failed. You exist on a web shop. "},
                         {"role": "system",
-                         "content": "I'm giving you the python function store_information(judgement: str), where the string 'judgement' is the result of your reasoning. You must call the python function store_information in your reply. "},
+                         "content": "You have the python function store_information(judgement: str), where the string 'judgement' is the result of your reasoning. You must call the python function store_information in your reply. "},
                         {"role": "system",
                          "content": "I am going to give you two accessibility trees and an action. The 'Old accessibility tree' represents the state of the website before the last action was performed. The 'New accessibility tree' represents the state of the website after the last action was performed. Pay attention to all options with 'alert'. Pay attention to all information in parantheses. Some options may be selected in the old accessibility tree. "},
                         {"role": "system",
@@ -123,7 +129,7 @@ class BaseAgent(Agent):
                          "content": "If the action succeded, your 'judgement' is about the success of the intent of the action. If the action failed, your 'judgement' is the reasons why the action failed. You must call the python function store_information in your reply where the 'judgement' parameter for store_information is your summary. Finally, please give me the python code using the python store_information function I gave you. "},
                         ]
             messages.append({"role": "user",
-                             f"content": f"Intended task: {intent}\nLast action performed: {last_action.tree_line}\nOld accessibility tree:\n'''{base_tree_cleaned}\n'''\nNew accessibility tree: \n'''\n {new_tree_cleaned}\n'''"})
+                             f"content": f"Last action performed: {last_action.tree_line}\nOld accessibility tree:\n'''{base_tree_cleaned}\n'''\nNew accessibility tree: \n'''\n {new_tree_cleaned}\n'''"})
 
             return messages
         if model_name.startswith('gemini'):
@@ -148,7 +154,7 @@ class BaseAgent(Agent):
             case _:
                 raise Exception(f'Invalid phase prompt construct, HOW????? {self.phase}')
 
-    def __extract_interaction_info(self, xpath, html, role):
+    def __extract_interaction_info(self, xpath, html, role, obs_url):
 
 
         important_clickables = [
@@ -184,6 +190,16 @@ class BaseAgent(Agent):
 
         if xpath.strip() != "" and html.strip() != "":
             if role.strip() == 'link':
+                href_regex = r'href="([^"]*)"'
+                href_values = re.findall(href_regex, html)
+                if len(href_values) > 0:
+                    for href_value in href_values:
+                        if href_value.startswith('#') and href_value != '#':
+                            return None
+                        if self.aggressive_normalize_url(
+                                href_value) in self.decorator_links and self.aggressive_normalize_url(
+                                href_value) != self.aggressive_normalize_url(obs_url):
+                            return None
                 return Action(Action.Type.CLICK_LINK, xpath, html)
 
             elif role.strip() in important_clickables:
@@ -233,7 +249,7 @@ class BaseAgent(Agent):
                     name_field = input_element.get('name', '')
 
 
-                    role_name = "Select: "
+                    role_name = "Choose to select: "
                     # if "checked: true" not in str(props_raw):
                     #     props.append("Unselected")
 
@@ -344,7 +360,7 @@ class BaseAgent(Agent):
     def __process_axtree_action(self, obs: AxObservation):
         counter = 1
         action_list = [(Action(Action.Type.STOP, None, None), EnvironmentChange(obs.url, None, Action.Type.STOP))]
-        cleaned_tree = "[0] CHOOSE THIS IF TASK FINISHED OR IMPOSSIBLE\n"
+        cleaned_tree = "[0] Stop command (choose this if the task is finished or impossible)\n"
 
 
         scanning_radios = False
@@ -355,7 +371,7 @@ class BaseAgent(Agent):
             if self.__skip_option(obs.nodes_info[i]):
                 continue
             if obs.nodes_info[i]['role'] != 'RootWebArea':
-                node_action = self.__extract_interaction_info(obs.nodes_info[i]['xpath'], obs.nodes_info[i]['html'], obs.nodes_info[i]['role'])
+                node_action = self.__extract_interaction_info(obs.nodes_info[i]['xpath'], obs.nodes_info[i]['html'], obs.nodes_info[i]['role'], obs.url)
 
                 if node_action:
                     tree_add = None
@@ -426,7 +442,10 @@ class BaseAgent(Agent):
                             cleaned_tree += tree_strings
                             action_list.extend(radio_actions)
                             current_radio_nodes = []
-                    cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
+                    if obs.nodes_info[i]['role'].strip == "link":
+                        cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['name']}\n"
+                    else:
+                        cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
             else:
                 cleaned_tree += f"{obs.nodes_info[i]['indent']}You are currently on the page for: {obs.nodes_info[i]['name']}\n"
 
@@ -453,7 +472,7 @@ class BaseAgent(Agent):
                 continue
             if obs.nodes_info[i]['role'] != 'RootWebArea':
                 node_action = self.__extract_interaction_info(obs.nodes_info[i]['xpath'], obs.nodes_info[i]['html'],
-                                                              obs.nodes_info[i]['role'])
+                                                              obs.nodes_info[i]['role'], obs.url)
 
                 if node_action:
                     tree_add = None
@@ -507,7 +526,11 @@ class BaseAgent(Agent):
                                 tree_strings, _ = self.__process_radios(current_radio_nodes)
                                 cleaned_tree += tree_strings
                                 current_radio_nodes = []
-                        tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
+                        if obs.nodes_info[i]['role'].strip == "link":
+                            cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['name']}\n"
+                        else:
+                            cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
+                        # tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
 
                     counter += 1
                     if tree_add:
@@ -572,6 +595,7 @@ class BaseAgent(Agent):
             case Action.Type.CLICK_IMPORTANT:
                 memory_prompt_for_agent = self.__construct_memory_prompt(self.intent, self.last_action_and_envtag[0], self.old_obs, new_obs, model_name = 'gpt-3.5-turbo-0125')
                 task_mem = self.__llm_manage_task_memory(memory_prompt_for_agent, model_name = 'gpt-3.5-turbo-0125')
+                # task_mem = "Previously failed because requested quantity is unavailable"
                 if task_mem != "":
                     EnvironmentChange.change_log[self.last_action_and_envtag[1]] = task_mem
 
