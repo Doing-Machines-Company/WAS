@@ -1,22 +1,26 @@
-import requests
+from memgpt import MemGPT
+with open('prompt1.txt', 'r') as file:
+    my_message = file.read()
+# Create a MemGPT client object (sets up the persistent state)
+client = MemGPT(
+  quickstart="openai",
+  config={
+    "openai_api_key": "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"
+  }
+)
 
-url = "http://localhost:8283/agents/message"
+# You can set many more parameters, this is just a basic example
+agent_id = client.create_agent(
+  agent_config={
+    "name" : "WebAgentv3",
+    "preset" : "agent_preset",
+    "persona": "web_agent",
+    "human": "basic",
+  }
+)
+print(agent_id)
 
-with open('poop.txt', 'r') as file:
-    message = file.read()
-payload = {
-    "user_id": "cem",
-    "agent_id": "agent_1",
-    "message": message,
-    "stream": False,
-    "role": "user"
-}
-headers = {
-    "accept": "application/json",
-    "content-type": "application/json"
-}
-
-response = requests.post(url, json=payload, headers=headers)
-
-print(response.text)
-
+# Now that we have an agent_name identifier, we can send it a message!
+# The response will have data from the MemGPT agent
+response = client.user_message(agent_id=agent_id.id, message=my_message)
+print(response)
