@@ -1,4 +1,5 @@
 from memgpt import MemGPT
+import re
 with open('prompt1.txt', 'r') as file:
     my_message = file.read()
 # Create a MemGPT client object (sets up the persistent state)
@@ -24,3 +25,15 @@ print(agent_id)
 # The response will have data from the MemGPT agent
 response = client.user_message(agent_id=agent_id.id, message=my_message)
 print(response)
+for r in response:
+    if "assistant_message" in r:
+        result  = r["assistant_message"]
+print(f"NEXT ACTION RAW: {result}")
+result += 'HOLY SHIT THIS IS INSANE'
+pattern = r'^\d+:(?:\s*\S.*)?$'
+
+# Searching the LLM output for the pattern
+match = re.findall(pattern, result)[0]
+task_number, input_string = match.split(":")
+print("T: ", task_number)
+print("I:", input_string)

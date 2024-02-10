@@ -1,4 +1,5 @@
 from __future__ import annotations
+from memgpt import MemGPT
 import google.generativeai as genai
 import time
 from models import *
@@ -44,6 +45,28 @@ class BaseAgent(Agent):
         self.intent = intent
         # self.base_url = None
         # self.base_obs = None
+
+        # Create a MemGPT client object (sets up the persistent state)
+        self.client = MemGPT(
+        quickstart="openai",
+        config={
+            "openai_api_key": "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"
+        }
+        )
+
+        # You can set many more parameters, this is just a basic example
+        self.agent_id = self.client.create_agent(
+        agent_config={
+            "name" : "WebAgentv3",
+            "preset" : "agent_preset",
+            "persona": "web_agent",
+            "human": "basic",
+        }
+        )
+
+        # Now that we have an agent_name identifier, we can send it a message!
+        # The response will have data from the MemGPT agent
+
         self.last_action_and_envtag = None
         self.old_obs = None
         self.phase = Phase.CHOOSING_ELEMENTS # or 'choosing_elements' (or 'handling_memory') # TODO MAKE ENUM TYPE
@@ -100,9 +123,12 @@ class BaseAgent(Agent):
                  "First look at the task, then look at the task completion progress, then you must generate subtasks using both pieces of information, reasong through these step-by-step. Reason through every single possible action labelled with a number in brackets at the start carefully, step-by-step, to decide which action you should perform first. Do your best to select an answer. If multiple steps are needed, select the first step as your option. Give me the code for choose_option.\n")
 
             messages += f"This is your task: {self.intent}\nTask completion progress: DNE FIX THIS!!!!!! \nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"
+        if model_name.startswith('memgpt'):
+            messages = (f"OBSERVATION: {cleaned_tree}\nOBJECTIVE: {self.intent}\n ")
+
+
 
         return messages, action_list
-        return ''
 
     def __construct_memory_prompt(self, intent: str, last_action: (Action, EnvironmentChange), base_obs: AxObservation, new_obs: AxObservation,
                                 model_name: str) -> str:  # NOT NEEDED FOR MemGPT
@@ -566,8 +592,8 @@ class BaseAgent(Agent):
         #
         #
         self.old_obs = cur_obs
-        prompt_for_agent, answer_values = self.__construct_prompt(cur_obs, model_name = 'gpt-3.5-turbo-0125') # prompt_for_agent: str, answer_values: list[Actions]
-        (final_index, final_string) = self.__call_llm_action(prompt_for_agent, model_name = 'gpt-3.5-turbo-0125')
+        prompt_for_agent, answer_values = self.__construct_prompt(cur_obs, model_name = 'memgpt') # prompt_for_agent: str, answer_values: list[Actions]
+        (final_index, final_string) = self.__call_llm_action(prompt_for_agent, model_name = 'memgpt')
         if final_index and final_index != -1:
             desired_action = answer_values[int(final_index)][0]
             if desired_action.action_type == Action.Type.INPUT:
@@ -611,13 +637,13 @@ class BaseAgent(Agent):
                 seed=12345678
             )
             result = response.choices[0].message.content
-        print(f"RAW FILTER CALL: {result}")
-        
-        pattern = r"choose_options\(\[([0-9, ]+)\]\)"
+            print(f"RAW FILTER CALL: {result}")
+            
+            pattern = r"choose_options\(\[([0-9, ]+)\]\)"
 
-        # Searching the LLM output for the pattern
-        match = re.search(pattern, result)
-
+            # Searching the LLM output for the pattern
+            match = re.search(pattern, result)
+            
         # Initialize an empty list to store integers
         task_numbers = []
 
@@ -640,8 +666,19 @@ class BaseAgent(Agent):
                 # top_p=0,
                 seed=12345678
             )
-
+            
             result = response.choices[0].message.content
+            print(f"NEXT ACTION RAW: {result}")
+
+            pattern = r'choose_option\((\d+),?\s*(?:\'([^\']*)\'|"([^"]*)"|None)?\)'
+
+            # Searching the LLM output for the pattern
+            matches = re.findall(pattern, result)
+            for match in matches:
+                task_number, input_string_single, input_string_double = match[:3]
+                input_string = input_string_single or input_string_double or ""
+            return task_number, input_string
+            print("FAILED CALLING ACTION")
         elif model_name.startswith('gemini'):
             GOOGLE_API_KEY = 'AIzaSyBu8ecdjq4gzAGbT5Tk-bQm38S0WZikyDs'
             genai.configure(api_key=GOOGLE_API_KEY)
@@ -659,19 +696,38 @@ class BaseAgent(Agent):
             else:
                 response = response.text.strip()
             result = response
-        print(f"NEXT ACTION RAW: {result}")
+            print(f"NEXT ACTION RAW: {result}")
 
-        pattern = r'choose_option\((\d+),?\s*(?:\'([^\']*)\'|"([^"]*)"|None)?\)'
+            pattern = r'choose_option\((\d+),?\s*(?:\'([^\']*)\'|"([^"]*)"|None)?\)'
 
-        # Searching the LLM output for the pattern
-        matches = re.findall(pattern, result)
-
-        # Printing the matches
-        for match in matches:
-            task_number, input_string_single, input_string_double = match[:3]
-            input_string = input_string_single or input_string_double or ""
+            # Searching the LLM output for the pattern
+            matches = re.findall(pattern, result)
+            for match in matches:
+                task_number, input_string_single, input_string_double = match[:3]
+                input_string = input_string_single or input_string_double or ""
             return task_number, input_string
+        elif model_name.startswith('memgpt'):
+            response = self.client.user_message(agent_id=self.agent_id.id, message=prompt)
+            
+            for r in response:
+                if "assistant_message" in r:
+                    result  = r["assistant_message"]
+                if "internal_monologue" in r:
+                    print("Internal Monologue: ", r["internal_monologue"])
+            print(f"NEXT ACTION RAW: {result}")
+
+            pattern = r'^\d+:(?:\s*\S.*)?$'
+
+            # Searching the LLM output for the pattern
+            match = re.findall(pattern, result)[0]
+            task_number, input_string = match.split(":")
+            return task_number, input_string.strip()
         print("FAILED CALLING ACTION")
+
+            
+        
+        # Printing the matches
+        
 
     def __llm_manage_task_memory(self, prompt, model_name='gpt-3.5-turbo-1106'):
         if model_name.startswith('gpt'):
