@@ -39,7 +39,6 @@ class BaseAgent(Agent):
 
 
     '''
-
     def __init__(self, intent: str):
         self.intent = intent
         # self.base_url = None
@@ -51,7 +50,13 @@ class BaseAgent(Agent):
         with open('auxillary_jsons/external_links.json', 'r') as file:
             self.all_links = json.load(file)
 
-    def aggressive_normalize_url(self, url):  # Very aggressive normalization
+    def aggressive_normalize_url(self, url: str):  # Very aggressive normalization
+        '''
+        Normalization which removes everything that's trailing (e.g., #p=1)
+        
+        :param url: 
+        :return: 
+        '''
         parsed_url = urlparse(url)
         scheme = parsed_url.scheme if parsed_url.scheme else 'http'
         netloc = parsed_url.netloc
@@ -60,7 +65,15 @@ class BaseAgent(Agent):
         normalized_url = urlunparse((scheme, netloc, path, '', '', ''))
         return normalized_url
 
-    def __construct_url_prompt(self, intent: str, new_obs: AxObservation, model_name: str) -> str:  # TODO, ignored for now
+    def __construct_url_prompt(self, intent: str, new_obs: AxObservation, model_name: str) -> str:  # TODO Implement
+        '''
+        Not implemented
+        
+        :param intent: 
+        :param new_obs: 
+        :param model_name: 
+        :return: 
+        '''
         if model_name.startswith('gpt'):
             messages = {}
         return messages
@@ -68,6 +81,13 @@ class BaseAgent(Agent):
 
 
     def __construct_elements_prompt(self, cur_obs: AxObservation, model_name: str) -> (str, list[Action]):  # MOSTLY FOR GPT, NEED MORE CODE GEN STABILITY
+        '''
+        Constructs the prompt for the model to generate a response for get_next_action in the CHOOSING_ELEMENTS phase, phases may be deprecated later
+        
+        :param cur_obs: 
+        :param model_name: 
+        :return: 
+        '''
         cleaned_tree, action_list = self.__process_axtree_action(cur_obs)
         if model_name.startswith('gpt'):
             messages = [
@@ -101,8 +121,19 @@ class BaseAgent(Agent):
         return messages, action_list
         return ''
 
-    def __construct_memory_prompt(self, intent: str, last_action: (Action, EnvironmentChange), base_obs: AxObservation, new_obs: AxObservation,
-                                model_name: str) -> str:  # NOT NEEDED FOR MemGPT
+    def __construct_completion_evaluation_prompt(self, intent: str, last_action: (Action, EnvironmentChange), base_obs: AxObservation, new_obs: AxObservation,
+                                model_name: str) -> str:  
+        '''
+        Constructs prompt for task evaluation
+        
+        :param intent: 
+        :param last_action: 
+        :param base_obs: 
+        :param new_obs: 
+        :param model_name: 
+        :return: 
+        '''
+        
         base_tree_cleaned = self.__process_axtree_memory(base_obs)
         new_tree_cleaned = self.__process_axtree_memory(new_obs)
 
@@ -142,18 +173,18 @@ class BaseAgent(Agent):
            
             return messages
         return ''
-    def __construct_prompt(self, cur_obs: AxObservation, model_name) -> str:
-        match self.phase:
-            case Phase.CHOOSING_URL:
-                return self.__construct_url_prompt(self.intent, cur_obs, model_name)
-            case Phase.CHOOSING_ELEMENTS:
-                return self.__construct_elements_prompt(cur_obs, model_name)
-            case _:
-                raise Exception(f'Invalid phase prompt construct, HOW????? {self.phase}')
+
 
     def __extract_interaction_info(self, xpath, html, role, obs_url):
+        '''
+        For a given element's information, create an action object
 
-
+        :param xpath:
+        :param html:
+        :param role:
+        :param obs_url:
+        :return:
+        '''
         important_clickables = [
             'button',
         ]
@@ -206,7 +237,15 @@ class BaseAgent(Agent):
 
         return None
 
-    def process_node_properties(self, props_raw, html, env_tags=None): # DOES NOT DO ANYTHING WITH RADIO
+    def process_node_properties(self, props_raw: list[str], html: str, env_tags: EnvironmentChange=None): # DOES NOT DO ANYTHING WITH RADIO
+        '''
+        Better formats one action for the prompt
+
+        :param props_raw:
+        :param html:
+        :param env_tags:
+        :return:
+        '''
         props = []
         role_name = ""
         if env_tags:
@@ -267,13 +306,29 @@ class BaseAgent(Agent):
             return result, role_name
         return "", role_name
 
-    def __skip_option(self, node_info):
+    def __skip_option(self, node_info: dict):
+        '''
+        Skips non-action options we don't care about
+        Heuristic
+
+        :param node_info:
+        :return:
+        '''
         ignored_roles = ["ListMarker", "Image"]
         if node_info['role'] in ignored_roles:
             return True
         return False
 
-    def __skip_action(self, node_info, node_action, obs_url: str):
+    def __skip_action(self, node_info: dict, node_action: Action, obs_url: str):
+        '''
+        Skips action options we don't care about
+        Heuristic
+
+        In general, skips links that we visit by just going to the url, to decrease noise
+
+        :param node_info:
+        :return:
+        '''
         match node_action.action_type:
             case Action.Type.CLICK_LINK:
                 href_regex = r'href="([^"]*)"'
@@ -300,13 +355,19 @@ class BaseAgent(Agent):
                     return True
         return False
 
-    def __process_radios(self, radio_nodes):
+    def __process_radios(self, radio_nodes: list[(dict, int, (Action, EnvironmentChange))]):
+        '''
+        Menu-ify a list of radio nodes
+        radio_nodes are (obs.nodes_info[i], counter, (node_action, env_tags))
+        :param radio_nodes:
+        :return:
+        '''
         properties_stacked = str([radio_nodes[i][0]['properties'] for i in range(len(radio_nodes))])
         html_stacked = str([radio_nodes[i][0]['html'] for i in range(len(radio_nodes))])
         checked_flag = "checked: true" in properties_stacked
         required_flag = "required: True" in properties_stacked or "required=\"true\"" in html_stacked
         tree_insert = ""
-        name_field = ""
+        # name_field = ""
         action_list = []
 
         for i in range(len(radio_nodes)):
@@ -318,7 +379,7 @@ class BaseAgent(Agent):
 
             soup = BeautifulSoup(node_info['html'], 'html.parser')
             input_element = soup.find('input')
-            name_field = input_element.get('name', '').strip()
+            # name_field = input_element.get('name', '').strip()
 
             if "checked: true" in node_info['properties']:
                 node_action.set_tree_line(f"[{counter}]{node_info['indent']}       Select: {node_info['name']} (this option selected)")
@@ -345,6 +406,13 @@ class BaseAgent(Agent):
         return tree_insert, action_list
 
     def __process_axtree_action(self, obs: AxObservation):
+        '''
+        Heavily processes the tree for the prompt
+        Skips options via function calls
+
+        :param obs:
+        :return:
+        '''
         counter = 1
         action_list = [(Action(Action.Type.STOP, None, None), EnvironmentChange(obs.url, None, Action.Type.STOP))]
         cleaned_tree = "[0] Stop command (choose this if the task is finished or impossible)\n"
@@ -445,6 +513,12 @@ class BaseAgent(Agent):
         return cleaned_tree, action_list
 
     def __process_axtree_memory(self, obs: AxObservation):
+        '''
+        Almost identical to __process_axtree_action, but does not return action list
+
+        :param obs:
+        :return:
+        '''
         counter = 1
         cleaned_tree = "[0] CHOOSE THIS IF TASK FINISHED OR IMPOSSIBLE\n"
 
@@ -539,20 +613,18 @@ class BaseAgent(Agent):
         return cleaned_tree
 
     def get_next_action(self, cur_obs: AxObservation) -> Action:
-        # if self.base_url is None:
-        #     self.base_url = self.aggressive_normalize_url(cur_obs.url)
-        #     self.base_obs = cur_obs
-        # elif self.aggressive_normalize_url(cur_obs.url) != self.base_url:
-        #     self.base_url = cur_obs.url
-        #     self.base_obs = cur_obs
-        #     # TODO PURGE SOME MEMORY HERE
-        #
-        #
+        '''
+        Gets the next action to perform
+        
+        :param cur_obs: 
+        :return: 
+        '''
         self.old_obs = cur_obs
-        prompt_for_agent, answer_values = self.__construct_prompt(cur_obs, model_name = 'gpt-3.5-turbo-0125') # prompt_for_agent: str, answer_values: list[Actions]
+        prompt_for_agent, answer_values = self.__construct_elements_prompt(cur_obs, model_name = 'gpt-3.5-turbo-0125') # prompt_for_agent: str, answer_values: list[Actions]
         (final_index, final_string) = self.__call_llm_action(prompt_for_agent, model_name = 'gpt-3.5-turbo-0125')
         if final_index and final_index != -1:
             desired_action = answer_values[int(final_index)][0]
+            # TODO IF DESIRED ACTION IS GOTO URL, THEN NO ENVIRONMENT CHANGE NEEDED. NEED TO FIND LINK TO GO TO.
             if desired_action.action_type == Action.Type.INPUT:
                 desired_action.set_input_string(final_string)
             self.last_action_and_envtag = answer_values[int(final_index)]
@@ -562,12 +634,20 @@ class BaseAgent(Agent):
 
             EnvironmentChange.change_log[new_change] = desired_action.input_string
 
-
+            
             return desired_action
         return Action(Action.Type.STOP, None, None) # TODO HANDLE FAILED GPT RETURNS BETTER
 
 
     def handle_memory(self, new_obs: AxObservation):
+        '''
+        Handles memory
+        First judges task completion if the last action was a button (CLICK_IMPORTANT)
+        Then handles long range task memory
+        
+        :param new_obs: 
+        :return: 
+        '''
         match self.last_action_and_envtag[0].action_type:
             case Action.Type.STOP:
                 return
@@ -577,15 +657,24 @@ class BaseAgent(Agent):
                 return
             case Action.Type.CLICK_IMPORTANT:
                 # don't do this if new url is diff from old url
-                memory_prompt_for_agent = self.__construct_memory_prompt(self.intent, self.last_action_and_envtag[0], self.old_obs, new_obs, model_name = 'gpt-3.5-turbo-0125')
-                task_mem = self.__llm_manage_task_memory(memory_prompt_for_agent, model_name = 'gpt-3.5-turbo-0125')
+                memory_prompt_for_agent = self.__construct_completion_evaluation_prompt(self.intent, self.last_action_and_envtag[0], self.old_obs, new_obs, model_name = 'gpt-3.5-turbo-0125')
+                task_mem = self.__llm_completion_evaluation(memory_prompt_for_agent, model_name = 'gpt-3.5-turbo-0125')
                 # task_mem = "Previously failed because requested quantity is unavailable"
                 if task_mem != "":
                     EnvironmentChange.change_log[self.last_action_and_envtag[1]] = task_mem
+        
+        # TODO LONG RANGE TASK MEMORY
 
 
 
     def __call_llm_action(self, prompt, model_name='gpt-3.5-turbo-1106'):
+        '''
+        Calls the llm to get the next action
+        
+        :param prompt: 
+        :param model_name: 
+        :return: 
+        '''
         if model_name.startswith('gpt'):
             response = client.chat.completions.create(
                 model=model_name,
@@ -629,7 +718,14 @@ class BaseAgent(Agent):
             return task_number, input_string
         print("FAILED CALLING ACTION")
 
-    def __llm_manage_task_memory(self, prompt, model_name='gpt-3.5-turbo-1106'):
+    def __llm_completion_evaluation(self, prompt, model_name='gpt-3.5-turbo-1106'):
+        '''
+        llm call to evaluate the completion success of a task
+
+        :param prompt:
+        :param model_name:
+        :return:
+        '''
         if model_name.startswith('gpt'):
             response = client.chat.completions.create(
                 model=model_name,

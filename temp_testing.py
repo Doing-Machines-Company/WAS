@@ -50,7 +50,7 @@ while True:
             page.wait_for_selector('role=alert', timeout=5000) # Hard coded as fuck
         except:
             pass
-        agent.handle_memory(driver.observe_state())
+    agent.handle_memory(driver.observe_state())
     memory_time = time.time() - prev_time
 
     print(f"Observation took: {observation_time} seconds")
