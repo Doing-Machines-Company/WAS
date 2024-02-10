@@ -57,7 +57,9 @@ class EnvironmentChange:
                 return hash(str((self.url, self.action_type.name)))
             case Action.Type.CLICK_LINK:
                 return hash(str((self.action_type.name, self.html)))
-            case Action.Type.CLICK_SELECT:
+            case Action.Type.CLICK_RADIO:
+                return hash(str((self.url, self.action_type.name, self.html)))
+            case Action.Type.CLICK_CHECKBOX:
                 return hash(str((self.url, self.action_type.name, self.html)))
             case Action.Type.CLICK_IMPORTANT:
                 return hash(str((self.url, self.action_type.name, self.html)))
