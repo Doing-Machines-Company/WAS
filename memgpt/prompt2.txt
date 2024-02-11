@@ -1,0 +1,154 @@
+OBSERVATION:
+YOU ARE LOOKING AT THE HOMEPAGE
+	StaticText: Welcome to One Stop Market
+		image: one_stop_market_logo
+	StaticText: Search
+[1]	Click link: Compare Products 2 items 
+	StaticText: Welcome, TESTING MOD TESTING MODE!
+[2]	Click link: store logo 
+		image: one_stop_market_logo
+	StaticText: Search
+[3]	Input field:  Search 
+[4]	Click: Search 
+	tablist: 
+		tabpanel: 
+			menu: 
+[5]	main:  
+[6]		heading: One Stop Market 
+		StaticText: Product Showcases
+[7]		Click link: Image 
+			image: Image
+[8]		Click link: Pre-baked Gingerbread House Kit Value Pack, 17 oz., Pack of 2, Total 34 oz. 
+		LayoutTable: 
+			StaticText: Rating:
+			generic: 20%
+[9]			Click link: 1  Review 
+		StaticText: $19.99
+[10]		Click: Add to Cart 
+[11]		Click link:  Add to Wish List 
+[12]		Click link:  Add to Compare 
+[13]		Click link: Image 
+			image: Image
+[14]		Click link: V8 +Energy, Healthy Energy Drink, Steady Energy from Black and Green Tea, Pomegranate Blueberry, 8 Ounce Can ,Pack of 24 
+		LayoutTable: 
+			StaticText: Rating:
+			generic: 57%
+[15]			Click link: 12  Reviews 
+		StaticText: $14.47
+[16]		Click: Add to Cart 
+[17]		Click link:  Add to Wish List 
+[18]		Click link:  Add to Compare 
+[19]		Click link: Image 
+			image: Image
+[20]		Click link: Elmwood Inn Fine Teas, Orange Vanilla Caffeine-free Fruit Infusion, 16-Ounce Pouch 
+		LayoutTable: 
+			StaticText: Rating:
+			generic: 95%
+[21]			Click link: 4  Reviews 
+		StaticText: $19.36
+[22]		Click: Add to Cart 
+[23]		Click link:  Add to Wish List 
+[24]		Click link:  Add to Compare 
+[25]		Click link: Image 
+			image: Image
+[26]		Click link: Belle Of The Ball Princess Sprinkle Mix| Wedding Colorful Sprinkles| Cake Cupcake Cookie Sprinkles| Ice cream Candy Sprinkles| Yellow Gold Red Royal Red Rose Icing Flowers Decorating Sprinkles, 8OZ 
+		LayoutTable: 
+			StaticText: Rating:
+			generic: 63%
+[27]			Click link: 12  Reviews 
+		StaticText: $23.50
+[28]		Click: Add to Cart 
+[29]		Click link:  Add to Wish List 
+[30]		Click link:  Add to Compare 
+[31]		Click link: Image 
+			image: Image
+[32]		Click link: So Delicious Dairy Free CocoWhip Light, Vegan, Non-GMO Project Verified, 9 oz. Tub 
+		LayoutTable: 
+			StaticText: Rating:
+			generic: 78%
+[33]			Click link: 12  Reviews 
+		StaticText: $15.62
+[34]		Click: Add to Cart 
+[35]		Click link:  Add to Wish List 
+[36]		Click link:  Add to Compare 
+[37]		Click link: Image 
+			image: Image
+[38]		Click link: Cheongeun Sweet Potato Starch Powder 500g, 2ea(Sweet Potato 55%, Corn 45%) 
+		StaticText: $34.00
+[39]		Click: Add to Cart 
+[40]		Click link:  Add to Wish List 
+[41]		Click link:  Add to Compare 
+[42]		Click link: Image 
+			image: Image
+[43]		Click link: Q Mixers Premium Ginger Ale: Real Ingredients & Less Sweet, 6.7 Fl Oz (24 Bottles) 
+		LayoutTable: 
+			StaticText: Rating:
+			generic: 88%
+[44]			Click link: 12  Reviews 
+		StaticText: $68.50
+[45]		Click: Add to Cart 
+[46]		Click link:  Add to Wish List 
+[47]		Click link:  Add to Compare 
+[48]		Click link: Image 
+			image: Image
+[49]		Click link: Stove Top Turkey Stuffing Mix (12 oz Boxes, Pack of 2) 
+		LayoutTable: 
+			StaticText: Rating:
+			generic: 85%
+[50]			Click link: 12  Reviews 
+		StaticText: $8.49
+[51]		Click: Add to Cart 
+[52]		Click link:  Add to Wish List 
+[53]		Click link:  Add to Compare 
+[54]		Click link: Image 
+			image: Image
+[55]		Click link: Briess DME - Pilsen Light - 1 lb Bag 
+		StaticText: $12.99
+[56]		Click: Add to Cart 
+[57]		Click link:  Add to Wish List 
+[58]		Click link:  Add to Compare 
+[59]		Click link: Image 
+			image: Image
+[60]		Click link: Tony Chachere's More Spice Creole Seasoning - 14 oz 
+		LayoutTable: 
+			StaticText: Rating:
+			generic: 75%
+[61]			Click link: 12  Reviews 
+		StaticText: $7.92
+[62]		Click: Add to Cart 
+[63]		Click link:  Add to Wish List 
+[64]		Click link:  Add to Compare 
+[65]		Click link: Image 
+			image: Image
+[66]		Click link: Lobster Cobbler Pot Pie - Gourmet Frozen Seafood Appetizers (Set of 8 Trays) 
+		StaticText: $411.76
+[67]		Click: Add to Cart 
+[68]		Click link:  Add to Wish List 
+[69]		Click link:  Add to Compare 
+[70]		Click link: Image 
+			image: Image
+[71]		Click link: Crunchy Rice Rollers - Gluten Free - Vegan - 3.5 oz Individual Packs (4 Packs of 8 Rollers) 
+		LayoutTable: 
+			StaticText: Rating:
+			generic: 83%
+[72]			Click link: 12  Reviews 
+		StaticText: $11.50
+[73]		Click: Add to Cart 
+[74]		Click link:  Add to Wish List 
+[75]		Click link:  Add to Compare 
+		StaticText: Items 1 to 12 of 24 total
+		StaticText: Page
+[76]		list: Page 
+			StaticText: You're currently reading page
+			StaticText: 1
+[77]			Click link: Page 2 
+[78]			Click link:  Page Next 
+		StaticText: Sign Up for Our Newsletter:
+[79]		Input field: Sign Up for Our Newsletter: 
+[80]		Click: Subscribe 
+		StaticText: Copyright © 2013-present Magento, Inc. All rights reserved.
+		StaticText: Help Us Keep Magento Healthy
+[81]		Click link: Report All Bugs 
+
+SUBGOAL: Retrieve the third order
+OBJECTIVE: Review the last five orders

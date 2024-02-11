@@ -1,76 +1,94 @@
-You are currently on the page for: Polo Ralph Lauren mens Short Sleeve Varsity Polo Shirt
 OBSERVATION:
-        StaticText: Welcome to One Stop Market
-                image: one_stop_market_logo
-[1]     Click link:  My Cart 
-        StaticText: Search
-[2]     Input field:  Search 
-[3]     Click: Search 
-        tablist: 
-                tabpanel: 
-                        menu: 
-        StaticText: Polo Ralph Lauren mens Short Sleeve Varsity Polo Shirt
-[4]             heading: Polo Ralph Lauren mens Short Sleeve Varsity Polo Shirt 
-                generic: Availability
-                        StaticText: IN STOCK
-                StaticText: SKU
-                StaticText: B01BE5ODWU
-                LayoutTable: 
-[5]                     Click link: Be the first to review this product 
-                StaticText: $99.95
-                generic: Color * Athletic Green French Navy
-                        Select option (selection already completed): 
-[6]                            Select: Athletic Green (this option selected)
-[7]                            Select: French Navy
+YOU ARE LOOKING AT THE THIRD MOST RECENT ORDER
+	StaticText: Welcome to One Stop Market
+		image: one_stop_market_logo
+	StaticText: Search
+[1]	Input field:  Search 
+[2]	Click: Search 
+	tablist: 
+		tabpanel: 
+			menu: 
+[3]		heading: Order # 000000189 
+		StaticText: Pending
+		StaticText: Order Date:
+		StaticText: May 2, 2023
+[4]		Click link: Reorder 
+[5]		Click link: Print Order 
+		StaticText: Items Ordered
+		table: Items Ordered
+			caption: 
+			row: 
+				columnheader: Product Name
+				columnheader: SKU
+				columnheader: Price
+				columnheader: Qty
+				columnheader: Subtotal
+			row: 
+				gridcell: Quoizel TF9404M Grove Park Tiffany Multi-Color Floor Lamp
+				gridcell: B00J8RZL7I
+				gridcell: $749.99
+				gridcell: Ordered: 1
+				gridcell: $749.99
+			row: 
+				rowheader: Subtotal
+				gridcell: $749.99
+			row: 
+				rowheader: Shipping & Handling
+				gridcell: $5.00
+			row: 
+				rowheader: Grand Total
+				gridcell: $754.99
+		StaticText: Order Information
+		StaticText: Shipping Address
+[6]		group:  
+			StaticText: Emma Lopez
+			LineBreak: 
 
-                LayoutTable: 
-                        StaticText: Qty
-[8]                     Input field: Qty  (Already input: 1)
-                                StaticText: 1
-[9]                     Click: Add to Cart  (None)
-[10]            Click link: Add to Wish List 
-[11]            Click link: Add to Compare 
-[12]            Click: Previous 
-                generic: Image
-                        image: Image
-[13]            Click: Next 
-[14]            Click: Previous 
-                        image: Image
-                        image: Image
-[15]            Click: Next 
-                tablist: 
-                        tab: Details
-                        tabpanel: Details
-[16]                            heading: Product Quick Look 
-                                StaticText: 100% Cotton, Men's big and tall varsity mesh polo shirt featuring chain-stitched "Polo RL" across the chest. Short sleeves with a "67" felt patch on the right arm. Concealed two-button placket. Embroidered eyelets at the underarms. Woven "67 Polo RL" label at right hem. Uneven vented hem.
-                                StaticText: Chain-stitched "Polo RL" across chest
-                                StaticText: Concealed two-button placket
-                                StaticText: Short sleeves with "67" felt patch at right sleeve
-                                StaticText: Woven '67 Polo RL" label at right hem
-                                StaticText: Machine Washable; Imported
-                                table: 
-                                        row: 
-                                                rowheader: Department
-                                                gridcell: Mens
-                                        row: 
-                                                rowheader: Date First Available 
-                                                gridcell: October 10, 2021
-                                        row: 
-                                                rowheader: Manufacturer 
-                                                gridcell: Ralph Lauren
-                                        row: 
-                                                rowheader: ASIN 
-                                                gridcell: B09J3DHG78
-                                        row: 
-                                                rowheader: #15,550 in Men's Polo Shirts
-                                                gridcell: 
-                        tab: Reviews
-                StaticText: Sign Up for Our Newsletter:
-[17]            Input field: Sign Up for Our Newsletter: 
-[18]            Click: Subscribe 
-                StaticText: Copyright © 2013-present Magento, Inc. All rights reserved.
-                StaticText: Help Us Keep Magento Healthy
-[19]            Click link: Report All Bugs 
+			StaticText: 101 S San Mateo Dr
+			LineBreak: 
 
-URL: http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/polo-ralph-lauren-mens-short-sleeve-varsity-polo-shirt.html
-OBJECTIVE: Buy this polo shirt
+			StaticText: San Mateo, California, 94010
+			LineBreak: 
+
+			StaticText: United States
+			LineBreak: 
+
+			StaticText: T: 
+[7]			Click link: 6505551212 
+		StaticText: Shipping Method
+		StaticText: Flat Rate - Fixed
+		StaticText: Billing Address
+[8]		group:  
+			StaticText: Emma Lopez
+			LineBreak: 
+
+			StaticText: 101 S San Mateo Dr
+			LineBreak: 
+
+			StaticText: San Mateo, California, 94010
+			LineBreak: 
+
+			StaticText: United States
+			LineBreak: 
+
+			StaticText: T: 
+[9]			Click link: 6505551212 
+		StaticText: Payment Method
+		DescriptionList: 
+			DescriptionListTerm: 
+				StaticText: Check / Money order
+		StaticText: My Account
+[10]		heading: Compare Products 
+		StaticText: You have no items to compare.
+[11]		heading: My Wish List 
+		StaticText: You have no items in your wish list.
+		StaticText: Sign Up for Our Newsletter:
+[12]		Input field: Sign Up for Our Newsletter: 
+[13]		Click: Subscribe 
+		StaticText: Copyright © 2013-present Magento, Inc. All rights reserved.
+		StaticText: Help Us Keep Magento Healthy
+[14]		Click link: Report All Bugs 
+
+
+SUBGOAL: Look at the third order.
+OBJECTIVE: Tell me what my last 5 orders are
