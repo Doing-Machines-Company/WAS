@@ -63,7 +63,8 @@ class BaseAgent(Agent):
 
         self.last_action_and_envtag = None
         self.old_obs = None
-        self.task_memory = []
+        self.to_do_memory = []
+        self.already_done_memory = []
         self.current_subtask = None
 
         with open('auxillary_jsons/external_links.json', 'r') as file:
@@ -107,7 +108,7 @@ class BaseAgent(Agent):
         :param model_name: 
         :return: 
         '''
-        cleaned_tree, action_list = self.__process_axtree_action(cur_obs)
+        cleaned_tree, action_list = self.__process_axtree(cur_obs)
         if model_name.startswith('gpt'):
             messages = [
                 {"role": "system",
@@ -121,12 +122,16 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "Tell me what page you are currently on, and what can be done on the page that is relevant to your task. First reason step-by-step if your task can be completed without leaving this web page. Then you must generate general IMPORTANT SUBTASKs that are incomplete. "},
                 {"role": "system",
-                 "content": "Then reason step-by-step through all information in the tree that is enclosed in parentheses, and determine if that information indicates that your task is impossible. If this is your final task and it's impossible, choose the stop command. If this is not your final task, move on to your next task. "},
+                 "content": "Then reason step-by-step through all alerts and information in the tree that is enclosed in parentheses, and determine if that information indicates that your task has already been completed or if the task is impossible. If the task has already been completed, choose action [1]. If the task is impossible, choose action [2]."},
                 {"role": "system",
                  "content": "Then you must reasonstep-by-step through all of your IMPORTANT SUBTASKs to determine the first incomplete IMPORTANT SUBTASK. The optimal action is the first action that completes a subtask that is still incomplete. Then finally, please give me python code using the python choose_option function. "}]
 
+            if self.current_subtask:
+                goal = self.current_subtask
+            else:
+                goal = self.intent
             messages.append({"role": "user",
-                             f"content": f"This is your main task: {self.intent}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"})
+                             f"content": f"This is your main task: {goal}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"})
 
         if model_name.startswith('gemini'):
             messages = (
@@ -135,7 +140,7 @@ class BaseAgent(Agent):
                  "You have the python function choose_option(task_number: int, input_string: Optional[str]) which takes in a number and an optional string. You must call the python function choose_option in your reply. The task_number is the option number you want to choose. The input_string parameter is only used when the action you select is an action with INPUT FIELD in it's text. Pay attention to anything that is required."
                  "First look at the task, then look at the task completion progress, then you must generate subtasks using both pieces of information, reasong through these step-by-step. Reason through every single possible action labelled with a number in brackets at the start carefully, step-by-step, to decide which action you should perform first. Do your best to select an answer. If multiple steps are needed, select the first step as your option. Give me the code for choose_option.\n")
 
-            messages += f"This is your task: {self.intent}\nTask completion progress: DNE FIX THIS!!!!!! \nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"
+            messages += f"This is your current task: {self.intent}\nTask completion progress: DNE FIX THIS!!!!!! \nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"
         if model_name.startswith('memgpt'):
             messages = (f"OBSERVATION: {cleaned_tree}\nOBJECTIVE: {self.intent}\n ")
 
@@ -158,8 +163,8 @@ class BaseAgent(Agent):
         base_obs = self.old_obs
         last_action = self.last_action_and_envtag[0]
         
-        base_tree_cleaned = self.__process_axtree_memory(base_obs)
-        new_tree_cleaned = self.__process_axtree_memory(new_obs)
+        base_tree_cleaned = self.__process_axtree(base_obs, memory=True)
+        new_tree_cleaned = self.__process_axtree(new_obs, memory=True)
 
 
         print("BASE TREE")
@@ -225,7 +230,7 @@ class BaseAgent(Agent):
             'grid',  'alert', 'alertdialog', 'dialog',
             'log', 'marquee', 'timer', 'tooltip', 'banner',
             'complementary', 'contentinfo', 'form', 'main', 'navigation',
-            'region', 'search', 'status', 'img', 'note', 'application',
+            'region', 'status', 'img', 'note', 'application',
             'article', 'cell', 'definition', 'directory', 'document',
             'feed', 'figure', 'group', 'heading', 'img', 'list',
             'listitem', 'math', 'progressbar',
@@ -238,7 +243,7 @@ class BaseAgent(Agent):
         ]
 
         currently_ignored = ['gridcell', 'columnheader', 'rowheader', 'tab',
-            'tabpanel', 'row', 'rowgroup']
+            'tabpanel', 'row', 'rowgroup', 'search']
 
         if xpath.strip() != "" and html.strip() != "":
             if role.strip() == 'link':
@@ -429,7 +434,7 @@ class BaseAgent(Agent):
 
         return tree_insert, action_list
 
-    def __process_axtree_action(self, obs: AxObservation):
+    def __process_axtree(self, obs: AxObservation, memory=False):
         '''
         Heavily processes the tree for the prompt
         Skips options via function calls
@@ -437,9 +442,11 @@ class BaseAgent(Agent):
         :param obs:
         :return:
         '''
-        counter = 1
-        action_list = [(Action(Action.Type.STOP, None, None), EnvironmentChange(obs.url, None, Action.Type.STOP))]
-        cleaned_tree = "[0] Stop command (choose this if the task is finished or impossible)\n"
+        counter = 3
+        action_list = [(Action(Action.Type.STOP, None, None), EnvironmentChange(obs.url, None, Action.Type.STOP)),
+                       (Action(Action.Type.GET_NEXT_SUBTASK_FINISHED, None, None), EnvironmentChange(obs.url, None, Action.Type.GET_NEXT_SUBTASK_FINISHED)),
+                       (Action(Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE, None, None), EnvironmentChange(obs.url, None, Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE))]
+        cleaned_tree = ("[0] Stop command (choose this if the task is to stop)\n[1] Task finished (choose if task finished successfully)\n[2] Input field: Task impossible (input specific task that couldn't be achieved and concise current page information)\n")
 
 
         scanning_radios = False
@@ -533,108 +540,11 @@ class BaseAgent(Agent):
                 cleaned_tree += tree_strings
                 action_list.extend(radio_actions)
                 current_radio_nodes = []
-        print(cleaned_tree)
+        if memory:
+            return cleaned_tree
         return cleaned_tree, action_list
 
-    def __process_axtree_memory(self, obs: AxObservation):
-        '''
-        Almost identical to __process_axtree_action, but does not return action list
 
-        :param obs:
-        :return:
-        '''
-        counter = 1
-        cleaned_tree = "[0] CHOOSE THIS IF TASK FINISHED OR IMPOSSIBLE\n"
-
-        scanning_radios = False
-        current_radio_nodes = []
-        tabled_options = set()
-
-        for i in range(len(obs.nodes_info)):
-            if self.__skip_option(obs.nodes_info[i]):
-                continue
-            if obs.nodes_info[i]['role'] != 'RootWebArea':
-                node_action = self.__extract_interaction_info(obs.nodes_info[i]['xpath'], obs.nodes_info[i]['html'],
-                                                              obs.nodes_info[i]['role'], obs.url)
-
-                if node_action:
-                    tree_add = None
-                    if self.__skip_action(obs.nodes_info[i], node_action, obs.url):
-                        continue
-
-                    env_tags = EnvironmentChange(obs.url, obs.nodes_info[i]['html'], node_action.action_type)
-
-                    props, role_name = self.process_node_properties(obs.nodes_info[i]['properties'],
-                                                                    obs.nodes_info[i]['html'], env_tags)
-                    if role_name == "":
-                        role_name = obs.nodes_info[i]['role'] + ": "
-
-                    if node_action.action_type == Action.Type.INPUT:
-                        if scanning_radios:
-                            scanning_radios = False
-                            if len(current_radio_nodes) > 0:
-                                tree_strings, _ = self.__process_radios(current_radio_nodes)
-                                cleaned_tree += tree_strings
-                                current_radio_nodes = []
-                        tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
-
-                    elif node_action.action_type == Action.Type.CLICK_RADIO:
-                        scanning_radios = True
-
-                        soup = BeautifulSoup(obs.nodes_info[i]['html'], 'html.parser')
-                        input_element = soup.find('input')
-                        name_field = input_element.get('name', '').strip()
-
-                        if name_field != '':
-                            if name_field in tabled_options:
-                                current_radio_nodes.append((obs.nodes_info[i], counter, (node_action, env_tags)))
-                            else:
-                                if len(current_radio_nodes) > 0:
-                                    tree_strings, _ = self.__process_radios(current_radio_nodes)
-                                    cleaned_tree += tree_strings
-                                    current_radio_nodes = []
-                                    tabled_options.add(name_field)
-                                    current_radio_nodes.append((obs.nodes_info[i], counter, (node_action, env_tags)))
-                                else:
-                                    tabled_options.add(name_field)
-                                    current_radio_nodes.append((obs.nodes_info[i], counter, (node_action, env_tags)))
-                        else:
-                            tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
-
-
-                    else:
-                        if scanning_radios:
-                            scanning_radios = False
-                            if len(current_radio_nodes) > 0:
-                                tree_strings, _ = self.__process_radios(current_radio_nodes)
-                                cleaned_tree += tree_strings
-                                current_radio_nodes = []
-                        cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
-                        # tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
-
-                    counter += 1
-                    if tree_add:
-                        cleaned_tree += tree_add
-                        node_action.set_tree_line(tree_add)
-                else:
-                    if scanning_radios:
-                        scanning_radios = False
-                        if len(current_radio_nodes) > 0:
-                            tree_strings, _ = self.__process_radios(current_radio_nodes)
-                            cleaned_tree += tree_strings
-                            current_radio_nodes = []
-
-                    cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
-            else:
-                cleaned_tree += f"{obs.nodes_info[i]['indent']}You are currently on the page for: {obs.nodes_info[i]['name']}\n"
-
-        if scanning_radios:
-            scanning_radios = False
-            if len(current_radio_nodes) > 0:
-                tree_strings, _ = self.__process_radios(current_radio_nodes)
-                cleaned_tree += tree_strings
-                current_radio_nodes = []
-        return cleaned_tree
 
     def get_next_action(self, cur_obs: AxObservation) -> Action:
         '''
@@ -643,6 +553,7 @@ class BaseAgent(Agent):
         :param cur_obs: 
         :return: 
         '''
+
         self.old_obs = cur_obs
         prompt_for_agent, answer_values = self.__construct_elements_prompt(cur_obs, model_name = 'gpt-3.5-turbo-0125') # prompt_for_agent: str, answer_values: list[Actions]
         (final_index, final_string) = self.__call_llm_action(prompt_for_agent, model_name = 'gpt-3.5-turbo-0125')
@@ -651,46 +562,175 @@ class BaseAgent(Agent):
             # TODO IF DESIRED ACTION IS GOTO URL, THEN NO ENVIRONMENT CHANGE NEEDED. NEED TO FIND LINK TO GO TO.
             if desired_action.action_type == Action.Type.INPUT:
                 desired_action.set_input_string(final_string)
+
             self.last_action_and_envtag = answer_values[int(final_index)]
             new_change = answer_values[int(final_index)][1]
 
 
+            if desired_action.action_type == Action.Type.INPUT:
+                EnvironmentChange.change_log[new_change] = desired_action.input_string
+            elif desired_action.action_type == Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE:
+                EnvironmentChange.change_log[new_change] = desired_action.tree_line
 
-            EnvironmentChange.change_log[new_change] = desired_action.input_string
 
-            
             return desired_action
+
         return Action(Action.Type.STOP, None, None) # TODO HANDLE FAILED GPT RETURNS BETTER
 
-    
-    def __llm_long_range_task_memory_prompt(self, new_obs: AxObservation, model_name: str) -> str:
-        messages = [{
-                "role": "system",
-                "content": "You are a management specialist for a shopping website. You act as support for an agent. "
-            },
-            {
-                "role": "system",
-                "content": "An IMPORTANT SUBTASK is a subtask that is essential to the completion of a goal. IMPORTANT SUBTASKS are subtasks that must be completed in order for the main goal to be completed. Tasks cannot be completed without completing all IMPORTANT SUBTASKS. Any subtasks that involve discovery or navigation are UNIMPORTANT. IMPORTANT SUBTASKS ignore specific website actions like clicks or option choices. "
-            },
-            {
-                "role": "system",
-                "content": "I am going to give you the main goal the agent is working on, a TASK MEMORY of IMPORTANT SUBTASKs that need to be completed, and the current accessibility tree which represents the state of the website. "
-            },
-            {
-                "role": "system",
-                "content": "First "
-            }
+    def __llm_get_important_subtask_prompt(self, new_obs: AxObservation, model_name: str) -> list[dict]:
+        '''
+        Can info memory retrieve everything that is necessary?
+        In essence, you want to store all the important subtasks that are not yet completed, especially if they have identifying information
 
-        ]
+        :param new_obs:
+        :param model_name:
+        :return:
+        '''
 
-    def __call_llm_task_memory(self, prompt, model_name: str) -> (str, str):
+        cleaned_tree = self.__process_axtree(new_obs, memory=True)
+        if model_name.startswith('gpt'):
+            messages = [{
+                    "role": "system",
+                    "content": "You are a management specialist for a shopping website. You act as support for an agent trying to complete a goal. "
+                },
+                {
+                    "role": "system",
+                    "content": "An IMPORTANT SUBTASK is a subtask that is essential to the completion of a goal. IMPORTANT SUBTASKs are subtasks that must be completed in order for the main goal to be completed. Tasks cannot be completed without completing all IMPORTANT SUBTASKs. Any task that involve discovery or navigation are UNIMPORTANT. IMPORTANT SUBTASKs are general. "
+                },
+                {
+                    "role": "system",
+                    "content": "IDENTIFYING INFORMATION are pieces of information which are essential to complete IMPORTANT SUBTASKs. IDENTIFYING INFORMATION includes dates, product SKUs, order numbers and other specific information. "
+                },
+                {
+                    "role": "system",
+                    "content": "I am going to give you the main goal the agent is working on, a list of IMPORTANT SUBTASKs already gathered for the goal, and the accessibility tree of a web page. Assume this web page is relevant to the task. You need to add new IMPORTANT SUBTASKs to the list I gave you. "
+                },
+                {
+                    "role": "system",
+                    "content": "You have one Python function gather_important_subtasks(gathered_important_subtasks: str|None) that takes in a string or None. gathered_important_subtasks is a string which details the IMPORTANT SUBTASKs that need to be completed with all IDENTIFYING INFORMATION needed to complete that IMPORTANT SUBTASK. "
+                },
+                {
+                    "role": "system",
+                    "content": "First generate subtasks needed to complete the main goal. Then reason step-by-step through the accessibility tree and list out all potential IMPORTANT SUBTASKs along with their IDENTIFYING INFORMATION. If any of these SUBTASKs are a duplicate or a subtask of an IMPORTANT SUBTASK in the list I give you, they are IRRELEVANT SUBTASKs, otherwise they are IMPORTANT SUBTASKs you need to pay attention to. gathered_important_subtasks is detailed information with IDENTIFYING INFORMATION about new IMPORTANT SUBTASKs extracted from this web page. Give me the Python code using the gather_important_subtasks function to add new IMPORTANT SUBTASKs to the list I give you. If there are no new IMPORTANT SUBTASKs, give None as your parameter."
+                }
+
+            ]
+            messages.append({"role": "user",
+                             "content": f"Main goal: {self.intent}\nAll gathered IMPORTANT SUBTASKs: {self.to_do_memory}\nCurrent page accessibility tree: \n'''\n {cleaned_tree}\n'''\n"})
+            return messages
+
+    def __llm_get_important_subtask_call(self, prompt: list[dict], model_name: str) -> str:
+        '''
+                llm call to evaluate the completion success of a task
+
+                :param prompt:
+                :param model_name:
+                :return:
+                '''
+        if model_name.startswith('gpt'):
+            response = client.chat.completions.create(
+                model=model_name,
+                # model="gpt-3.5-turbo-1106",
+                messages=prompt,
+                temperature=0,
+                max_tokens=2500,
+                # top_p=0,
+                seed=12345678
+            )
+            result = response.choices[0].message.content
+            print(f"Gathered Important Subtasks: {result}")
+            pattern1 = r"gather_important_subtasks\(\"(.*?)\"\)"
+            pattern2 = r"gather_important_subtasks\(\'(.*?)\'\)"
+
+            # Searching the LLM output for the pattern
+            matches1 = re.findall(pattern1, result)
+            matches2 = re.findall(pattern2, result)
+
+            if len(matches1) > 0:
+                for match in matches1:
+                    return match.strip()
+            elif len(matches2) > 0:
+                for match in matches2:
+                    return match.strip()
+
+
+    def __llm_next_task_finished_prompt(self, model_name: str) -> list[dict]:
+        if model_name.startswith('gpt'):
+            messages = [{
+                    "role": "system",
+                    "content": "You are a management specialist for a shopping website. You act as support for an agent. "
+                },
+                {
+                    "role": "system",
+                    "content": "An IMPORTANT SUBTASK is a subtask that is essential to the completion of a goal. IMPORTANT SUBTASKs are subtasks that must be completed in order for the main goal to be completed. Tasks cannot be completed without completing all IMPORTANT SUBTASKs. Any subtasks that involve discovery or navigation are UNIMPORTANT. IMPORTANT SUBTASKs are general. An IMPORTANT SUBTASK can be completed in an arbitrary number of steps. If an IMPORTANT SUBTASK can be decomposed into multiple similar IMPORTANT SUBTASKs, you must decompose it. "
+                },
+                {
+                    "role": "system",
+                    "content": "IDENTIFYING INFORMATION are pieces of information which are essential to complete IMPORTANT SUBTASKs. IDENTIFYING INFORMATION includes dates, product SKUs, order numbers and other specific information. "
+                },
+                {
+                    "role": "system",
+                    "content": "I am going to give you the main goal the agent is working on, a list of all IMPORTANT SUBTASKS that need to be completed and a list of completed IMPORTANT SUBTASKS. "
+                },
+                {
+                    "role": "system",
+                    "content": "You have one Python function issue_subtask(next_important_subtask: str) that takes in a string. next_important_subtask is a string which details the next IMPORTANT SUBTASK that needs to be completed with all IDENTIFYING INFORMATION needed to complete that IMPORTANT SUBTASK. "
+                },
+                {
+                    "role": "system",
+                    "content": "Now you must reason step-by-step through the list of incomplete IMPORTANT SUBTASKS and the list of completed IMPORTANT SUBTASKS to determine the next IMPORTANT SUBTASK that needs completing. Then reason step-by-step to see if the action can be decomposed into multiple similar IMPORTANT SUBTASKs. next_important_subtask is detailed information with IDENTIFYING INFORMATION about this next IMPORTANT SUBTASK after it is decomposed if necessary. Give me the Python code using the issue_subtask function. "
+                }
+
+            ]
+            messages.append({"role": "user",
+                            "content": f"Main goal: {self.intent}\nAll IMPORTANT SUBTASKs: {self.to_do_memory}\nAll completed IMPORTANT SUBTASKs: {self.already_done_memory}"})
+
+            return messages
+
+
+    # def __llm_long_next_task_impossible_prompt(self, failure_issue: str, model_name: str) -> list[dict]:
+    #     if model_name.startswith('gpt'):
+    #         messages = [{
+    #             "role": "system",
+    #             "content": "You are a management specialist for a shopping website. You act as support for an agent. "
+    #         },
+    #             {
+    #                 "role": "system",
+    #                 "content": "An IMPORTANT SUBTASK is a subtask that is essential to the completion of a goal. IMPORTANT SUBTASKs are subtasks that must be completed in order for the main goal to be completed. Tasks cannot be completed without completing all IMPORTANT SUBTASKs. Any subtasks that involve discovery or navigation are UNIMPORTANT. IMPORTANT SUBTASKs are general tasks. An IMPORTANT SUBTASK can be completed in an arbitrary number of steps. If an IMPORTANT SUBTASK can be decomposed into multiple similar IMPORTANT SUBTASKs, you must decompose it. "
+    #             },
+    #             {
+    #                 "role": "system",
+    #                 "content": "IDENTIFYING INFORMATION are pieces of information which are essential to complete IMPORTANT SUBTASKs. IDENTIFYING INFORMATION includes dates, product SKUs, order numbers and other specific information. "
+    #             },
+    #             {
+    #                 "role": "system",
+    #                 "content": "I am going to give you the main goal the agent is working on, a list of all IMPORTANT SUBTASKS that need to be completed and a list of completed IMPORTANT SUBTASKS. "
+    #             },
+    #             {
+    #                 "role": "system",
+    #                 "content": "You have one Python function issue_subtask(next_important_subtask: str) that takes in a string. next_important_subtask is a string which details the next IMPORTANT SUBTASK that needs to be completed with all IDENTIFYING INFORMATION needed to complete that IMPORTANT SUBTASK. "
+    #             },
+    #             {
+    #                 "role": "system",
+    #                 "content": "Now you must reason step-by-step through the list of incomplete IMPORTANT SUBTASKS and the list of completed IMPORTANT SUBTASKS to determine the next IMPORTANT SUBTASK that needs completing. Then reason step-by-step to see if the action can be decomposed into multiple similar IMPORTANT SUBTASKs. next_important_subtask is detailed information with IDENTIFYING INFORMATION about this next IMPORTANT SUBTASK after it is decomposed if necessary. Give me the Python code using the issue_subtask function. "
+    #             }
+    # 
+    #         ]
+    #         messages.append({"role": "user",
+    #                          "content": f"Main goal: {self.intent}\nCurrent IMPORTANT SUBTASK that failed: {self.current_subtask}\nWhy current IMPORTANT SUBTASK failed: {failure_issue}\nAll IMPORTANT SUBTASKs: {self.to_do_memory}\nAll completed IMPORTANT SUBTASKs: {self.already_done_memory}"})
+    # 
+    #         return messages
+    # 
+    def __llm_long_next_task_finished_call(self, prompt, model_name: str) -> (str, str):
         pass
 
-    def handle_memory(self, new_obs: AxObservation):
+    def handle_memory(self, new_obs: AxObservation): # new_obs could be None if last_action was not CLICK_IMPORTANT
         '''
         Handles memory
         First judges task completion if the last action was a button (CLICK_IMPORTANT)
         Then handles long range task memory
+
+        GET_NEXT_SUBTASK variants assume that any potential new subtasks from the page are already stored, so all they need to do is either get the next subtask or decompose
         
         :param new_obs: 
         :return: 
@@ -699,9 +739,20 @@ class BaseAgent(Agent):
             case Action.Type.STOP:
                 return
             case Action.Type.INPUT:
-                return
+                important_subtask_prompt = self.__llm_get_important_subtask_prompt(new_obs,
+                                                                                   model_name='gpt-3.5-turbo-0125')
+                important_subtask = self.__llm_get_important_subtask_call(important_subtask_prompt,
+                                                                          model_name='gpt-3.5-turbo-0125')
+                print("important_subtask:")
+                print(important_subtask)
+
             case Action.Type.CLICK_LINK:
-                return
+                important_subtask_prompt = self.__llm_get_important_subtask_prompt(new_obs,
+                                                                                   model_name = 'gpt-3.5-turbo-0125')
+                important_subtask = self.__llm_get_important_subtask_call(important_subtask_prompt,
+                                                                          model_name = 'gpt-3.5-turbo-0125')
+                print("important_subtask:")
+                print(important_subtask)
             case Action.Type.CLICK_IMPORTANT:
                 # don't do this if new url is diff from old url
                 task_eval_prompt = self.__construct_completion_evaluation_prompt(new_obs, model_name = 'gpt-3.5-turbo-0125')
@@ -709,11 +760,29 @@ class BaseAgent(Agent):
                 # task_mem = "Previously failed because requested quantity is unavailable"
                 if task_mem != "":
                     EnvironmentChange.change_log[self.last_action_and_envtag[1]] = task_mem
-    
-        long_range_memory_prompt = self.__llm_long_range_task_memory_prompt(new_obs, model_name = 'gpt-3.5-turbo-0125')
-        new_task_mem, new_shrunk_task = self.__call_llm_task_memory(long_range_memory_prompt, model_name = 'gpt-3.5-turbo-0125')
-        self.task_memory.append(new_task_mem)
-        self.current_subtask = new_shrunk_task
+
+                important_subtask_prompt = self.__llm_get_important_subtask_prompt(new_obs,
+                                                                                   model_name='gpt-3.5-turbo-0125')
+                important_subtask = self.__llm_get_important_subtask_call(important_subtask_prompt,
+                                                                          model_name='gpt-3.5-turbo-0125')
+                print("important_subtask:")
+                print(important_subtask)
+
+            case Action.Type.GET_NEXT_SUBTASK_FINISHED:
+
+                self.already_done_memory.append(self.current_subtask)
+                long_range_memory_prompt = self.__llm_next_task_finished_prompt(model_name = 'gpt-3.5-turbo-0125')
+                new_to_do = self.__llm_long_next_task_finished_call(long_range_memory_prompt, model_name = 'gpt-3.5-turbo-0125')
+                self.current_subtask = new_to_do
+
+                # TODO HANDLE NEW TO DO AND SHRUNK TASK
+            case Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE:
+                # failure_reason = ''
+                # long_range_memory_prompt = self.__llm_long_next_task_impossible_prompt(model_name='gpt-3.5-turbo-0125')
+                # new_to_do, completed = self.__llm_long_next_task_impossible_call(long_range_memory_prompt,
+                #                                                          model_name='gpt-3.5-turbo-0125')
+                self.current_subtask = "Stop"
+
         
         # TODO LONG RANGE TASK MEMORY
 
@@ -748,7 +817,7 @@ class BaseAgent(Agent):
             for match in matches:
                 task_number, input_string_single, input_string_double = match[:3]
                 input_string = input_string_single or input_string_double or ""
-            return task_number, input_string
+                return task_number, input_string
             print("FAILED CALLING ACTION")
         elif model_name.startswith('gemini'):
             GOOGLE_API_KEY = 'AIzaSyBu8ecdjq4gzAGbT5Tk-bQm38S0WZikyDs'

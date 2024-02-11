@@ -11,6 +11,8 @@ class Action:
         CLICK_GENERAL = 5
         CLICK_RADIO = 6
         CLICK_CHECKBOX = 7
+        GET_NEXT_SUBTASK_FINISHED = 8
+        GET_NEXT_SUBTASK_IMPOSSIBLE = 9
 
     def __init__(self, action_type: 'Action.Type', xpath: str, html: str, tree_line: str = "", input_string: Optional[str] = None):
         self.action_type = action_type

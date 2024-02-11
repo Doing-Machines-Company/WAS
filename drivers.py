@@ -334,6 +334,13 @@ class MyDriver(WebDriver):
 
                 except Exception as e:
                     print(f"Error inputting element: {e}")
+
+            case Action.Type.GET_NEXT_SUBTASK_FINISHED:
+                pass
+
+            case Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE:
+                pass
+
             case Action.Type.STOP:
                 input("ABOUT TO STOP")
                 exit()
