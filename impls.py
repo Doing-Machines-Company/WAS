@@ -26,10 +26,6 @@ api_key = os.getenv('OPENAI_API_KEY')
 
 client = OpenAI(api_key=api_key)
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/home/cem/.config/gcloud/application_default_credentials.json"
-class Phase(Enum):
-    CHOOSING_URL = auto()
-    CHOOSING_ELEMENTS = auto()
-    # HANDLING_MEMORY = auto()
 
 class BaseAgent(Agent):
     '''
@@ -37,7 +33,6 @@ class BaseAgent(Agent):
     "required = \"true\"" means a required field for interactables
     Uses AxTreeObservation
     Anything that's not a button press does not need task_management summarization between two trees
-
 
     '''
     def __init__(self, intent: str):
@@ -64,7 +59,8 @@ class BaseAgent(Agent):
 
         self.last_action_and_envtag = None
         self.old_obs = None
-        self.phase = Phase.CHOOSING_ELEMENTS # or 'choosing_elements' (or 'handling_memory') # TODO MAKE ENUM TYPE
+        self.task_memory = []
+        self.current_subtask = None
 
         with open('auxillary_jsons/external_links.json', 'r') as file:
             self.all_links = json.load(file)
@@ -101,7 +97,7 @@ class BaseAgent(Agent):
 
     def __construct_elements_prompt(self, cur_obs: AxObservation, model_name: str) -> (str, list[Action]):  # MOSTLY FOR GPT, NEED MORE CODE GEN STABILITY
         '''
-        Constructs the prompt for the model to generate a response for get_next_action in the CHOOSING_ELEMENTS phase, phases may be deprecated later
+        Constructs the prompt for the model to generate a response for get_next_action, phases may be deprecated later
         
         :param cur_obs: 
         :param model_name: 
@@ -143,7 +139,7 @@ class BaseAgent(Agent):
 
         return messages, action_list
 
-    def __construct_completion_evaluation_prompt(self, intent: str, last_action: (Action, EnvironmentChange), base_obs: AxObservation, new_obs: AxObservation,
+    def __construct_completion_evaluation_prompt(self, last_action: (Action, EnvironmentChange), new_obs: AxObservation,
                                 model_name: str) -> str:  
         '''
         Constructs prompt for task evaluation
@@ -155,6 +151,8 @@ class BaseAgent(Agent):
         :param model_name: 
         :return: 
         '''
+        base_obs = self.old_obs
+        last_action = self.last_action_and_envtag[0]
         
         base_tree_cleaned = self.__process_axtree_memory(base_obs)
         new_tree_cleaned = self.__process_axtree_memory(new_obs)
@@ -179,7 +177,7 @@ class BaseAgent(Agent):
                          "content": "If the action succeded, your 'judgement' is about the success of the intent of the action. If the action failed, your 'judgement' is the reasons why the action failed. 'judgement' must be concise. You must call the python function store_information in your reply where the 'judgement' parameter for store_information is your summary. Finally, give me the python code using the python store_information function I gave you. "},
                         ]
             messages.append({"role": "user",
-                             f"content": f"Main task: {intent}\nLast action performed: {last_action.tree_line}\nAccessibility tree before last action:\n'''{base_tree_cleaned}\n'''\nAccessibility tree after last action: \n'''\n {new_tree_cleaned}\n'''"})
+                             f"content": f"Main task: {self.intent}\nLast action performed: {last_action.tree_line}\nAccessibility tree before last action:\n'''{base_tree_cleaned}\n'''\nAccessibility tree after last action: \n'''\n {new_tree_cleaned}\n'''"})
 
             return messages
         if model_name.startswith('gemini'):
@@ -189,7 +187,7 @@ class BaseAgent(Agent):
                          "SUCCESS INFORMATION is information about the success of the last action performed. If the difference between the two trees indicate that the last action's intended goal succeeded or already completed, you need to return SUCCESS INFORMATION. SUCCESS INFORMATION is a concise string that includes: \n1. The action that was successful\n2. A summary of the subtask that was successfully completed and how it's relevant to completing the TASK"
                          "You are given three python functions:\nstore_FAILURE_INFOMRATION(failure_info: str)\nstore_SUCCESS_INFORMATION(subtask_info: str)\nMOVE_ON()\nYou must reply with only one of these functions in your reply. "
                          "List the differences between the two accessibility trees. Then step-by-step reason about if an action was IMPORTANT. Then step-by-step reason about if an action was successful. If the action attempted to complete an IMPORTANT SUBTASK, give me the python code for calling either store_FAILURE_INFOMRATION to store either FAILURE INFORMATION if the action failed or store_SUCCESS_INFORMATION to store SUCCESS INFORMATION if the action succeeded. If the last action was UNIMPORTANT, give me the python function MOVE_ON(). Give me the python code for one of these functions.\n")
-            messages +=  f"Intended task: {intent}\nLast action performed: {last_action.tree_line}\nBase accessibility tree: \n'''\n {base_tree_cleaned}\n'''\nNew accessibility tree: \n'''\n {new_tree_cleaned}\n'''"
+            messages +=  f"Intended task: {self.intent}\nLast action performed: {last_action.tree_line}\nBase accessibility tree: \n'''\n {base_tree_cleaned}\n'''\nNew accessibility tree: \n'''\n {new_tree_cleaned}\n'''"
 
 
            
@@ -660,6 +658,29 @@ class BaseAgent(Agent):
             return desired_action
         return Action(Action.Type.STOP, None, None) # TODO HANDLE FAILED GPT RETURNS BETTER
 
+    
+    def __llm_long_range_task_memory_prompt(self, new_obs: AxObservation, model_name: str) -> str:
+        messages = [{
+                "role": "system",
+                "content": "You are a management specialist for a shopping website. You act as support for an agent. "
+            },
+            {
+                "role": "system",
+                "content": "An IMPORTANT SUBTASK is a subtask that is essential to the completion of a goal. IMPORTANT SUBTASKS are subtasks that must be completed in order for the main goal to be completed. Tasks cannot be completed without completing all IMPORTANT SUBTASKS. Any subtasks that involve discovery or navigation are UNIMPORTANT. IMPORTANT SUBTASKS ignore specific website actions like clicks or option choices. "
+            },
+            {
+                "role": "system",
+                "content": "I am going to give you the main goal the agent is working on, a TASK MEMORY of IMPORTANT SUBTASKs that need to be completed, and the current accessibility tree which represents the state of the website. "
+            },
+            {
+                "role": "system",
+                "content": "First "
+            }
+
+        ]
+
+    def __call_llm_task_memory(self, prompt, model_name: str) -> (str, str):
+        pass
 
     def handle_memory(self, new_obs: AxObservation):
         '''
@@ -679,11 +700,16 @@ class BaseAgent(Agent):
                 return
             case Action.Type.CLICK_IMPORTANT:
                 # don't do this if new url is diff from old url
-                memory_prompt_for_agent = self.__construct_completion_evaluation_prompt(self.intent, self.last_action_and_envtag[0], self.old_obs, new_obs, model_name = 'gpt-3.5-turbo-0125')
-                task_mem = self.__llm_completion_evaluation(memory_prompt_for_agent, model_name = 'gpt-3.5-turbo-0125')
+                task_eval_prompt = self.__construct_completion_evaluation_prompt(new_obs, model_name = 'gpt-3.5-turbo-0125')
+                task_mem = self.__llm_completion_evaluation(task_eval_prompt, model_name = 'gpt-3.5-turbo-0125')
                 # task_mem = "Previously failed because requested quantity is unavailable"
                 if task_mem != "":
                     EnvironmentChange.change_log[self.last_action_and_envtag[1]] = task_mem
+    
+        long_range_memory_prompt = self.__llm_long_range_task_memory_prompt(new_obs, model_name = 'gpt-3.5-turbo-0125')
+        new_task_mem, new_shrunk_task = self.__call_llm_task_memory(long_range_memory_prompt, model_name = 'gpt-3.5-turbo-0125')
+        self.task_memory.append(new_task_mem)
+        self.current_subtask = new_shrunk_task
         
         # TODO LONG RANGE TASK MEMORY
 
