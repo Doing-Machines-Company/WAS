@@ -41,12 +41,7 @@ class BaseAgent(Agent):
         # self.base_obs = None
 
         # Create a MemGPT client object (sets up the persistent state)
-        self.client = MemGPT(
-        quickstart="openai",
-        config={
-            "openai_api_key": "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"
-        }
-        )
+        self.client = MemGPT()
 
         # You can set many more parameters, this is just a basic example
         self.agent_id = self.client.create_agent(
@@ -55,6 +50,7 @@ class BaseAgent(Agent):
             "preset" : "agent_preset",
             "persona": "web_agent",
             "human": "basic",
+            "model": "gpt-3.5-turbo-0125"
         }
         )
 
@@ -555,8 +551,8 @@ class BaseAgent(Agent):
         '''
 
         self.old_obs = cur_obs
-        prompt_for_agent, answer_values = self.__construct_elements_prompt(cur_obs, model_name = 'gpt-3.5-turbo-0125') # prompt_for_agent: str, answer_values: list[Actions]
-        (final_index, final_string) = self.__call_llm_action(prompt_for_agent, model_name = 'gpt-3.5-turbo-0125')
+        prompt_for_agent, answer_values = self.__construct_elements_prompt(cur_obs, model_name = 'memgpt') # prompt_for_agent: str, answer_values: list[Actions]
+        (final_index, final_string) = self.__call_llm_action(prompt_for_agent, model_name = 'memgpt')
         if final_index and final_index != -1:
             desired_action = answer_values[int(final_index)][0]
             # TODO IF DESIRED ACTION IS GOTO URL, THEN NO ENVIRONMENT CHANGE NEEDED. NEED TO FIND LINK TO GO TO.
