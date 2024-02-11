@@ -742,6 +742,14 @@ class BaseAgent(Agent):
                 print("important_subtask:")
                 print(important_subtask)
 
+            case Action.Type.CLICK_GENERAL:
+                important_subtask_prompt = self.__llm_get_important_subtask_prompt(new_obs,
+                                                                                   model_name='gpt-3.5-turbo-0125')
+                important_subtask = self.__llm_get_important_subtask_call(important_subtask_prompt,
+                                                                          model_name='gpt-3.5-turbo-0125')
+                print("important_subtask:")
+                print(important_subtask)
+
             case Action.Type.CLICK_LINK:
                 important_subtask_prompt = self.__llm_get_important_subtask_prompt(new_obs,
                                                                                    model_name = 'gpt-3.5-turbo-0125')
