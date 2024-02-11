@@ -116,18 +116,18 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "An IMPORTANT SUBTASK is a subtask that is essential to the completion of a task. IMPORTANT SUBTASKS are subtasks that must be completed in order for your task to be completed. IMPORTANT SUBTASKs can be completed by a single action on the page. Tasks cannot be completed without completing all IMPORTANT SUBTASKS. Any subtasks that involve discovery or navigation are UNIMPORTANT. "},
                 {"role": "system",
-                 "content": "Tell me what page you are currently on, and what can be done on the page that is relevant to your task. First reason step-by-step if your task can be completed without leaving this web page. Then you must generate general IMPORTANT SUBTASKs that are incomplete. "},
+                 "content": "Tell me what page you are currently on, and what can be done on the page that is relevant to your task. First reason step-by-step if your task can be completed without leaving this web page. THIS IS IMPORTANT, then you must generate general IMPORTANT SUBTASKs that are incomplete. "},
                 {"role": "system",
-                 "content": "Then reason step-by-step through all alerts and information in the tree that is enclosed in parentheses, and determine if that information indicates that your task has already been completed or if the task is impossible. If the task has already been completed, choose action [1]. If the task is impossible, choose action [2]."},
+                 "content": "Then reason step-by-step through all alerts and information in the tree that is enclosed in parentheses, and determine if that information indicates that your task has already been completed or if the task is impossible. THIS IS IMPORTANT, if parentheses information indicated that the task has already been completed or impossible, YOU MUST choose action [1] or [2]. "},
                 {"role": "system",
-                 "content": "Then you must reasonstep-by-step through all of your IMPORTANT SUBTASKs to determine the first incomplete IMPORTANT SUBTASK. The optimal action is the first action that completes a subtask that is still incomplete. Then finally, please give me python code using the python choose_option function. "}]
+                 "content": "Then only if the task is possible and unfinished, you must reasonstep-by-step through all of your IMPORTANT SUBTASKs to determine the first incomplete IMPORTANT SUBTASK. The optimal action is the first action that completes a subtask that is still incomplete. "}]
 
             if self.current_subtask:
                 goal = self.current_subtask
             else:
                 goal = self.intent
             messages.append({"role": "user",
-                             f"content": f"This is your main task: {goal}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''"})
+                             f"content": f"This is your main task: {goal}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''\nPlease give me python code using the python choose_option function."})
 
         if model_name.startswith('gemini'):
             messages = (
@@ -144,7 +144,7 @@ class BaseAgent(Agent):
 
         return messages, action_list
 
-    def __construct_completion_evaluation_prompt(self, last_action: (Action, EnvironmentChange), new_obs: AxObservation,
+    def __construct_completion_evaluation_prompt(self, new_obs: AxObservation,
                                 model_name: str) -> str:  
         '''
         Constructs prompt for task evaluation
@@ -324,7 +324,7 @@ class BaseAgent(Agent):
                     #     props.append("Required")
 
                 case Action.Type.CLICK_RADIO:
-                    print("RADIO NOT PROCESSED BY THIS FUNCTION")
+                    pass
 
         if len(props) > 0:
             result = " (" + ". ".join(props) + ")"
@@ -551,8 +551,8 @@ class BaseAgent(Agent):
         '''
 
         self.old_obs = cur_obs
-        prompt_for_agent, answer_values = self.__construct_elements_prompt(cur_obs, model_name = 'memgpt') # prompt_for_agent: str, answer_values: list[Actions]
-        (final_index, final_string) = self.__call_llm_action(prompt_for_agent, model_name = 'memgpt')
+        prompt_for_agent, answer_values = self.__construct_elements_prompt(cur_obs, model_name = 'gpt-3.5-turbo-0125') # prompt_for_agent: str, answer_values: list[Actions]
+        (final_index, final_string) = self.__call_llm_action(prompt_for_agent, model_name = 'gpt-3.5-turbo-0125')
         if final_index and final_index != -1:
             desired_action = answer_values[int(final_index)][0]
             # TODO IF DESIRED ACTION IS GOTO URL, THEN NO ENVIRONMENT CHANGE NEEDED. NEED TO FIND LINK TO GO TO.
@@ -591,7 +591,7 @@ class BaseAgent(Agent):
                 },
                 {
                     "role": "system",
-                    "content": "An IMPORTANT SUBTASK is a subtask that is essential to the completion of a goal. IMPORTANT SUBTASKs are subtasks that must be completed in order for the main goal to be completed. Tasks cannot be completed without completing all IMPORTANT SUBTASKs. Any task that involve discovery or navigation are UNIMPORTANT. IMPORTANT SUBTASKs are general. "
+                    "content": "An IMPORTANT SUBTASK is a subtask that is essential to the completion of a goal. IMPORTANT SUBTASKs are subtasks that must be completed in order for the main goal to be completed. Tasks cannot be completed without completing all IMPORTANT SUBTASKs. IMPORTANT SUBTASKs are general and ignorant of specific page actions. "
                 },
                 {
                     "role": "system",
@@ -617,12 +617,12 @@ class BaseAgent(Agent):
 
     def __llm_get_important_subtask_call(self, prompt: list[dict], model_name: str) -> str:
         '''
-                llm call to evaluate the completion success of a task
+                llm call to gather important subtasks from a page
 
                 :param prompt:
                 :param model_name:
                 :return:
-                '''
+        '''
         if model_name.startswith('gpt'):
             response = client.chat.completions.create(
                 model=model_name,
@@ -635,6 +635,7 @@ class BaseAgent(Agent):
             )
             result = response.choices[0].message.content
             print(f"Gathered Important Subtasks: {result}")
+            input("LOOK AT IMPORTANT SUBTASK")
             pattern1 = r"gather_important_subtasks\(\"(.*?)\"\)"
             pattern2 = r"gather_important_subtasks\(\'(.*?)\'\)"
 
@@ -670,16 +671,16 @@ class BaseAgent(Agent):
                 },
                 {
                     "role": "system",
-                    "content": "You have one Python function issue_subtask(next_important_subtask: str) that takes in a string. next_important_subtask is a string which details the next IMPORTANT SUBTASK that needs to be completed with all IDENTIFYING INFORMATION needed to complete that IMPORTANT SUBTASK. "
+                    "content": "You have one Python function issue_subtask(next_important_subtask: str) that takes in a string. next_important_subtask is a string which details the next IMPORTANT SUBTASKs that need to be completed with all IDENTIFYING INFORMATION needed to complete those IMPORTANT SUBTASKs. "
                 },
                 {
                     "role": "system",
-                    "content": "Now you must reason step-by-step through the list of incomplete IMPORTANT SUBTASKS and the list of completed IMPORTANT SUBTASKS to determine the next IMPORTANT SUBTASK that needs completing. Then reason step-by-step to see if the action can be decomposed into multiple similar IMPORTANT SUBTASKs. next_important_subtask is detailed information with IDENTIFYING INFORMATION about this next IMPORTANT SUBTASK after it is decomposed if necessary. Give me the Python code using the issue_subtask function. "
+                    "content": "Now you must reason step-by-step through the list of incomplete IMPORTANT SUBTASKS and the list of completed IMPORTANT SUBTASKS to determine the next IMPORTANT SUBTASK that needs completing. Then reason step-by-step to see if the action can be decomposed into multiple similar IMPORTANT SUBTASKs. next_important_subtask is detailed information with IDENTIFYING INFORMATION about this next IMPORTANT SUBTASK after it is decomposed if necessary. THIS IS IMPORTANT, if the goal has been completed or if there are no IMPORTANT SUBTASKs, your next_importan_subtask must be \"Stop\"."
                 }
 
             ]
             messages.append({"role": "user",
-                            "content": f"Main goal: {self.intent}\nAll IMPORTANT SUBTASKs: {self.to_do_memory}\nAll completed IMPORTANT SUBTASKs: {self.already_done_memory}"})
+                            "content": f"Main goal: {self.intent}\nAll IMPORTANT SUBTASKs: {self.to_do_memory}\nAll completed IMPORTANT SUBTASKs: {self.already_done_memory}\nGive me the Python code using the issue_subtask function. "})
 
             return messages
 
@@ -718,7 +719,39 @@ class BaseAgent(Agent):
     #         return messages
     # 
     def __llm_long_next_task_finished_call(self, prompt, model_name: str) -> (str, str):
-        pass
+        '''
+        llm call to evaluate the completion success of a task
+
+        :param prompt:
+        :param model_name:
+        :return:
+        '''
+        if model_name.startswith('gpt'):
+            response = client.chat.completions.create(
+                model=model_name,
+                # model="gpt-3.5-turbo-1106",
+                messages=prompt,
+                temperature=0,
+                max_tokens=2500,
+                # top_p=0,
+                seed=12345678
+            )
+            result = response.choices[0].message.content
+            print(f"Gathered Important Subtasks: {result}")
+            input("LOOK AT IMPORTANT SUBTASK")
+            pattern1 = r"issue_subtask\(\"(.*?)\"\)"
+            pattern2 = r"issue_subtask\(\'(.*?)\'\)"
+
+            # Searching the LLM output for the pattern
+            matches1 = re.findall(pattern1, result)
+            matches2 = re.findall(pattern2, result)
+
+            if len(matches1) > 0:
+                for match in matches1:
+                    return match.strip()
+            elif len(matches2) > 0:
+                for match in matches2:
+                    return match.strip()
 
     def handle_memory(self, new_obs: AxObservation): # new_obs could be None if last_action was not CLICK_IMPORTANT
         '''
@@ -771,10 +804,16 @@ class BaseAgent(Agent):
                                                                           model_name='gpt-3.5-turbo-0125')
                 print("important_subtask:")
                 print(important_subtask)
+                if important_subtask.strip() != "None":
+                    self.to_do_memory.append(important_subtask)
 
             case Action.Type.GET_NEXT_SUBTASK_FINISHED:
 
-                self.already_done_memory.append(self.current_subtask)
+                if self.current_subtask == None: # TODO this is jank, self.intent is poorly semantically formatted for a llm
+                    self.already_done_memory.append(self.intent)
+                else:
+                    self.already_done_memory.append(self.current_subtask)
+
                 long_range_memory_prompt = self.__llm_next_task_finished_prompt(model_name = 'gpt-3.5-turbo-0125')
                 new_to_do = self.__llm_long_next_task_finished_call(long_range_memory_prompt, model_name = 'gpt-3.5-turbo-0125')
                 self.current_subtask = new_to_do

@@ -65,3 +65,7 @@ class EnvironmentChange:
                 return hash(str((self.url, self.action_type.name, self.html)))
             case Action.Type.INPUT:
                 return hash(str((self.url, self.action_type.name, self.html)))
+            case Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE:
+                return hash(str((self.url, self.action_type.name, self.html)))
+            case Action.Type.GET_NEXT_SUBTASK_FINISHED:
+                return hash(str((self.url, self.action_type.name, self.html)))
