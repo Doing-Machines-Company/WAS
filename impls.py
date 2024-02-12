@@ -62,6 +62,7 @@ class BaseAgent(Agent):
         self.to_do_memory = []
         self.already_done_memory = []
         self.current_subtask = None
+        self.last_page_name = None
 
         with open('auxillary_jsons/external_links.json', 'r') as file:
             self.all_links = json.load(file)
@@ -452,15 +453,31 @@ class BaseAgent(Agent):
         :param obs:
         :return:
         '''
-        counter = 3
-        action_list = [(Action(Action.Type.STOP, None, None), EnvironmentChange(obs.url, None, Action.Type.STOP)),
-                       (Action(Action.Type.GET_NEXT_SUBTASK_FINISHED, None, None), EnvironmentChange(obs.url, None, Action.Type.GET_NEXT_SUBTASK_FINISHED)),
-                       (Action(Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE, None, None), EnvironmentChange(obs.url, None, Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE))]
+
         if memory:
             cleaned_tree = ""
         else:
-            cleaned_tree = "[0] Stop command (choose this if the task is to stop)\n[1] Task finished (choose if task finished successfully)\n[2] Input field: Task impossible (input specific task that couldn't be achieved and concise current page information)\n"
-
+            # TODO NEED TO IMPLEMENT SMART WAY TO GOTO URL
+            if self.last_page_name:
+                cleaned_tree = f"[0] Stop command (choose this if the task is to stop)\n[1] Task finished (choose if task finished successfully)\n[2] Input field: Task impossible (input specific task that couldn't be achieved and concise current page information)\n[3] Go back to page for {self.last_page_name}"
+                counter = 4
+                action_list = [
+                    (Action(Action.Type.STOP, None, None), EnvironmentChange(obs.url, None, Action.Type.STOP)),
+                    (Action(Action.Type.GET_NEXT_SUBTASK_FINISHED, None, None),
+                     EnvironmentChange(obs.url, None, Action.Type.GET_NEXT_SUBTASK_FINISHED)),
+                    (Action(Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE, None, None),
+                     EnvironmentChange(obs.url, None, Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE)),
+                    (Action(Action.Type.GO_BACK, None, None),
+                     EnvironmentChange(obs.url, None, Action.Type.GO_BACK))]
+            else:
+                cleaned_tree = "[0] Stop command (choose this if the task is to stop)\n[1] Task finished (choose if task finished successfully)\n[2] Input field: Task impossible (input specific task that couldn't be achieved and concise current page information)\n"
+                counter = 3
+                action_list = [
+                    (Action(Action.Type.STOP, None, None), EnvironmentChange(obs.url, None, Action.Type.STOP)),
+                    (Action(Action.Type.GET_NEXT_SUBTASK_FINISHED, None, None),
+                     EnvironmentChange(obs.url, None, Action.Type.GET_NEXT_SUBTASK_FINISHED)),
+                    (Action(Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE, None, None),
+                     EnvironmentChange(obs.url, None, Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE))]
 
         scanning_radios = False
         current_radio_nodes = []
@@ -545,6 +562,7 @@ class BaseAgent(Agent):
                     cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
             else:
                 cleaned_tree += f"{obs.nodes_info[i]['indent']}You are currently on the page for: {obs.nodes_info[i]['name']}\n"
+                self.last_page_name = obs.nodes_info[i]['name']
 
         if scanning_radios:
             scanning_radios = False

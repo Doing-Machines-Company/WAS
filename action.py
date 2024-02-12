@@ -13,6 +13,7 @@ class Action:
         CLICK_CHECKBOX = 7
         GET_NEXT_SUBTASK_FINISHED = 8
         GET_NEXT_SUBTASK_IMPOSSIBLE = 9
+        GO_BACK = 10
 
     def __init__(self, action_type: 'Action.Type', xpath: str, html: str, tree_line: str = "", input_string: Optional[str] = None):
         self.action_type = action_type
