@@ -116,6 +116,8 @@ class BaseAgent(Agent):
         :return: 
         '''
         cleaned_tree, action_list = self.__process_axtree(cur_obs)
+        print(cleaned_tree)
+        input("LOOK AT ACTION TREE")
         if model_name.startswith('gpt'):
             messages = [
                 {"role": "system",
@@ -129,16 +131,17 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "Tell me what page you are currently on, and what can be done on the page that is relevant to your task. First reason step-by-step if your task can be completed without leaving this web page. THIS IS IMPORTANT, then you must generate general IMPORTANT SUBTASKs that are incomplete. "},
                 {"role": "system",
-                 "content": "Then reason step-by-step through all alerts and information in the tree that is enclosed in parentheses, and determine if that information indicates that your task has already been completed or if the task is impossible. THIS IS IMPORTANT, if parentheses information indicated that the task has already been completed or impossible, YOU MUST choose action [1] or [2]. "},
+                 "content": "Then reason step-by-step through all alerts and information in the tree that is enclosed in parentheses, and determine if that information indicates that your task has already been completed or if the task is impossible. THIS IS IMPORTANT, a task is only impossible when you have performed all possible actions which may help you to complete the task. THIS IS IMPORTANT, if parentheses information indicated that the task has already been completed or impossible, YOU MUST choose action [1] or [2]. "},
                 {"role": "system",
                  "content": "Then only if the task is possible and unfinished, you must reasonstep-by-step through all of your IMPORTANT SUBTASKs to determine the first incomplete IMPORTANT SUBTASK. The optimal action is the first action that completes a subtask that is still incomplete. "}]
 
             if self.current_subtask:
-                goal = self.current_subtask
+                messages.append({"role": "user",
+                                 f"content": f"This is your main task: {self.intent}\nThis is your current subtask: {self.current_subtask}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''\nAFTER REASONING, give me python code using the python choose_option function."})
             else:
-                goal = self.intent
-            messages.append({"role": "user",
-                             f"content": f"This is your main task: {goal}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''\nAFTER REASONING, give me python code using the python choose_option function."})
+                messages.append({"role": "user",
+                                 f"content": f"This is your main task: {self.intent}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''\nAFTER REASONING, give me python code using the python choose_option function."})
+
 
         if model_name.startswith('gemini'):
             messages = (
@@ -593,7 +596,7 @@ class BaseAgent(Agent):
                     if tree_add:
                         cleaned_tree += tree_add
                         node_action.set_tree_line(tree_add)
-                else:
+                elif obs.nodes_info[i]['role'].strip() != 'generic':
                     cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
             else:
                 cleaned_tree += f"{obs.nodes_info[i]['indent']}You are currently on the page for: {obs.nodes_info[i]['name']}\n"
@@ -673,7 +676,7 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "A SUBTASK that can be fully completed on the current page is BAD. Any SUBTASK that is irrelevant to your main goal is a BAD SUBTASK. A SUBTASK that involves selecting current page options is a BAD SUBTASK. A SUBTASK that is a duplicate or a subtask of something in the list I give you is BAD. SUBTASKs that involved specific page actions or selections are BAD SUBTASKs."},
                 {"role": "system",
-                 "content": "Here is how you should complete your task: First you MUST REASON step-by-step through the accessibility tree and list out all SUBTASKs that help you complete your main goal. Secondly, SEPARATELY, you MUST REASON one-by-one through these SUBTASKs to identify GOOD SUBTASKs and BAD SUBTASKs. Thirdly you MUST REASON through ONLY GOOD SUBTASKs with their IDENTIFYING INFORMATION one-by-one to combine them into one IMPORTANT SUBTASK. THIS IS IMPORTANT: the IMPORTANT SUBTASK includes all IDENTIFYING INFORMATION.\n Finally, give me the Python code calling ONLY the gather_important_subtasks function. If there this is a new IMPORTANT SUBTASK with IDENTIFYING INFORMATION, it is your gathered_important_subtasks parameter. Otherwise give None as your parameter."}
+                 "content": "Here is how you should complete your task: First you MUST REASON about the purpose of the web page and it's contents and list out all SUBTASKs that help you complete your main goal. Secondly, SEPARATELY, you MUST REASON one-by-one through these SUBTASKs to identify GOOD SUBTASKs and BAD SUBTASKs. Thirdly you MUST REASON through ONLY GOOD SUBTASKs with their IDENTIFYING INFORMATION one-by-one to combine them into one IMPORTANT SUBTASK. THIS IS IMPORTANT: the IMPORTANT SUBTASK includes all IDENTIFYING INFORMATION.\n Finally, give me the Python code calling ONLY the gather_important_subtasks function. If there this is a new IMPORTANT SUBTASK with IDENTIFYING INFORMATION, it is your gathered_important_subtasks parameter. Otherwise give None as your parameter."}
 
             ]
             messages.append({"role": "user",
