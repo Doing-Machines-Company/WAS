@@ -66,7 +66,7 @@ class BaseAgent(Agent):
         with open('auxillary_jsons/external_links.json', 'r') as file:
             self.all_links = json.load(file)
 
-    def aggressive_normalize_url(self, url: str):  # Very aggressive normalization
+    def __aggressive_normalize_url(self, url: str):  # Very aggressive normalization
         '''
         Normalization which removes everything that's trailing (e.g., #p=1)
         
@@ -79,6 +79,17 @@ class BaseAgent(Agent):
         path = parsed_url.path.rstrip('/')  # Remove trailing slashes from the path
         # Ignoring the query and fragment
         normalized_url = urlunparse((scheme, netloc, path, '', '', ''))
+        return normalized_url
+
+    def __soft_normalize_url(self, url):
+        parsed_url = urlparse(url)
+        scheme = parsed_url.scheme if parsed_url.scheme else 'http'
+        netloc = parsed_url.netloc
+        path = parsed_url.path.rstrip('/')  # Remove trailing slashes from the path
+        query = parsed_url.query  # Include the query part
+        fragment = parsed_url.fragment  # Include the fragment part
+
+        normalized_url = urlunparse((scheme, netloc, path, '', query, fragment))
         return normalized_url
 
     def __construct_url_prompt(self, intent: str, new_obs: AxObservation, model_name: str) -> str:  # TODO Implement
@@ -127,7 +138,7 @@ class BaseAgent(Agent):
             else:
                 goal = self.intent
             messages.append({"role": "user",
-                             f"content": f"This is your main task: {goal}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''\nPlease give me python code using the python choose_option function."})
+                             f"content": f"This is your main task: {goal}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''\nAFTER REASONING, give me python code using the python choose_option function."})
 
         if model_name.startswith('gemini'):
             messages = (
@@ -362,7 +373,7 @@ class BaseAgent(Agent):
                     for href_value in href_values:
                         if href_value.startswith('#') and href_value != '#':
                             return True
-                        if self.aggressive_normalize_url(href_value) in self.all_links and self.aggressive_normalize_url(href_value) != self.aggressive_normalize_url(obs_url):
+                        if self.__aggressive_normalize_url(href_value) in self.all_links and self.__aggressive_normalize_url(href_value) != self.__aggressive_normalize_url(obs_url):
                             return True
             case Action.Type.CLICK_GENERAL:
                 href_regex = r'href="([^"]*)"'
@@ -371,9 +382,9 @@ class BaseAgent(Agent):
                     for href_value in href_values:
                         if href_value.startswith('#') and href_value != '#':
                             return True
-                        if self.aggressive_normalize_url(
-                                href_value) in self.all_links and self.aggressive_normalize_url(
-                                href_value) != self.aggressive_normalize_url(obs_url):
+                        if self.__aggressive_normalize_url(
+                                href_value) in self.all_links and self.__aggressive_normalize_url(
+                                href_value) != self.__aggressive_normalize_url(obs_url):
                             return True
             case Action.Type.CLICK_IMPORTANT:
                 if "<img src" in node_info['html']:
@@ -442,7 +453,10 @@ class BaseAgent(Agent):
         action_list = [(Action(Action.Type.STOP, None, None), EnvironmentChange(obs.url, None, Action.Type.STOP)),
                        (Action(Action.Type.GET_NEXT_SUBTASK_FINISHED, None, None), EnvironmentChange(obs.url, None, Action.Type.GET_NEXT_SUBTASK_FINISHED)),
                        (Action(Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE, None, None), EnvironmentChange(obs.url, None, Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE))]
-        cleaned_tree = ("[0] Stop command (choose this if the task is to stop)\n[1] Task finished (choose if task finished successfully)\n[2] Input field: Task impossible (input specific task that couldn't be achieved and concise current page information)\n")
+        if memory:
+            cleaned_tree = ""
+        else:
+            cleaned_tree = "[0] Stop command (choose this if the task is to stop)\n[1] Task finished (choose if task finished successfully)\n[2] Input field: Task impossible (input specific task that couldn't be achieved and concise current page information)\n"
 
 
         scanning_radios = False
@@ -540,6 +554,52 @@ class BaseAgent(Agent):
             return cleaned_tree
         return cleaned_tree, action_list
 
+    def __process_axtree_noaction(self, obs: AxObservation):
+        '''
+        Heavily processes the tree for the prompt
+        Skips options via function calls
+
+        :param obs:
+        :return:
+        '''
+        cleaned_tree = ""
+
+        for i in range(len(obs.nodes_info)):
+            if self.__skip_option(obs.nodes_info[i]):
+                continue
+            if obs.nodes_info[i]['role'] != 'RootWebArea':
+                node_action = self.__extract_interaction_info(obs.nodes_info[i]['xpath'], obs.nodes_info[i]['html'], obs.nodes_info[i]['role'], obs.url)
+
+                if node_action:
+                    pass
+                    tree_add = None
+                    if self.__skip_action(obs.nodes_info[i], node_action, obs.url):
+                        continue
+
+                    role_name = obs.nodes_info[i]['role'] + ": "
+
+                    if node_action.action_type == Action.Type.INPUT:
+                        tree_add = f"{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']}\n"
+
+                    elif node_action.action_type == Action.Type.CLICK_RADIO:
+                        pass
+
+                    elif node_action.action_type == Action.Type.CLICK_CHECKBOX:
+                        pass
+
+                    else:
+                        tree_add = f"{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']}\n"
+
+                    if tree_add:
+                        cleaned_tree += tree_add
+                        node_action.set_tree_line(tree_add)
+                else:
+                    cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
+            else:
+                cleaned_tree += f"{obs.nodes_info[i]['indent']}You are currently on the page for: {obs.nodes_info[i]['name']}\n"
+
+        return cleaned_tree
+
 
 
     def get_next_action(self, cur_obs: AxObservation) -> Action:
@@ -583,36 +643,41 @@ class BaseAgent(Agent):
         :return:
         '''
 
-        cleaned_tree = self.__process_axtree(new_obs, memory=True)
+        # cleaned_tree = self.__process_axtree(new_obs, memory=True)
+        cleaned_tree = self.__process_axtree_noaction(new_obs)
+        print(cleaned_tree)
+        input("LOOK AT MEMORYT TREE!!")
         if model_name.startswith('gpt'):
-            messages = [{
-                    "role": "system",
-                    "content": "You are a management specialist for a shopping website. You act as support for an agent trying to complete a goal. "
-                },
-                {
-                    "role": "system",
-                    "content": "An IMPORTANT SUBTASK is a subtask that is essential to the completion of a goal. IMPORTANT SUBTASKs are subtasks that must be completed in order for the main goal to be completed. Tasks cannot be completed without completing all IMPORTANT SUBTASKs. IMPORTANT SUBTASKs are general and ignorant of specific page actions. "
-                },
-                {
-                    "role": "system",
-                    "content": "IDENTIFYING INFORMATION are pieces of information which are essential to complete IMPORTANT SUBTASKs. IDENTIFYING INFORMATION includes dates, product SKUs, order numbers and other specific information. "
-                },
-                {
-                    "role": "system",
-                    "content": "I am going to give you the main goal the agent is working on, a list of IMPORTANT SUBTASKs already gathered for the goal, and the accessibility tree of a web page. Assume this web page is relevant to the task. You need to add new IMPORTANT SUBTASKs to the list I gave you. "
-                },
-                {
-                    "role": "system",
-                    "content": "You have one Python function gather_important_subtasks(gathered_important_subtasks: str|None) that takes in a string or None. gathered_important_subtasks is a string which details the IMPORTANT SUBTASKs that need to be completed with all IDENTIFYING INFORMATION needed to complete that IMPORTANT SUBTASK. "
-                },
-                {
-                    "role": "system",
-                    "content": "First generate subtasks needed to complete the main goal. Then reason step-by-step through the accessibility tree and list out all potential IMPORTANT SUBTASKs along with their IDENTIFYING INFORMATION. If any of these SUBTASKs are a duplicate or a subtask of an IMPORTANT SUBTASK in the list I give you, they are IRRELEVANT SUBTASKs, otherwise they are IMPORTANT SUBTASKs you need to pay attention to. gathered_important_subtasks is detailed information with IDENTIFYING INFORMATION about new IMPORTANT SUBTASKs extracted from this web page. Give me the Python code using the gather_important_subtasks function to add new IMPORTANT SUBTASKs to the list I give you. If there are no new IMPORTANT SUBTASKs, give None as your parameter."
-                }
+
+            messages = [
+                {"role": "system",
+                 "content": "You are an agent management specialist for a shopping website. You act as support for an agent completing a goal. "},
+                {"role": "system",
+                 "content": "You have one Python function gather_important_subtasks(gathered_important_subtasks: str|None) that takes in a string or None."},
+                {"role": "system",
+                 "content": "A SUBTASK is a task that is essential to the completion of the main goal. SUBTASKs are tasks that must be completed in order for the main goal to be completed. Tasks cannot be completed without completing all SUBTASKs. SUBTASKs are as general as possible. "},
+                {"role": "system",
+                 "content": "IDENTIFYING INFORMATION are pieces of information which are essential to complete IMPORTANT SUBTASKs. IDENTIFYING INFORMATION includes dates, product SKUs, order numbers and other specific information. "},
+                {"role": "system",
+                "content": "All SUBTASKs that can be performed on the current web page have are BAD SUBTASKs. "},
+                {"role": "system",
+                 "content": "I am going to give you the main goal the agent is working on, a list of SUBTASKs already gathered for the goal, and an actionless accessibility tree of the web page the agent is currently on. "},
+                {"role": "system",
+                 "content": "Your goal is to find new GOOD SUBTASKs that help you complete your main goal. "},
+                {"role": "system",
+                 "content": "A GOOD SUBTASK must have IDENTIFYING INFORMATION and must be unique from the list of already gathered SUBTASKs I give you."},
+                {"role": "system",
+                 "content": "THIS IS IMPORTANT: all GOOD SUBTASKs should be combined to form an IMPORTANT SUBTASK. "},
+                {"role": "system",
+                 "content": "THIS IS IMPORTANT: all GOOD SUBTASKs MUST help you complete your main goal. "},
+                {"role": "system",
+                 "content": "A SUBTASK that can be fully completed on the current page is BAD. Any SUBTASK that is irrelevant to your main goal is a BAD SUBTASK. A SUBTASK that involves selecting current page options is a BAD SUBTASK. A SUBTASK that is a duplicate or a subtask of something in the list I give you is BAD. SUBTASKs that involved specific page actions or selections are BAD SUBTASKs."},
+                {"role": "system",
+                 "content": "Here is how you should complete your task: First you MUST REASON step-by-step through the accessibility tree and list out all SUBTASKs that help you complete your main goal. Secondly, SEPARATELY, you MUST REASON one-by-one through these SUBTASKs to identify GOOD SUBTASKs and BAD SUBTASKs. Thirdly you MUST REASON through ONLY GOOD SUBTASKs with their IDENTIFYING INFORMATION one-by-one to combine them into one IMPORTANT SUBTASK. THIS IS IMPORTANT: the IMPORTANT SUBTASK includes all IDENTIFYING INFORMATION.\n Finally, give me the Python code calling ONLY the gather_important_subtasks function. If there this is a new IMPORTANT SUBTASK with IDENTIFYING INFORMATION, it is your gathered_important_subtasks parameter. Otherwise give None as your parameter."}
 
             ]
             messages.append({"role": "user",
-                             "content": f"Main goal: {self.intent}\nAll gathered IMPORTANT SUBTASKs: {self.to_do_memory}\nCurrent page accessibility tree: \n'''\n {cleaned_tree}\n'''\n"})
+                             "content": f"Main goal: {self.intent}\nAlready gathered SUBTASKs: {self.to_do_memory}\nCurrent page accessibility tree: \n'''\n {cleaned_tree}\n'''\n"})
             return messages
 
     def __llm_get_important_subtask_call(self, prompt: list[dict], model_name: str) -> str:
@@ -631,7 +696,7 @@ class BaseAgent(Agent):
                 temperature=0,
                 max_tokens=2500,
                 # top_p=0,
-                seed=12345678
+                seed=818181818
             )
             result = response.choices[0].message.content
             print(f"Gathered Important Subtasks: {result}")
@@ -774,6 +839,8 @@ class BaseAgent(Agent):
                                                                           model_name='gpt-3.5-turbo-0125')
                 print("important_subtask:")
                 print(important_subtask)
+                if important_subtask and important_subtask.strip() != "None":
+                    self.to_do_memory.append(important_subtask)
 
             case Action.Type.CLICK_GENERAL:
                 important_subtask_prompt = self.__llm_get_important_subtask_prompt(new_obs,
@@ -782,6 +849,8 @@ class BaseAgent(Agent):
                                                                           model_name='gpt-3.5-turbo-0125')
                 print("important_subtask:")
                 print(important_subtask)
+                if important_subtask and important_subtask.strip() != "None":
+                    self.to_do_memory.append(important_subtask)
 
             case Action.Type.CLICK_LINK:
                 important_subtask_prompt = self.__llm_get_important_subtask_prompt(new_obs,
@@ -790,6 +859,9 @@ class BaseAgent(Agent):
                                                                           model_name = 'gpt-3.5-turbo-0125')
                 print("important_subtask:")
                 print(important_subtask)
+                if important_subtask and important_subtask.strip() != "None":
+                    self.to_do_memory.append(important_subtask)
+
             case Action.Type.CLICK_IMPORTANT:
                 # don't do this if new url is diff from old url
                 task_eval_prompt = self.__construct_completion_evaluation_prompt(new_obs, model_name = 'gpt-3.5-turbo-0125')
@@ -804,7 +876,7 @@ class BaseAgent(Agent):
                                                                           model_name='gpt-3.5-turbo-0125')
                 print("important_subtask:")
                 print(important_subtask)
-                if important_subtask.strip() != "None":
+                if important_subtask and important_subtask.strip() != "None":
                     self.to_do_memory.append(important_subtask)
 
             case Action.Type.GET_NEXT_SUBTASK_FINISHED:
