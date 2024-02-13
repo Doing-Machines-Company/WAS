@@ -59,6 +59,7 @@ class BaseAgent(Agent):
         # The response will have data from the MemGPT agent
 
         self.last_action_and_envtag = None
+        self.impossible_call_result = {'command': None, 'counter': 0}
         self.old_obs = None
         self.to_do_memory = []
         self.already_done_memory = []
@@ -108,7 +109,8 @@ class BaseAgent(Agent):
         '''
         cleaned_tree, action_list = self.__process_axtree(cur_obs)
         print(cleaned_tree)
-        input("LOOK AT ACTION TREE")
+        input("look at tree for get next action")
+
         if model_name.startswith('gpt'):
             messages = [
                 {"role": "system",
@@ -126,7 +128,10 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "Then only if the task is possible and unfinished, you must reasonstep-by-step through all of your IMPORTANT SUBTASKs to determine the first incomplete IMPORTANT SUBTASK. The optimal action is the first action that completes a subtask that is still incomplete. "}]
 
-            if self.current_subtask:
+            if self.impossible_call_result['command']:
+                messages.append({"role": "user",
+                                 f"content": f"This is your main task: {self.intent}\nThis is your current subtask: {self.impossible_call_result['command']}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''\nAFTER REASONING, give me python code using the python choose_option function."})
+            elif self.current_subtask:
                 messages.append({"role": "user",
                                  f"content": f"This is your main task: {self.intent}\nThis is your current subtask: {self.current_subtask}\nWhat is the action you will perform? Here is the accessibility tree: \n'''\n {cleaned_tree}\n'''\nAFTER REASONING, give me python code using the python choose_option function."})
             else:
@@ -168,11 +173,7 @@ class BaseAgent(Agent):
         new_tree_cleaned = self.__process_axtree(new_obs, memory=True)
 
 
-        print("BASE TREE")
-        print(base_tree_cleaned)
-        print("NEW TREE")
-        print(new_tree_cleaned)
-        input("LOOK AT TREES")
+
 
         if model_name.startswith('gpt'): # task no longer passed in
             messages = [{"role": "system",
@@ -438,7 +439,7 @@ class BaseAgent(Agent):
         :return:
         '''
 
-        cleaned_tree = f"[0] Stop command (choose this if the task is to stop)\n[1] Task finished (choose if task finished successfully)\n[2] Input field: Task impossible (input specific task that couldn't be achieved and concise current page information)\n"
+        cleaned_tree = f"[0] Stop command (ONLY choose this if the task tells you to choose stop command)\n[1] Task finished (choose if task finished successfully)\n[2] Input field: Task impossible (input specific task that couldn't be achieved and concise current page information)\n"
         action_list = [
             (Action(Action.Type.STOP, None, None),
              EnvironmentChange(obs.url, None, Action.Type.STOP)),
@@ -461,7 +462,7 @@ class BaseAgent(Agent):
                                     EnvironmentChange(obs.url, None, Action.Type.GOTO_URL)))
                 counter += 1
         else:
-            cleaned_tree += f"[{counter if not memory else ''}] Perform spell for webshop (choose if asked to perform spell or do magic)\n"
+            cleaned_tree += f"[{counter if not memory else ''}] Perform spell for webshop (choose if asked to perform spell or do magic)\n" # TODO Perhaps redundent as EC should control when a GOTO is performed
             action_list.append((Action(Action.Type.GOTO_URL, None, None),
                                 EnvironmentChange(obs.url, None, Action.Type.GOTO_URL)))
             counter += 1
@@ -629,6 +630,12 @@ class BaseAgent(Agent):
 
 
     def __get_desired_url(self, chunk_size=10):
+        '''
+        Used for GOTO_URL
+
+        :param chunk_size:
+        :return:
+        '''
         start_node = get_GOTO_tree('auxillary_jsons/webtreeflattened.json')
         if self.current_subtask:
             intent = self.current_subtask
@@ -663,6 +670,8 @@ class BaseAgent(Agent):
             )
 
             result = response.choices[0].message.content
+            print(result)
+            input("look url answer")
 
             pattern = r"choose_page\(([0-9]+)\)"
 
@@ -702,8 +711,6 @@ class BaseAgent(Agent):
 
             for chunk in chunked_questions:
                 answer = get_desired_url_helper(intent, chunk, model_name="gpt-3.5-turbo-0125")
-                print(answer)
-                input("look url answer")
                 if answer and answer != "None":
                     possible_results.append(answer)
 
@@ -746,7 +753,8 @@ class BaseAgent(Agent):
             elif desired_action.action_type == Action.Type.GOTO_URL:
                 desired_url = self.__get_desired_url()
                 desired_action.set_input_string(desired_url)
-                pass
+            elif desired_action.action_type == Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE:
+                desired_action.set_input_string(final_string)
 
             self.last_action_and_envtag = answer_values[int(final_index)]
             new_change = answer_values[int(final_index)][1]
@@ -755,7 +763,7 @@ class BaseAgent(Agent):
             if desired_action.action_type == Action.Type.INPUT:
                 EnvironmentChange.change_log[new_change] = desired_action.input_string
             elif desired_action.action_type == Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE:
-                EnvironmentChange.change_log[new_change] = desired_action.tree_line
+                EnvironmentChange.change_log[new_change] = desired_action.input_string
             elif desired_action.action_type == Action.Type.GOTO_URL:
                 # TODO SOME ENV CHANGE PERHAPS????
                 pass
@@ -780,8 +788,7 @@ class BaseAgent(Agent):
 
         # cleaned_tree = self.__process_axtree(new_obs, memory=True)
         cleaned_tree = self.__process_axtree_noaction(new_obs)
-        print(cleaned_tree)
-        input("LOOK AT MEMORYT TREE!!")
+
         if model_name.startswith('gpt'):
 
             messages = [
@@ -842,6 +849,10 @@ class BaseAgent(Agent):
             # Searching the LLM output for the pattern
             matches1 = re.findall(pattern1, result)
             matches2 = re.findall(pattern2, result)
+            print(result)
+            print('TONKKK')
+            print(self.to_do_memory)
+            input("LOOK AT IMPORTANT SUBTASK REASONING")
 
             if len(matches1) > 0:
                 for match in matches1:
@@ -885,39 +896,61 @@ class BaseAgent(Agent):
             return messages
 
 
-    # def __llm_long_next_task_impossible_prompt(self, failure_issue: str, model_name: str) -> list[dict]:
-    #     if model_name.startswith('gpt'):
-    #         messages = [{
-    #             "role": "system",
-    #             "content": "You are a management specialist for a shopping website. You act as support for an agent. "
-    #         },
-    #             {
-    #                 "role": "system",
-    #                 "content": "An IMPORTANT SUBTASK is a subtask that is essential to the completion of a goal. IMPORTANT SUBTASKs are subtasks that must be completed in order for the main goal to be completed. Tasks cannot be completed without completing all IMPORTANT SUBTASKs. Any subtasks that involve discovery or navigation are UNIMPORTANT. IMPORTANT SUBTASKs are general tasks. An IMPORTANT SUBTASK can be completed in an arbitrary number of steps. If an IMPORTANT SUBTASK can be decomposed into multiple similar IMPORTANT SUBTASKs, you must decompose it. "
-    #             },
-    #             {
-    #                 "role": "system",
-    #                 "content": "IDENTIFYING INFORMATION are pieces of information which are essential to complete IMPORTANT SUBTASKs. IDENTIFYING INFORMATION includes dates, product SKUs, order numbers and other specific information. "
-    #             },
-    #             {
-    #                 "role": "system",
-    #                 "content": "I am going to give you the main goal the agent is working on, a list of all IMPORTANT SUBTASKS that need to be completed and a list of completed IMPORTANT SUBTASKS. "
-    #             },
-    #             {
-    #                 "role": "system",
-    #                 "content": "You have one Python function issue_subtask(next_important_subtask: str) that takes in a string. next_important_subtask is a string which details the next IMPORTANT SUBTASK that needs to be completed with all IDENTIFYING INFORMATION needed to complete that IMPORTANT SUBTASK. "
-    #             },
-    #             {
-    #                 "role": "system",
-    #                 "content": "Now you must reason step-by-step through the list of incomplete IMPORTANT SUBTASKS and the list of completed IMPORTANT SUBTASKS to determine the next IMPORTANT SUBTASK that needs completing. Then reason step-by-step to see if the action can be decomposed into multiple similar IMPORTANT SUBTASKs. next_important_subtask is detailed information with IDENTIFYING INFORMATION about this next IMPORTANT SUBTASK after it is decomposed if necessary. Give me the Python code using the issue_subtask function. "
-    #             }
-    # 
-    #         ]
-    #         messages.append({"role": "user",
-    #                          "content": f"Main goal: {self.intent}\nCurrent IMPORTANT SUBTASK that failed: {self.current_subtask}\nWhy current IMPORTANT SUBTASK failed: {failure_issue}\nAll IMPORTANT SUBTASKs: {self.to_do_memory}\nAll completed IMPORTANT SUBTASKs: {self.already_done_memory}"})
-    # 
-    #         return messages
-    # 
+    def __llm_long_next_task_impossible_prompt(self, failure_issue: str, model_name: str) -> list[dict]:
+        if model_name.startswith('gpt'):
+            current_tree = self.__process_axtree(self.old_obs, memory=True)
+            messages = [{
+                    "role": "system",
+                    "content": "You are a management specialist for a shopping website. You act as support for an agent. The agent has just failed a task and you are to help them. "
+                },
+                {
+                    "role": "system",
+                    "content": "An IMPORTANT SUBTASK is a subtask that is essential to the completion of a goal. IMPORTANT SUBTASKs are subtasks that must be completed in order for the main goal to be completed. Tasks cannot be completed without completing all IMPORTANT SUBTASKs. Any subtasks that involve discovery or navigation are UNIMPORTANT. IMPORTANT SUBTASKs are general tasks. "
+                },
+                {
+                    "role": "system",
+                    "content": "I am going to give you the current IMPORTANT SUBTASK the agent failed on, the reason the agent failed that IMPORTANT SUBTASK, and the current page accessibility tree. "
+                },
+                {
+                    "role": "system",
+                    "content": "I am giving you two python functions, do_magic() and stop_now() that both take in nothing. "
+                },
+                {
+                    "role": "system",
+                    "content": "There are ONLY TWO possible cases: \nCase 1: The agent failed because the task is impossible to complete on the current page because the current page's purpose does not align with the current IMPORTANT SUBTASK. \nCase 2: The page's purpose does align with the current IMPORTANT SUBTASK. "
+                },
+                {
+                    "role": "system",
+                    "content": "First you must reason through the current page accessibility tree to determine the page's purpose. If the page's purpose aligns with the current IMPORTANT SUBTASK, you have Case 2. If the page's purpose does not align with the current IMPORTANT SUBTASK, then you have Case 1. Then determine which case you have. "
+                },
+                {
+                    "role": "system",
+                    "content": "If you have Case 1, you must call the do_magic function. If you have Case 2, you must call the stop_now function. "
+                }
+
+            ]
+            messages.append({"role": "user",
+                             "content": f"Current IMPORTANT SUBTASK that the failed on: {self.current_subtask}\nWhy current IMPORTANT SUBTASK failed: {failure_issue}\nCurrent page accessibility tree: \n{current_tree}\nGive me the python code using ONLY ONE of the functions I gave you. "})
+
+            return messages
+
+    def __llm_long_next_task_impossible_call(self, prompt, model_name: str) -> str:
+        if model_name.startswith('gpt'):
+            response = client.chat.completions.create(
+                model=model_name,
+                # model="gpt-3.5-turbo-1106",
+                messages=prompt,
+                temperature=0,
+                max_tokens=2500,
+                # top_p=0,
+                seed=12345678
+            )
+            result = response.choices[0].message.content
+            if "do_magic" in result: # This starts the GOTO URL process
+                return "Perform a spell on the current web page"
+            elif "stop_now" in result:
+                return "Issue the stop command"
+
     def __llm_long_next_task_finished_call(self, prompt, model_name: str) -> (str, str):
         '''
         llm call to evaluate the completion success of a task
@@ -964,6 +997,9 @@ class BaseAgent(Agent):
         :param new_obs: 
         :return: 
         '''
+        if self.last_action_and_envtag[0].action_type != Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE:
+            self.impossible_call_result = {'command': None, 'counter': 0}
+
         match self.last_action_and_envtag[0].action_type:
             case Action.Type.STOP:
                 return
@@ -972,8 +1008,7 @@ class BaseAgent(Agent):
                                                                                    model_name='gpt-3.5-turbo-0125')
                 important_subtask = self.__llm_get_important_subtask_call(important_subtask_prompt,
                                                                           model_name='gpt-3.5-turbo-0125')
-                print("important_subtask:")
-                print(important_subtask)
+
                 if important_subtask and important_subtask.strip() != "None":
                     self.to_do_memory.append(important_subtask)
 
@@ -982,8 +1017,7 @@ class BaseAgent(Agent):
                                                                                    model_name='gpt-3.5-turbo-0125')
                 important_subtask = self.__llm_get_important_subtask_call(important_subtask_prompt,
                                                                           model_name='gpt-3.5-turbo-0125')
-                print("important_subtask:")
-                print(important_subtask)
+
                 if important_subtask and important_subtask.strip() != "None":
                     self.to_do_memory.append(important_subtask)
 
@@ -992,8 +1026,7 @@ class BaseAgent(Agent):
                                                                                    model_name = 'gpt-3.5-turbo-0125')
                 important_subtask = self.__llm_get_important_subtask_call(important_subtask_prompt,
                                                                           model_name = 'gpt-3.5-turbo-0125')
-                print("important_subtask:")
-                print(important_subtask)
+
                 if important_subtask and important_subtask.strip() != "None":
                     self.to_do_memory.append(important_subtask)
 
@@ -1009,8 +1042,7 @@ class BaseAgent(Agent):
                                                                                    model_name='gpt-3.5-turbo-0125')
                 important_subtask = self.__llm_get_important_subtask_call(important_subtask_prompt,
                                                                           model_name='gpt-3.5-turbo-0125')
-                print("important_subtask:")
-                print(important_subtask)
+
                 if important_subtask and important_subtask.strip() != "None":
                     self.to_do_memory.append(important_subtask)
 
@@ -1027,11 +1059,14 @@ class BaseAgent(Agent):
 
                 # TODO HANDLE NEW TO DO AND SHRUNK TASK
             case Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE:
-                # failure_reason = ''
-                # long_range_memory_prompt = self.__llm_long_next_task_impossible_prompt(model_name='gpt-3.5-turbo-0125')
-                # new_to_do, completed = self.__llm_long_next_task_impossible_call(long_range_memory_prompt,
-                #                                                          model_name='gpt-3.5-turbo-0125')
-                self.current_subtask = "Stop"
+                if self.impossible_call_result['counter'] == 0:
+                    failure_reason = self.last_action_and_envtag[0].input_string
+                    long_range_memory_prompt = self.__llm_long_next_task_impossible_prompt(failure_reason, model_name='gpt-3.5-turbo-0125')
+                    self.impossible_call_result['command'] = self.__llm_long_next_task_impossible_call(long_range_memory_prompt,
+                                                                             model_name='gpt-3.5-turbo-0125')
+                    self.impossible_call_result['counter'] = 1
+                elif self.impossible_call_result['counter'] == 1:
+                    self.impossible_call_result['command'] = "Issue the stop command"
 
         
 
@@ -1067,7 +1102,6 @@ class BaseAgent(Agent):
                 task_number, input_string_single, input_string_double = match[:3]
                 input_string = input_string_single or input_string_double or ""
                 return task_number, input_string
-            print("FAILED CALLING ACTION")
         elif model_name.startswith('gemini'):
             GOOGLE_API_KEY = 'AIzaSyBu8ecdjq4gzAGbT5Tk-bQm38S0WZikyDs'
             genai.configure(api_key=GOOGLE_API_KEY)
@@ -1079,7 +1113,6 @@ class BaseAgent(Agent):
             #time.sleep(1)
 
             # Return the text response
-            #print(response.candidates)
             if len(response.candidates) > 0:
                 response = response.candidates[0].content.parts[0].text.strip()
             else:
@@ -1111,7 +1144,6 @@ class BaseAgent(Agent):
             match = re.findall(pattern, result)[0]
             task_number, input_string = match.split(":")
             return task_number, input_string.strip()
-        print("FAILED CALLING ACTION")
 
     def __llm_completion_evaluation(self, prompt, model_name='gpt-3.5-turbo-1106'):
         '''

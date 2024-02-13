@@ -345,7 +345,7 @@ class MyDriver(WebDriver):
                 input("ABOUT TO STOP")
                 exit()
 
-            case Action.Type.GOTO_URL:
+            case Action.Type.GOTO_URL: # haven't tested
                 self.page.goto(a.input_string)
                 self.page.wait_for_load_state('networkidle')
 
