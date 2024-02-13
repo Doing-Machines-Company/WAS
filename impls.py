@@ -114,7 +114,7 @@ class BaseAgent(Agent):
         if model_name.startswith('gpt'):
             messages = [
                 {"role": "system",
-                 "content": "You are an autonomous agent performing tasks for an user on a webshop. You only work by calling python functions to select an option. I am going to give you a main task, and an accessibility tree. Some lines are start with a number in square brackets on the very left, these lines are actions you can select, you must select one action from the accessibility tree that is labeled with a number. The main task is your overall objective. "},
+                 "content": "You are an autonomous agent performing tasks for an user on a webshop. You only work by calling python functions to select an option. I am going to give you a main task, and an accessibility tree. If I give you a current subtask, PAY ATTENTION TO IT. Some lines are start with a number in square brackets on the very left, these lines are actions you can select, you must select one action from the accessibility tree that is labeled with a number. The main task is your overall objective. "},
                 {"role": "system",
                  "content": "The accessibility tree is reflective of the layout of the webpage. The indents are reflective of the structure of the page and the actions on it. "},
                 {"role": "system",
@@ -439,7 +439,7 @@ class BaseAgent(Agent):
         :return:
         '''
 
-        cleaned_tree = f"[0] Stop command (ONLY choose this if the task tells you to choose stop command)\n[1] Task finished (choose if task finished successfully)\n[2] Input field: Task impossible (input specific task that couldn't be achieved and concise current page information)\n"
+        cleaned_tree = f"[0] Stop command (ONLY choose this if the task tells you to choose stop command)\n[1] Task finished (choose if task finished successfully)\n[2] TASK IMPOSSIBLE Input field: (input specific task that couldn't be achieved and concise current page information)\n"
         action_list = [
             (Action(Action.Type.STOP, None, None),
              EnvironmentChange(obs.url, None, Action.Type.STOP)),
@@ -629,14 +629,14 @@ class BaseAgent(Agent):
         return cleaned_tree
 
 
-    def __get_desired_url(self, chunk_size=10):
+    def __get_desired_url(self, chunk_size=20):
         '''
         Used for GOTO_URL
 
         :param chunk_size:
         :return:
         '''
-        start_node = get_GOTO_tree('auxillary_jsons/webtreeflattened.json')
+        start_node = get_GOTO_tree('auxillary_jsons/webtreeflattened_noprods.json')
         if self.current_subtask:
             intent = self.current_subtask
         else:
@@ -651,7 +651,7 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "You have the Python function choose_page(task_number: int|None). If you choose an answer, you must only choose a single answer. If none of the options are valid, call the function with None. The task_number is the option number you want to choose. "},
                 {"role": "system",
-                 "content": "First you MUST reason through EVERY option I give you step-by-step thoughtfully. Give explanations for why every option I give you may be right or wrong. YOU MUST try your best to choose an answer. If one option may lead to more information or something to help you complete your task, it is a valid choice. Then give me your final answer using the python function choose_page. "},
+                 "content": "First you MUST reason through EVERY option I give you step-by-step thoughtfully. Give explanations for why every option I give you may be right or wrong. YOU MUST try your best to choose an answer. If one option may lead to more information or something to help you complete your task, it is a valid choice. THIS IS IMPORTANT, finally give me your final answer using the python function choose_page. "},
             ]
 
             formatted_answers = '\n'.join(answers)
@@ -946,6 +946,8 @@ class BaseAgent(Agent):
                 seed=12345678
             )
             result = response.choices[0].message.content
+            print(result)
+            input("impossible call look")
             if "do_magic" in result: # This starts the GOTO URL process
                 return "Perform a spell on the current web page"
             elif "stop_now" in result:
