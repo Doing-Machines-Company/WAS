@@ -19,7 +19,7 @@ class Action:
         self.action_type = action_type
         self.html = html
         self.xpath = xpath
-        self.input_string = input_string if action_type == Action.Type.INPUT else None
+        self.input_string = None # input_string if action_type == Action.Type.INPUT else None
         self.tree_line = tree_line
 
     def set_input_string(self, input_string: str):

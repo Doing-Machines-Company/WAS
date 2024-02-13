@@ -26,7 +26,7 @@ page.goto(url)
 # set the first page as the current page
 page = context.pages[0]
 page.bring_to_front()
-intent = 'go to my orders and look through all the orders from 2023 to find all the food i bought on this website from 2023'
+intent = 'do some magic'
 # intent = "click a link"
 agent = BaseAgent(intent)
 driver = MyDriver(agent,"poopfare", page)

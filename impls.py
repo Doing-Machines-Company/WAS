@@ -1,5 +1,6 @@
 from __future__ import annotations
 from memgpt import MemGPT
+from use_scrape_utils import *
 import google.generativeai as genai
 import time
 from models import *
@@ -62,7 +63,7 @@ class BaseAgent(Agent):
         self.to_do_memory = []
         self.already_done_memory = []
         self.current_subtask = None
-        self.last_page_name = None
+        self.last_different_page = None
 
         with open('auxillary_jsons/external_links.json', 'r') as file:
             self.all_links = json.load(file)
@@ -93,24 +94,13 @@ class BaseAgent(Agent):
         normalized_url = urlunparse((scheme, netloc, path, '', query, fragment))
         return normalized_url
 
-    def __construct_url_prompt(self, intent: str, new_obs: AxObservation, model_name: str) -> str:  # TODO Implement
-        '''
-        Not implemented
-        
-        :param intent: 
-        :param new_obs: 
-        :param model_name: 
-        :return: 
-        '''
-        if model_name.startswith('gpt'):
-            messages = {}
-        return messages
+
 
 
 
     def __construct_elements_prompt(self, cur_obs: AxObservation, model_name: str) -> (str, list[Action]):  # MOSTLY FOR GPT, NEED MORE CODE GEN STABILITY
         '''
-        Constructs the prompt for the model to generate a response for get_next_action, phases may be deprecated later
+        Constructs the prompt for the model to generate a response for get_next_action
         
         :param cur_obs: 
         :param model_name: 
@@ -229,9 +219,6 @@ class BaseAgent(Agent):
             'button',
         ]
 
-        select_clickables = [
-            'checkbox', 'radio',
-        ]
 
         general_clickables = [
             'menuitem',
@@ -395,7 +382,7 @@ class BaseAgent(Agent):
                     return True
         return False
 
-    def __process_radios(self, radio_nodes: list[(dict, int, (Action, EnvironmentChange))]):
+    def __process_radios(self, radio_nodes: list[(dict, int, (Action, EnvironmentChange))], memory=False):
         '''
         Menu-ify a list of radio nodes
         radio_nodes are (obs.nodes_info[i], counter, (node_action, env_tags))
@@ -422,16 +409,16 @@ class BaseAgent(Agent):
             # name_field = input_element.get('name', '').strip()
 
             if "checked: true" in node_info['properties']:
-                node_action.set_tree_line(f"[{counter}]{node_info['indent']}       Select: {node_info['name']} (this option selected)")
-                tree_insert +=  f"[{counter}]{node_info['indent']}       Select: {node_info['name']} (this option selected)\n"
+                node_action.set_tree_line(f"[{counter if not memory else ''}]{node_info['indent']}       Select: {node_info['name']} (this option selected)")
+                tree_insert +=  f"[{counter if not memory else ''}]{node_info['indent']}       Select: {node_info['name']} (this option selected)\n"
                 action_list.append((node_action, env_tags))
             elif checked_flag:
-                node_action.set_tree_line(f"[{counter}]{node_info['indent']}       Select: {node_info['name']}")
-                tree_insert +=  f"[{counter}]{node_info['indent']}       Select: {node_info['name']}\n"
+                node_action.set_tree_line(f"[{counter if not memory else ''}]{node_info['indent']}       Select: {node_info['name']}")
+                tree_insert +=  f"[{counter if not memory else ''}]{node_info['indent']}       Select: {node_info['name']}\n"
                 action_list.append((node_action, env_tags))
             else:
-                node_action.set_tree_line(f"[{counter}]{node_info['indent']}       Select: {node_info['name']}")
-                tree_insert += f"[{counter}]{node_info['indent']}       Select: {node_info['name']}\n"
+                node_action.set_tree_line(f"[{counter if not memory else ''}]{node_info['indent']}       Select: {node_info['name']}")
+                tree_insert += f"[{counter if not memory else ''}]{node_info['indent']}       Select: {node_info['name']}\n"
                 action_list.append((node_action, env_tags))
 
         if len(radio_nodes) > 0:
@@ -445,6 +432,42 @@ class BaseAgent(Agent):
 
         return tree_insert, action_list
 
+    def __get_starting_tree_and_actions(self, obs: AxObservation, memory=False):
+        '''
+        Gets the starting tree and actions for the prompt
+        :return:
+        '''
+
+        cleaned_tree = f"[0] Stop command (choose this if the task is to stop)\n[1] Task finished (choose if task finished successfully)\n[2] Input field: Task impossible (input specific task that couldn't be achieved and concise current page information)\n"
+        action_list = [
+            (Action(Action.Type.STOP, None, None),
+             EnvironmentChange(obs.url, None, Action.Type.STOP)),
+            (Action(Action.Type.GET_NEXT_SUBTASK_FINISHED, None, None),
+             EnvironmentChange(obs.url, None, Action.Type.GET_NEXT_SUBTASK_FINISHED)),
+            (Action(Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE, None, None),
+             EnvironmentChange(obs.url, None, Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE)),
+        ]
+        counter = 3
+        if self.last_action_and_envtag:
+            if self.last_action_and_envtag[0].action_type != Action.Type.GO_BACK and self.last_different_page[0]:
+                cleaned_tree += f"[{counter if not memory else ''}] Go back to page for {self.last_different_page[0]}\n"
+                action_list.append((Action(Action.Type.GO_BACK, None, None),
+                         EnvironmentChange(obs.url, None, Action.Type.GO_BACK)))
+                counter += 1
+
+            if self.last_action_and_envtag[0].action_type != Action.Type.GOTO_URL:
+                cleaned_tree += f"[{counter if not memory else ''}] Perform spell for webshop (choose if asked to perform spell or do magic)\n"
+                action_list.append((Action(Action.Type.GOTO_URL, None, None),
+                                    EnvironmentChange(obs.url, None, Action.Type.GOTO_URL)))
+                counter += 1
+        else:
+            cleaned_tree += f"[{counter if not memory else ''}] Perform spell for webshop (choose if asked to perform spell or do magic)\n"
+            action_list.append((Action(Action.Type.GOTO_URL, None, None),
+                                EnvironmentChange(obs.url, None, Action.Type.GOTO_URL)))
+            counter += 1
+
+
+        return cleaned_tree, action_list, counter
     def __process_axtree(self, obs: AxObservation, memory=False):
         '''
         Heavily processes the tree for the prompt
@@ -456,28 +479,10 @@ class BaseAgent(Agent):
 
         if memory:
             cleaned_tree = ""
+            action_list = []
+            counter = 0
         else:
-            # TODO NEED TO IMPLEMENT SMART WAY TO GOTO URL
-            if self.last_page_name:
-                cleaned_tree = f"[0] Stop command (choose this if the task is to stop)\n[1] Task finished (choose if task finished successfully)\n[2] Input field: Task impossible (input specific task that couldn't be achieved and concise current page information)\n[3] Go back to page for {self.last_page_name}"
-                counter = 4
-                action_list = [
-                    (Action(Action.Type.STOP, None, None), EnvironmentChange(obs.url, None, Action.Type.STOP)),
-                    (Action(Action.Type.GET_NEXT_SUBTASK_FINISHED, None, None),
-                     EnvironmentChange(obs.url, None, Action.Type.GET_NEXT_SUBTASK_FINISHED)),
-                    (Action(Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE, None, None),
-                     EnvironmentChange(obs.url, None, Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE)),
-                    (Action(Action.Type.GO_BACK, None, None),
-                     EnvironmentChange(obs.url, None, Action.Type.GO_BACK))]
-            else:
-                cleaned_tree = "[0] Stop command (choose this if the task is to stop)\n[1] Task finished (choose if task finished successfully)\n[2] Input field: Task impossible (input specific task that couldn't be achieved and concise current page information)\n"
-                counter = 3
-                action_list = [
-                    (Action(Action.Type.STOP, None, None), EnvironmentChange(obs.url, None, Action.Type.STOP)),
-                    (Action(Action.Type.GET_NEXT_SUBTASK_FINISHED, None, None),
-                     EnvironmentChange(obs.url, None, Action.Type.GET_NEXT_SUBTASK_FINISHED)),
-                    (Action(Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE, None, None),
-                     EnvironmentChange(obs.url, None, Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE))]
+            cleaned_tree, action_list, counter = self.__get_starting_tree_and_actions(obs, memory)
 
         scanning_radios = False
         current_radio_nodes = []
@@ -504,11 +509,11 @@ class BaseAgent(Agent):
                         if scanning_radios:
                             scanning_radios = False
                             if len(current_radio_nodes) > 0:
-                                tree_strings, radio_actions = self.__process_radios(current_radio_nodes)
+                                tree_strings, radio_actions = self.__process_radios(current_radio_nodes, memory)
                                 cleaned_tree += tree_strings
                                 action_list.extend(radio_actions)
                                 current_radio_nodes = []
-                        tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
+                        tree_add = f"[{counter if not memory else ''}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
 
                     elif node_action.action_type == Action.Type.CLICK_RADIO:
                         scanning_radios = True
@@ -522,7 +527,7 @@ class BaseAgent(Agent):
                                 current_radio_nodes.append((obs.nodes_info[i], counter, (node_action, env_tags)))
                             else:
                                 if len(current_radio_nodes) > 0:
-                                    tree_strings, radio_actions = self.__process_radios(current_radio_nodes)
+                                    tree_strings, radio_actions = self.__process_radios(current_radio_nodes, memory)
                                     cleaned_tree += tree_strings
                                     action_list.extend(radio_actions)
                                     current_radio_nodes = []
@@ -532,18 +537,18 @@ class BaseAgent(Agent):
                                     tabled_options.add(name_field)
                                     current_radio_nodes.append((obs.nodes_info[i], counter, (node_action, env_tags)))
                         else:
-                            tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
+                            tree_add = f"[{counter if not memory else ''}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
 
 
                     else:
                         if scanning_radios:
                             scanning_radios = False
                             if len(current_radio_nodes) > 0:
-                                tree_strings, radio_actions = self.__process_radios(current_radio_nodes)
+                                tree_strings, radio_actions = self.__process_radios(current_radio_nodes, memory)
                                 cleaned_tree += tree_strings
                                 action_list.extend(radio_actions)
                                 current_radio_nodes = []
-                        tree_add = f"[{counter}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
+                        tree_add = f"[{counter if not memory else ''}]{obs.nodes_info[i]['indent']}{role_name}{obs.nodes_info[i]['name']} {props}\n"
 
                     counter += 1
                     if tree_add:
@@ -554,7 +559,7 @@ class BaseAgent(Agent):
                     if scanning_radios:
                         scanning_radios = False
                         if len(current_radio_nodes) > 0:
-                            tree_strings, radio_actions = self.__process_radios(current_radio_nodes)
+                            tree_strings, radio_actions = self.__process_radios(current_radio_nodes, memory)
                             cleaned_tree += tree_strings
                             action_list.extend(radio_actions)
                             current_radio_nodes = []
@@ -562,12 +567,13 @@ class BaseAgent(Agent):
                     cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
             else:
                 cleaned_tree += f"{obs.nodes_info[i]['indent']}You are currently on the page for: {obs.nodes_info[i]['name']}\n"
-                self.last_page_name = obs.nodes_info[i]['name']
+                if not self.last_different_page or self.__aggressive_normalize_url(self.last_different_page[1]) != self.__aggressive_normalize_url(obs.url):
+                    self.last_different_page = (obs.nodes_info[i]['name'], obs.url) # TODO CHECK DIFFERENT PAGE IF NOT NONE
 
         if scanning_radios:
             scanning_radios = False
             if len(current_radio_nodes) > 0:
-                tree_strings, radio_actions = self.__process_radios(current_radio_nodes)
+                tree_strings, radio_actions = self.__process_radios(current_radio_nodes, memory)
                 cleaned_tree += tree_strings
                 action_list.extend(radio_actions)
                 current_radio_nodes = []
@@ -622,7 +628,105 @@ class BaseAgent(Agent):
         return cleaned_tree
 
 
+    def __get_desired_url(self, chunk_size=10):
+        start_node = get_GOTO_tree('auxillary_jsons/webtreeflattened.json')
+        if self.current_subtask:
+            intent = self.current_subtask
+        else:
+            intent = self.intent
+        def get_desired_url_helper(intent, answers, model_name="gpt-4-1106-preview"):
 
+            messages = [
+                {"role": "system",
+                 "content": "You are an autonomous agent performing tasks for an user on a webshop by doing Question and Answer tasks. I am going to give you a task, and an enumerated set of possible answers. Each answer is a list of functionalities associated with a separate web page. Your are to choose a web page which best fits the task, or is needed or contains information to help you achieve your goal. "},
+                {"role": "system",
+                 "content": "If there are multiple possible answers, you must choose one. THIS IS IMPORTANT: Ignore any emphasis, you only care about what is mentioned in each answer choice, the amount or emphasis of items in the list does not matter. "},
+                {"role": "system",
+                 "content": "You have the Python function choose_page(task_number: int|None). If you choose an answer, you must only choose a single answer. If none of the options are valid, call the function with None. The task_number is the option number you want to choose. "},
+                {"role": "system",
+                 "content": "First you MUST reason through EVERY option I give you step-by-step thoughtfully. Give explanations for why every option I give you may be right or wrong. YOU MUST try your best to choose an answer. If one option may lead to more information or something to help you complete your task, it is a valid choice. Then give me your final answer using the python function choose_page. "},
+            ]
+
+            formatted_answers = '\n'.join(answers)
+            messages.append({"role": "user",
+                             "name": "user",
+                             "content": f"Task: {intent}\nChoose from these answers:\n {formatted_answers}"})
+
+            response = client.chat.completions.create(
+                model=model_name,
+                # model="gpt-3.5-turbo-1106",
+                messages=messages,
+                temperature=0,
+                max_tokens=3000,
+                # top_p=0,
+                seed=88888888
+            )
+
+            result = response.choices[0].message.content
+
+            pattern = r"choose_page\(([0-9]+)\)"
+
+
+            matches = re.findall(pattern, result)
+
+            for match in matches:
+                return match
+            print("getting links failed")
+
+        def construct_options_from_children(children):
+            result = []
+            for i in range(len(children)):
+                child = children[i]
+                result.append(f"{i}) {child.public}\n")
+            return result
+
+        def get_child_from_index(node, index):
+            children = node.children
+            return children[index]
+
+        def chunk_answers(answers, chunk_size):
+
+            chunked_list = []
+
+            for i in range(0, len(answers), chunk_size):
+                chunked_list.append(answers[i:i + chunk_size])
+
+            return chunked_list
+
+        curr_node = start_node
+        for _ in range(10):
+            answers = construct_options_from_children(curr_node.children)
+            chunked_questions = chunk_answers(answers, chunk_size)
+
+            possible_results = []
+
+            for chunk in chunked_questions:
+                answer = get_desired_url_helper(intent, chunk, model_name="gpt-3.5-turbo-0125")
+                print(answer)
+                input("look url answer")
+                if answer and answer != "None":
+                    possible_results.append(answer)
+
+            if len(possible_results) == 0:
+                return None
+            elif len(possible_results) == 1:
+                child = get_child_from_index(curr_node, int(possible_results[0]))
+                curr_node = child
+                if len(curr_node.children) == 0:
+                    return curr_node.url
+            else:  # Do recursive in future
+                possible_nodes = [get_child_from_index(curr_node, int(result)) for result in possible_results]
+                filtered_possible_results = construct_options_from_children(possible_nodes)
+                answer = get_desired_url_helper(intent, filtered_possible_results, model_name="gpt-3.5-turbo-0125")
+                if answer != "FAILURE" and answer != "N/A":
+                    index = int(answer)
+                    child = possible_nodes[index]
+                    curr_node = child
+                    if len(curr_node.children) == 0:
+                        return curr_node.url
+                else:
+                    return None
+        return None
     def get_next_action(self, cur_obs: AxObservation) -> Action:
         '''
         Gets the next action to perform
@@ -639,6 +743,10 @@ class BaseAgent(Agent):
             # TODO IF DESIRED ACTION IS GOTO URL, THEN NO ENVIRONMENT CHANGE NEEDED. NEED TO FIND LINK TO GO TO.
             if desired_action.action_type == Action.Type.INPUT:
                 desired_action.set_input_string(final_string)
+            elif desired_action.action_type == Action.Type.GOTO_URL:
+                desired_url = self.__get_desired_url()
+                desired_action.set_input_string(desired_url)
+                pass
 
             self.last_action_and_envtag = answer_values[int(final_index)]
             new_change = answer_values[int(final_index)][1]
@@ -648,6 +756,12 @@ class BaseAgent(Agent):
                 EnvironmentChange.change_log[new_change] = desired_action.input_string
             elif desired_action.action_type == Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE:
                 EnvironmentChange.change_log[new_change] = desired_action.tree_line
+            elif desired_action.action_type == Action.Type.GOTO_URL:
+                # TODO SOME ENV CHANGE PERHAPS????
+                pass
+            elif desired_action.action_type == Action.Type.GO_BACK:
+                # TODO SOME ENV CHANGE PERHAPS????
+                pass
 
 
             return desired_action
@@ -920,7 +1034,6 @@ class BaseAgent(Agent):
                 self.current_subtask = "Stop"
 
         
-        # TODO LONG RANGE TASK MEMORY
 
 
 
