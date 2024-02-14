@@ -114,7 +114,7 @@ class BaseAgent(Agent):
         if model_name.startswith('gpt'):
             messages = [
                 {"role": "system",
-                 "content": "You are an autonomous agent performing tasks for an user on a webshop. You only work by calling python functions to select an option. I am going to give you a main task, and an accessibility tree. If I give you a current subtask, PAY ATTENTION TO IT. Some lines are start with a number in square brackets on the very left, these lines are actions you can select, you must select one action from the accessibility tree that is labeled with a number. The main task is your overall objective. "},
+                 "content": "You are an autonomous agent performing tasks for an user on a webshop. You only work by calling python functions to select an option. I am going to give you a main task, and an accessibility tree. If I give you a current subtask, PAY ATTENTION TO IT. Some lines are start with a number in square brackets on the very left, these lines are actions you can select, you must select one action from the accessibility tree that is labeled with a number. The main task is your overall objective. The current subtask helps you complete the main task. "},
                 {"role": "system",
                  "content": "The accessibility tree is reflective of the layout of the webpage. The indents are reflective of the structure of the page and the actions on it. "},
                 {"role": "system",
@@ -368,6 +368,8 @@ class BaseAgent(Agent):
                         if self.__aggressive_normalize_url(href_value) in self.all_links and self.__aggressive_normalize_url(href_value) != self.__aggressive_normalize_url(obs_url):
                             return True
             case Action.Type.CLICK_GENERAL:
+                if node_info['name'].strip() == 'Search':
+                    return True
                 href_regex = r'href="([^"]*)"'
                 href_values = re.findall(href_regex, node_info['html'])
                 if len(href_values) > 0:
@@ -439,7 +441,7 @@ class BaseAgent(Agent):
         :return:
         '''
 
-        cleaned_tree = f"[0] Stop command (ONLY choose this if the task tells you to choose stop command)\n[1] Task finished (choose if task finished successfully)\n[2] TASK IMPOSSIBLE Input field: (input specific task that couldn't be achieved and concise current page information)\n"
+        cleaned_tree = f"[0] Perform fire spell for the websop (ONLY CHOOSE IF ASKED TO PERFORM FIRE SPELL)\n[1] Task finished (choose if task finished successfully)\n[2] Input field: (MUST CHOOSE if task is impossible, input specific task that couldn't be achieved and concise current page information)\n"
         action_list = [
             (Action(Action.Type.STOP, None, None),
              EnvironmentChange(obs.url, None, Action.Type.STOP)),
@@ -457,7 +459,7 @@ class BaseAgent(Agent):
                 counter += 1
 
             if self.last_action_and_envtag[0].action_type != Action.Type.GOTO_URL:
-                cleaned_tree += f"[{counter if not memory else ''}] Perform spell for webshop (choose if asked to perform spell or do magic)\n"
+                cleaned_tree += f"[{counter if not memory else ''}] Perform water spell for webshop (ONLY CHOOSE IF ASKED TO PERFORM WATER SPELL)\n"
                 action_list.append((Action(Action.Type.GOTO_URL, None, None),
                                     EnvironmentChange(obs.url, None, Action.Type.GOTO_URL)))
                 counter += 1
@@ -714,6 +716,8 @@ class BaseAgent(Agent):
                 if answer and answer != "None":
                     possible_results.append(answer)
 
+            print(possible_results)
+            input("POSSIBLE GOTO RESULTS")
             if len(possible_results) == 0:
                 return None
             elif len(possible_results) == 1:
@@ -766,6 +770,9 @@ class BaseAgent(Agent):
                 EnvironmentChange.change_log[new_change] = desired_action.input_string
             elif desired_action.action_type == Action.Type.GOTO_URL:
                 # TODO SOME ENV CHANGE PERHAPS????
+                pass
+            elif desired_action.action_type == Action.Type.CLICK_LINK:
+                EnvironmentChange.change_log[new_change] = None
                 pass
             elif desired_action.action_type == Action.Type.GO_BACK:
                 # TODO SOME ENV CHANGE PERHAPS????
@@ -949,9 +956,9 @@ class BaseAgent(Agent):
             print(result)
             input("impossible call look")
             if "do_magic" in result: # This starts the GOTO URL process
-                return "Perform a spell on the current web page"
+                return "Perform a water spell on the current web page"
             elif "stop_now" in result:
-                return "Issue the stop command"
+                return "Perform a fire spell on the current web page"
 
     def __llm_long_next_task_finished_call(self, prompt, model_name: str) -> (str, str):
         '''
