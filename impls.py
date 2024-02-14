@@ -64,7 +64,7 @@ class BaseAgent(Agent):
         self.to_do_memory = []
         self.already_done_memory = []
         self.current_subtask = None
-        self.last_different_page = ("Webshop homepage", "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/")
+        self.last_different_page = ((None, None), ("Webshop homepage", "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/"))
 
         with open('auxillary_jsons/external_links.json', 'r') as file:
             self.all_links = json.load(file)
@@ -458,10 +458,11 @@ class BaseAgent(Agent):
         counter = 3
         if self.last_action_and_envtag:
 
-            if self.last_action_and_envtag[0].action_type != Action.Type.GO_BACK and self.last_different_page[1] and self.__aggressive_normalize_url(self.last_different_page[1]) != self.__aggressive_normalize_url(obs.url):
-                cleaned_tree += f"[{counter if not memory else ''}] Go back to page for {self.last_different_page[0]}\n"
+            if self.last_different_page[0][1] and self.__aggressive_normalize_url(self.last_different_page[0][1]) != self.__aggressive_normalize_url(obs.url):
+                cleaned_tree += f"[{counter if not memory else ''}] Go back to page for {self.last_different_page[0][0]}\n"
                 goback_action = Action(Action.Type.GO_BACK, None, None)
-                goback_action.set_input_string(copy.deepcopy(self.last_different_page[1]))
+                goback_action.set_input_string(copy.deepcopy(self.last_different_page[0][1]))
+
                 action_list.append((goback_action,
                          EnvironmentChange(obs.url, None, Action.Type.GO_BACK)))
                 counter += 1
@@ -578,17 +579,12 @@ class BaseAgent(Agent):
                     cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
             else:
 
-                # print(f"{self.last_different_page[1]}")
-                # print(f"{self.__aggressive_normalize_url(self.last_different_page[1])}")
-                # print(f"{obs.url}")
-                # print(f"{self.__aggressive_normalize_url(obs.url)}")
-                # input("LOOK AT URLS")
+
                 if obs.nodes_info[i]['name'].strip != "":
                     cleaned_tree += f"{obs.nodes_info[i]['indent']}You are currently on the page for:\n {obs.nodes_info[i]['name']}\n"
-                    if self.__aggressive_normalize_url(self.last_different_page[1]) != self.__aggressive_normalize_url(obs.url):
-                        self.last_different_page = (obs.nodes_info[i]['name'], obs.url) # TODO CHECK DIFFERENT PAGE IF NOT NONE
-                        # print(self.last_different_page)
-                        # input("JUST SET LAST DIFF PAGE")
+                    if self.__aggressive_normalize_url(self.last_different_page[1][1]) != self.__aggressive_normalize_url(obs.url):
+                        self.last_different_page = (self.last_different_page[1], (obs.nodes_info[i]['name'], obs.url)) # TODO CHECK DIFFERENT PAGE IF NOT NONE
+
 
                 # input('finshed processing tree')
 
@@ -735,8 +731,6 @@ class BaseAgent(Agent):
                 if answer and answer != "None":
                     possible_results.append(answer)
 
-            print(possible_results)
-            input("POSSIBLE GOTO RESULTS")
             if len(possible_results) == 0:
                 return None
             elif len(possible_results) == 1:
@@ -776,8 +770,7 @@ class BaseAgent(Agent):
             elif desired_action.action_type == Action.Type.GOTO_URL:
                 desired_url = self.__get_desired_url()
                 desired_action.set_input_string(desired_url)
-                self.last_different_page = (
-                "Webshop homepage", "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/")
+                # self.last_different_page = ("Webshop homepage", "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/")
             # elif desired_action.action_type == Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE:
             #     desired_action.set_input_string(final_string)
             elif desired_action.action_type == Action.Type.GO_BACK:
