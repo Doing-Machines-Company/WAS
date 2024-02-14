@@ -322,6 +322,8 @@ class MyDriver(WebDriver):
                     print(f"Error clicking element: {e}")
 
             case Action.Type.INPUT:
+                print("INPUTTING")
+                print(target_xpath)
                 input_text = a.input_string
                 try:
                     self.page.wait_for_load_state('networkidle')

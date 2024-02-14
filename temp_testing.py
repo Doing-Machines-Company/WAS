@@ -19,8 +19,8 @@ page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/custome
 page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
 page.get_by_label("Password", exact=True).fill('Password.123')
 page.get_by_role("button", name="Sign In").click()
-url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sports-outdoors.html'
-url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/towmus-men-polo-shirts-men-s-polo-shirts-short-sleeve-print-casual-patchwork-collared-pocket-polo-shirts-for-men-tees.html'
+url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770'
+# url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/towmus-men-polo-shirts-men-s-polo-shirts-short-sleeve-print-casual-patchwork-collared-pocket-polo-shirts-for-men-tees.html'
 page.goto(url)
 # set the first page as the current page
 page = context.pages[0]
