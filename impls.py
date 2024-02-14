@@ -124,11 +124,11 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "An IMPORTANT SUBTASK is a subtask that is essential to the completion of a task. IMPORTANT SUBTASKS are subtasks that must be completed in order for your task to be completed. IMPORTANT SUBTASKs can be completed by a single action on the page. Tasks cannot be completed without completing all IMPORTANT SUBTASKS. Any subtasks that involve discovery or navigation are UNIMPORTANT. "},
                 {"role": "system",
-                 "content": "Tell me what page you are currently on, and what can be done on the page that is relevant to your task. THIS IS IMPORTANT, then you must generate general IMPORTANT SUBTASKs that are incomplete. "},
+                 "content": "First, tell me what page you are currently on, and what can be done on the page that is relevant to your task. If the task is not relevant to the current page (after going through all helpful options), YOU MUST choose action '[2] Task is impossible on current page' to navigate to a more helpful page. THIS IS IMPORTANT, if the current page is relevant to the task, then you must generate general IMPORTANT SUBTASKs that are incomplete. "},
                 {"role": "system",
-                 "content": "Then reason step-by-step through all alerts and information in the tree that is enclosed in parentheses, and determine if that information indicates that your task has already been completed or if the task is impossible. THIS IS IMPORTANT, you MUST LOOK THROUGH ALL possible actions which may help you to complete the task BEFORE you that the task is impossible. If the current subtask has been fully completed (after going through all possibly helpful options), YOU MUST choose action '[1] Nothing more to do'. If the task is impossible on the current page (after going through all helpful options), YOU MUST choose action '[2] Task is impossible on current page' to navigate to a more helpful page. \n"},
+                 "content": "Then reason step-by-step through all alerts and information in the tree that is enclosed in parentheses, and determine if that information indicates that your task has already been completed or if the task is impossible. \n"},
                 {"role": "system",
-                 "content": "Then only if the task is possible and unfinished, you must reasonstep-by-step through all of your IMPORTANT SUBTASKs to determine the first incomplete IMPORTANT SUBTASK. The optimal action is the first action that completes a subtask that is still incomplete. "}]
+                 "content": "Then only if the task is possible and unfinished, you must reasonstep-by-step through all of your IMPORTANT SUBTASKs to determine the first incomplete IMPORTANT SUBTASK. The optimal action is the first action that completes a subtask that is still incomplete. If the current task has been fully completed (AFTER going through all possibly helpful options), YOU MUST choose action '[1] Nothing more to do'."}]
 
             if self.impossible_call_result['command']:
                 messages.append({"role": "user",
@@ -460,7 +460,9 @@ class BaseAgent(Agent):
 
             if self.last_action_and_envtag[0].action_type != Action.Type.GO_BACK and self.last_different_page[1] and self.__aggressive_normalize_url(self.last_different_page[1]) != self.__aggressive_normalize_url(obs.url):
                 cleaned_tree += f"[{counter if not memory else ''}] Go back to page for {self.last_different_page[0]}\n"
-                action_list.append((Action(Action.Type.GO_BACK, None, None),
+                goback_action = Action(Action.Type.GO_BACK, None, None)
+                goback_action.set_input_string(copy.deepcopy(self.last_different_page[1]))
+                action_list.append((goback_action,
                          EnvironmentChange(obs.url, None, Action.Type.GO_BACK)))
                 counter += 1
 
@@ -576,19 +578,19 @@ class BaseAgent(Agent):
                     cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
             else:
 
-                print(f"{self.last_different_page[1]}")
-                print(f"{self.__aggressive_normalize_url(self.last_different_page[1])}")
-                print(f"{obs.url}")
-                print(f"{self.__aggressive_normalize_url(obs.url)}")
-                input("LOOK AT URLS")
+                # print(f"{self.last_different_page[1]}")
+                # print(f"{self.__aggressive_normalize_url(self.last_different_page[1])}")
+                # print(f"{obs.url}")
+                # print(f"{self.__aggressive_normalize_url(obs.url)}")
+                # input("LOOK AT URLS")
                 if obs.nodes_info[i]['name'].strip != "":
                     cleaned_tree += f"{obs.nodes_info[i]['indent']}You are currently on the page for:\n {obs.nodes_info[i]['name']}\n"
                     if self.__aggressive_normalize_url(self.last_different_page[1]) != self.__aggressive_normalize_url(obs.url):
                         self.last_different_page = (obs.nodes_info[i]['name'], obs.url) # TODO CHECK DIFFERENT PAGE IF NOT NONE
-                        print(self.last_different_page)
-                        input("JUST SET LAST DIFF PAGE")
+                        # print(self.last_different_page)
+                        # input("JUST SET LAST DIFF PAGE")
 
-                input('finshed processing tree')
+                # input('finshed processing tree')
 
         if scanning_radios:
             scanning_radios = False
@@ -779,7 +781,7 @@ class BaseAgent(Agent):
             # elif desired_action.action_type == Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE:
             #     desired_action.set_input_string(final_string)
             elif desired_action.action_type == Action.Type.GO_BACK:
-                desired_action.set_input_string(self.last_different_page[1])
+                assert(desired_action.input_string != None)
 
             self.last_action_and_envtag = answer_values[int(final_index)]
             new_change = answer_values[int(final_index)][1]

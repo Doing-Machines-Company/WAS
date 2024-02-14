@@ -352,7 +352,8 @@ class MyDriver(WebDriver):
                 self.page.wait_for_load_state('networkidle')
 
             case Action.Type.GO_BACK:
-                self.page.go_back()
+                # self.page.go_back() not actually using go_back as occasionally the last page is not useful, need to make better this is jank
+                self.page.goto(a.input_string)
                 self.page.wait_for_load_state('networkidle')
 
 
