@@ -126,7 +126,7 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "Tell me what page you are currently on, and what can be done on the page that is relevant to your task. THIS IS IMPORTANT, then you must generate general IMPORTANT SUBTASKs that are incomplete. "},
                 {"role": "system",
-                 "content": "Then reason step-by-step through all alerts and information in the tree that is enclosed in parentheses, and determine if that information indicates that your task has already been completed or if the task is impossible. THIS IS IMPORTANT, you MUST LOOK THROUGH ALL possible actions which may help you to complete the task BEFORE you that the task is impossible. If the current subtask has been fully completed (after going through all possibly helpful options), YOU MUST choose action '[1] Task Finished '. If the task is impossible on the current page (after going through all helpful options), YOU MUST choose action '[2] Task is impossible on current page' to navigate to a more helpful page. \n"},
+                 "content": "Then reason step-by-step through all alerts and information in the tree that is enclosed in parentheses, and determine if that information indicates that your task has already been completed or if the task is impossible. THIS IS IMPORTANT, you MUST LOOK THROUGH ALL possible actions which may help you to complete the task BEFORE you that the task is impossible. If the current subtask has been fully completed (after going through all possibly helpful options), YOU MUST choose action '[1] Nothing more to do'. If the task is impossible on the current page (after going through all helpful options), YOU MUST choose action '[2] Task is impossible on current page' to navigate to a more helpful page. \n"},
                 {"role": "system",
                  "content": "Then only if the task is possible and unfinished, you must reasonstep-by-step through all of your IMPORTANT SUBTASKs to determine the first incomplete IMPORTANT SUBTASK. The optimal action is the first action that completes a subtask that is still incomplete. "}]
 
@@ -446,7 +446,7 @@ class BaseAgent(Agent):
         '''
         # TODO back button needs to be fucking fixed
 
-        cleaned_tree = f"[0] Perform fire spell for the websop (ONLY CHOOSE IF ASKED TO PERFORM FIRE SPELL)\n[1] Task Finished (ONLY CHOOSE task I give you is finished)\n[2] Task is impossible on current page (will navigate to a more helpful page)\n"
+        cleaned_tree = f"[0] Perform fire spell for the websop (ONLY CHOOSE IF ASKED TO PERFORM FIRE SPELL)\n[1] Nothing more to do (ONLY CHOOSE when there is nothing else to do)\n[2] Task is impossible on current page (will navigate to a more helpful page)\n"
         action_list = [
             (Action(Action.Type.STOP, None, None),
              EnvironmentChange(obs.url, None, Action.Type.STOP)),
