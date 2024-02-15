@@ -102,7 +102,7 @@ class BaseAgent(Agent):
     def __construct_elements_prompt(self, cur_obs: AxObservation, model_name: str) -> (str, list[Action]):  # MOSTLY FOR GPT, NEED MORE CODE GEN STABILITY
         '''
         Constructs the prompt for the model to generate a response for get_next_action
-        
+
         :param cur_obs: 
         :param model_name: 
         :return: 
@@ -114,7 +114,7 @@ class BaseAgent(Agent):
         if model_name.startswith('gpt'):
             messages = [
                 {"role": "system",
-                 "content": "You are an autonomous agent performing tasks for an user on a webshop. I am going to give you a main task, and an accessibility tree your are on. Some lines are start with a number in square brackets on the very left, these lines are actions you can select, you must select one action from the accessibility tree that is labeled with a number. The main task is your overall objective. The current subtask helps you complete the main task. "},
+                 "content": "You are an autonomous agent performing tasks for an user on a webshop. I am going to give you a main task, and an accessibility tree of the web page you are on. Some lines are start with a number in square brackets on the very left, these lines are actions you can select, you must select one action from the accessibility tree that is labeled with a number. The main task is your overall objective. The current subtask helps you complete the main task. "},
                 {"role": "system",
                  "content": "Any information you see on the page is automatically stored in your memory by another agent. "},
                 {"role": "system",
@@ -122,19 +122,19 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "An GOOD SUBTASK is a subtask that is essential to the completion of a task. GOOD SUBTASKS are subtasks that must be completed in order for your task to be completed. GOOD SUBTASKs can be completed by a single action on the page. Tasks cannot be completed without completing all GOOD SUBTASKS. Any subtasks that involve discovery or navigation are BAD. "},
                 {"role": "system",
-                 "content": "First, tell me what page you are currently on, and what can be done on the page that is relevant to your task. If the task is impossible to complete on the current page (after trying all helpful actions), choose action '[1] Task is impossible on current page'. First using the information in parentheses, list out all the actions and tasks that have already been completed. If the current page is relevant to the task, then you MUST generate general GOOD SUBTASKs. "},
+                 "content": "First, tell me what page you are currently on, and what can be done on the page that is relevant to your task. First using the information in parentheses, list out all the actions and tasks that have already been completed. If the main task is irrelevant to the page or impossible, option 1 is optimal. If the current page is relevant to the task, then you MUST generate general GOOD SUBTASKs. "},
                 {"role": "system",
                  "content": "Then you must reason step-by-step through all alerts and information in the tree that is enclosed in parentheses, and reason step-by-step to determine if that information indicates that your task has already been completed or if the task is impossible. \n"},
                 {"role": "system",
-                 "content": "Then only if the task is possible and unfinished, you must reason step-by-step through all of your GOOD SUBTASKs to determine the first incomplete GOOD SUBTASK. The optimal action is the first action that completes a subtask that is still incomplete. If the current task has been fully completed (AFTER going through all possibly helpful options), YOU MUST choose action '[0] Nothing more to do'.  "}
+                 "content": "Then only if the task is possible and unfinished, you must reason step-by-step through all of your GOOD SUBTASKs to determine the first incomplete GOOD SUBTASK. The optimal action is the first action that completes a subtask that is still incomplete. If the main task has been completed, option 0 is optimal. "}
             ]
 
             if self.current_subtask:
                 messages.append({"role": "user",
-                                 f"content": f"This is your main task: {self.intent}\nThis is your current subtask: {self.current_subtask}\nHere is the accessibility tree: \n'''\n {cleaned_tree}\n'''\nAfter reasoning, give me the python code using choose_option. "})
+                                 f"content": f"This is your main task: {self.intent}\nThis is your current subtask: {self.current_subtask}\nHere is the accessibility tree: \n'''\n {cleaned_tree}\n'''\nNow reason according to instructions and then give me the python code using your choice."})
             else:
                 messages.append({"role": "user",
-                                 f"content": f"This is your main task: {self.intent}\nThis is your current subtask: {self.intent}\nHere is the accessibility tree: \n'''\n {cleaned_tree}\n'''\nAfter reasoning, give me the python code using choose_option. "})
+                                 f"content": f"This is your main task: {self.intent}\nThis is your current subtask: {self.intent}\nHere is the accessibility tree: \n'''\n {cleaned_tree}\n'''\nNow reason according to instructions and then give me the python code using your choice"})
 
             print(self.intent)
             print(self.current_subtask)
