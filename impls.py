@@ -122,7 +122,7 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "An GOOD SUBTASK is a subtask that is essential to the completion of a task. GOOD SUBTASKS are subtasks that must be completed in order for your task to be completed. GOOD SUBTASKs can be completed by a single action on the page. Tasks cannot be completed without completing all GOOD SUBTASKS. Any subtasks that involve discovery or navigation are BAD. "},
                 {"role": "system",
-                 "content": "First, tell me what page you are currently on, and what can be done on the page that is relevant to your task. If the task is impossible to complete on the page (after going through all helpful options), YOU MUST choose action '[1] Task is impossible on current page' to stop. If the current page is irrelevant to the current task, YOU MUST choose action '[1] Task is impossible on current page' to navigate to a more helpful page. First using the information in parentheses, list out all the actions and tasks that have already been completed. If the current page is relevant to the task, then you MUST generate general GOOD SUBTASKs. "},
+                 "content": "First, tell me what page you are currently on, and what can be done on the page that is relevant to your task. If the task is impossible to complete on the current page (after trying all helpful actions), choose action '[1] Task is impossible on current page'. First using the information in parentheses, list out all the actions and tasks that have already been completed. If the current page is relevant to the task, then you MUST generate general GOOD SUBTASKs. "},
                 {"role": "system",
                  "content": "Then you must reason step-by-step through all alerts and information in the tree that is enclosed in parentheses, and reason step-by-step to determine if that information indicates that your task has already been completed or if the task is impossible. \n"},
                 {"role": "system",
@@ -289,12 +289,12 @@ class BaseAgent(Agent):
                         props.append("Required to input")
 
                 case Action.Type.CLICK_LINK:
-                    role_name = "Click link: "
+                    role_name = "Go visit link: "
                     if env_tags and env_tags in EnvironmentChange.change_log:
                         props.append("Already visited")
 
                 case Action.Type.CLICK_IMPORTANT:
-                    role_name = "Click: "
+                    role_name = "Choose action: "
                     if env_tags and env_tags in EnvironmentChange.change_log and EnvironmentChange.change_log[env_tags] != "":
                         props.append(f"{EnvironmentChange.change_log[env_tags]}")
 
@@ -445,7 +445,7 @@ class BaseAgent(Agent):
         '''
         # TODO back button needs to be fucking fixed
 
-        cleaned_tree = f"[0] Nothing more to do (ONLY CHOOSE when there is nothing else to do)\n[1] Task is impossible on current page (will navigate to a more helpful page or stop)\n"
+        cleaned_tree = f"[0] Nothing more to do (ONLY CHOOSE when there is nothing else to do)\n[1] Task is impossible on current page (ONLY CHOOSE if task can't be completed on current page)\n"
         action_list = [
             (Action(Action.Type.GET_NEXT_SUBTASK_FINISHED, None, None),
              EnvironmentChange(obs.url, None, Action.Type.GET_NEXT_SUBTASK_FINISHED)),
@@ -1013,7 +1013,7 @@ class BaseAgent(Agent):
         :return: 
         '''
         if self.last_action_and_envtag[0].action_type != Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE:
-            self.impossible_call_result = {'command': None, 'counter': 0}
+            self.impossible_call_result = {'command': None, 'done_something_not_impossible': True}
 
         match self.last_action_and_envtag[0].action_type:
             case Action.Type.STOP:
