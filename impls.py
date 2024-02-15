@@ -118,15 +118,15 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "Any information you see on the page is automatically stored in your memory by another agent. "},
                 {"role": "system",
-                 "content": "You have the python function choose_option(task_number: int, input_string: Optional[str]) which takes in a number and an optional string. You must call the python function choose_option in your reply. The task_number is the option number you want to choose. You must give input_string only if the option has 'Input field'. Pay attention to all information enclosed in in parentheses. THIS IS IMPORTANT:\n ONLY the information parentheses will tell you if an action has already been completed or visited. "},
+                 "content": "You have the python function choose_option(task_number: int, input_string: Optional[str]) which takes in a number and an optional string. You must call the python function choose_option in your reply. The task_number is the option number you want to choose. You must give input_string only if the option has 'Input field'. Pay attention to all information enclosed in in parentheses. THIS IS IMPORTANT:\n Action choices without parantheses have not been attempted. "},
                 {"role": "system",
                  "content": "An GOOD SUBTASK is a subtask that is essential to the completion of a task. GOOD SUBTASKS are subtasks that must be completed in order for your task to be completed. GOOD SUBTASKs can be completed by a single action on the page. Tasks cannot be completed without completing all GOOD SUBTASKS. Any subtasks that involve discovery or navigation are BAD. "},
                 {"role": "system",
-                 "content": "First, tell me what page you are currently on, and what can be done on the page that is relevant to your task. If the task is not relevant to the current page (after going through all helpful options), YOU MUST choose action '[2] Task is impossible on current page' to navigate to a more helpful page. First using the information in parentheses, list out all the actions and tasks that have already been completed. If the current page is relevant to the task, then you MUST generate general GOOD SUBTASKs. "},
+                 "content": "First, tell me what page you are currently on, and what can be done on the page that is relevant to your task. If the task is impossible to complete on the page (after going through all helpful options), YOU MUST choose action '[1] Task is impossible on current page' to stop. If the current page is irrelevant to the current task, YOU MUST choose action '[1] Task is impossible on current page' to navigate to a more helpful page. First using the information in parentheses, list out all the actions and tasks that have already been completed. If the current page is relevant to the task, then you MUST generate general GOOD SUBTASKs. "},
                 {"role": "system",
                  "content": "Then you must reason step-by-step through all alerts and information in the tree that is enclosed in parentheses, and reason step-by-step to determine if that information indicates that your task has already been completed or if the task is impossible. \n"},
                 {"role": "system",
-                 "content": "Then only if the task is possible and unfinished, you must reason step-by-step through all of your GOOD SUBTASKs to determine the first incomplete GOOD SUBTASK. The optimal action is the first action that completes a subtask that is still incomplete. If the current task has been fully completed (AFTER going through all possibly helpful options), YOU MUST choose action '[1] Nothing more to do'.  "}
+                 "content": "Then only if the task is possible and unfinished, you must reason step-by-step through all of your GOOD SUBTASKs to determine the first incomplete GOOD SUBTASK. The optimal action is the first action that completes a subtask that is still incomplete. If the current task has been fully completed (AFTER going through all possibly helpful options), YOU MUST choose action '[0] Nothing more to do'.  "}
             ]
 
             if self.current_subtask:
@@ -445,7 +445,7 @@ class BaseAgent(Agent):
         '''
         # TODO back button needs to be fucking fixed
 
-        cleaned_tree = f"[0] Nothing more to do (ONLY CHOOSE when there is nothing else to do)\n[1] Task is impossible on current page (will navigate to a more helpful page)\n"
+        cleaned_tree = f"[0] Nothing more to do (ONLY CHOOSE when there is nothing else to do)\n[1] Task is impossible on current page (will navigate to a more helpful page or stop)\n"
         action_list = [
             (Action(Action.Type.GET_NEXT_SUBTASK_FINISHED, None, None),
              EnvironmentChange(obs.url, None, Action.Type.GET_NEXT_SUBTASK_FINISHED)),
