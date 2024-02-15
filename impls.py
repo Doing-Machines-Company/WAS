@@ -59,7 +59,7 @@ class BaseAgent(Agent):
         # The response will have data from the MemGPT agent
 
         self.last_action_and_envtag = None
-        self.impossible_call_result = {'command': None, 'counter': 0}
+        self.impossible_call_result = {'command': None, 'done_something_not_impossible': True}
         self.old_obs = None
         self.to_do_memory = []
         self.already_done_memory = []
@@ -116,8 +116,6 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "You are an autonomous agent performing tasks for an user on a webshop. I am going to give you a main task, and an accessibility tree your are on. Some lines are start with a number in square brackets on the very left, these lines are actions you can select, you must select one action from the accessibility tree that is labeled with a number. The main task is your overall objective. The current subtask helps you complete the main task. "},
                 {"role": "system",
-                 "content": "When you are told to perform a spell, you must perform that specific spell. "},
-                {"role": "system",
                  "content": "Any information you see on the page is automatically stored in your memory by another agent. "},
                 {"role": "system",
                  "content": "You have the python function choose_option(task_number: int, input_string: Optional[str]) which takes in a number and an optional string. You must call the python function choose_option in your reply. The task_number is the option number you want to choose. You must give input_string only if the option has 'Input field'. Pay attention to all information enclosed in in parentheses. THIS IS IMPORTANT:\n ONLY the information parentheses will tell you if an action has already been completed or visited. "},
@@ -128,18 +126,15 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "Then you must reason step-by-step through all alerts and information in the tree that is enclosed in parentheses, and reason step-by-step to determine if that information indicates that your task has already been completed or if the task is impossible. \n"},
                 {"role": "system",
-                 "content": "Then only if the task is possible and unfinished, you must reason step-by-step through all of your GOOD SUBTASKs to determine the first incomplete GOOD SUBTASK. The optimal action is the first action that completes a subtask that is still incomplete. If the current task has been fully completed (AFTER going through all possibly helpful options), YOU MUST choose action '[1] Nothing more to do'. "}
+                 "content": "Then only if the task is possible and unfinished, you must reason step-by-step through all of your GOOD SUBTASKs to determine the first incomplete GOOD SUBTASK. The optimal action is the first action that completes a subtask that is still incomplete. If the current task has been fully completed (AFTER going through all possibly helpful options), YOU MUST choose action '[1] Nothing more to do'.  "}
             ]
 
-            if self.impossible_call_result['command']:
+            if self.current_subtask:
                 messages.append({"role": "user",
-                                 f"content": f"This is your main task: {self.intent}\nThis is your current subtask: {self.impossible_call_result['command']}\nHere is the accessibility tree: \n'''\n {cleaned_tree}\n'''\nAfter reasoning, give me the python code using choose_option with the optimal action choice (and input_string if you are choosing an input field)."})
-            elif self.current_subtask:
-                messages.append({"role": "user",
-                                 f"content": f"This is your main task: {self.intent}\nThis is your current subtask: {self.current_subtask}\nHere is the accessibility tree: \n'''\n {cleaned_tree}\n'''\nAfter reasoning, give me the python code using choose_option with the optimal action choice (and input_string if you are choosing an input field)."})
+                                 f"content": f"This is your main task: {self.intent}\nThis is your current subtask: {self.current_subtask}\nHere is the accessibility tree: \n'''\n {cleaned_tree}\n'''\nAfter reasoning, give me the python code using choose_option. "})
             else:
                 messages.append({"role": "user",
-                                 f"content": f"This is your main task: {self.intent}\nThis is your current subtask: {self.intent}\nHere is the accessibility tree: \n'''\n {cleaned_tree}\n'''\nAfter reasoning, give me the python code using choose_option with the optimal action choice (and input_string if you are choosing an input field)."})
+                                 f"content": f"This is your main task: {self.intent}\nThis is your current subtask: {self.intent}\nHere is the accessibility tree: \n'''\n {cleaned_tree}\n'''\nAfter reasoning, give me the python code using choose_option. "})
 
             print(self.intent)
             print(self.current_subtask)
@@ -450,16 +445,14 @@ class BaseAgent(Agent):
         '''
         # TODO back button needs to be fucking fixed
 
-        cleaned_tree = f"[0] Perform fire spell for the websop (ONLY CHOOSE IF ASKED TO PERFORM FIRE SPELL)\n[1] Nothing more to do (ONLY CHOOSE when there is nothing else to do)\n[2] Task is impossible on current page (will navigate to a more helpful page)\n"
+        cleaned_tree = f"[0] Nothing more to do (ONLY CHOOSE when there is nothing else to do)\n[1] Task is impossible on current page (will navigate to a more helpful page)\n"
         action_list = [
-            (Action(Action.Type.STOP, None, None),
-             EnvironmentChange(obs.url, None, Action.Type.STOP)),
             (Action(Action.Type.GET_NEXT_SUBTASK_FINISHED, None, None),
              EnvironmentChange(obs.url, None, Action.Type.GET_NEXT_SUBTASK_FINISHED)),
             (Action(Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE, None, None),
              EnvironmentChange(obs.url, None, Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE)),
         ]
-        counter = 3
+        counter = 2
         if self.last_action_and_envtag:
 
             if self.last_different_page[0][1] and self.__aggressive_normalize_url(self.last_different_page[0][1]) != self.__aggressive_normalize_url(obs.url):
@@ -471,16 +464,6 @@ class BaseAgent(Agent):
                          EnvironmentChange(obs.url, None, Action.Type.GO_BACK)))
                 counter += 1
 
-            if self.last_action_and_envtag[0].action_type != Action.Type.GOTO_URL:
-                cleaned_tree += f"[{counter if not memory else ''}] Perform water spell for webshop (ONLY CHOOSE IF ASKED TO PERFORM WATER SPELL)\n"
-                action_list.append((Action(Action.Type.GOTO_URL, None, None),
-                                    EnvironmentChange(obs.url, None, Action.Type.GOTO_URL)))
-                counter += 1
-        else:
-            cleaned_tree += f"[{counter if not memory else ''}] Perform water spell for webshop (ONLY CHOOSE IF ASKED TO PERFORM WATER SPELL)\n" # TODO Perhaps redundent as EC should control when a GOTO is performed
-            action_list.append((Action(Action.Type.GOTO_URL, None, None),
-                                EnvironmentChange(obs.url, None, Action.Type.GOTO_URL)))
-            counter += 1
 
 
         return cleaned_tree, action_list, counter
@@ -691,6 +674,8 @@ class BaseAgent(Agent):
             )
 
             result = response.choices[0].message.content
+            print(result)
+            input("URL HELPER RESULT")
 
 
             pattern = r"choose_page\(([0-9]+)\)"
@@ -764,40 +749,45 @@ class BaseAgent(Agent):
 
         self.old_obs = cur_obs
         prompt_for_agent, answer_values = self.__construct_elements_prompt(cur_obs, model_name = 'gpt-3.5-turbo-0125') # prompt_for_agent: str, answer_values: list[Actions]
-        (final_index, final_string) = self.__call_llm_action(prompt_for_agent, model_name = 'gpt-3.5-turbo-0125')
-        if final_index and final_index != -1:
-            desired_action = answer_values[int(final_index)][0]
-            # TODO IF DESIRED ACTION IS GOTO URL, THEN NO ENVIRONMENT CHANGE NEEDED. NEED TO FIND LINK TO GO TO.
-            if desired_action.action_type == Action.Type.INPUT:
-                desired_action.set_input_string(final_string)
-            elif desired_action.action_type == Action.Type.GOTO_URL:
-                desired_url = self.__get_desired_url()
-                desired_action.set_input_string(desired_url)
-                # self.last_different_page = ("Webshop homepage", "http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/")
-            # elif desired_action.action_type == Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE:
-            #     desired_action.set_input_string(final_string)
-            elif desired_action.action_type == Action.Type.GO_BACK:
-                assert(desired_action.input_string != None)
 
-            self.last_action_and_envtag = answer_values[int(final_index)]
-            new_change = answer_values[int(final_index)][1]
+        if self.impossible_call_result['command'] != None:
+            match self.impossible_call_result['command']:
+                case Action.Type.STOP:
+                    desired_action = Action(Action.Type.STOP, None, None)
+                    env_change = EnvironmentChange(cur_obs.url, None, Action.Type.STOP)
+                    self.last_action_and_envtag = (desired_action, env_change)
 
+                case Action.Type.GOTO_URL:
+                    desired_action = Action(Action.Type.GOTO_URL, None, None)
+                    desired_url = self.__get_desired_url()
+                    desired_action.set_input_string(desired_url)
+                    env_change = EnvironmentChange(cur_obs.url, None, Action.Type.GOTO_URL)
+                    self.last_action_and_envtag = (desired_action, env_change)
 
-            if desired_action.action_type == Action.Type.INPUT:
-                EnvironmentChange.change_log[new_change] = desired_action.input_string
-            # elif desired_action.action_type == Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE:
-            #     EnvironmentChange.change_log[new_change] = desired_action.input_string
-            elif desired_action.action_type == Action.Type.GOTO_URL:
-                # TODO SOME ENV CHANGE PERHAPS????
-                pass
-            elif desired_action.action_type == Action.Type.CLICK_LINK:
-                EnvironmentChange.change_log[new_change] = None
-                pass
-            elif desired_action.action_type == Action.Type.GO_BACK:
-                # TODO SOME ENV CHANGE PERHAPS????
-                pass
+            self.impossible_call_result['command'] = None
+            assert(self.impossible_call_result['done_something_not_impossible'] == False)
 
 
+
+        else:
+            (final_index, final_string) = self.__call_llm_action(prompt_for_agent, model_name = 'gpt-3.5-turbo-0125')
+            if final_index and final_index != -1:
+                desired_action = answer_values[int(final_index)][0]
+                self.last_action_and_envtag = answer_values[int(final_index)]
+                new_change = answer_values[int(final_index)][1]
+
+                if desired_action.action_type == Action.Type.INPUT:
+                    desired_action.set_input_string(final_string)
+                    EnvironmentChange.change_log[new_change] = desired_action.input_string
+                elif desired_action.action_type == Action.Type.CLICK_LINK:
+                    EnvironmentChange.change_log[new_change] = None
+
+                if desired_action.action_type != Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE:
+                    self.impossible_call_result['done_something_not_impossible'] = True
+
+
+
+        if desired_action:
             return desired_action
 
         return Action(Action.Type.STOP, None, None) # TODO HANDLE FAILED GPT RETURNS BETTER
@@ -841,7 +831,7 @@ class BaseAgent(Agent):
 
             ]
             messages.append({"role": "user",
-                             "content": f"Main goal: {self.intent}\nAlready gathered SUBTASKs: {self.to_do_memory}\nCurrent page accessibility tree: \n'''\n {cleaned_tree}\n'''\n "})
+                             "content": f"Main goal: {self.intent}\nAlready gathered SUBTASKs: {self.to_do_memory}\nCurrent page accessibility tree: \n'''\n {cleaned_tree}\n'''\nGive me the code using the gather_important_subtasks function. "})
             return messages
 
     def __llm_get_important_subtask_call(self, prompt: list[dict], model_name: str) -> str:
@@ -957,7 +947,7 @@ class BaseAgent(Agent):
                                  "content": f"Current IMPORTANT SUBTASK that the failed on: {self.intent}\nCurrent page accessibility tree: \n{current_tree}\nGive me the python code using ONLY ONE of the functions I gave you. "})
             return messages
 
-    def __llm_long_next_task_impossible_call(self, prompt, model_name: str) -> str:
+    def __llm_long_next_task_impossible_call(self, prompt, model_name: str) -> Action.Type:
         if model_name.startswith('gpt'):
             response = client.chat.completions.create(
                 model=model_name,
@@ -972,9 +962,9 @@ class BaseAgent(Agent):
             print(result)
             input("impossible call look")
             if "do_magic" in result: # This starts the GOTO URL process
-                return "Perform a water spell on the current web page"
+                return Action.Type.GOTO_URL
             elif "stop_now" in result:
-                return "Perform a fire spell on the current web page"
+                return Action.Type.STOP
 
     def __llm_long_next_task_finished_call(self, prompt, model_name: str) -> (str, str):
         '''
@@ -1092,13 +1082,13 @@ class BaseAgent(Agent):
 
                 # TODO HANDLE NEW TO DO AND SHRUNK TASK
             case Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE:
-                if self.impossible_call_result['counter'] == 0:
+                if self.impossible_call_result['done_something_not_impossible'] == True:
                     long_range_memory_prompt = self.__llm_long_next_task_impossible_prompt(model_name='gpt-3.5-turbo-0125')
                     self.impossible_call_result['command'] = self.__llm_long_next_task_impossible_call(long_range_memory_prompt,
                                                                              model_name='gpt-3.5-turbo-0125')
-                    self.impossible_call_result['counter'] = 1
-                elif self.impossible_call_result['counter'] == 1:
-                    self.impossible_call_result['command'] = "Perform a fire spell on the current web page"
+                    self.impossible_call_result['done_something_not_impossible'] = False
+                elif self.impossible_call_result['done_something_not_impossible'] == True:
+                    self.impossible_call_result['command'] = Action.Type.STOP
 
             case Action.Type.GOTO_URL:
                 important_subtask_prompt = self.__llm_get_important_subtask_prompt(new_obs,
