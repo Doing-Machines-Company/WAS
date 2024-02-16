@@ -126,7 +126,7 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "Then you must reason step-by-step through all alerts and information in the tree that is enclosed in parentheses, and reason step-by-step to determine if that information indicates that your task has already been completed or if the task is impossible. \n"},
                 {"role": "system",
-                 "content": "Then only if the task is possible and unfinished, you must reason step-by-step through all of your GOOD SUBTASKs to determine the first incomplete GOOD SUBTASK. The optimal action is the first action that completes a subtask that is still incomplete. If the main task has been completed, option 0 is optimal. "}
+                 "content": "Then only if the task is possible and unfinished, you must reason step-by-step through all of your GOOD SUBTASKs to determine the first incomplete GOOD SUBTASK. The optimal action is the first action that completes a subtask that is still incomplete. If the main task has been completed (and all helpful options visited), option 0 is optimal. "}
             ]
 
             if self.current_subtask:
@@ -289,9 +289,12 @@ class BaseAgent(Agent):
                         props.append("Required to input")
 
                 case Action.Type.CLICK_LINK:
-                    role_name = "Go visit link: "
                     if env_tags and env_tags in EnvironmentChange.change_log:
                         props.append("Already visited")
+                        role_name = "Go visit again"
+                    else:
+                        role_name = "Go visit for the first time: "
+
 
                 case Action.Type.CLICK_IMPORTANT:
                     role_name = "Choose action: "
@@ -827,11 +830,13 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "Any SUBTASK that is irrelevant to your main goal is a BAD SUBTASK. A SUBTASK that is a duplicate of something in the list I give you is BAD. "},
                 {"role": "system",
+                 "content": "SUBTASKS relating to storing information are BAD, as information is automatically stored. SUBTASKS relating to navigation actions are BAD. "},
+                {"role": "system",
                  "content": "THIS IS IMPROTANT, you must follow the following steps by reasoning step-by-step to complete your task: First you reason through the accessibility tree and list out EVERY SINGLE SUBTASK with their IDENTIFYING INFORMATION on the current page that help you complete your main goal (THIS IS IMPORTANT: LIST OUT EVERY SINGLE SUBTASK WITH THEIR IDENTIFYING INFORMATION). Secondly you MUST REASON one-by-one through these SUBTASKs to identify which SUBTASKs are GOOD. Thirdly look through the list of already gathered IMPORTANT SUBTASKs and keep the new GOOD SUBTASKs you've collected. Fourthly, go through every GOOD SUBTASK and use the accessibility tree I will give you to get the IDENTIFYING INFORMATION for each GOOD SUBTASK. Fifthly, combine ALL GOOD SUBTASKs WITH their IDENTIFYING INFORMATION into one IMPORTANT SUBTASK. Finally, give me the Python code calling ONLY the gather_important_subtasks function with either the IMPORTANT SUBTASK or None if there is no IMPORTANT SUBTASK. Pass in the parameter directly. "}
 
             ]
             messages.append({"role": "user",
-                             "content": f"Main goal: {self.intent}\nAlready gathered SUBTASKs: {self.to_do_memory}\nCurrent page accessibility tree: \n'''\n {cleaned_tree}\n'''\nGive me the code using the gather_important_subtasks function. "})
+                             "content": f"Main goal: {self.intent}\nAlready gathered SUBTASKs: {self.to_do_memory}\nCurrent page accessibility tree: \n'''\n {cleaned_tree}\n'''\nGive me the code using the gather_important_subtasks function, you must include both actions and IDENTIFYING INFORMATION. "})
             return messages
 
     def __llm_get_important_subtask_call(self, prompt: list[dict], model_name: str) -> str:
@@ -871,7 +876,7 @@ class BaseAgent(Agent):
                     return match.strip()
 
 
-    def __llm_next_task_finished_prompt(self, model_name: str) -> list[dict]:
+    def __llm_next_task_finished_prompt(self, model_name: str) -> list[dict]: # TODO BROKEN AS FUCK
         if model_name.startswith('gpt'):
             messages = [{
                     "role": "system",
@@ -899,9 +904,9 @@ class BaseAgent(Agent):
                 }
             ]
             messages.append({"role": "user",
-                            "content": f"Main goal: {self.intent}\nAll IMPORTANT SUBTASKs: {self.to_do_memory}\nAll completed IMPORTANT SUBTASKs: {self.already_done_memory}\nGive me the Python code using the issue_subtask function. "})
+                            "content": f"Main goal: {self.intent}\nAll IMPORTANT SUBTASKs: {self.to_do_memory}\nAll completed IMPORTANT SUBTASKs: {self.already_done_memory}\nGive me the Python code using the issue_subtask function with the parameter passed directly. "})
 
-            print(f"Main goal: {self.intent}\nAll IMPORTANT SUBTASKs: {self.to_do_memory}\nAll completed IMPORTANT SUBTASKs: {self.already_done_memory}\nGive me the Python code using the issue_subtask function. ")
+            print(f"Main goal: {self.intent}\nAll IMPORTANT SUBTASKs: {self.to_do_memory}\nAll completed IMPORTANT SUBTASKs: {self.already_done_memory}\nGive me the Python code using the issue_subtask function with the parameter passed directly. ")
             input("LOOK AT PROMPT FOR issue_subtask")
             return messages
 
