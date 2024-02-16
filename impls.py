@@ -836,7 +836,7 @@ class BaseAgent(Agent):
 
             ]
             messages.append({"role": "user",
-                             "content": f"Main goal: {self.intent}\nAlready gathered SUBTASKs: {self.to_do_memory}\nCurrent page accessibility tree: \n'''\n {cleaned_tree}\n'''\nGive me the code using the gather_important_subtasks function, you must include both actions and IDENTIFYING INFORMATION. "})
+                             "content": f"Main goal: {self.intent}\nAlready gathered SUBTASKs: {self.to_do_memory}\nCurrent page accessibility tree: \n'''\n {cleaned_tree}\n'''\nGive me the code using the gather_important_subtasks function, you must include both actions and IDENTIFYING INFORMATION in your IMPORTANT SUBTASK. "})
             return messages
 
     def __llm_get_important_subtask_call(self, prompt: list[dict], model_name: str) -> str:
@@ -900,7 +900,7 @@ class BaseAgent(Agent):
                 },
                 {
                     "role": "system",
-                    "content": "Now you must reason step-by-step through the list of incomplete IMPORTANT SUBTASKS and the list of completed IMPORTANT SUBTASKS to determine the next IMPORTANT SUBTASK that needs completing. Then reason step-by-step to see if the action can be decomposed into multiple similar IMPORTANT SUBTASKs. next_important_subtask is detailed information with IDENTIFYING INFORMATION about this next IMPORTANT SUBTASK after it is decomposed if necessary. THIS IS IMPORTANT, if the goal has been completed or if there are no IMPORTANT SUBTASKs, your next_importan_subtask must be \"Stop\"."
+                    "content": "Now you must reason step-by-step through the list of all IMPORTANT SUBTASKS and the list of completed IMPORTANT SUBTASKS to determine the next IMPORTANT SUBTASK that needs completing. Then reason step-by-step to see if the action can be decomposed into multiple similar IMPORTANT SUBTASKs. next_important_subtask is detailed information with IDENTIFYING INFORMATION about this next IMPORTANT SUBTASK after it is decomposed if necessary. THIS IS IMPORTANT, if the goal has been completed or if there are no IMPORTANT SUBTASKs, your next_importan_subtask must be \"Stop\"."
                 }
             ]
             messages.append({"role": "user",
@@ -985,7 +985,7 @@ class BaseAgent(Agent):
                 # model="gpt-3.5-turbo-1106",
                 messages=prompt,
                 temperature=0,
-                max_tokens=2500,
+                max_tokens=4000,
                 # top_p=0,
                 seed=12345678
             )
