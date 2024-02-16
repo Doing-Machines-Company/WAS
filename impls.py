@@ -116,17 +116,17 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "You are an autonomous agent performing tasks for an user on a webshop. I am going to give you a main task, and an accessibility tree of the web page you are on. Some lines are start with a number in square brackets on the very left, these lines are actions you can select, you must select one action from the accessibility tree that is labeled with a number. The main task is your overall objective. The current subtask helps you complete the main task. "},
                 {"role": "system",
-                 "content": "Any information you see on the page is automatically stored in your memory by another agent. "},
+                 "content": "Any information you see on the page is automatically stored in your memory by another agent. Any information on an already visited page has been recorded in your memory be another agent. "},
                 {"role": "system",
                  "content": "You have the python function choose_option(task_number: int, input_string: Optional[str]) which takes in a number and an optional string. You must call the python function choose_option in your reply. The task_number is the option number you want to choose. You must give input_string only if the option has 'Input field'. Pay attention to all information enclosed in in parentheses. THIS IS IMPORTANT:\n Action choices without parantheses have not been attempted. "},
                 {"role": "system",
                  "content": "An GOOD SUBTASK is a subtask that is essential to the completion of a task. GOOD SUBTASKS are subtasks that must be completed in order for your task to be completed. GOOD SUBTASKs can be completed by a single action on the page. Tasks cannot be completed without completing all GOOD SUBTASKS. Any subtasks that involve discovery or navigation are BAD. "},
                 {"role": "system",
-                 "content": "First, tell me what page you are currently on, and what can be done on the page that is relevant to your task. First using the information in parentheses, list out all the actions and tasks that have already been completed. If the main task is irrelevant to the page or impossible, option 1 is optimal. If the current page is relevant to the task, then you MUST generate general GOOD SUBTASKs. "},
+                 "content": "First, tell me what page you are currently on, and what can be done on the page that is relevant to your task. First using the information in parentheses, list out all the actions and tasks that have already been completed. If the main task is irrelevant to the page or impossible (and all helpful options are explored), option 1 is optimal. If the current page is relevant to the task, then you MUST generate general GOOD SUBTASKs. "},
                 {"role": "system",
                  "content": "Then you must reason step-by-step through all alerts and information in the tree that is enclosed in parentheses, and reason step-by-step to determine if that information indicates that your task has already been completed or if the task is impossible. \n"},
                 {"role": "system",
-                 "content": "Then only if the task is possible and unfinished, you must reason step-by-step through all of your GOOD SUBTASKs to determine the first incomplete GOOD SUBTASK. The optimal action is the first action that completes a subtask that is still incomplete. If the main task has been completed (and all helpful options visited), option 0 is optimal. "}
+                 "content": "Then only if the task is possible and unfinished, you must reason step-by-step through all of your GOOD SUBTASKs to determine the first incomplete GOOD SUBTASK. The optimal action is the first action that completes a subtask that is still incomplete. If the main task has been completed (and all helpful options are explored), option 0 is optimal. "}
             ]
 
             if self.current_subtask:
@@ -291,7 +291,7 @@ class BaseAgent(Agent):
                 case Action.Type.CLICK_LINK:
                     if env_tags and env_tags in EnvironmentChange.change_log:
                         props.append("Already visited")
-                        role_name = "Go visit again"
+                        role_name = "Go visit again: "
                     else:
                         role_name = "Go visit for the first time: "
 
@@ -347,7 +347,7 @@ class BaseAgent(Agent):
         :param node_info:
         :return:
         '''
-        ignored_roles = ["ListMarker", "Image"]
+        ignored_roles = ["ListMarker", "Image", "LineBreak"]
         if node_info['role'] in ignored_roles:
             return True
         return False
@@ -440,7 +440,6 @@ class BaseAgent(Agent):
             tree_insert += '\n'
 
         return tree_insert, action_list
-
     def __get_starting_tree_and_actions(self, obs: AxObservation, memory=False):
         '''
         Gets the starting tree and actions for the prompt
@@ -459,7 +458,7 @@ class BaseAgent(Agent):
         if self.last_action_and_envtag:
 
             if self.last_different_page[0][1] and self.__aggressive_normalize_url(self.last_different_page[0][1]) != self.__aggressive_normalize_url(obs.url):
-                cleaned_tree += f"[{counter if not memory else ''}] Go back to page for {self.last_different_page[0][0]}\n"
+                cleaned_tree += f"[{counter if not memory else ''}] Go back to page for: {self.last_different_page[0][0]}\n"
                 goback_action = Action(Action.Type.GO_BACK, None, None)
                 goback_action.set_input_string(copy.deepcopy(self.last_different_page[0][1]))
 
@@ -487,6 +486,14 @@ class BaseAgent(Agent):
             cleaned_tree, action_list, counter = self.__get_starting_tree_and_actions(obs, memory)
 
         scanning_radios = False
+
+
+        row_headers = []
+        column_headers = []
+        current_table_counter = 0
+        curr_row = -1
+        curr_col = -1
+
         current_radio_nodes = []
         tabled_options = set()
 
@@ -558,6 +565,7 @@ class BaseAgent(Agent):
                         node_action.set_tree_line(tree_add)
                         action_list.append((node_action, env_tags))
                 else:
+                    # TODO Do tabling here!
                     if scanning_radios:
                         scanning_radios = False
                         if len(current_radio_nodes) > 0:
@@ -566,10 +574,51 @@ class BaseAgent(Agent):
                             action_list.extend(radio_actions)
                             current_radio_nodes = []
 
-                    cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
+
+                    if obs.nodes_info[i]['role'] == 'table':
+                        # Initialize a new table
+                        column_headers = []
+                        row_headers = []
+                        curr_row = -1
+                        curr_col = -1
+                        cleaned_tree += f"{obs.nodes_info[i]['indent']}Table of: {obs.nodes_info[i]['name']}\n"
+
+                    elif obs.nodes_info[i]['role'] == 'caption':
+                        continue
+
+                    elif obs.nodes_info[i]['role'] == 'row':
+                        curr_row = (curr_row + 1)
+
+                    elif obs.nodes_info[i]['role'] == 'columnheader':
+                        column_headers.append(obs.nodes_info[i]['name'])
+
+                    elif obs.nodes_info[i]['role'] == 'rowheader':
+                        row_headers.append(obs.nodes_info[i]['name'])
+
+                    elif obs.nodes_info[i]['role'] == 'gridcell':
+                        curr_col = (curr_col + 1) % len(column_headers)
+
+                        if curr_row < len(row_headers):
+                            row_head = row_headers[curr_row]
+                        else:
+                            row_head = None
+
+                        if curr_col < len(column_headers):
+                            col_head = column_headers[curr_col]
+                        else:
+                            col_head = None
+
+                        if row_head and col_head:
+                            cleaned_tree += f"{obs.nodes_info[i]['indent']}{row_head} and {col_head}: {obs.nodes_info[i]['name']}\n"
+                        elif row_head:
+                            cleaned_tree += f"{obs.nodes_info[i]['indent']}{row_head}: {obs.nodes_info[i]['name']}\n"
+                        elif col_head:
+                            cleaned_tree += f"{obs.nodes_info[i]['indent']}{col_head}: {obs.nodes_info[i]['name']}\n"
+                        else:
+                            cleaned_tree += f"{obs.nodes_info[i]['indent']}Option: {obs.nodes_info[i]['name']}\n"
+                    else:
+                        cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
             else:
-
-
                 if obs.nodes_info[i]['name'].strip != "":
                     cleaned_tree += f"{obs.nodes_info[i]['indent']}You are currently on the page for:\n {obs.nodes_info[i]['name']}\n"
                     if self.__aggressive_normalize_url(self.last_different_page[1][1]) != self.__aggressive_normalize_url(obs.url):
@@ -818,25 +867,23 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "SUBTASKs are tasks that MUST be completed in order for the main goal to be completed. "},
                 {"role": "system",
-                 "content": "IDENTIFYING INFORMATION are pieces of information which are essential to complete a SUBTASK. IDENTIFYING INFORMATION is one of the following: dates, product SKUs, and order numbers. "},
+                 "content": "BAD INFORMATION are pieces of information which are essential to complete a SUBTASK. IDENTIFYING INFORMATION includes: dates, product SKUs, style selections, and order numbers. BAD INFORMATION is bad, you don't want it. "},
                 {"role": "system",
                  "content": "I am going to give you the agent's main goal, a list of IMPORTANT SUBTASKs already gathered for the goal, and an accessibility tree of the web page the agent is currently on. "},
                 {"role": "system",
-                 "content": "A GOOD SUBTASK must have IDENTIFYING INFORMATION AND a task. "},
-                {"role": "system",
-                 "content": "THIS IS IMPORTANT: all GOOD SUBTASKs (including IDENTIFYING INFORMATION) MUST be combined to form an IMPORTANT SUBTASK. "},
+                 "content": "THIS IS IMPORTANT: all GOOD SUBTASKs MUST be combined to form an IMPORTANT SUBTASK. "},
                 {"role": "system",
                  "content": "THIS IS IMPORTANT: all GOOD SUBTASKs MUST help you complete your main goal. "},
                 {"role": "system",
                  "content": "Any SUBTASK that is irrelevant to your main goal is a BAD SUBTASK. A SUBTASK that is a duplicate of something in the list I give you is BAD. "},
                 {"role": "system",
-                 "content": "SUBTASKS relating to storing information are BAD, as information is automatically stored. SUBTASKS relating to navigation actions are BAD. "},
+                 "content": "THIS IS IMPORTANT: SUBTASKS relating to storing and recording information are BAD, as this is automatically done once the agent sees the page. "},
                 {"role": "system",
-                 "content": "THIS IS IMPROTANT, you must follow the following steps by reasoning step-by-step to complete your task: First you reason through the accessibility tree and list out EVERY SINGLE SUBTASK with their IDENTIFYING INFORMATION on the current page that help you complete your main goal (THIS IS IMPORTANT: LIST OUT EVERY SINGLE SUBTASK WITH THEIR IDENTIFYING INFORMATION). Secondly you MUST REASON one-by-one through these SUBTASKs to identify which SUBTASKs are GOOD. Thirdly look through the list of already gathered IMPORTANT SUBTASKs and keep the new GOOD SUBTASKs you've collected. Fourthly, go through every GOOD SUBTASK and use the accessibility tree I will give you to get the IDENTIFYING INFORMATION for each GOOD SUBTASK. Fifthly, combine ALL GOOD SUBTASKs WITH their IDENTIFYING INFORMATION into one IMPORTANT SUBTASK. Finally, give me the Python code calling ONLY the gather_important_subtasks function with either the IMPORTANT SUBTASK or None if there is no IMPORTANT SUBTASK. Pass in the parameter directly. "}
+                 "content": "THIS IS IMPROTANT, you must follow the following steps by reasoning step-by-step to complete your task: First you reason through the accessibility tree and list out EVERY SINGLE SUBTASK on the current page that may help you complete your main goal. Secondly, reason through the list of already gathered SUBTASKs you are given to eliminate duplicate subtasks you've found from the current page. Thirdly, you MUST REASON one-by-one through these SUBTASKs to identify which SUBTASKs are GOOD. Fourthly, combine ALL GOOD SUBTASKs into one IMPORTANT SUBTASK. Finally, give me the Python code calling ONLY the gather_important_subtasks function with either the IMPORTANT SUBTASK or None if there is no IMPORTANT SUBTASK. Pass in the parameter directly. "}
 
             ]
             messages.append({"role": "user",
-                             "content": f"Main goal: {self.intent}\nAlready gathered SUBTASKs: {self.to_do_memory}\nCurrent page accessibility tree: \n'''\n {cleaned_tree}\n'''\nGive me the code using the gather_important_subtasks function, you must include both actions and IDENTIFYING INFORMATION in your IMPORTANT SUBTASK. "})
+                             "content": f"Main goal: {self.intent}\nAlready gathered SUBTASKs: {self.to_do_memory}\nCurrent page accessibility tree: \n'''\n {cleaned_tree}\n'''\nAFTER REASONING, give me the code using the gather_important_subtasks function. "})
             return messages
 
     def __llm_get_important_subtask_call(self, prompt: list[dict], model_name: str) -> str:
