@@ -449,7 +449,7 @@ class BaseAgent(Agent):
         '''
         # TODO back button needs to be fucking fixed
 
-        cleaned_tree = f"[0] Nothing more to do (ONLY CHOOSE when there is nothing else to do)\n[1] Task is impossible on current page (ONLY CHOOSE if task can't be completed on current page and there are no more helpful visit options)\n"
+        cleaned_tree = f"[0] Nothing more to do (ONLY CHOOSE when there is nothing else to do)\n[1] Choose ONLY if task is impossible on current page (ONLY CHOOSE if task can't be completed on current page and there are no more helpful visit options)\n"
         action_list = [
             (Action(Action.Type.GET_NEXT_SUBTASK_FINISHED, None, None),
              EnvironmentChange(obs.url, None, Action.Type.GET_NEXT_SUBTASK_FINISHED)),
@@ -865,7 +865,7 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "You are an agent management specialist for a shopping website. You act as support for an agent completing a goal. "},
                 {"role": "system",
-                 "content": "You have one Python function here_are_good_subtasks(gathered_important_subtasks: str|None) that takes in a string or None. "},
+                 "content": "You have one Python function here_are_good_subtasks(gathered_good_subtasks: str|None) that takes in a string or None. "},
                 {"role": "system",
                  "content": "SUBTASKs are tasks that MUST be completed in order for the main goal to be completed. "},
                 {"role": "system",
@@ -875,17 +875,17 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "Any SUBTASK that is irrelevant to your main goal is a BAD SUBTASK. A SUBTASK that is a duplicate of something in the list I give you is BAD. "},
                 {"role": "system",
-                 "content": "THIS IS IMPORTANT: SUBTASKs relating to storing/recording information are BAD. "},
+                 "content": "THIS IS IMPORTANT: SUBTASKs relating to storing/recording information are BAD. SUBTASKs relating to filtering are BAD. "},
                 {"role": "system",
-                 "content": "THIS IS IMPORTANT: DO NOT PASS SPECIFIC INFORMATION LIKE SKUs, dates, and order numbers through here_are_good_subtasks. "},
+                 "content": "THIS IS IMPORTANT: \n1)DO NOT PASS SPECIFIC INFORMATION LIKE SKUs, dates, and order numbers through here_are_good_subtasks. \n2) gathered_good_subtasks DOES NOT contain any numbers or decriptives or specific information. \n3) gathered_good_subtasks does not quote specific website actions. "},
                 {"role": "system",
-                 "content": "First you must reason through the accessibility tree and list out EVERY SINGLE SUBTASK that may help you complete your main goal. Secondly, you must reason through the list SUBTASKs I ALREADY KNOW ABOUT I'm going to give you, then make sure that you are only giving me new GOOD SUBTASKs. Thirdly, you must reason one-by-one through these SUBTASKs to identify which SUBTASKs are GOOD. Fourthly, reason through your GOOD SUBTASKs and choose the first GOOD SUBTASK that is not in SUBTASKs I ALREADY KNOW ABOUT. Finally, if you have a GOOD SUBTASK, give me the Python code calling ONLY the here_are_good_subtasks using action words similar to the action words the agent's 'Main goal' uses. Pass in the parameter directly. "}
+                 "content": "First you must reason through the accessibility tree and list out EVERY SINGLE SUBTASK that may help you complete your main goal. Secondly, you must go through these SUBTASKs and keep the general SUBTASKs. Thirdly, you must reason through the list SUBTASKs I ALREADY KNOW ABOUT I'm going to give you, then make sure that you are only giving me new GOOD SUBTASKs. Fourthly, you must reason one-by-one through these SUBTASKs to identify which SUBTASKs are GOOD. Fifthly, reason through your GOOD SUBTASKs and choose the first GOOD SUBTASK that is not in SUBTASKs I ALREADY KNOW ABOUT. Finally, if you have a GOOD SUBTASK, formulate gathered_good_subtasks to pass here_are_good_subtasks using action words similar to the action words the agent's 'Main goal' uses. Then pass the string you formualted for gathered_good_subtasks into here_are_good_subtasks directly without using variables. "}
 
             ]
             subtasks_list = copy.copy(self.to_do_memory)
             subtasks_list.append("All GOOD SUBTASKs that can be completed STAYING ON the current page are already known.")
             messages.append({"role": "user",
-                             "content": f"Main goal: {self.intent}\nSUBTASKs I ALREADY KNOW ABOUT: {subtasks_list}\nCurrent page accessibility tree: \n'''\n {cleaned_tree}\n'''\nReason as instructed and only then give me the python code."})
+                             "content": f"Main goal: {self.intent}\nSUBTASKs I ALREADY KNOW ABOUT: {subtasks_list}\nCurrent page accessibility tree: \n'''\n {cleaned_tree}\n'''\nYOU MUST FIRST reason as instructed, and only AFTER REASONING you must then write me the python code using here_are_good_subtasks."})
             return messages
 
     def __llm_get_important_subtask_call(self, prompt: list[dict], model_name: str) -> str:
