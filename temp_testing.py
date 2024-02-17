@@ -31,6 +31,7 @@ intent = 'go through all my 2023 orders and see what food i bought in those orde
 agent = BaseAgent(intent)
 driver = MyDriver(agent,"poopfare", page)
 total_time = 0
+agent.handle_memory(driver.observe_state())
 while True:
     prev_time = time.time()
     action = driver.observe_state()

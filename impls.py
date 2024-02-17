@@ -122,19 +122,19 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "An GOOD SUBTASK is a subtask that is essential to the completion of a task. GOOD SUBTASKS are subtasks that must be completed in order for your task to be completed. GOOD SUBTASKs can be completed by a single action on the page. Tasks cannot be completed without completing all GOOD SUBTASKS. Any subtasks that involve discovery or navigation are BAD. "},
                 {"role": "system",
-                 "content": "First, tell me what page you are currently on, and what can be done on the page that is relevant to your task. First using the information in parentheses, list out all the actions and tasks that have already been completed. If the main task is irrelevant to the page or impossible (and all helpful options are explored), option 1 is optimal. If the current page is relevant to the task, then you MUST generate general GOOD SUBTASKs. "},
+                 "content": "First, tell me what page you are currently on, and what can be done on the page that is relevant to your task. First using the information in parentheses, list out all the actions and tasks that have already been completed. If there are no more helpful unvisited options that can be explored and the main task is irrelevant to the page and helpful visit options, option 1 is optimal. If the there are no more helpful unvisited options that can be explored and the main task is impossible, option 1 is optimal. If the current page is relevant to the task, then you MUST generate general GOOD SUBTASKs. "},
                 {"role": "system",
-                 "content": "Then you must reason step-by-step through all alerts and information in the tree that is enclosed in parentheses, and reason step-by-step to determine if that information indicates that your task has already been completed or if the task is impossible. \n"},
+                 "content": "Then you must reason step-by-step through all alerts and information in the tree that is enclosed in parentheses, and reason step-by-step to determine if that information indicates that your task has already been completed or if the task is impossible. Then you must reason through the accessibility tree to find unvisited pages which may be helpful. \n"},
                 {"role": "system",
-                 "content": "Then only if the task is possible and unfinished, you must reason step-by-step through all of your GOOD SUBTASKs to determine the first incomplete GOOD SUBTASK. The optimal action is the first action that completes a subtask that is still incomplete. If the main task has been completed (and all helpful options are explored), option 0 is optimal. "}
+                 "content": "Then only if the task is possible and unfinished, you must reason step-by-step through all of your GOOD SUBTASKs to determine the first incomplete GOOD SUBTASK. The optimal action is the first action that completes a subtask that is still incomplete. If the main task has been completed, option 0 is optimal. Finally, you must give me the Python code using the Python function choose_option."}
             ]
 
             if self.current_subtask:
                 messages.append({"role": "user",
-                                 f"content": f"This is your main task: {self.intent}\nThis is your current subtask: {self.current_subtask}\nHere is the accessibility tree: \n'''\n {cleaned_tree}\n'''\nNow reason according to instructions and then give me the python code using your choice."})
+                                 f"content": f"This is your main task: {self.intent}\nThis is your current subtask: {self.current_subtask}\nHere is the accessibility tree: \n'''\n {cleaned_tree}\n'''\nReason then write me python code using choose_options. "})
             else:
                 messages.append({"role": "user",
-                                 f"content": f"This is your main task: {self.intent}\nThis is your current subtask: {self.intent}\nHere is the accessibility tree: \n'''\n {cleaned_tree}\n'''\nNow reason according to instructions and then give me the python code using your choice"})
+                                 f"content": f"This is your main task: {self.intent}\nThis is your current subtask: {self.intent}\nHere is the accessibility tree: \n'''\n {cleaned_tree}\n'''\nReason then write me python code using choose_options. "})
 
             print(self.intent)
             print(self.current_subtask)
@@ -246,24 +246,25 @@ class BaseAgent(Agent):
         currently_ignored = ['gridcell', 'columnheader', 'rowheader', 'tab',
             'tabpanel', 'row', 'rowgroup', 'search', 'heading']
 
-        if xpath.strip() != "" and html.strip() != "":
-            if role.strip() == 'link':
-                return Action(Action.Type.CLICK_LINK, xpath, html)
+        if xpath and html:
+            if xpath.strip() != "" and html.strip() != "":
+                if role.strip() == 'link':
+                    return Action(Action.Type.CLICK_LINK, xpath, html)
 
-            elif role.strip() in important_clickables:
-                return Action(Action.Type.CLICK_IMPORTANT, xpath, html)
+                elif role.strip() in important_clickables:
+                    return Action(Action.Type.CLICK_IMPORTANT, xpath, html)
 
-            elif role.strip() == 'radio':
-                return Action(Action.Type.CLICK_RADIO, xpath, html)
+                elif role.strip() == 'radio':
+                    return Action(Action.Type.CLICK_RADIO, xpath, html)
 
-            elif role.strip() == 'checkbox':
-                return Action(Action.Type.CLICK_CHECKBOX, xpath, html)
+                elif role.strip() == 'checkbox':
+                    return Action(Action.Type.CLICK_CHECKBOX, xpath, html)
 
-            elif role.strip() in general_clickables:
-                return Action(Action.Type.CLICK_GENERAL, xpath, html)
+                elif role.strip() in general_clickables:
+                    return Action(Action.Type.CLICK_GENERAL, xpath, html)
 
-            elif role.strip() in input_roles:
-                return Action(Action.Type.INPUT, xpath, html)
+                elif role.strip() in input_roles:
+                    return Action(Action.Type.INPUT, xpath, html)
 
         return None
 
@@ -291,9 +292,10 @@ class BaseAgent(Agent):
                 case Action.Type.CLICK_LINK:
                     if env_tags and env_tags in EnvironmentChange.change_log:
                         props.append("Already visited")
-                        role_name = "Go visit again: "
+                        role_name = "Choose to visit another webshop page again: "
                     else:
-                        role_name = "Go visit for the first time: "
+                        role_name = "Choose to visit another webshop page for the first time: "
+                        props.append("Univisited")
 
 
                 case Action.Type.CLICK_IMPORTANT:
@@ -447,7 +449,7 @@ class BaseAgent(Agent):
         '''
         # TODO back button needs to be fucking fixed
 
-        cleaned_tree = f"[0] Nothing more to do (ONLY CHOOSE when there is nothing else to do)\n[1] Task is impossible on current page (ONLY CHOOSE if task can't be completed on current page)\n"
+        cleaned_tree = f"[0] Nothing more to do (ONLY CHOOSE when there is nothing else to do)\n[1] Task is impossible on current page (ONLY CHOOSE if task can't be completed on current page and there are no more helpful visit options)\n"
         action_list = [
             (Action(Action.Type.GET_NEXT_SUBTASK_FINISHED, None, None),
              EnvironmentChange(obs.url, None, Action.Type.GET_NEXT_SUBTASK_FINISHED)),
@@ -863,27 +865,27 @@ class BaseAgent(Agent):
                 {"role": "system",
                  "content": "You are an agent management specialist for a shopping website. You act as support for an agent completing a goal. "},
                 {"role": "system",
-                 "content": "You have one Python function gather_important_subtasks(gathered_important_subtasks: str|None) that takes in a string or None."},
+                 "content": "You have one Python function here_are_good_subtasks(gathered_important_subtasks: str|None) that takes in a string or None. "},
                 {"role": "system",
                  "content": "SUBTASKs are tasks that MUST be completed in order for the main goal to be completed. "},
                 {"role": "system",
-                 "content": "BAD INFORMATION are pieces of information which are essential to complete a SUBTASK. IDENTIFYING INFORMATION includes: dates, product SKUs, style selections, and order numbers. BAD INFORMATION is bad, you don't want it. "},
-                {"role": "system",
                  "content": "I am going to give you the agent's main goal, a list of IMPORTANT SUBTASKs already gathered for the goal, and an accessibility tree of the web page the agent is currently on. "},
                 {"role": "system",
-                 "content": "THIS IS IMPORTANT: all GOOD SUBTASKs MUST be combined to form an IMPORTANT SUBTASK. "},
-                {"role": "system",
-                 "content": "THIS IS IMPORTANT: all GOOD SUBTASKs MUST help you complete your main goal. "},
+                 "content": "THESE THINGS ARE IMPORTANT: \n1) A GOOD SUBTASK MUST help you complete the agent's main goal. \n2) A GOOD SUBTASK is general and ONLY contain actions. \n3) A GOOD SUBTASK is very general and does not contain any numbers or decriptives or specific information or specific website actions. \n4) A GOOD SUBTASK only uses action words similar to the action words the main goal uses. "},
                 {"role": "system",
                  "content": "Any SUBTASK that is irrelevant to your main goal is a BAD SUBTASK. A SUBTASK that is a duplicate of something in the list I give you is BAD. "},
                 {"role": "system",
-                 "content": "THIS IS IMPORTANT: SUBTASKS relating to storing and recording information are BAD, as this is automatically done once the agent sees the page. "},
+                 "content": "THIS IS IMPORTANT: SUBTASKs relating to storing/recording information are BAD. "},
                 {"role": "system",
-                 "content": "THIS IS IMPROTANT, you must follow the following steps by reasoning step-by-step to complete your task: First you reason through the accessibility tree and list out EVERY SINGLE SUBTASK on the current page that may help you complete your main goal. Secondly, reason through the list of already gathered SUBTASKs you are given to eliminate duplicate subtasks you've found from the current page. Thirdly, you MUST REASON one-by-one through these SUBTASKs to identify which SUBTASKs are GOOD. Fourthly, combine ALL GOOD SUBTASKs into one IMPORTANT SUBTASK. Finally, give me the Python code calling ONLY the gather_important_subtasks function with either the IMPORTANT SUBTASK or None if there is no IMPORTANT SUBTASK. Pass in the parameter directly. "}
+                 "content": "THIS IS IMPORTANT: DO NOT PASS SPECIFIC INFORMATION LIKE SKUs, dates, and order numbers through here_are_good_subtasks. "},
+                {"role": "system",
+                 "content": "First you must reason through the accessibility tree and list out EVERY SINGLE SUBTASK that may help you complete your main goal. Secondly, you must reason through the list SUBTASKs I ALREADY KNOW ABOUT I'm going to give you, then make sure that you are only giving me new GOOD SUBTASKs. Thirdly, you must reason one-by-one through these SUBTASKs to identify which SUBTASKs are GOOD. Fourthly, reason through your GOOD SUBTASKs and choose the first GOOD SUBTASK that is not in SUBTASKs I ALREADY KNOW ABOUT. Finally, if you have a GOOD SUBTASK, give me the Python code calling ONLY the here_are_good_subtasks using action words similar to the action words the agent's 'Main goal' uses. Pass in the parameter directly. "}
 
             ]
+            subtasks_list = copy.copy(self.to_do_memory)
+            subtasks_list.append("All GOOD SUBTASKs that can be completed STAYING ON the current page are already known.")
             messages.append({"role": "user",
-                             "content": f"Main goal: {self.intent}\nAlready gathered SUBTASKs: {self.to_do_memory}\nCurrent page accessibility tree: \n'''\n {cleaned_tree}\n'''\nAFTER REASONING, give me the code using the gather_important_subtasks function. "})
+                             "content": f"Main goal: {self.intent}\nSUBTASKs I ALREADY KNOW ABOUT: {subtasks_list}\nCurrent page accessibility tree: \n'''\n {cleaned_tree}\n'''\nReason as instructed and only then give me the python code."})
             return messages
 
     def __llm_get_important_subtask_call(self, prompt: list[dict], model_name: str) -> str:
@@ -905,8 +907,8 @@ class BaseAgent(Agent):
                 seed=818181818
             )
             result = response.choices[0].message.content
-            pattern1 = r"gather_important_subtasks\(\"(.*?)\"\)"
-            pattern2 = r"gather_important_subtasks\(\'(.*?)\'\)"
+            pattern1 = r"here_are_good_subtasks\(\"(.*?)\"\)"
+            pattern2 = r"here_are_good_subtasks\(\'(.*?)\'\)"
 
             # Searching the LLM output for the pattern
             matches1 = re.findall(pattern1, result)
@@ -1064,105 +1066,117 @@ class BaseAgent(Agent):
         :param new_obs: 
         :return: 
         '''
-        if self.last_action_and_envtag[0].action_type != Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE:
-            self.impossible_call_result = {'command': None, 'done_something_not_impossible': True}
+        if self.last_action_and_envtag:
+            if self.last_action_and_envtag[0].action_type != Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE:
+                self.impossible_call_result = {'command': None, 'done_something_not_impossible': True}
 
-        match self.last_action_and_envtag[0].action_type:
-            case Action.Type.STOP:
-                return
-            case Action.Type.INPUT:
-                important_subtask_prompt = self.__llm_get_important_subtask_prompt(new_obs,
-                                                                                   model_name='gpt-3.5-turbo-0125')
-                important_subtask = self.__llm_get_important_subtask_call(important_subtask_prompt,
-                                                                          model_name='gpt-3.5-turbo-0125')
+            match self.last_action_and_envtag[0].action_type:
+                case Action.Type.STOP:
+                    return
+                case Action.Type.INPUT:
+                    important_subtask_prompt = self.__llm_get_important_subtask_prompt(new_obs,
+                                                                                       model_name='gpt-3.5-turbo-0125')
+                    important_subtask = self.__llm_get_important_subtask_call(important_subtask_prompt,
+                                                                              model_name='gpt-3.5-turbo-0125')
 
-                if important_subtask and important_subtask.strip() != "None":
-                    self.to_do_memory.append(important_subtask)
-                if self.current_subtask == None:
-                    self.current_subtask = important_subtask
+                    if important_subtask and important_subtask.strip() != "None":
+                        self.to_do_memory.append(important_subtask)
+                    if self.current_subtask == None:
+                        self.current_subtask = important_subtask
 
-            case Action.Type.CLICK_GENERAL:
-                important_subtask_prompt = self.__llm_get_important_subtask_prompt(new_obs,
-                                                                                   model_name='gpt-3.5-turbo-0125')
-                important_subtask = self.__llm_get_important_subtask_call(important_subtask_prompt,
-                                                                          model_name='gpt-3.5-turbo-0125')
+                case Action.Type.CLICK_GENERAL:
+                    important_subtask_prompt = self.__llm_get_important_subtask_prompt(new_obs,
+                                                                                       model_name='gpt-3.5-turbo-0125')
+                    important_subtask = self.__llm_get_important_subtask_call(important_subtask_prompt,
+                                                                              model_name='gpt-3.5-turbo-0125')
 
-                if important_subtask and important_subtask.strip() != "None":
-                    self.to_do_memory.append(important_subtask)
-                if self.current_subtask == None:
-                    self.current_subtask = important_subtask
+                    if important_subtask and important_subtask.strip() != "None":
+                        self.to_do_memory.append(important_subtask)
+                    if self.current_subtask == None:
+                        self.current_subtask = important_subtask
 
-            case Action.Type.CLICK_LINK:
-                important_subtask_prompt = self.__llm_get_important_subtask_prompt(new_obs,
-                                                                                   model_name = 'gpt-3.5-turbo-0125')
-                important_subtask = self.__llm_get_important_subtask_call(important_subtask_prompt,
-                                                                          model_name = 'gpt-3.5-turbo-0125')
+                case Action.Type.CLICK_LINK:
+                    important_subtask_prompt = self.__llm_get_important_subtask_prompt(new_obs,
+                                                                                       model_name = 'gpt-3.5-turbo-0125')
+                    important_subtask = self.__llm_get_important_subtask_call(important_subtask_prompt,
+                                                                              model_name = 'gpt-3.5-turbo-0125')
 
-                if important_subtask and important_subtask.strip() != "None":
-                    self.to_do_memory.append(important_subtask)
-                if self.current_subtask == None:
-                    self.current_subtask = important_subtask
+                    if important_subtask and important_subtask.strip() != "None":
+                        self.to_do_memory.append(important_subtask)
+                    if self.current_subtask == None:
+                        self.current_subtask = important_subtask
 
-            case Action.Type.CLICK_IMPORTANT:
-                # don't do this if new url is diff from old url
-                task_eval_prompt = self.__construct_completion_evaluation_prompt(new_obs, model_name = 'gpt-3.5-turbo-0125')
-                task_mem = self.__llm_completion_evaluation(task_eval_prompt, model_name = 'gpt-3.5-turbo-0125')
-                # task_mem = "Previously failed because requested quantity is unavailable"
-                if task_mem != "":
-                    EnvironmentChange.change_log[self.last_action_and_envtag[1]] = task_mem
+                case Action.Type.CLICK_IMPORTANT:
+                    # don't do this if new url is diff from old url
+                    task_eval_prompt = self.__construct_completion_evaluation_prompt(new_obs, model_name = 'gpt-3.5-turbo-0125')
+                    task_mem = self.__llm_completion_evaluation(task_eval_prompt, model_name = 'gpt-3.5-turbo-0125')
+                    # task_mem = "Previously failed because requested quantity is unavailable"
+                    if task_mem != "":
+                        EnvironmentChange.change_log[self.last_action_and_envtag[1]] = task_mem
 
-                important_subtask_prompt = self.__llm_get_important_subtask_prompt(new_obs,
-                                                                                   model_name='gpt-3.5-turbo-0125')
-                important_subtask = self.__llm_get_important_subtask_call(important_subtask_prompt,
-                                                                          model_name='gpt-3.5-turbo-0125')
+                    important_subtask_prompt = self.__llm_get_important_subtask_prompt(new_obs,
+                                                                                       model_name='gpt-3.5-turbo-0125')
+                    important_subtask = self.__llm_get_important_subtask_call(important_subtask_prompt,
+                                                                              model_name='gpt-3.5-turbo-0125')
 
-                if important_subtask and important_subtask.strip() != "None":
-                    self.to_do_memory.append(important_subtask)
-                if self.current_subtask == None:
-                    self.current_subtask = important_subtask
+                    if important_subtask and important_subtask.strip() != "None":
+                        self.to_do_memory.append(important_subtask)
+                    if self.current_subtask == None:
+                        self.current_subtask = important_subtask
 
-            case Action.Type.GET_NEXT_SUBTASK_FINISHED:
+                case Action.Type.GET_NEXT_SUBTASK_FINISHED:
 
-                if self.current_subtask == None: # TODO this is jank, self.intent is poorly semantically formatted for a llm
-                    self.already_done_memory.append(self.intent)
-                else:
-                    self.already_done_memory.append(self.current_subtask)
+                    if self.current_subtask == None: # TODO this is jank, self.intent is poorly semantically formatted for a llm
+                        self.already_done_memory.append(self.intent)
+                    else:
+                        self.already_done_memory.append(self.current_subtask)
 
-                long_range_memory_prompt = self.__llm_next_task_finished_prompt(model_name = 'gpt-3.5-turbo-0125')
-                new_to_do = self.__llm_long_next_task_finished_call(long_range_memory_prompt, model_name = 'gpt-3.5-turbo-0125')
-                self.current_subtask = new_to_do
+                    long_range_memory_prompt = self.__llm_next_task_finished_prompt(model_name = 'gpt-3.5-turbo-0125')
+                    new_to_do = self.__llm_long_next_task_finished_call(long_range_memory_prompt, model_name = 'gpt-3.5-turbo-0125')
+                    self.current_subtask = new_to_do
 
-                # TODO HANDLE NEW TO DO AND SHRUNK TASK
-            case Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE:
-                if self.impossible_call_result['done_something_not_impossible'] == True:
-                    long_range_memory_prompt = self.__llm_long_next_task_impossible_prompt(model_name='gpt-3.5-turbo-0125')
-                    self.impossible_call_result['command'] = self.__llm_long_next_task_impossible_call(long_range_memory_prompt,
-                                                                             model_name='gpt-3.5-turbo-0125')
-                    self.impossible_call_result['done_something_not_impossible'] = False
-                elif self.impossible_call_result['done_something_not_impossible'] == True:
-                    self.impossible_call_result['command'] = Action.Type.STOP
+                    # TODO HANDLE NEW TO DO AND SHRUNK TASK
+                case Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE:
+                    if self.impossible_call_result['done_something_not_impossible'] == True:
+                        long_range_memory_prompt = self.__llm_long_next_task_impossible_prompt(model_name='gpt-3.5-turbo-0125')
+                        self.impossible_call_result['command'] = self.__llm_long_next_task_impossible_call(long_range_memory_prompt,
+                                                                                 model_name='gpt-3.5-turbo-0125')
+                        self.impossible_call_result['done_something_not_impossible'] = False
+                    elif self.impossible_call_result['done_something_not_impossible'] == True:
+                        self.impossible_call_result['command'] = Action.Type.STOP
 
-            case Action.Type.GOTO_URL:
-                important_subtask_prompt = self.__llm_get_important_subtask_prompt(new_obs,
-                                                                                   model_name='gpt-3.5-turbo-0125')
-                important_subtask = self.__llm_get_important_subtask_call(important_subtask_prompt,
-                                                                          model_name='gpt-3.5-turbo-0125')
+                case Action.Type.GOTO_URL:
+                    important_subtask_prompt = self.__llm_get_important_subtask_prompt(new_obs,
+                                                                                       model_name='gpt-3.5-turbo-0125')
+                    important_subtask = self.__llm_get_important_subtask_call(important_subtask_prompt,
+                                                                              model_name='gpt-3.5-turbo-0125')
 
-                if important_subtask and important_subtask.strip() != "None":
-                    self.to_do_memory.append(important_subtask)
-                if self.current_subtask == None:
-                    self.current_subtask = important_subtask
+                    if important_subtask and important_subtask.strip() != "None":
+                        self.to_do_memory.append(important_subtask)
+                    if self.current_subtask == None:
+                        self.current_subtask = important_subtask
 
-            case Action.Type.GO_BACK:
-                important_subtask_prompt = self.__llm_get_important_subtask_prompt(new_obs,
-                                                                                   model_name='gpt-3.5-turbo-0125')
-                important_subtask = self.__llm_get_important_subtask_call(important_subtask_prompt,
-                                                                          model_name='gpt-3.5-turbo-0125')
+                case Action.Type.GO_BACK:
+                    important_subtask_prompt = self.__llm_get_important_subtask_prompt(new_obs,
+                                                                                       model_name='gpt-3.5-turbo-0125')
+                    important_subtask = self.__llm_get_important_subtask_call(important_subtask_prompt,
+                                                                              model_name='gpt-3.5-turbo-0125')
 
-                if important_subtask and important_subtask.strip() != "None":
-                    self.to_do_memory.append(important_subtask)
-                if self.current_subtask == None:
-                    self.current_subtask = important_subtask
+                    if important_subtask and important_subtask.strip() != "None":
+                        self.to_do_memory.append(important_subtask)
+                    if self.current_subtask == None:
+                        self.current_subtask = important_subtask
+
+        else:
+            important_subtask_prompt = self.__llm_get_important_subtask_prompt(new_obs,
+                                                                               model_name='gpt-3.5-turbo-0125')
+            important_subtask = self.__llm_get_important_subtask_call(important_subtask_prompt,
+                                                                      model_name='gpt-3.5-turbo-0125')
+
+            if important_subtask and important_subtask.strip() != "None":
+                self.to_do_memory.append(important_subtask)
+            if self.current_subtask == None:
+                self.current_subtask = important_subtask
 
 
 
@@ -1180,7 +1194,7 @@ class BaseAgent(Agent):
                 # model="gpt-3.5-turbo-1106",
                 messages=prompt,
                 temperature=0,
-                max_tokens=2500,
+                max_tokens=4096,
                 # top_p=0,
                 seed=12345678
             )
