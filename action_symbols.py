@@ -23,7 +23,8 @@ class ActionSymbol:
         self.name = name
         self.action_description = description
         self.page_action_type = None # some relation to actual page actions would be good?
-        self.object_description = None
+        self.object_description_hidden = None
+        self.object_description_visible = None # for planning
         self.candidate_HTML = None
 
     def get_info(self):
