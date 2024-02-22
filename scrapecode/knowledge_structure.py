@@ -1,3 +1,5 @@
+from action_symbols import ActionSymbol
+
 '''
 
 We need a good action space built of symbols
@@ -60,4 +62,4 @@ class ActionSpace:
     def __init__(self, name, description):
         self.name = name # for human reference only
         self.description = description # for human reference only
-        self.actions = []
+        self.actions : list[ActionSymbol] = []

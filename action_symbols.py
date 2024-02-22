@@ -1,5 +1,7 @@
+from action import Action
+
 class ActionSymbol:
-    def __init__(self, name=None, description=None, page_action_type=None, object_description=None,
+    def __init__(self, name=None, description=None, page_action_type: Action.Type = None, object_description=None,
                  ):
         '''
         self.object_description
@@ -22,8 +24,8 @@ class ActionSymbol:
         '''
         self.name = name
         self.action_description = description
-        self.page_action_type = None # some relation to actual page actions would be good?
-        self.object_description_hidden = None
+        self.page_action_type = page_action_type # some relation to actual page actions would be good?
+        self.object_description_hidden = None # for task memory
         self.object_description_visible = None # for planning
         self.candidate_HTML = None
 
