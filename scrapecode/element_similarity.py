@@ -1,6 +1,7 @@
 from playwright.sync_api import sync_playwright
 import difflib
 from io import StringIO
+import json
 from html.parser import HTMLParser
 from bs4 import BeautifulSoup
 
@@ -97,18 +98,25 @@ url2 = "https://www.amazon.com/gp/product/B002RI97SO?storeType=ebooks&pf_rd_p=11
 # url2 = "https://www.amazon.com/live?ref_=nav_cs_amazonlive"
 # url2 = "https://www.amazon.com/Brita-Replacement-BPA-Free-Replaces-Essential/dp/B082TJ4BP6?pd_rd_w=ZNrTH&content-id=amzn1.sym.80b2efcb-1985-4e3a-b8e5-050c8b58b7cf&pf_rd_p=80b2efcb-1985-4e3a-b8e5-050c8b58b7cf&pf_rd_r=04W3NQN7GAKTMN98KCK4&pd_rd_wg=jjnCM&pd_rd_r=2bad8d94-1c69-4a13-ad5f-77ded14e3bee&pd_rd_i=B082TJ4BP6&psc=1&ref_=pd_bap_d_grid_rp_0_10_i"
 # url2 = "https://www.amazon.com/Optimum-Nutrition-Micronized-Monohydrate-Unflavored/dp/B002DYIZEO?pd_rd_w=ZNrTH&content-id=amzn1.sym.80b2efcb-1985-4e3a-b8e5-050c8b58b7cf&pf_rd_p=80b2efcb-1985-4e3a-b8e5-050c8b58b7cf&pf_rd_r=04W3NQN7GAKTMN98KCK4&pd_rd_wg=jjnCM&pd_rd_r=2bad8d94-1c69-4a13-ad5f-77ded14e3bee&pd_rd_i=B002DYIZEO&psc=1&ref_=pd_bap_d_grid_rp_0_4_i"
-with sync_playwright() as p:
-    browser = p.chromium.launch(headless=False)
-    page = browser.new_page()
-    page.goto(url1)
-    input("wait for load")
-    document_1 = page.content()
+# with sync_playwright() as p:
+#     browser = p.chromium.launch(headless=False)
+#     page = browser.new_page()
+#     page.goto(url1)
+#     input("wait for load")
+#     document_1 = page.content()
+#
+#     page.goto(url2)
+#     input("wait for load")
+#     document_2 = page.content()
 
-    page.goto(url2)
-    input("wait for load")
-    document_2 = page.content()
+with open('el1.json', 'r') as file:
+    data = json.load(file)
+    document_1 = data["my_string"]
 
+with open('el2.json', 'r') as file:
+    data = json.load(file)
+    document_2 = data["my_string"]
 
-simm = similarity(document_1, document_2)
+simm = style_similarity(document_1, document_2)
 
 print(simm)
