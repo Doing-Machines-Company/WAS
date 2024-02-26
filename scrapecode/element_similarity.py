@@ -91,7 +91,7 @@ def similarity(document_1, document_2, k=0.6):
     print(f"Structural Similarity: {structural_sim}")
     print(f"Style Similarity: {style_sim}")
 
-    return k * structural_sim + (1 - k) * style_sim
+    return min(structural_sim, style_sim)
 
 
 # Example usage
