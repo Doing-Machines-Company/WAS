@@ -29,4 +29,4 @@ class Action:
         self.tree_line = tree_line
 
     def __repr__(self) -> str:
-        return str(f"{self.action_type.name}, {self.xpath}, {self.html}, {self.input_string if self.input_string else 'N/A'}")
+        return str(f"{self.action_type.name}{'(' + self.input_string + ')' if self.input_string else ''}:{self.xpath}({self.html[:100]})")

@@ -2,15 +2,12 @@ import re
 from playwright.sync_api import sync_playwright
 from models import WebDriver, Action
 from models import PageObservation
-from impls import *
+# from impls import *
 from action import Action
 class AxObservation(PageObservation):
-    def __init__(self, axtree, client):
+    def __init__(self, axtree, url):
         self.axtree = axtree
-        self.url = client.send("Runtime.evaluate", {
-            "expression": "location.href",
-            "returnByValue": True
-        })["result"]["value"]
+        self.url = url
         node_id_to_idx = {}
         for idx, node in enumerate(self.axtree):
             node_id_to_idx[node["nodeId"]] = idx
@@ -19,7 +16,6 @@ class AxObservation(PageObservation):
 
         def dfs(idx: int, obs_node_id: str, depth: int) -> str:
             pua_cleaner = re.compile('[\ue000-\uf8ff]')
-            tree_str = ""
             node = self.axtree[idx]
             indent = "\t" * depth
             valid_node = True
@@ -188,7 +184,11 @@ class MyDriver(WebDriver):
                 if 'html' not in node:
                     node['html'] = ''
                 continue
-        observation = AxObservation(accessibility_tree, self.client)
+        url = self.client.send("Runtime.evaluate", {
+            "expression": "location.href",
+            "returnByValue": True
+        })["result"]["value"]
+        observation = AxObservation(accessibility_tree, url)
         return observation
 
     def apply(self, a : Action): # TODO NEED TO MAKE LESS BAD
