@@ -108,8 +108,6 @@ class BaseAgent(Agent):
         :return: 
         '''
         cleaned_tree, action_list = self.__process_axtree(cur_obs)
-        print(cleaned_tree)
-        input("Look at tree for get next action")
 
         if model_name.startswith('gpt'):
             messages = [
@@ -576,50 +574,7 @@ class BaseAgent(Agent):
                             action_list.extend(radio_actions)
                             current_radio_nodes = []
 
-
-                    if obs.nodes_info[i]['role'] == 'table':
-                        # Initialize a new table
-                        column_headers = []
-                        row_headers = []
-                        curr_row = -1
-                        curr_col = -1
-                        cleaned_tree += f"{obs.nodes_info[i]['indent']}Table of: {obs.nodes_info[i]['name']}\n"
-
-                    elif obs.nodes_info[i]['role'] == 'caption':
-                        continue
-
-                    elif obs.nodes_info[i]['role'] == 'row':
-                        curr_row = (curr_row + 1)
-
-                    elif obs.nodes_info[i]['role'] == 'columnheader':
-                        column_headers.append(obs.nodes_info[i]['name'])
-
-                    elif obs.nodes_info[i]['role'] == 'rowheader':
-                        row_headers.append(obs.nodes_info[i]['name'])
-
-                    elif obs.nodes_info[i]['role'] == 'gridcell':
-                        curr_col = (curr_col + 1) % len(column_headers)
-
-                        if curr_row < len(row_headers):
-                            row_head = row_headers[curr_row]
-                        else:
-                            row_head = None
-
-                        if curr_col < len(column_headers):
-                            col_head = column_headers[curr_col]
-                        else:
-                            col_head = None
-
-                        if row_head and col_head:
-                            cleaned_tree += f"{obs.nodes_info[i]['indent']}{row_head} and {col_head}: {obs.nodes_info[i]['name']}\n"
-                        elif row_head:
-                            cleaned_tree += f"{obs.nodes_info[i]['indent']}{row_head}: {obs.nodes_info[i]['name']}\n"
-                        elif col_head:
-                            cleaned_tree += f"{obs.nodes_info[i]['indent']}{col_head}: {obs.nodes_info[i]['name']}\n"
-                        else:
-                            cleaned_tree += f"{obs.nodes_info[i]['indent']}Option: {obs.nodes_info[i]['name']}\n"
-                    else:
-                        cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
+                    cleaned_tree += f"{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
             else:
                 if obs.nodes_info[i]['name'].strip != "":
                     cleaned_tree += f"{obs.nodes_info[i]['indent']}You are currently on the page for:\n {obs.nodes_info[i]['name']}\n"
