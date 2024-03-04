@@ -15,23 +15,18 @@ page = context.new_page()
 client = page.context.new_cdp_session(page)  # talk to chrome devtools
 client.send("Accessibility.enable")
 page.client = client
-page.goto("http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/customer/account/login/")
-page.get_by_label("Email", exact=True).fill('emma.lopez@gmail.com')
-page.get_by_label("Password", exact=True).fill('Password.123')
-page.get_by_role("button", name="Sign In").click()
-url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770'
-url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/sales/order/history/'
+url = 'https://www.amazon.com/'
 # url = 'http://ec2-18-189-15-215.us-east-2.compute.amazonaws.com:7770/towmus-men-polo-shirts-men-s-polo-shirts-short-sleeve-print-casual-patchwork-collared-pocket-polo-shirts-for-men-tees.html'
 page.goto(url)
 # set the first page as the current page
 page = context.pages[0]
 page.bring_to_front()
-intent = 'go through all my 2023 orders and see what food i bought in those orders'
+intent = 'buy me the first five nietzsche books'
 # intent = "click a link"
 agent = BaseAgent(intent)
 driver = MyDriver(agent,"poopfare", page)
 total_time = 0
-agent.handle_memory(driver.observe_state())
+# agent.handle_memory(driver.observe_state())
 while True:
     prev_time = time.time()
     action = driver.observe_state()
