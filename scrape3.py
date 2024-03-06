@@ -8,7 +8,7 @@ from time import sleep
 from dataclasses import dataclass
 from urllib.parse import urlparse, urlunparse
 from scrapecode.page_similarity import page_similarity
-from scrapecode.element_similarity import similarity
+from scrapecode.element_similarity import element_similarity
 
 PlaywrightPage = Any
 CDPSession = Any
@@ -122,11 +122,16 @@ def ax_node_to_action(ax_node: AxNode) -> Optional[Action]:
     xpath = ax_node["xpath"]
     html = ax_node["html"]
     role = ax_node["role"]
+
     if xpath and html and xpath.strip() != "" and html.strip() != "":
         if role.strip() == 'link':
             return Action(Action.Type.CLICK_LINK, xpath, html)
 
         elif role.strip() in important_clickables:
+            # if 'Save with Used' in html:
+            #     print(f"ROLE: {role}")
+            #     print(f"HTML: {html}")
+            #     print(f"XPATH: {xpath}")
             return Action(Action.Type.CLICK_IMPORTANT, xpath, html)
 
         elif role.strip() == 'radio':
@@ -254,7 +259,7 @@ def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
 
 
 def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False):
-    assert normalize_url(starting_url) == starting_url
+    # assert normalize_url(starting_url) == starting_url
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless)
         context = browser.new_context(
@@ -269,6 +274,7 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
         G = ObservationGraph()
 
         page.goto(starting_url)
+        input("wait a bit")
         wait_for_load(page)
 
         def explore_page() -> Optional[PageObservation]:
@@ -290,8 +296,12 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
             if visited: return n
 
             G.add_node(n)
+            print(cleaned)
+            exit()
 
             page_actions = [a for node in cleaned.nodes_info if (a := ax_node_to_action(node)) is not None]
+
+
 
             print(f"Found {len(page_actions)} actions on {url}")
 
@@ -320,4 +330,5 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
         explore_page()
 
 
-explore("https://us.supreme.com/pages/shop")
+# explore("https://us.supreme.com/pages/shop")
+explore("https://www.amazon.com/Brita-Filter-Pitcher-Standard-Without/dp/B09W4PLVQP/ref=sr_1_7?crid=3LCD2O3C4HNKO&dib=eyJ2IjoiMSJ9.XDFWvhkafbpG8bvke6HUJ1m7eZxOWDVPyhN0MM4tp6A4cF0UNkO2YR9ZtyNOPwzoqrhKHmWWbV5CJxzG_lRfHMy7Vu9fEwo2prr0asnohjrskeR_uMRTyEEIbN3DsS_6Lk-XDjigWxQVxqlDGGkd4MSDIPaU6nltNygG4URYkFf1b5Ib3p_3qlRvmELVRFo3-RxQ95GQVOW1jbYZErMvw5cv0OfHHHobJvcNrc-AgKKc8wXKTyJ4rW4b-FBLokmA23RnUPMO-yC4NJDvodqNabZ-AIbXrRh528W_Y-AwkwY.97zl7k14p0fVKq6Qbr7JmKMcgwchKGD8KgNIznoDwdQ&dib_tag=se&keywords=brita&qid=1709442919&sprefix=brita%2Caps%2C98&sr=8-7&th=1")

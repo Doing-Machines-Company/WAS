@@ -70,8 +70,28 @@ async def is_good_html(html):  # use general input type
         return True
     return False
 async def get_usable_elements(page):  # maybe remove duplicates if ever needed
-    selector = "a, button, input, select, textarea"
+    selector = "a, button, input, select, textarea, [onclick], [href], [data-action], [ondblclick], [role=\"button\"], [role=\"link\"], [role=\"checkbox\"], [role=\"radio\"], [role=\"tab\"], [role=\"option\"]"
     # await page.wait_for_load_state('networkidle')
+
+    '''
+    
+    selector = """
+    a, button, input, select, textarea,
+    div[class*="accordion-caption"],
+    [onclick], [href], [data-action],
+    [onmouseover], [onmouseout], [onmouseenter], [onmouseleave],
+    [onkeydown], [onkeyup], [onkeypress],
+    [onfocus], [onblur],
+    [onsubmit], [onreset],
+    [onchange], [oninput],
+    [onselect],
+    [ondblclick],
+    [role="button"], [role="link"], [role="checkbox"], [role="radio"], [role="tab"], [role="option"],
+    [contenteditable="true"],
+    [tabindex]
+"""
+    
+    '''
     interactable_elements = page.locator(selector)
     input("give it a moment")
     # interactable_elements = interactable_elements.element_handles()
@@ -108,7 +128,8 @@ async def scrape_leaves():
         # for url in ["https://www.amazon.com/Brita-Standard-Replacement-Pitchers-Dispensers/dp/B00008IHL8?pd_rd_w=vlxeJ&content-id=amzn1.sym.80b2efcb-1985-4e3a-b8e5-050c8b58b7cf&pf_rd_p=80b2efcb-1985-4e3a-b8e5-050c8b58b7cf&pf_rd_r=FPY94C7R438M71B24HG2&pd_rd_wg=HAEGD&pd_rd_r=462b6bc1-aa73-4ab1-bdd3-88172f587bf2&pd_rd_i=B00008IHL8&psc=1&ref_=pd_bap_d_grid_rp_0_7_i"]:
         # for url in ["https://www.amazon.com/Brita-UltraMax-Filtered-Water-Dispenser/dp/B09WBL9HCS/?_encoding=UTF8&pd_rd_w=Y7Xob&content-id=amzn1.sym.3c3990c3-513c-4686-8d92-a42b4095cecb%3Aamzn1.symc.8b620bc3-61d8-46b3-abd9-110539785634&pf_rd_p=3c3990c3-513c-4686-8d92-a42b4095cecb&pf_rd_r=T2FRQ3K67CMRNN08AH2W&pd_rd_wg=7wVqe&pd_rd_r=bba43b30-7293-4d99-8131-b40592574919&ref_=pd_gw_ci_mcx_mr_hp_d"]:
         # for url in ["https://www.amazon.com/YND-Button-Jacket-Wedding-Trousers/dp/B095HJSKXD/ref=sr_1_6?dib=eyJ2IjoiMSJ9.ayQdB1U8kgXWn_mAyahDBy_ni9d42IDEpxML__c_oqcxJkx6K2YtwCo2QoQnOc3U2XmmM7lOP4uwsT93agFa5mRLu7UCsoyKGkebupCpD_7U2VQ3kqyicoXyRwQds5FXPEYscqanvQ15HN7eJtDxs2J3pzyAj0s1LaoteY__vY4RwB_E3GkwTpr5fhDROUnOYaGH7m3R0bBBvrhakwRmBesXW9W6Q8bDx96hxIgUECnKoyfJ1r7NvxISBDTH36HspRg8a4m2WVodL3UdjUW60gC5b-CxJDfOjV_zFQ5mXlM.JOY7vdXhxS2JAyRu5kqOMPzVTOiZ014c4l1IWqnaf10&dib_tag=se&keywords=suit&qid=1708928509&sr=8-6"]:
-        for url in ["https://www.amazon.com/Brita-Filter-Pitcher-Standard-Turquoise/dp/B093WSHX3M/ref=sr_1_20?crid=SLQLN5D8C11I&dib=eyJ2IjoiMSJ9.XDFWvhkafbpG8bvke6HUJ1m7eZxOWDVPyhN0MM4tp6A4cF0UNkO2YR9ZtyNOPwzo8GgsViUl8PIyRxGwDukJs1jdSwXRQ5wgXRlIJmIGfO_1X_SYTBtb9nMsZ1PQXpVqzUWBEpCT8W1aFn_gr3Ip4b0CZlL3Gxr6o_fqw5Zt-NFZUKoBdwPsos83kEOy6o5apetOefNbThH8zxXt5TyxQrX4PNw3cmzYWI_ESnrdZilaPDR7VTJ4Ls3uwPS1mlrfhONtd8dpMAGPVxR0Tmndl0CDEEURKrtVvEWWXG_-kN0.zkjmBIoTIqQX-aCzjmfTCjsD3iUTAeGY5SO72JmxvrA&dib_tag=se&keywords=brita&qid=1708928934&s=home-garden&sprefix=brita%2Cgarden%2C107&sr=1-20"]:
+        # for url in ["https://www.amazon.com/Brita-Filter-Pitcher-Standard-Turquoise/dp/B093WSHX3M/ref=sr_1_20?crid=SLQLN5D8C11I&dib=eyJ2IjoiMSJ9.XDFWvhkafbpG8bvke6HUJ1m7eZxOWDVPyhN0MM4tp6A4cF0UNkO2YR9ZtyNOPwzo8GgsViUl8PIyRxGwDukJs1jdSwXRQ5wgXRlIJmIGfO_1X_SYTBtb9nMsZ1PQXpVqzUWBEpCT8W1aFn_gr3Ip4b0CZlL3Gxr6o_fqw5Zt-NFZUKoBdwPsos83kEOy6o5apetOefNbThH8zxXt5TyxQrX4PNw3cmzYWI_ESnrdZilaPDR7VTJ4Ls3uwPS1mlrfhONtd8dpMAGPVxR0Tmndl0CDEEURKrtVvEWWXG_-kN0.zkjmBIoTIqQX-aCzjmfTCjsD3iUTAeGY5SO72JmxvrA&dib_tag=se&keywords=brita&qid=1708928934&s=home-garden&sprefix=brita%2Cgarden%2C107&sr=1-20"]:
+        for url in ["https://www.amazon.com/Brita-Filter-Pitcher-Standard-Without/dp/B09W4PLVQP/ref=sr_1_7?crid=3LCD2O3C4HNKO&dib=eyJ2IjoiMSJ9.XDFWvhkafbpG8bvke6HUJ1m7eZxOWDVPyhN0MM4tp6A4cF0UNkO2YR9ZtyNOPwzoqrhKHmWWbV5CJxzG_lRfHMy7Vu9fEwo2prr0asnohjrskeR_uMRTyEEIbN3DsS_6Lk-XDjigWxQVxqlDGGkd4MSDIPaU6nltNygG4URYkFf1b5Ib3p_3qlRvmELVRFo3-RxQ95GQVOW1jbYZErMvw5cv0OfHHHobJvcNrc-AgKKc8wXKTyJ4rW4b-FBLokmA23RnUPMO-yC4NJDvodqNabZ-AIbXrRh528W_Y-AwkwY.97zl7k14p0fVKq6Qbr7JmKMcgwchKGD8KgNIznoDwdQ&dib_tag=se&keywords=brita&qid=1709442919&sprefix=brita%2Caps%2C98&sr=8-7&th=1"]:
             await inner_page.goto(url)
             input("take a moment")
             actions_list = []

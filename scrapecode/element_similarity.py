@@ -74,7 +74,7 @@ def style_similarity(document_1, document_2):
     return jaccard_similarity(classes_page1, classes_page2)
 
 
-def similarity(document_1, document_2, k=0.6):
+def element_similarity(document_1, document_2, k=0.6):
     details1 = get_element_details(document_1)
     details2 = get_element_details(document_2)
 
@@ -102,5 +102,5 @@ def similarity(document_1, document_2, k=0.6):
 #     data = json.load(file)
 #     document_2 = data["my_string"]
 #
-# similarity_score = similarity(document_1, document_2)
+# similarity_score = element_similarity(document_1, document_2)
 # print(f"Similarity Score: {similarity_score}")
