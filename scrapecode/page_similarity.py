@@ -156,33 +156,33 @@ def page_similarity(document_1, document_2):
     return min(structural_sim, style_sim)
 
 
-url1 = "https://www.amazon.com/REDCON1-Noise-Non-Stim-Preworkout-Watermelon/dp/B08J8BW6KK?ref_=Oct_d_Oct_d_ss_d_6973697011_3&pd_rd_w=bkHf0&content-id=amzn1.sym.73640810-3777-4ff9-82ce-9a53681daf43&pf_rd_p=73640810-3777-4ff9-82ce-9a53681daf43&pf_rd_r=M4F20W3CRMB01GM64PGJ&pd_rd_wg=qxvbl&pd_rd_r=2775b13c-e05a-4ddf-b9c9-b1caa951770b&pd_rd_i=B08J8BW6KK"
-# url2 = "https://www.amazon.com/gp/product/B077TWXCQV/ref=ewc_pr_img_1?smid=ATVPDKIKX0DER&psc=1"
-url2 = "https://www.amazon.com/gp/product/B002RI97SO?storeType=ebooks&pf_rd_p=114af915-8ac1-4c2e-b2e9-571a645b5906&pf_rd_r=DBVN5590VZV5SS9SEPJ5&pd_rd_wg=NzgDm&pd_rd_i=B002RI97SO&ref_=dbs_f_def_rwt_wigo_cp_recs_wigo_4&pd_rd_w=9tDLW&content-id=amzn1.sym.114af915-8ac1-4c2e-b2e9-571a645b5906&pd_rd_r=037dccd2-8ed5-4fdb-8173-b32710ca17db"
-# url2 = "https://www.amazon.com/live?ref_=nav_cs_amazonlive"
-# url2 = "https://www.amazon.com/Brita-Replacement-BPA-Free-Replaces-Essential/dp/B082TJ4BP6?pd_rd_w=ZNrTH&content-id=amzn1.sym.80b2efcb-1985-4e3a-b8e5-050c8b58b7cf&pf_rd_p=80b2efcb-1985-4e3a-b8e5-050c8b58b7cf&pf_rd_r=04W3NQN7GAKTMN98KCK4&pd_rd_wg=jjnCM&pd_rd_r=2bad8d94-1c69-4a13-ad5f-77ded14e3bee&pd_rd_i=B082TJ4BP6&psc=1&ref_=pd_bap_d_grid_rp_0_10_i"
-# url2 = "https://www.amazon.com/Optimum-Nutrition-Micronized-Monohydrate-Unflavored/dp/B002DYIZEO?pd_rd_w=ZNrTH&content-id=amzn1.sym.80b2efcb-1985-4e3a-b8e5-050c8b58b7cf&pf_rd_p=80b2efcb-1985-4e3a-b8e5-050c8b58b7cf&pf_rd_r=04W3NQN7GAKTMN98KCK4&pd_rd_wg=jjnCM&pd_rd_r=2bad8d94-1c69-4a13-ad5f-77ded14e3bee&pd_rd_i=B002DYIZEO&psc=1&ref_=pd_bap_d_grid_rp_0_4_i"
-with sync_playwright() as p:
-    browser = p.chromium.launch(headless=False)
-    page = browser.new_page()
-    page.goto(url1)
-    input("wait for load")
-    document_1 = page.content()
-
-    page.goto(url2)
-    input("wait for load")
-    document_2 = page.content()
-
-# with open('el1.json', 'r') as file:
-#     data = json.load(file)
-#     document_1 = data["my_string"]
+# url1 = "https://www.amazon.com/REDCON1-Noise-Non-Stim-Preworkout-Watermelon/dp/B08J8BW6KK?ref_=Oct_d_Oct_d_ss_d_6973697011_3&pd_rd_w=bkHf0&content-id=amzn1.sym.73640810-3777-4ff9-82ce-9a53681daf43&pf_rd_p=73640810-3777-4ff9-82ce-9a53681daf43&pf_rd_r=M4F20W3CRMB01GM64PGJ&pd_rd_wg=qxvbl&pd_rd_r=2775b13c-e05a-4ddf-b9c9-b1caa951770b&pd_rd_i=B08J8BW6KK"
+# # url2 = "https://www.amazon.com/gp/product/B077TWXCQV/ref=ewc_pr_img_1?smid=ATVPDKIKX0DER&psc=1"
+# url2 = "https://www.amazon.com/gp/product/B002RI97SO?storeType=ebooks&pf_rd_p=114af915-8ac1-4c2e-b2e9-571a645b5906&pf_rd_r=DBVN5590VZV5SS9SEPJ5&pd_rd_wg=NzgDm&pd_rd_i=B002RI97SO&ref_=dbs_f_def_rwt_wigo_cp_recs_wigo_4&pd_rd_w=9tDLW&content-id=amzn1.sym.114af915-8ac1-4c2e-b2e9-571a645b5906&pd_rd_r=037dccd2-8ed5-4fdb-8173-b32710ca17db"
+# # url2 = "https://www.amazon.com/live?ref_=nav_cs_amazonlive"
+# # url2 = "https://www.amazon.com/Brita-Replacement-BPA-Free-Replaces-Essential/dp/B082TJ4BP6?pd_rd_w=ZNrTH&content-id=amzn1.sym.80b2efcb-1985-4e3a-b8e5-050c8b58b7cf&pf_rd_p=80b2efcb-1985-4e3a-b8e5-050c8b58b7cf&pf_rd_r=04W3NQN7GAKTMN98KCK4&pd_rd_wg=jjnCM&pd_rd_r=2bad8d94-1c69-4a13-ad5f-77ded14e3bee&pd_rd_i=B082TJ4BP6&psc=1&ref_=pd_bap_d_grid_rp_0_10_i"
+# # url2 = "https://www.amazon.com/Optimum-Nutrition-Micronized-Monohydrate-Unflavored/dp/B002DYIZEO?pd_rd_w=ZNrTH&content-id=amzn1.sym.80b2efcb-1985-4e3a-b8e5-050c8b58b7cf&pf_rd_p=80b2efcb-1985-4e3a-b8e5-050c8b58b7cf&pf_rd_r=04W3NQN7GAKTMN98KCK4&pd_rd_wg=jjnCM&pd_rd_r=2bad8d94-1c69-4a13-ad5f-77ded14e3bee&pd_rd_i=B002DYIZEO&psc=1&ref_=pd_bap_d_grid_rp_0_4_i"
+# with sync_playwright() as p:
+#     browser = p.chromium.launch(headless=False)
+#     page = browser.new_page()
+#     page.goto(url1)
+#     input("wait for load")
+#     document_1 = page.content()
 #
-# with open('el2.json', 'r') as file:
-#     data = json.load(file)
-#     document_2 = data["my_string"]
-
-# GO OFF STRUCTURAL SIMILARITY
-
-simm = page_similarity(document_1, document_2)
-print("SIM")
-print(simm)
+#     page.goto(url2)
+#     input("wait for load")
+#     document_2 = page.content()
+#
+# # with open('el1.json', 'r') as file:
+# #     data = json.load(file)
+# #     document_1 = data["my_string"]
+# #
+# # with open('el2.json', 'r') as file:
+# #     data = json.load(file)
+# #     document_2 = data["my_string"]
+#
+# # GO OFF STRUCTURAL SIMILARITY
+#
+# simm = page_similarity(document_1, document_2)
+# print("SIM")
+# print(simm)

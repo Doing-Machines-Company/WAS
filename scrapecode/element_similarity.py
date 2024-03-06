@@ -94,14 +94,13 @@ def similarity(document_1, document_2, k=0.6):
     return structural_sim # Structural sim seems to be more telling
 
 
-# Example usage
-with open('el3.json', 'r') as file:
-    data = json.load(file)
-    document_1 = data["my_string"]
-
-with open('el1.json', 'r') as file:
-    data = json.load(file)
-    document_2 = data["my_string"]
-
-similarity_score = similarity(document_1, document_2)
+# with open('el3.json', 'r') as file:
+#     data = json.load(file)
+#     document_1 = data["my_string"]
+#
+# with open('el1.json', 'r') as file:
+#     data = json.load(file)
+#     document_2 = data["my_string"]
+#
+# similarity_score = similarity(document_1, document_2)
 # print(f"Similarity Score: {similarity_score}")
