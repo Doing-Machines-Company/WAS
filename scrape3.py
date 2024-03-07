@@ -15,10 +15,18 @@ CDPSession = Any
 AxNode = Any  # TODO: make this a dataclass
 
 @dataclass
+class ActionInfo:
+    action: Action
+    before_html: str
+    after_html: str
+    before_screenshot: bytes
+    after_screenshot: bytes
+@dataclass
 class PageState:
     url: str
     html: str
     actions: list[Action]
+    screenshot: bytes
 
 @dataclass
 class PageTransition:
@@ -29,25 +37,22 @@ class PageTransition:
 class EquivalenceClass:
     def __init__(self):
         self.page_urls = set()
-        self.page_htmls = dict()
-        self.page_actions = dict()
-        self.unique_actions = []
+        self.page_states: dict[str, PageState] = {}
+        self.unique_actions: dict[str, ActionInfo] = {}
 
-    def add_page(self, url: str, html: str, actions: list[Action]):
-        assert normalize_url(url) not in self.page_urls
-        normalized_url = normalize_url(url)
+    def add_page(self, state: PageState):
+        normalized_url = normalize_url(state.url)
         self.page_urls.add(normalized_url)
-        self.page_htmls[normalized_url] = html
-        self.page_actions[normalized_url] = actions
-        self.update_unique_actions(actions)
+        self.page_states[normalized_url] = state
 
-    def update_unique_actions(self, actions: list[Action]):
+    def update_unique_actions(self, actions: list[Action], before_html: str, after_html: str, before_screenshot: bytes, after_screenshot: bytes):
         for action in actions:
-            if not self.has_similar_action(action):
-                self.unique_actions.append(action)
+            action_key = action.html
+            if action_key not in self.unique_actions or not self.has_similar_action(action):
+                self.unique_actions[action_key] = ActionInfo(action, before_html, after_html, before_screenshot, after_screenshot)
 
     def has_similar_action(self, action: Action) -> bool:
-        return any(element_similarity(action.html, a.html) >= 0.9 for a in self.unique_actions)
+        return any(element_similarity(action.html, a.action.html) >= 0.9 for a in self.unique_actions.values())
 
     def has_new_action(self, action: Action) -> bool:
         return not self.has_similar_action(action)
@@ -58,35 +63,31 @@ class EquivalenceClass:
             return True
 
         for page_url in self.page_urls:
-            if page_similarity(html, self.page_htmls[page_url]) < 0.8:
+            if page_similarity(html, self.page_states[page_url].html) < 0.8:
                 return False
 
         return True
 
-    def is_full(self) -> bool:
-        return len(self.page_urls) >= 10
+    def needs_scraping(self) -> bool:
+        return len(self.page_urls) < 10
 
-class EquivalenceClassSet():
+class EquivalenceClassSet:
     def __init__(self):
-        self.classes = []
-
-    def add_page_to_class(self, url: str, html: str, actions: list[Action], eq_class: Optional[EquivalenceClass] = None):
-        normalized_url = normalize_url(url)
-
-        if eq_class is not None:
-            if not eq_class.is_full():
-                eq_class.add_page(normalized_url, html, actions)
-        else:
-            new_class = EquivalenceClass()
-            new_class.add_page(normalized_url, html, actions)
-            self.classes.append(new_class)
+        self.classes: list[EquivalenceClass] = []
 
     def get_class(self, url: str, html: str) -> Optional[EquivalenceClass]:
-        normalized_url = normalize_url(url)
         for eq_class in self.classes:
-            if eq_class.is_similar(normalized_url, html):
+            if eq_class.is_similar(url, html):
                 return eq_class
         return None
+
+    def add_page(self, state: PageState) -> EquivalenceClass:
+        eq_class = self.get_class(state.url, state.html)
+        if eq_class is None:
+            eq_class = EquivalenceClass()
+            self.classes.append(eq_class)
+        eq_class.add_page(state)
+        return eq_class
 
 
 
@@ -305,25 +306,18 @@ class PageObservation():
         return self.url
 
 
-class ObservationGraph():
-
+class ObservationGraph:
     def __init__(self):
-        self.nodes = {}
-        return
+        self.nodes: dict[str, PageState] = {}
+        self.edges: list[PageTransition] = []
 
-    def add_node(self, n: PageObservation):
-        h = n.hash()
-        assert not h in self.nodes
-        self.nodes[h] = n
+    def add_node(self, state: PageState, eq_class: EquivalenceClass):
+        url = normalize_url(state.url)
+        if url not in self.nodes and eq_class.needs_scraping():
+            self.nodes[url] = state
 
-    def has_node(self, n: PageObservation): # bad
-        return n.hash() in self.nodes
-
-    def has_node_hash(self, hash: str) -> bool:
-        return hash in self.nodes
-
-    def add_edge(self, from_page: PageObservation, action: Action, to_page: PageObservation):
-        pass
+    def add_edge(self, transition: PageTransition):
+        self.edges.append(transition)
 
 
 def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
@@ -336,76 +330,110 @@ def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
 
 
 def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False):
-    # assert normalize_url(starting_url) == starting_url
     equiv_classes = EquivalenceClassSet()
+    graph = ObservationGraph()
+    new_pages = []
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless)
         context = browser.new_context(
             user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36')
 
         page = context.new_page()
-        cdpSession = context.new_cdp_session(page)  # talk to chrome devtools
+        cdpSession = context.new_cdp_session(page)
 
         if cookies is not None:
             context.add_cookies(cookies)
 
-        G = ObservationGraph()
+        def get_page_state(url):
+            page.goto(url)
+            wait_for_load(page)
 
-        page.goto(starting_url)
-        input("wait a bit")
-        wait_for_load(page)
+            cleaned = AxObservation(get_ax_tree(cdpSession), url)
+            actions = [ax_node_to_action(node) for node in cleaned.nodes_info]
+            actions = [a for a in actions if a is not None]
 
-        def explore_page() -> Optional[PageObservation]:
-            url = normalize_url(page.url)
-            visited = G.has_node_hash(url)
-
-            # Check if in some equiv class
-
-            print(f"{'Exploring' if not visited else 'Observing'} page {url}...")
-
-            n = PageObservation(
-                raw_url=page.url,
-                url=url,
+            return PageState(
+                url=normalize_url(page.url),
                 html=page.content(),
-                raw_ax_tree=(raw := get_ax_tree(cdpSession)),
-                ax_tree=(cleaned := AxObservation(raw, url))
+                actions=actions,
+                screenshot=page.screenshot()
             )
-            if visited: return n
 
-            G.add_node(n)
-            print(cleaned)
-            exit()
+        def explore_page(url: str):
+            state = get_page_state(url)
 
-            page_actions = [a for node in cleaned.nodes_info if (a := ax_node_to_action(node)) is not None]
+            eq_class = equiv_classes.add_page(state)
+            graph.add_node(state, eq_class)
 
-
-
-            print(f"Found {len(page_actions)} actions on {url}")
-
-            for action in page_actions:
-                if page.url != url:
-                    page.goto(url)
-                    wait_for_load(page)
-
-                print(f"Applying action {action} on {url}...")
-
-                if "null" in action.xpath:
-                    print(action.html)
+            for action in state.actions:
+                before_html = state.html
+                before_screenshot = state.screenshot
 
                 apply_action(page, action)
                 wait_for_load(page)
 
-                n2 = explore_page()
-                if n2 is None: continue
+                after_state = get_page_state(page.url)
 
-                # TODO: infer action effects here
+                transition = PageTransition(state, action, after_state)
+                graph.add_edge(transition)
 
-                G.add_edge(n, action, n2)
+                if state.url != after_state.url:
+                    new_pages.append(after_state.url)
+                else:
+                    eq_class.update_unique_actions([action], before_html, after_state.html, before_screenshot, after_state.screenshot)
+                    new_actions = [a for a in after_state.actions if eq_class.has_new_action(a)]
+                    for new_action in new_actions:
+                        before_html = after_state.html
+                        before_screenshot = after_state.screenshot
 
-            return n
+                        apply_action(page, new_action)
+                        wait_for_load(page)
 
-        explore_page()
+                        after_new_state = get_page_state(page.url)
 
+                        new_transition = PageTransition(after_state, new_action, after_new_state)
+                        graph.add_edge(new_transition)
+
+                        eq_class.update_unique_actions([new_action], before_html, after_new_state.html, before_screenshot, after_new_state.screenshot)
+
+                        if after_state.url != after_new_state.url:
+                            new_pages.append(after_new_state.url)
+
+                page.goto(state.url)
+                wait_for_load(page)
+
+        explore_page(starting_url)
+
+        while new_pages:
+            url = new_pages.pop(0)
+            eq_class = equiv_classes.get_class(url, '')
+
+            if eq_class is None or eq_class.needs_scraping():
+                explore_page(url)
+            else:
+                state = get_page_state(url)
+
+                for action_info in eq_class.unique_actions.values():
+                    if eq_class.has_new_action(action_info.action):
+                        before_html = state.html
+                        before_screenshot = state.screenshot
+
+                        apply_action(page, action_info.action)
+                        wait_for_load(page)
+
+                        after_state = get_page_state(page.url)
+
+                        transition = PageTransition(state, action_info.action, after_state)
+                        graph.add_edge(transition)
+
+                        eq_class.update_unique_actions([action_info.action], before_html, after_state.html, before_screenshot, after_state.screenshot)
+
+                        if state.url != after_state.url:
+                            new_pages.append(after_state.url)
+
+                page.goto(state.url)
+                wait_for_load(page)
 
 # explore("https://us.supreme.com/pages/shop")
 explore("https://www.amazon.com/Brita-Filter-Pitcher-Standard-Without/dp/B09W4PLVQP/ref=sr_1_7?crid=3LCD2O3C4HNKO&dib=eyJ2IjoiMSJ9.XDFWvhkafbpG8bvke6HUJ1m7eZxOWDVPyhN0MM4tp6A4cF0UNkO2YR9ZtyNOPwzoqrhKHmWWbV5CJxzG_lRfHMy7Vu9fEwo2prr0asnohjrskeR_uMRTyEEIbN3DsS_6Lk-XDjigWxQVxqlDGGkd4MSDIPaU6nltNygG4URYkFf1b5Ib3p_3qlRvmELVRFo3-RxQ95GQVOW1jbYZErMvw5cv0OfHHHobJvcNrc-AgKKc8wXKTyJ4rW4b-FBLokmA23RnUPMO-yC4NJDvodqNabZ-AIbXrRh528W_Y-AwkwY.97zl7k14p0fVKq6Qbr7JmKMcgwchKGD8KgNIznoDwdQ&dib_tag=se&keywords=brita&qid=1709442919&sprefix=brita%2Caps%2C98&sr=8-7&th=1")
