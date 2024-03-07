@@ -369,39 +369,66 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
             new_actions = [a for a in state.actions if eq_class.has_new_action(a)]
 
             if new_actions:
+                # Filter out similar actions
+                unique_actions = []
                 for action in new_actions:
+                    if not any(element_similarity(action.html, a.html) >= 0.9 for a in unique_actions):
+                        unique_actions.append(action)
+
+                for action in unique_actions:
                     before_html = state.html
-                    before_screenshot = state.screenshot
+
+                    # Scroll to the element that is gonna be interacted with
+                    page.evaluate(
+                        f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoView();")
+                    before_screenshot = page.screenshot()
 
                     apply_action(page, action)
                     wait_for_load(page)
 
                     after_state = get_page_state(page.url)
 
+                    # Take the screenshot after the action without scrolling
+                    after_screenshot = page.screenshot(full_page=False)
+
                     transition = PageTransition(state, action, after_state)
                     graph.add_edge(transition)
 
                     eq_class.update_unique_actions([action], before_html, after_state.html, before_screenshot,
-                                                   after_state.screenshot)
+                                                   after_screenshot)
 
                     if state.url != after_state.url:
                         new_pages.append(after_state.url)
                     else:
                         new_actions_after = [a for a in after_state.actions if eq_class.has_new_action(a)]
-                        for new_action in new_actions_after:
+
+                        # Filter out similar actions
+                        unique_actions_after = []
+                        for action in new_actions_after:
+                            if not any(element_similarity(action.html, a.html) >= 0.9 for a in unique_actions_after):
+                                unique_actions_after.append(action)
+
+                        for new_action in unique_actions_after:
                             before_html = after_state.html
-                            before_screenshot = after_state.screenshot
+
+                            # Scroll to the element that is gonna be interacted with
+                            page.evaluate(
+                                f"document.evaluate('{new_action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoView();")
+                            before_screenshot = page.screenshot()
 
                             apply_action(page, new_action)
                             wait_for_load(page)
 
                             after_new_state = get_page_state(page.url)
 
+                            # Take the screenshot after the action without scrolling
+                            after_screenshot = page.screenshot(full_page=False)
+
                             new_transition = PageTransition(after_state, new_action, after_new_state)
                             graph.add_edge(new_transition)
 
                             eq_class.update_unique_actions([new_action], before_html, after_new_state.html,
-                                                           before_screenshot, after_new_state.screenshot)
+                                                           before_screenshot, after_screenshot)
 
                             if after_state.url != after_new_state.url:
                                 new_pages.append(after_new_state.url)
