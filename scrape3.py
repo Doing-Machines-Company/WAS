@@ -15,6 +15,59 @@ CDPSession = Any
 AxNode = Any  # TODO: make this a dataclass
 
 
+class EquivalenceClass():
+    def __init__(self):
+        self.page_urls = set()
+        self.page_htmls = dict()
+        self.page_actions = dict()
+
+    def add_page(self, url: str, html: str, actions: list[Action]):
+        assert normalize_url(url) not in self.page_urls
+        normalized_url = normalize_url(url)
+        self.page_urls.add(normalized_url)
+        self.page_htmls[normalized_url] = html
+        self.page_actions[normalized_url] = actions
+
+    def is_similar(self, url: str, html: str) -> bool:
+        normalized_url = normalize_url(url)
+        if normalized_url in self.page_urls:
+            return True
+
+        for page_url in self.page_urls:
+            if page_similarity(html, self.page_htmls[page_url]) < 0.8:
+                return False
+
+        return True
+
+    def is_full(self) -> bool:
+        return len(self.page_urls) >= 10
+
+
+class EquivalenceClassSet():
+    def __init__(self):
+        self.classes = []
+
+    def add_page_to_class(self, url: str, html: str, actions: list[Action], eq_class: Optional[EquivalenceClass] = None):
+        normalized_url = normalize_url(url)
+
+        if eq_class is not None:
+            if not eq_class.is_full():
+                eq_class.add_page(normalized_url, html, actions)
+        else:
+            new_class = EquivalenceClass()
+            new_class.add_page(normalized_url, html, actions)
+            self.classes.append(new_class)
+
+    def get_class(self, url: str, html: str) -> Optional[EquivalenceClass]:
+        normalized_url = normalize_url(url)
+        for eq_class in self.classes:
+            if eq_class.is_similar(normalized_url, html):
+                return eq_class
+        return None
+
+
+
+
 def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
     accessibility_tree = cdpSession.send(
         "Accessibility.getFullAXTree", {}
@@ -260,6 +313,7 @@ def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
 
 def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False):
     # assert normalize_url(starting_url) == starting_url
+    equiv_classes = EquivalenceClassSet()
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless)
         context = browser.new_context(
