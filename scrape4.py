@@ -330,29 +330,47 @@ def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
 
 
 def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False):
+    # Initialize an EquivalenceClassSet to store and manage equivalence classes
     equiv_classes = EquivalenceClassSet()
+
+    # Create an ObservationGraph to represent the graph of page states and transitions
     graph = ObservationGraph()
+
+    # Initialize an empty list to store the URLs of new pages discovered during scraping
     new_pages = []
 
+    # Use the sync_playwright context manager to launch a new browser instance
     with sync_playwright() as p:
+        # Launch a new browser instance with the specified headless mode
         browser = p.chromium.launch(headless=headless)
+
+        # Create a new browser context with a specific user agent
         context = browser.new_context(
             user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36')
 
+        # Create a new page within the browser context
         page = context.new_page()
+
+        # Establish a CDP (Chrome DevTools Protocol) session with the page
         cdpSession = context.new_cdp_session(page)
 
+        # If cookies are provided, add them to the browser context
         if cookies is not None:
             context.add_cookies(cookies)
 
         def get_page_state(url):
+            # Navigate to the given URL and wait for the page to load
             page.goto(url)
             wait_for_load(page)
 
+            # Retrieve the accessibility tree and create an AxObservation object
             cleaned = AxObservation(get_ax_tree(cdpSession), url)
+
+            # Extract actions from the accessibility nodes and filter out None values
             actions = [ax_node_to_action(node) for node in cleaned.nodes_info]
             actions = [a for a in actions if a is not None]
 
+            # Create and return a PageState object with the normalized URL, HTML content, actions, and screenshot
             return PageState(
                 url=normalize_url(page.url),
                 html=page.content(),
@@ -361,100 +379,99 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
             )
 
         def explore_page(url: str):
+            # Get the page state for the given URL
             state = get_page_state(url)
 
+            # Add the page to the appropriate equivalence class and add the page state as a node to the observation graph
             eq_class = equiv_classes.add_page(state)
             graph.add_node(state, eq_class)
 
-            new_actions = [a for a in state.actions if eq_class.has_new_action(a)]
-
-            if new_actions:
-                # Filter out similar actions
-                unique_actions = []
-                for action in new_actions:
-                    if not any(element_similarity(action.html, a.html) >= 0.9 for a in unique_actions):
-                        unique_actions.append(action)
-
-                for action in unique_actions:
-                    before_html = state.html
-
-                    # Scroll to the element that is gonna be interacted with
-                    page.evaluate(
-                        f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoView();")
-                    before_screenshot = page.screenshot()
-
-                    apply_action(page, action)
-                    wait_for_load(page)
-
-                    after_state = get_page_state(page.url)
-
-                    # Take the screenshot after the action without scrolling
-                    after_screenshot = page.screenshot(full_page=False)
-
-                    transition = PageTransition(state, action, after_state)
-                    graph.add_edge(transition)
-
-                    eq_class.update_unique_actions([action], before_html, after_state.html, before_screenshot,
-                                                   after_screenshot)
-
-                    if state.url != after_state.url:
-                        new_pages.append(after_state.url)
-                    else:
-                        new_actions_after = [a for a in after_state.actions if eq_class.has_new_action(a)]
-
-                        # Filter out similar actions
-                        unique_actions_after = []
-                        for action in new_actions_after:
-                            if not any(element_similarity(action.html, a.html) >= 0.9 for a in unique_actions_after):
-                                unique_actions_after.append(action)
-
-                        for new_action in unique_actions_after:
-                            before_html = after_state.html
-
-                            # Scroll to the element that is gonna be interacted with
-                            page.evaluate(
-                                f"document.evaluate('{new_action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoView();")
-                            before_screenshot = page.screenshot()
-
-                            apply_action(page, new_action)
-                            wait_for_load(page)
-
-                            after_new_state = get_page_state(page.url)
-
-                            # Take the screenshot after the action without scrolling
-                            after_screenshot = page.screenshot(full_page=False)
-
-                            new_transition = PageTransition(after_state, new_action, after_new_state)
-                            graph.add_edge(new_transition)
-
-                            eq_class.update_unique_actions([new_action], before_html, after_new_state.html,
-                                                           before_screenshot, after_screenshot)
-
-                            if after_state.url != after_new_state.url:
-                                new_pages.append(after_new_state.url)
-
-                    page.goto(state.url)
-                    wait_for_load(page)
-            else:
-                print(f"No new actions found on page: {url}")
-
-        explore_page(starting_url)
-
-        while new_pages:
-            url = new_pages.pop(0)
-            eq_class = equiv_classes.get_class(url, '')
-
-            if eq_class is None:
-                explore_page(url)
-            else:
-                state = get_page_state(url)
+            def explore_actions(state: PageState, eq_class: EquivalenceClass):
+                # Retrieve new actions that haven't been seen before in the equivalence class
                 new_actions = [a for a in state.actions if eq_class.has_new_action(a)]
 
+                # If there are new actions to explore
+                if new_actions:
+                    # Filter out similar actions to get a list of unique actions
+                    unique_actions = []
+                    for action in new_actions:
+                        if not any(element_similarity(action.html, a.html) >= 0.9 for a in unique_actions):
+                            unique_actions.append(action)
+
+                    # For each unique action
+                    for action in unique_actions:
+                        # Store the HTML before applying the action
+                        before_html = state.html
+
+                        # Scroll to the element that will be interacted with
+                        page.evaluate(
+                            f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoView();")
+
+                        # Take a screenshot before applying the action
+                        before_screenshot = page.screenshot()
+
+                        # Apply the action and wait for the page to load
+                        apply_action(page, action)
+                        wait_for_load(page)
+
+                        # Get the page state after applying the action
+                        after_state = get_page_state(page.url)
+
+                        # Take a screenshot after the action without scrolling
+                        after_screenshot = page.screenshot(full_page=False)
+
+                        # Create a PageTransition object and add it to the observation graph
+                        transition = PageTransition(state, action, after_state)
+                        graph.add_edge(transition)
+
+                        # Update the unique actions in the equivalence class with the before and after states
+                        eq_class.update_unique_actions([action], before_html, after_state.html, before_screenshot,
+                                                       after_screenshot)
+
+                        # If the action leads to a new page (different URL), append it to the new_pages list for later exploration
+                        if state.url != after_state.url:
+                            new_pages.append(after_state.url)
+                        # If the action leads to the same page (same URL), recursively explore new actions on the same page
+                        else:
+                            explore_actions(after_state, eq_class)
+
+                        # Navigate back to the original page state and wait for it to load
+                        page.goto(state.url)
+                        wait_for_load(page)
+
+            # Start exploring actions on the current page state and equivalence class
+            explore_actions(state, eq_class)
+
+        # Start the exploration process by exploring the starting URL
+        explore_page(starting_url)
+
+        # Continue exploring new pages until there are no more pages to explore
+        while new_pages:
+            # Pop a URL from the new_pages list
+            url = new_pages.pop(0)
+
+            # Get the corresponding equivalence class for the URL
+            eq_class = equiv_classes.get_class(url, '')
+
+            # If the page doesn't belong to any existing equivalence class, explore the page
+            if eq_class is None:
+                explore_page(url)
+            # If the page belongs to an existing equivalence class
+            else:
+                # Get the page state for the URL
+                state = get_page_state(url)
+
+                # Check for new actions that haven't been seen before in the equivalence class
+                new_actions = [a for a in state.actions if eq_class.has_new_action(a)]
+
+                # If there are new actions, explore the page and its actions
                 if new_actions:
                     explore_page(url)
+                # If there are no new actions, print a message indicating no new actions were found
                 else:
                     print(f"No new actions found in equivalence class for page: {url}")
 
+                # Navigate back to the page state and wait for it to load
                 page.goto(state.url)
                 wait_for_load(page)
 
