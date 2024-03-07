@@ -14,12 +14,24 @@ PlaywrightPage = Any
 CDPSession = Any
 AxNode = Any  # TODO: make this a dataclass
 
+@dataclass
+class PageState:
+    url: str
+    html: str
+    actions: list[Action]
 
-class EquivalenceClass():
+@dataclass
+class PageTransition:
+    before_state: PageState
+    action: Action
+    after_state: PageState
+
+class EquivalenceClass:
     def __init__(self):
         self.page_urls = set()
         self.page_htmls = dict()
         self.page_actions = dict()
+        self.unique_actions = []
 
     def add_page(self, url: str, html: str, actions: list[Action]):
         assert normalize_url(url) not in self.page_urls
@@ -27,6 +39,18 @@ class EquivalenceClass():
         self.page_urls.add(normalized_url)
         self.page_htmls[normalized_url] = html
         self.page_actions[normalized_url] = actions
+        self.update_unique_actions(actions)
+
+    def update_unique_actions(self, actions: list[Action]):
+        for action in actions:
+            if not self.has_similar_action(action):
+                self.unique_actions.append(action)
+
+    def has_similar_action(self, action: Action) -> bool:
+        return any(element_similarity(action.html, a.html) >= 0.9 for a in self.unique_actions)
+
+    def has_new_action(self, action: Action) -> bool:
+        return not self.has_similar_action(action)
 
     def is_similar(self, url: str, html: str) -> bool:
         normalized_url = normalize_url(url)
@@ -41,7 +65,6 @@ class EquivalenceClass():
 
     def is_full(self) -> bool:
         return len(self.page_urls) >= 10
-
 
 class EquivalenceClassSet():
     def __init__(self):
@@ -272,6 +295,7 @@ def normalize_url(url: str) -> str:
 
 @dataclass
 class PageObservation():
+    raw_url: str
     url: str
     html: str
     raw_ax_tree: list[AxNode]
@@ -292,7 +316,7 @@ class ObservationGraph():
         assert not h in self.nodes
         self.nodes[h] = n
 
-    def has_node(self, n: PageObservation):
+    def has_node(self, n: PageObservation): # bad
         return n.hash() in self.nodes
 
     def has_node_hash(self, hash: str) -> bool:
@@ -335,13 +359,12 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
             url = normalize_url(page.url)
             visited = G.has_node_hash(url)
 
-            # if not url.startswith(starting_url):
-            #     print(f"Ignoring page {url} which doesn't start with {starting_url}.")
-            #     return None
+            # Check if in some equiv class
 
             print(f"{'Exploring' if not visited else 'Observing'} page {url}...")
 
             n = PageObservation(
+                raw_url=page.url,
                 url=url,
                 html=page.content(),
                 raw_ax_tree=(raw := get_ax_tree(cdpSession)),
