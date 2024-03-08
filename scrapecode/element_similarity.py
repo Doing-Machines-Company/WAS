@@ -79,19 +79,19 @@ def element_similarity(document_1, document_2, k=0.6):
     details2 = get_element_details(document_2)
 
     # Check that all action elements have the same type and visible/title text
-    print(details1)
-    print(details2)
+    # print(details1)
+    # print(details2)
     if sorted(details1) != sorted(details2):
-        print("Action elements do not match in type or visible text.")
+        # print("Action elements do not match in type or visible text.")
         return 0
 
     # Proceed with the original similarity checks if the action elements match
     structural_sim = structural_similarity(document_1, document_2)
     style_sim = style_similarity(document_1, document_2)
-    print(f"Structural Similarity: {structural_sim}")
-    print(f"Style Similarity: {style_sim}")
+    # print(f"Structural Similarity: {structural_sim}")
+    # print(f"Style Similarity: {style_sim}")
 
-    return structural_sim # Structural sim seems to be more telling
+    return min(structural_sim, style_sim) # Structural sim seems to be more telling
 
 
 # with open('el3.json', 'r') as file:

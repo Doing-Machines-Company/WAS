@@ -382,12 +382,27 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
                     # For each unique action
                     for action in unique_actions:
+
+                        if not action.xpath:
+                            print(f"Skipping action without XPath: {action}")
+                            continue
+
+
                         # Store the HTML before applying the action
                         before_html = state.html
 
-                        # Scroll to the element that will be interacted with
-                        page.evaluate(
-                            f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoView();")
+                        element = page.evaluate(
+                            f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
+                        if element:
+                            page.evaluate(
+                                f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoView();")
+                        else:
+                            print(f"Element not found for XPath: {action.xpath}")
+                            continue
+
+                        # # Scroll to the element that will be interacted with
+                        # page.evaluate(
+                        #     f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoView();")
 
                         # Take a screenshot before applying the action
                         before_screenshot = page.screenshot()
@@ -395,6 +410,7 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
                         # Apply the action and wait for the page to load
                         apply_action(page, action)
                         wait_for_load(page)
+                        input("Press Enter to continue...")
 
                         # Get the page state after applying the action
                         after_state = get_page_state(page.url)
@@ -407,7 +423,7 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
                                                        after_screenshot)
 
                         # If the action leads to a new page (different URL), append it to the new_pages list for later exploration
-                        if state.url != after_state.url:
+                        if normalize_url(state.url) != normalize_url(after_state.url):
                             new_pages.append(after_state.url)
                         # If the action leads to the same page (same URL), recursively explore new actions on the same page
                         else:
@@ -453,5 +469,5 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
                 page.goto(state.url)
                 wait_for_load(page)
 
-# explore("https://us.supreme.com/pages/shop")
-explore("https://www.amazon.com/Brita-Filter-Pitcher-Standard-Without/dp/B09W4PLVQP/ref=sr_1_7?crid=3LCD2O3C4HNKO&dib=eyJ2IjoiMSJ9.XDFWvhkafbpG8bvke6HUJ1m7eZxOWDVPyhN0MM4tp6A4cF0UNkO2YR9ZtyNOPwzoqrhKHmWWbV5CJxzG_lRfHMy7Vu9fEwo2prr0asnohjrskeR_uMRTyEEIbN3DsS_6Lk-XDjigWxQVxqlDGGkd4MSDIPaU6nltNygG4URYkFf1b5Ib3p_3qlRvmELVRFo3-RxQ95GQVOW1jbYZErMvw5cv0OfHHHobJvcNrc-AgKKc8wXKTyJ4rW4b-FBLokmA23RnUPMO-yC4NJDvodqNabZ-AIbXrRh528W_Y-AwkwY.97zl7k14p0fVKq6Qbr7JmKMcgwchKGD8KgNIznoDwdQ&dib_tag=se&keywords=brita&qid=1709442919&sprefix=brita%2Caps%2C98&sr=8-7&th=1")
+explore("https://us.supreme.com/pages/shop", headless=False)
+# explore("https://www.amazon.com/Brita-Filter-Pitcher-Standard-Without/dp/B09W4PLVQP/ref=sr_1_7?crid=3LCD2O3C4HNKO&dib=eyJ2IjoiMSJ9.XDFWvhkafbpG8bvke6HUJ1m7eZxOWDVPyhN0MM4tp6A4cF0UNkO2YR9ZtyNOPwzoqrhKHmWWbV5CJxzG_lRfHMy7Vu9fEwo2prr0asnohjrskeR_uMRTyEEIbN3DsS_6Lk-XDjigWxQVxqlDGGkd4MSDIPaU6nltNygG4URYkFf1b5Ib3p_3qlRvmELVRFo3-RxQ95GQVOW1jbYZErMvw5cv0OfHHHobJvcNrc-AgKKc8wXKTyJ4rW4b-FBLokmA23RnUPMO-yC4NJDvodqNabZ-AIbXrRh528W_Y-AwkwY.97zl7k14p0fVKq6Qbr7JmKMcgwchKGD8KgNIznoDwdQ&dib_tag=se&keywords=brita&qid=1709442919&sprefix=brita%2Caps%2C98&sr=8-7&th=1")

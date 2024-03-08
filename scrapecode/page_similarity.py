@@ -138,21 +138,21 @@ def structural_similarity(document_1, document_2):
 
 
     tags1 = get_tags(document_1)
-    print("TAGS 1")
-    print(tags1)
-    input("wait")
+    # print("TAGS 1")
+    # print(tags1)
+    # input("wait")
     tags2 = get_tags(document_2)
-    print("TAGS 2")
-    print(tags2)
-    input("wait")
+    # print("TAGS 2")
+    # print(tags2)
+    # input("wait")
     diff = difflib.SequenceMatcher(None, tags1, tags2)
     return diff.ratio()
 
 def page_similarity(document_1, document_2):
     structural_sim = structural_similarity(document_1, document_2)
     style_sim = style_similarity(document_1, document_2)
-    print(f"Structural sim {structural_sim}")
-    print(f"Style sim {style_sim}")
+    # print(f"Structural sim {structural_sim}")
+    # print(f"Style sim {style_sim}")
     return min(structural_sim, style_sim)
 
 
