@@ -80,8 +80,11 @@ class EquivalenceClassSet:
     def add_page(self, state: PageState) -> EquivalenceClass:
         eq_class = self.get_class(state.url, state.html)
         if eq_class is None:
+            print(f"Creating new equivalence class")
             eq_class = EquivalenceClass()
             self.classes.append(eq_class)
+        else:
+            print("Adding page to existing equivalence class")
         eq_class.add_page(state)
         return eq_class
 
@@ -387,22 +390,17 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
                             print(f"Skipping action without XPath: {action}")
                             continue
 
-
-                        # Store the HTML before applying the action
                         before_html = state.html
 
                         element = page.evaluate(
                             f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
                         if element:
+                            # Store the HTML before applying the action
                             page.evaluate(
                                 f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoView();")
                         else:
-                            print(f"Element not found for XPath: {action.xpath}")
+                            print(f"Element not found for XPath: {action.xpath}") # this happens a weirdly large amount of times
                             continue
-
-                        # # Scroll to the element that will be interacted with
-                        # page.evaluate(
-                        #     f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoView();")
 
                         # Take a screenshot before applying the action
                         before_screenshot = page.screenshot()
@@ -410,7 +408,7 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
                         # Apply the action and wait for the page to load
                         apply_action(page, action)
                         wait_for_load(page)
-                        input("Press Enter to continue...")
+                        # input("Press Enter to continue...")
 
                         # Get the page state after applying the action
                         after_state = get_page_state(page.url)
@@ -429,10 +427,6 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
                         else:
                             explore_actions(after_state, eq_class)
 
-                        # Navigate back to the original page state and wait for it to load
-                        page.goto(state.url)
-                        wait_for_load(page)
-
             # Start exploring actions on the current page state and equivalence class
             explore_actions(state, eq_class)
 
@@ -441,6 +435,7 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
         # Continue exploring new pages until there are no more pages to explore
         while new_pages:
+            print("Exploring new pages...")
             # Pop a URL from the new_pages list
             url = new_pages.pop(0)
 
