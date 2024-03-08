@@ -1,6 +1,7 @@
 from drivers import AxObservation
 from action import Action
-
+import json
+from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 from typing import Optional, Any
@@ -316,11 +317,36 @@ def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
         load_time_ms)  # this is very finicky, if you set it to a lower time, you risk getting the actions from the previous page. TODO: fix this race
 
 
-def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False):
+def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'scrape_trials'):
     # Initialize an EquivalenceClassSet to store and manage equivalence classes
     equiv_classes = EquivalenceClassSet()
 
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
 
+    def save_equivalence_classes(equiv_classes: EquivalenceClassSet, filename: str):
+        data = {
+            'classes': [
+                {
+                    'page_urls': list(eq_class.page_urls),
+                    'page_states': {url: {
+                        'url': state.url,
+                        'html': state.html,
+                        'actions': [{'xpath': action.xpath, 'html': action.html} for action in state.actions],
+                        'screenshot': state.screenshot,
+                    } for url, state in eq_class.page_states.items()},
+                    'unique_actions': {key: {
+                        'action': {'xpath': action_info.action.xpath, 'html': action_info.action.html},
+                        'before_html': action_info.before_html,
+                        'after_html': action_info.after_html,
+                        'before_screenshot': action_info.before_screenshot,
+                        'after_screenshot': action_info.after_screenshot,
+                    } for key, action_info in eq_class.unique_actions.items()},
+                }
+                for eq_class in equiv_classes.classes
+            ]
+        }
+        with open(Path(output_dir) / filename, 'w') as f:
+            json.dump(data, f, indent=2)
 
     # Initialize an empty list to store the URLs of new pages discovered during scraping
     new_pages = []
@@ -344,6 +370,8 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
         if cookies is not None:
             context.add_cookies(cookies)
 
+        # # Create a set of visited URLs so there is less looping, assumes visiting same URL, URL has no new actions
+        # visited_urls = set()
         def get_page_state(url):
             # Navigate to the given URL and wait for the page to load
             page.goto(url)
@@ -351,6 +379,8 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
             # Retrieve the accessibility tree and create an AxObservation object
             cleaned = AxObservation(get_ax_tree(cdpSession), url)
+
+            # IMPORTANT: ASSUMES THAT IF ACTION SOMEHOW DISAPPEARS WHILE SCRAPING SAME PAGE THAT IT IS NOT IMPORTANT
 
             # Extract actions from the accessibility nodes and filter out None values
             actions = [ax_node_to_action(node) for node in cleaned.nodes_info]
@@ -365,6 +395,14 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
             )
 
         def explore_page(url: str):
+            # Normalize the URL
+            normalized_url = normalize_url(url)
+
+            # # Check if the URL has already been visited
+            # if normalized_url in visited_urls:
+            #     print(f"Skipping already visited page: {url}")
+            #     return
+
             # Get the page state for the given URL
             state = get_page_state(url)
 
@@ -460,9 +498,10 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
                 else:
                     print(f"No new actions found in equivalence class for page: {url}")
 
-                # Navigate back to the page state and wait for it to load
-                page.goto(state.url)
-                wait_for_load(page)
+                # # Navigate back to the page state and wait for it to load
+                # page.goto(state.url)
+                # wait_for_load(page)
+        save_equivalence_classes(equiv_classes, 'equivalence_classes.json')
 
 explore("https://us.supreme.com/pages/shop", headless=False)
 # explore("https://www.amazon.com/Brita-Filter-Pitcher-Standard-Without/dp/B09W4PLVQP/ref=sr_1_7?crid=3LCD2O3C4HNKO&dib=eyJ2IjoiMSJ9.XDFWvhkafbpG8bvke6HUJ1m7eZxOWDVPyhN0MM4tp6A4cF0UNkO2YR9ZtyNOPwzoqrhKHmWWbV5CJxzG_lRfHMy7Vu9fEwo2prr0asnohjrskeR_uMRTyEEIbN3DsS_6Lk-XDjigWxQVxqlDGGkd4MSDIPaU6nltNygG4URYkFf1b5Ib3p_3qlRvmELVRFo3-RxQ95GQVOW1jbYZErMvw5cv0OfHHHobJvcNrc-AgKKc8wXKTyJ4rW4b-FBLokmA23RnUPMO-yC4NJDvodqNabZ-AIbXrRh528W_Y-AwkwY.97zl7k14p0fVKq6Qbr7JmKMcgwchKGD8KgNIznoDwdQ&dib_tag=se&keywords=brita&qid=1709442919&sprefix=brita%2Caps%2C98&sr=8-7&th=1")
