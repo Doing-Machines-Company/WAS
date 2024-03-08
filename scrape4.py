@@ -454,16 +454,26 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
                         before_html = state.html
 
-                        element = page.evaluate(
-                            f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
-                        if element:
-                            # Store the HTML before applying the action
+
+                        friendly_xpath = action.xpath if '(' in action.xpath.split("/")[0] else f"//{action.xpath}"
+
+                        friendly_element = page.evaluate(
+                            f"document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
+
+
+                        if friendly_element:
                             page.evaluate(
-                                f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoView();")
+                                f"document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoView();")
                         else:
-                            print(f"Element not found for XPath: {action.xpath}") # this happens a weirdly large amount of times
-                            print(action.html)
-                            continue
+                            element = page.evaluate(
+                                f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
+                            if element:
+                                page.evaluate(
+                                    f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoView();")
+                            else:
+                                print(f"Element not found for XPath: {action.xpath}") # this happens a weirdly large amount of times
+                                print(action.html)
+                                continue
 
                         # Take a screenshot before applying the action
                         before_screenshot = page.screenshot()
