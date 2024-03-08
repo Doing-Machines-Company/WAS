@@ -323,29 +323,53 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    def save_equivalence_classes(equiv_classes: EquivalenceClassSet, filename: str):
+    def save_equivalence_classes(equiv_classes: EquivalenceClassSet, output_dir: str):
         data = {
-            'classes': [
-                {
-                    'page_urls': list(eq_class.page_urls),
-                    'page_states': {url: {
-                        'url': state.url,
-                        'html': state.html,
-                        'actions': [{'xpath': action.xpath, 'html': action.html} for action in state.actions],
-                        'screenshot': state.screenshot,
-                    } for url, state in eq_class.page_states.items()},
-                    'unique_actions': {key: {
-                        'action': {'xpath': action_info.action.xpath, 'html': action_info.action.html},
-                        'before_html': action_info.before_html,
-                        'after_html': action_info.after_html,
-                        'before_screenshot': action_info.before_screenshot,
-                        'after_screenshot': action_info.after_screenshot,
-                    } for key, action_info in eq_class.unique_actions.items()},
-                }
-                for eq_class in equiv_classes.classes
-            ]
+            'classes': []
         }
-        with open(Path(output_dir) / filename, 'w') as f:
+
+        for eq_class in equiv_classes.classes:
+            class_data = {
+                'page_urls': list(eq_class.page_urls),
+                'page_states': {},
+                'unique_actions': {}
+            }
+
+            for url, state in eq_class.page_states.items():
+                screenshot_filename = f"page_state_{hash(url)}.png"
+                screenshot_path = Path(output_dir) / screenshot_filename
+                with open(screenshot_path, 'wb') as f:
+                    f.write(state.screenshot)
+
+                class_data['page_states'][url] = {
+                    'url': state.url,
+                    'html': state.html,
+                    'actions': [{'xpath': action.xpath, 'html': action.html} for action in state.actions],
+                    'screenshot': screenshot_filename,
+                }
+
+            for key, action_info in eq_class.unique_actions.items():
+                before_screenshot_filename = f"action_{hash(key)}_before.png"
+                before_screenshot_path = Path(output_dir) / before_screenshot_filename
+                with open(before_screenshot_path, 'wb') as f:
+                    f.write(action_info.before_screenshot)
+
+                after_screenshot_filename = f"action_{hash(key)}_after.png"
+                after_screenshot_path = Path(output_dir) / after_screenshot_filename
+                with open(after_screenshot_path, 'wb') as f:
+                    f.write(action_info.after_screenshot)
+
+                class_data['unique_actions'][key] = {
+                    'action': {'xpath': action_info.action.xpath, 'html': action_info.action.html},
+                    'before_html': action_info.before_html,
+                    'after_html': action_info.after_html,
+                    'before_screenshot': before_screenshot_filename,
+                    'after_screenshot': after_screenshot_filename,
+                }
+
+            data['classes'].append(class_data)
+
+        with open(Path(output_dir) / 'equivalence_classes.json', 'w') as f:
             json.dump(data, f, indent=2)
 
     # Initialize an empty list to store the URLs of new pages discovered during scraping
@@ -396,7 +420,7 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
         def explore_page(url: str):
             # Normalize the URL
-            normalized_url = normalize_url(url)
+            # normalized_url = normalize_url(url)
 
             # # Check if the URL has already been visited
             # if normalized_url in visited_urls:
@@ -438,6 +462,7 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
                                 f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoView();")
                         else:
                             print(f"Element not found for XPath: {action.xpath}") # this happens a weirdly large amount of times
+                            print(action.html)
                             continue
 
                         # Take a screenshot before applying the action
@@ -501,7 +526,7 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
                 # # Navigate back to the page state and wait for it to load
                 # page.goto(state.url)
                 # wait_for_load(page)
-        save_equivalence_classes(equiv_classes, 'equivalence_classes.json')
+        save_equivalence_classes(equiv_classes, output_dir)
 
 explore("https://us.supreme.com/pages/shop", headless=False)
 # explore("https://www.amazon.com/Brita-Filter-Pitcher-Standard-Without/dp/B09W4PLVQP/ref=sr_1_7?crid=3LCD2O3C4HNKO&dib=eyJ2IjoiMSJ9.XDFWvhkafbpG8bvke6HUJ1m7eZxOWDVPyhN0MM4tp6A4cF0UNkO2YR9ZtyNOPwzoqrhKHmWWbV5CJxzG_lRfHMy7Vu9fEwo2prr0asnohjrskeR_uMRTyEEIbN3DsS_6Lk-XDjigWxQVxqlDGGkd4MSDIPaU6nltNygG4URYkFf1b5Ib3p_3qlRvmELVRFo3-RxQ95GQVOW1jbYZErMvw5cv0OfHHHobJvcNrc-AgKKc8wXKTyJ4rW4b-FBLokmA23RnUPMO-yC4NJDvodqNabZ-AIbXrRh528W_Y-AwkwY.97zl7k14p0fVKq6Qbr7JmKMcgwchKGD8KgNIznoDwdQ&dib_tag=se&keywords=brita&qid=1709442919&sprefix=brita%2Caps%2C98&sr=8-7&th=1")
