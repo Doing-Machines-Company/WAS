@@ -28,11 +28,7 @@ class PageState:
     actions: list[Action]
     screenshot: bytes
 
-@dataclass
-class PageTransition:
-    before_state: PageState
-    action: Action
-    after_state: PageState
+
 
 class EquivalenceClass:
     def __init__(self):
@@ -306,18 +302,6 @@ class PageObservation():
         return self.url
 
 
-class ObservationGraph:
-    def __init__(self):
-        self.nodes: dict[str, PageState] = {}
-        self.edges: list[PageTransition] = []
-
-    def add_node(self, state: PageState, eq_class: EquivalenceClass):
-        url = normalize_url(state.url)
-        if url not in self.nodes and eq_class.needs_scraping():
-            self.nodes[url] = state
-
-    def add_edge(self, transition: PageTransition):
-        self.edges.append(transition)
 
 
 def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
@@ -333,8 +317,7 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
     # Initialize an EquivalenceClassSet to store and manage equivalence classes
     equiv_classes = EquivalenceClassSet()
 
-    # Create an ObservationGraph to represent the graph of page states and transitions
-    graph = ObservationGraph()
+
 
     # Initialize an empty list to store the URLs of new pages discovered during scraping
     new_pages = []
@@ -384,7 +367,6 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
             # Add the page to the appropriate equivalence class and add the page state as a node to the observation graph
             eq_class = equiv_classes.add_page(state)
-            graph.add_node(state, eq_class)
 
             def explore_actions(state: PageState, eq_class: EquivalenceClass):
                 # Retrieve new actions that haven't been seen before in the equivalence class
@@ -419,10 +401,6 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
                         # Take a screenshot after the action without scrolling
                         after_screenshot = page.screenshot(full_page=False)
-
-                        # Create a PageTransition object and add it to the observation graph
-                        transition = PageTransition(state, action, after_state)
-                        graph.add_edge(transition)
 
                         # Update the unique actions in the equivalence class with the before and after states
                         eq_class.update_unique_actions([action], before_html, after_state.html, before_screenshot,
