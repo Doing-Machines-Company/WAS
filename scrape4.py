@@ -488,14 +488,14 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
                         # explore_actions()  # TODO, maybe correct? Is NOT correct!
                         #
                         # break
-                    # TODO Something after going through a whole page
-                    after_scrape_state = get_page_state()  # URL not normalized
-
-                    eq_class = equiv_classes.get_class(after_scrape_state.url, after_scrape_state.html)
-                    assert(eq_class is not None)
-                    new_actions = [a for a in before_state.actions if eq_class.is_new_action(a)]
-                    if len(new_actions) > 0:
-                        explore_actions()
+                    # # TODO Something after going through a whole page
+                    # after_scrape_state = get_page_state()  # URL not normalized
+                    #
+                    # eq_class = equiv_classes.get_class(after_scrape_state.url, after_scrape_state.html)
+                    # assert(eq_class is not None)
+                    # new_actions = [a for a in before_state.actions if eq_class.is_new_action(a)]
+                    # if len(new_actions) > 0:
+                    #     explore_actions()
 
 
             # Start exploring actions on the current page state and equivalence class
