@@ -80,11 +80,12 @@ class EquivalenceClassSet:
         self.added_urls.add(normalize_url(state.url))
         # eq_class = self.get_class(state.url, state.html)
         if eq_class is None:
-            print(f"Creating new equivalence class")
+            # print(f"Creating new equivalence class")
             eq_class = EquivalenceClass()
             self.classes.append(eq_class)
         else:
-            print("Adding page to existing equivalence class")
+            # print("Adding page to existing equivalence class")
+            pass
         eq_class.add_page(state)
         return eq_class
 
@@ -253,7 +254,7 @@ def apply_action(page: PlaywrightPage, a: Action) -> bool:
                 page.locator(f'xpath={a.xpath}').first.fill(input_text)
                 page.wait_for_load_state('networkidle')
                 if "search" in a.html:
-                    print("SEARCHING PRESS ENTER")
+                    # print("SEARCHING PRESS ENTER")
                     page.keyboard.press('Enter')
                     page.wait_for_load_state('networkidle')
 
@@ -404,7 +405,7 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
             def explore_actions():
                 scrape_flag = False
-                print('Exploring actions on page...')
+
                 # Retrieve new actions that haven't been seen before in the equivalence class
                 before_state = get_page_state() # URL not normalized
 
@@ -425,11 +426,12 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
                 # If there are new actions to explore
                 if scrape_flag:
+                    print('Exploring actions on page...')
                     # Filter out similar actions to get a list of unique actions
-                    print('going')
+                    # print('going')
                     unique_actions = []
                     for action in new_actions:
-                        if not any(element_similarity(action.html, a.html) >= 0.9 for a in unique_actions):
+                        if not any(element_similarity(action.html, a.html) >= 0.9 for a in unique_actions): # may want to play around with this hyperparam
                             unique_actions.append(action)
 
                     # For each unique action
@@ -480,11 +482,20 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
                         if normalize_url(before_state.url) != normalize_url(page.url):
                             new_pages.append(page.url) # stop adding new pages if already in new_pages
                             page.goto(before_state.url)
+                            # TODO, CREATE AND EQUIVALENCE CLASS FOR THESE????
 
                         # If the action leads to the same page (same URL), recursively explore new actions on the same page
-                        explore_actions() # TODO, maybe correct? Is correct!
+                        # explore_actions()  # TODO, maybe correct? Is NOT correct!
+                        #
+                        # break
+                    # TODO Something after going through a whole page
+                    after_scrape_state = get_page_state()  # URL not normalized
 
-                        break
+                    eq_class = equiv_classes.get_class(after_scrape_state.url, after_scrape_state.html)
+                    assert(eq_class is not None)
+                    new_actions = [a for a in before_state.actions if eq_class.is_new_action(a)]
+                    if len(new_actions) > 0:
+                        explore_actions()
 
 
             # Start exploring actions on the current page state and equivalence class
@@ -495,12 +506,14 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
         # Continue exploring new pages until there are no more pages to explore
         while new_pages: # new_pages is a list of strings which are urls
-            print("Exploring new pages...")
+            print(new_pages)
+            print(len(new_pages))
+            # print("Exploring new pages...")
             # Pop a URL from the new_pages list
             url = new_pages.pop(0)
             explore_page(url)
 
         save_equivalence_classes(equiv_classes, output_dir)
 
-explore("https://us.supreme.com/pages/shop", headless=True, root="https://us.supreme.com")
+explore("https://us.supreme.com/pages/shop", headless=False, root="https://us.supreme.com")
 # explore("https://www.amazon.com/Brita-Filter-Pitcher-Standard-Without/dp/B09W4PLVQP/ref=sr_1_7?crid=3LCD2O3C4HNKO&dib=eyJ2IjoiMSJ9.XDFWvhkafbpG8bvke6HUJ1m7eZxOWDVPyhN0MM4tp6A4cF0UNkO2YR9ZtyNOPwzoqrhKHmWWbV5CJxzG_lRfHMy7Vu9fEwo2prr0asnohjrskeR_uMRTyEEIbN3DsS_6Lk-XDjigWxQVxqlDGGkd4MSDIPaU6nltNygG4URYkFf1b5Ib3p_3qlRvmELVRFo3-RxQ95GQVOW1jbYZErMvw5cv0OfHHHobJvcNrc-AgKKc8wXKTyJ4rW4b-FBLokmA23RnUPMO-yC4NJDvodqNabZ-AIbXrRh528W_Y-AwkwY.97zl7k14p0fVKq6Qbr7JmKMcgwchKGD8KgNIznoDwdQ&dib_tag=se&keywords=brita&qid=1709442919&sprefix=brita%2Caps%2C98&sr=8-7&th=1")

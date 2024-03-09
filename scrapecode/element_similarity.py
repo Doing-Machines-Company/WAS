@@ -91,7 +91,7 @@ def element_similarity(document_1, document_2, k=0.6):
     # print(f"Structural Similarity: {structural_sim}")
     # print(f"Style Similarity: {style_sim}")
 
-    return min(structural_sim, style_sim) # Structural sim seems to be more telling
+    return structural_sim  # Structural sim seems to be more telling
 
 
 # with open('el3.json', 'r') as file:
