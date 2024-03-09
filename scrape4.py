@@ -1,3 +1,5 @@
+import time
+
 from drivers import AxObservation
 from action import Action
 import json
@@ -158,6 +160,9 @@ def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
             )
             node["html"] = response["outerHTML"]
             node["xpath"] = node_xpath
+            # print(node['role']['value'])
+            # print(node['name']['value'])
+
         except Exception as e:
             node['xpath'] = ''
             if 'html' not in node:
@@ -202,26 +207,34 @@ def ax_node_to_action(ax_node: AxNode) -> Optional[Action]:
 
     if xpath and html and xpath.strip() != "" and html.strip() != "":
         if role.strip() == 'link':
-            return Action(Action.Type.CLICK_LINK, xpath, html)
+            action = Action(Action.Type.CLICK_LINK, xpath, html)
+            action.set_tree_line(f"{role}: {ax_node['name']}")
+            return action
 
         elif role.strip() in important_clickables:
-            # if 'Save with Used' in html:
-            #     print(f"ROLE: {role}")
-            #     print(f"HTML: {html}")
-            #     print(f"XPATH: {xpath}")
-            return Action(Action.Type.CLICK_IMPORTANT, xpath, html)
+            action = Action(Action.Type.CLICK_IMPORTANT, xpath, html)
+            action.set_tree_line(f"{role}: {ax_node['name']}")
+            return action
 
         elif role.strip() == 'radio':
-            return Action(Action.Type.CLICK_RADIO, xpath, html)
+            action = Action(Action.Type.CLICK_RADIO, xpath, html)
+            action.set_tree_line(f"{role}: {ax_node['name']}")
+            return action
 
         elif role.strip() == 'checkbox':
-            return Action(Action.Type.CLICK_CHECKBOX, xpath, html)
+            action = Action(Action.Type.CLICK_CHECKBOX, xpath, html)
+            action.set_tree_line(f"{role}: {ax_node['name']}")
+            return action
 
         elif role.strip() in general_clickables:
-            return Action(Action.Type.CLICK_GENERAL, xpath, html)
+            action = Action(Action.Type.CLICK_GENERAL, xpath, html)
+            action.set_tree_line(f"{role}: {ax_node['name']}")
+            return action
 
         elif role.strip() in input_roles:
-            return Action(Action.Type.INPUT, xpath, html)
+            action = Action(Action.Type.INPUT, xpath, html)
+            action.set_tree_line(f"{role}: {ax_node['name']}")
+            return action
 
     return None
 
@@ -361,8 +374,7 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
         if cookies is not None:
             context.add_cookies(cookies)
 
-        # # Create a set of visited URLs so there is less looping, assumes visiting same URL, URL has no new actions
-        # visited_urls = set()
+
         def get_page_state():
             # Navigate to the given URL and wait for the page to load
             # page.goto(url) # TODO, perhaps not what you want
@@ -461,6 +473,7 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
                                 print(action.html)
                                 continue
 
+                        time.sleep(0.5)
                         # Take a screenshot before applying the action
                         before_screenshot = page.screenshot()
 
@@ -469,33 +482,31 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
                         wait_for_load(page)
                         # input("Press Enter to continue...")
 
-                        # Take a screenshot after the action without scrolling
-                        after_screenshot = page.screenshot(full_page=False)
-                        after_state = get_page_state()
+                        time.sleep(0.5)
+                        # Check if a new tab is opened
+                        if len(page.context.pages) > 1 and page.context.pages[-1] != page:
+                            new_page = page.context.pages[-1]
+                            # Take a screenshot of the new tab
+                            after_screenshot = new_page.screenshot(full_page=False)
+                            # Update the unique actions in the equivalence class with the before and after states
+                            eq_class.update_unique_actions([action], before_state.html, new_page.content(),
+                                                           before_screenshot,
+                                                           after_screenshot)
 
-                        # Update the unique actions in the equivalence class with the before and after states
-                        eq_class.update_unique_actions([action], before_state.html, after_state.html, before_screenshot,
-                                                       after_screenshot)
-
+                            new_pages.append(new_page.url)
+                            new_page.close()
+                        else:
+                            # Take a screenshot after the action without scrolling
+                            after_screenshot = page.screenshot(full_page=False)
+                            # Update the unique actions in the equivalence class with the before and after states
+                            eq_class.update_unique_actions([action], before_state.html, page.content(),
+                                                           before_screenshot,
+                                                           after_screenshot)
 
                         # If the action leads to a new page (different URL), append it to the new_pages list for later exploration
                         if normalize_url(before_state.url) != normalize_url(page.url):
-                            new_pages.append(page.url) # perhaps stop adding new pages if already in new_pages
-                            page.goto(before_state.url) # hopefully same XPATH means same HTML and same action
-                            # TODO, CREATE AND EQUIVALENCE CLASS FOR THESE????
-
-                        # If the action leads to the same page (same URL), recursively explore new actions on the same page
-                        # explore_actions()  # TODO, maybe correct? Is NOT correct!
-                        #
-                        # break
-                    # # TODO Something after going through a whole page
-                    # after_scrape_state = get_page_state()  # URL not normalized
-                    #
-                    # eq_class = equiv_classes.get_class(after_scrape_state.url, after_scrape_state.html)
-                    # assert(eq_class is not None)
-                    # new_actions = [a for a in before_state.actions if eq_class.is_new_action(a)]
-                    # if len(new_actions) > 0:
-                    #     explore_actions()
+                            new_pages.append(page.url)
+                            page.goto(before_state.url)
 
 
             # Start exploring actions on the current page state and equivalence class
@@ -506,7 +517,7 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
         # Continue exploring new pages until there are no more pages to explore
         while new_pages: # new_pages is a list of strings which are urls
-            print(new_pages)
+            # print(new_pages)
             print(len(new_pages))
             # print("Exploring new pages...")
             # Pop a URL from the new_pages list
@@ -515,5 +526,5 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
         save_equivalence_classes(equiv_classes, output_dir)
 
-explore("https://us.supreme.com/pages/shop", headless=True, root="https://us.supreme.com")
+explore("https://us.supreme.com/products/cy2dbtgcsd1feuyr", headless=True, root="https://us.supreme.com")
 # explore("https://www.amazon.com/Brita-Filter-Pitcher-Standard-Without/dp/B09W4PLVQP/ref=sr_1_7?crid=3LCD2O3C4HNKO&dib=eyJ2IjoiMSJ9.XDFWvhkafbpG8bvke6HUJ1m7eZxOWDVPyhN0MM4tp6A4cF0UNkO2YR9ZtyNOPwzoqrhKHmWWbV5CJxzG_lRfHMy7Vu9fEwo2prr0asnohjrskeR_uMRTyEEIbN3DsS_6Lk-XDjigWxQVxqlDGGkd4MSDIPaU6nltNygG4URYkFf1b5Ib3p_3qlRvmELVRFo3-RxQ95GQVOW1jbYZErMvw5cv0OfHHHobJvcNrc-AgKKc8wXKTyJ4rW4b-FBLokmA23RnUPMO-yC4NJDvodqNabZ-AIbXrRh528W_Y-AwkwY.97zl7k14p0fVKq6Qbr7JmKMcgwchKGD8KgNIznoDwdQ&dib_tag=se&keywords=brita&qid=1709442919&sprefix=brita%2Caps%2C98&sr=8-7&th=1")
