@@ -49,7 +49,7 @@ class EquivalenceClass:
     def has_similar_action(self, action: Action) -> bool:
         return any(element_similarity(action.html, a.action.html) >= 0.9 for a in self.unique_actions.values())
 
-    def has_new_action(self, action: Action) -> bool:
+    def is_new_action(self, action: Action) -> bool:
         return not self.has_similar_action(action)
 
     def is_similar(self, url: str, html: str) -> bool:
@@ -63,8 +63,7 @@ class EquivalenceClass:
 
         return True
 
-    def needs_scraping(self) -> bool:
-        return len(self.page_urls) < 10
+
 
 class EquivalenceClassSet:
     def __init__(self):
@@ -77,9 +76,9 @@ class EquivalenceClassSet:
                 return eq_class
         return None
 
-    def add_page(self, state: PageState) -> EquivalenceClass:
+    def add_page(self, state: PageState, eq_class) -> EquivalenceClass:
         self.added_urls.add(normalize_url(state.url))
-        eq_class = self.get_class(state.url, state.html)
+        # eq_class = self.get_class(state.url, state.html)
         if eq_class is None:
             print(f"Creating new equivalence class")
             eq_class = EquivalenceClass()
@@ -404,20 +403,30 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
             wait_for_load(page)
 
             def explore_actions():
+                scrape_flag = False
                 print('Exploring actions on page...')
                 # Retrieve new actions that haven't been seen before in the equivalence class
                 before_state = get_page_state() # URL not normalized
 
-                if normalize_url(before_state.url) in equiv_classes.added_urls: # should literally be impossible
-                    eq_class = equiv_classes.get_class(before_state.url, before_state.html)
-                else:
-                    eq_class = equiv_classes.add_page(before_state)
 
-                new_actions = [a for a in before_state.actions if eq_class.has_new_action(a)]
+
+                eq_class = equiv_classes.get_class(before_state.url, before_state.html)
+
+                if eq_class is None:
+                    scrape_flag = True
+                    eq_class = equiv_classes.add_page(before_state, eq_class)
+                    new_actions = [a for a in before_state.actions if eq_class.is_new_action(a)]
+                    # eq_class = equiv_classes.add_page(before_state, eq_class)
+                else:
+                    new_actions = [a for a in before_state.actions if eq_class.is_new_action(a)]
+                    if len(new_actions) > 0:
+                        scrape_flag = True
+                        equiv_classes.add_page(before_state, eq_class)
 
                 # If there are new actions to explore
-                if new_actions:
+                if scrape_flag:
                     # Filter out similar actions to get a list of unique actions
+                    print('going')
                     unique_actions = []
                     for action in new_actions:
                         if not any(element_similarity(action.html, a.html) >= 0.9 for a in unique_actions):
