@@ -480,8 +480,8 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
                         # If the action leads to a new page (different URL), append it to the new_pages list for later exploration
                         if normalize_url(before_state.url) != normalize_url(page.url):
-                            new_pages.append(page.url) # stop adding new pages if already in new_pages
-                            page.goto(before_state.url)
+                            new_pages.append(page.url) # perhaps stop adding new pages if already in new_pages
+                            page.goto(before_state.url) # hopefully same XPATH means same HTML and same action
                             # TODO, CREATE AND EQUIVALENCE CLASS FOR THESE????
 
                         # If the action leads to the same page (same URL), recursively explore new actions on the same page
@@ -515,5 +515,5 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
         save_equivalence_classes(equiv_classes, output_dir)
 
-explore("https://us.supreme.com/pages/shop", headless=False, root="https://us.supreme.com")
+explore("https://us.supreme.com/pages/shop", headless=True, root="https://us.supreme.com")
 # explore("https://www.amazon.com/Brita-Filter-Pitcher-Standard-Without/dp/B09W4PLVQP/ref=sr_1_7?crid=3LCD2O3C4HNKO&dib=eyJ2IjoiMSJ9.XDFWvhkafbpG8bvke6HUJ1m7eZxOWDVPyhN0MM4tp6A4cF0UNkO2YR9ZtyNOPwzoqrhKHmWWbV5CJxzG_lRfHMy7Vu9fEwo2prr0asnohjrskeR_uMRTyEEIbN3DsS_6Lk-XDjigWxQVxqlDGGkd4MSDIPaU6nltNygG4URYkFf1b5Ib3p_3qlRvmELVRFo3-RxQ95GQVOW1jbYZErMvw5cv0OfHHHobJvcNrc-AgKKc8wXKTyJ4rW4b-FBLokmA23RnUPMO-yC4NJDvodqNabZ-AIbXrRh528W_Y-AwkwY.97zl7k14p0fVKq6Qbr7JmKMcgwchKGD8KgNIznoDwdQ&dib_tag=se&keywords=brita&qid=1709442919&sprefix=brita%2Caps%2C98&sr=8-7&th=1")
