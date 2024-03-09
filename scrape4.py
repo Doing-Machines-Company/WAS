@@ -428,6 +428,10 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
             #     print(f"Skipping already visited page: {url}")
             #     return
 
+            if normalize_url(url) in equiv_classes.seen_urls:
+                print(f"Skipping already visited page: {url}")
+                return
+
             page.goto(url)
             wait_for_load(page)
 
