@@ -3,7 +3,7 @@ from action import Action
 import json
 from pathlib import Path
 from playwright.sync_api import sync_playwright
-
+import pickle
 from typing import Optional, Any
 from time import sleep
 from dataclasses import dataclass
@@ -20,15 +20,13 @@ class ActionInfo:
     action: Action
     before_html: str
     after_html: str
-    before_screenshot: bytes
-    after_screenshot: bytes
+    before_screenshot: bytes | str
+    after_screenshot: bytes | str
 @dataclass
 class PageState:
     url: str
     html: str
     actions: list[Action]
-    screenshot: bytes
-
 
 
 class EquivalenceClass:
@@ -71,7 +69,7 @@ class EquivalenceClass:
 class EquivalenceClassSet:
     def __init__(self):
         self.classes: list[EquivalenceClass] = []
-        self.seen_urls: set[str] = set()
+        self.added_urls: set[str] = set()
 
     def get_class(self, url: str, html: str) -> Optional[EquivalenceClass]:
         for eq_class in self.classes:
@@ -80,7 +78,7 @@ class EquivalenceClassSet:
         return None
 
     def add_page(self, state: PageState) -> EquivalenceClass:
-        self.seen_urls.add(normalize_url(state.url))
+        self.added_urls.add(normalize_url(state.url))
         eq_class = self.get_class(state.url, state.html)
         if eq_class is None:
             print(f"Creating new equivalence class")
@@ -295,16 +293,6 @@ def normalize_url(url: str) -> str:
     return urlunparse((scheme, netloc, path, '', '', ''))  # Ignoring the query and fragment
 
 
-@dataclass
-class PageObservation():
-    raw_url: str
-    url: str
-    html: str
-    raw_ax_tree: list[AxNode]
-    ax_tree: AxObservation
-
-    def hash(self):
-        return self.url
 
 
 
@@ -318,60 +306,38 @@ def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
         load_time_ms)  # this is very finicky, if you set it to a lower time, you risk getting the actions from the previous page. TODO: fix this race
 
 
-def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'scrape_trials'):
-    # Initialize an EquivalenceClassSet to store and manage equivalence classes
-    equiv_classes = EquivalenceClassSet()
-
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
-
+def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'scrape_trials', root: Optional[str] = ""):
     def save_equivalence_classes(equiv_classes: EquivalenceClassSet, output_dir: str):
-        data = {
-            'classes': []
-        }
+        # Create the output directory if it doesn't exist
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
 
+        # Save the screenshots separately and update the file paths
         for eq_class in equiv_classes.classes:
-            class_data = {
-                'page_urls': list(eq_class.page_urls),
-                'page_states': {},
-                'unique_actions': {}
-            }
-
-            for url, state in eq_class.page_states.items():
-                screenshot_filename = f"page_state_{hash(url)}.png"
-                screenshot_path = Path(output_dir) / screenshot_filename
-                with open(screenshot_path, 'wb') as f:
-                    f.write(state.screenshot)
-
-                class_data['page_states'][url] = {
-                    'url': state.url,
-                    'html': state.html,
-                    'actions': [{'xpath': action.xpath, 'html': action.html} for action in state.actions],
-                    'screenshot': screenshot_filename,
-                }
-
             for key, action_info in eq_class.unique_actions.items():
                 before_screenshot_filename = f"action_{hash(key)}_before.png"
                 before_screenshot_path = Path(output_dir) / before_screenshot_filename
                 with open(before_screenshot_path, 'wb') as f:
-                    f.write(action_info.before_screenshot)
+                    f.write(action_info.before_screenshot) # this is so jank, originally bytes, now str for pathing and ease of saving
+                action_info.before_screenshot = str(before_screenshot_path)
 
                 after_screenshot_filename = f"action_{hash(key)}_after.png"
                 after_screenshot_path = Path(output_dir) / after_screenshot_filename
                 with open(after_screenshot_path, 'wb') as f:
                     f.write(action_info.after_screenshot)
+                action_info.after_screenshot = str(after_screenshot_path)
 
-                class_data['unique_actions'][key] = {
-                    'action': {'xpath': action_info.action.xpath, 'html': action_info.action.html},
-                    'before_html': action_info.before_html,
-                    'after_html': action_info.after_html,
-                    'before_screenshot': before_screenshot_filename,
-                    'after_screenshot': after_screenshot_filename,
-                }
+        # Save the EquivalenceClassSet object using pickling
+        output_path = Path(output_dir) / 'scraper_state.pkl'
+        with open(output_path, 'wb') as f:
+            pickle.dump(equiv_classes, f)
 
-            data['classes'].append(class_data)
+    # Initialize an EquivalenceClassSet to store and manage equivalence classes
+    equiv_classes = EquivalenceClassSet()
 
-        with open(Path(output_dir) / 'equivalence_classes.json', 'w') as f:
-            json.dump(data, f, indent=2)
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+    seen_urls = set()
+
 
     # Initialize an empty list to store the URLs of new pages discovered during scraping
     new_pages = []
@@ -415,31 +381,34 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
             return PageState(
                 url=page.url,
                 html=page.content(),
-                actions=actions,
-                screenshot=page.screenshot()
+                actions=actions
             )
 
         def explore_page(url: str):
             # Normalize the URL
             # normalized_url = normalize_url(url)
 
-            # # Check if the URL has already been visited
-            # if normalized_url in visited_urls:
-            #     print(f"Skipping already visited page: {url}")
-            #     return
 
-            if normalize_url(url) in equiv_classes.seen_urls:
+
+            if normalize_url(url) in seen_urls:
                 print(f"Skipping already visited page: {url}")
+                return
+
+            seen_urls.add(normalize_url(url))
+
+            if not url.startswith(root):
+                print(f"Skipping page outside of root: {url}")
                 return
 
             page.goto(url)
             wait_for_load(page)
 
             def explore_actions():
+                print('Exploring actions on page...')
                 # Retrieve new actions that haven't been seen before in the equivalence class
                 before_state = get_page_state() # URL not normalized
 
-                if normalize_url(before_state.url) in equiv_classes.seen_urls:
+                if normalize_url(before_state.url) in equiv_classes.added_urls: # should literally be impossible
                     eq_class = equiv_classes.get_class(before_state.url, before_state.html)
                 else:
                     eq_class = equiv_classes.add_page(before_state)
@@ -500,11 +469,13 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
                         # If the action leads to a new page (different URL), append it to the new_pages list for later exploration
                         if normalize_url(before_state.url) != normalize_url(page.url):
-                            new_pages.append(page.url)
+                            new_pages.append(page.url) # stop adding new pages if already in new_pages
                             page.goto(before_state.url)
 
                         # If the action leads to the same page (same URL), recursively explore new actions on the same page
                         explore_actions() # TODO, maybe correct? Is correct!
+
+                        break
 
 
             # Start exploring actions on the current page state and equivalence class
@@ -522,5 +493,5 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
         save_equivalence_classes(equiv_classes, output_dir)
 
-explore("https://us.supreme.com/pages/shop", headless=True)
+explore("https://us.supreme.com/pages/shop", headless=True, root="https://us.supreme.com")
 # explore("https://www.amazon.com/Brita-Filter-Pitcher-Standard-Without/dp/B09W4PLVQP/ref=sr_1_7?crid=3LCD2O3C4HNKO&dib=eyJ2IjoiMSJ9.XDFWvhkafbpG8bvke6HUJ1m7eZxOWDVPyhN0MM4tp6A4cF0UNkO2YR9ZtyNOPwzoqrhKHmWWbV5CJxzG_lRfHMy7Vu9fEwo2prr0asnohjrskeR_uMRTyEEIbN3DsS_6Lk-XDjigWxQVxqlDGGkd4MSDIPaU6nltNygG4URYkFf1b5Ib3p_3qlRvmELVRFo3-RxQ95GQVOW1jbYZErMvw5cv0OfHHHobJvcNrc-AgKKc8wXKTyJ4rW4b-FBLokmA23RnUPMO-yC4NJDvodqNabZ-AIbXrRh528W_Y-AwkwY.97zl7k14p0fVKq6Qbr7JmKMcgwchKGD8KgNIznoDwdQ&dib_tag=se&keywords=brita&qid=1709442919&sprefix=brita%2Caps%2C98&sr=8-7&th=1")
