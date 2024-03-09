@@ -71,6 +71,7 @@ class EquivalenceClass:
 class EquivalenceClassSet:
     def __init__(self):
         self.classes: list[EquivalenceClass] = []
+        self.seen_urls: set[str] = set()
 
     def get_class(self, url: str, html: str) -> Optional[EquivalenceClass]:
         for eq_class in self.classes:
@@ -79,6 +80,7 @@ class EquivalenceClassSet:
         return None
 
     def add_page(self, state: PageState) -> EquivalenceClass:
+        self.seen_urls.add(normalize_url(state.url))
         eq_class = self.get_class(state.url, state.html)
         if eq_class is None:
             print(f"Creating new equivalence class")
@@ -395,13 +397,13 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
         # # Create a set of visited URLs so there is less looping, assumes visiting same URL, URL has no new actions
         # visited_urls = set()
-        def get_page_state(url):
+        def get_page_state():
             # Navigate to the given URL and wait for the page to load
-            page.goto(url)
+            # page.goto(url) # TODO, perhaps not what you want
             wait_for_load(page)
 
             # Retrieve the accessibility tree and create an AxObservation object
-            cleaned = AxObservation(get_ax_tree(cdpSession), url)
+            cleaned = AxObservation(get_ax_tree(cdpSession), page.url)
 
             # IMPORTANT: ASSUMES THAT IF ACTION SOMEHOW DISAPPEARS WHILE SCRAPING SAME PAGE THAT IT IS NOT IMPORTANT
 
@@ -411,7 +413,7 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
             # Create and return a PageState object with the normalized URL, HTML content, actions, and screenshot
             return PageState(
-                url=normalize_url(page.url),
+                url=page.url,
                 html=page.content(),
                 actions=actions,
                 screenshot=page.screenshot()
@@ -426,15 +428,19 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
             #     print(f"Skipping already visited page: {url}")
             #     return
 
-            # Get the page state for the given URL
-            state = get_page_state(url)
+            page.goto(url)
+            wait_for_load(page)
 
-            # Add the page to the appropriate equivalence class and add the page state as a node to the observation graph
-            eq_class = equiv_classes.add_page(state)
-
-            def explore_actions(state: PageState, eq_class: EquivalenceClass):
+            def explore_actions():
                 # Retrieve new actions that haven't been seen before in the equivalence class
-                new_actions = [a for a in state.actions if eq_class.has_new_action(a)]
+                before_state = get_page_state() # URL not normalized
+
+                if normalize_url(before_state.url) in equiv_classes.seen_urls:
+                    eq_class = equiv_classes.get_class(before_state.url, before_state.html)
+                else:
+                    eq_class = equiv_classes.add_page(before_state)
+
+                new_actions = [a for a in before_state.actions if eq_class.has_new_action(a)]
 
                 # If there are new actions to explore
                 if new_actions:
@@ -446,12 +452,9 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
                     # For each unique action
                     for action in unique_actions:
-
                         if not action.xpath:
                             print(f"Skipping action without XPath: {action}")
                             continue
-
-                        before_html = state.html
 
 
                         friendly_xpath = action.xpath if '(' in action.xpath.split("/")[0] else f"//{action.xpath}"
@@ -482,59 +485,37 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
                         wait_for_load(page)
                         # input("Press Enter to continue...")
 
-                        # Get the page state after applying the action
-                        after_state = get_page_state(page.url)
-
                         # Take a screenshot after the action without scrolling
                         after_screenshot = page.screenshot(full_page=False)
+                        after_state = get_page_state()
 
                         # Update the unique actions in the equivalence class with the before and after states
-                        eq_class.update_unique_actions([action], before_html, after_state.html, before_screenshot,
+                        eq_class.update_unique_actions([action], before_state.html, after_state.html, before_screenshot,
                                                        after_screenshot)
 
+
                         # If the action leads to a new page (different URL), append it to the new_pages list for later exploration
-                        if normalize_url(state.url) != normalize_url(after_state.url):
-                            new_pages.append(after_state.url)
+                        if normalize_url(before_state.url) != normalize_url(page.url):
+                            new_pages.append(page.url)
+                            page.goto(before_state.url)
+
                         # If the action leads to the same page (same URL), recursively explore new actions on the same page
-                        else:
-                            explore_actions(after_state, eq_class)
+                        explore_actions() # TODO, maybe correct? Is correct!
+
 
             # Start exploring actions on the current page state and equivalence class
-            explore_actions(state, eq_class)
+            explore_actions()
 
         # Start the exploration process by exploring the starting URL
         explore_page(starting_url)
 
         # Continue exploring new pages until there are no more pages to explore
-        while new_pages:
+        while new_pages: # new_pages is a list of strings which are urls
             print("Exploring new pages...")
             # Pop a URL from the new_pages list
             url = new_pages.pop(0)
+            explore_page(url)
 
-            # Get the corresponding equivalence class for the URL
-            eq_class = equiv_classes.get_class(url, '')
-
-            # If the page doesn't belong to any existing equivalence class, explore the page
-            if eq_class is None:
-                explore_page(url)
-            # If the page belongs to an existing equivalence class
-            else:
-                # Get the page state for the URL
-                state = get_page_state(url)
-
-                # Check for new actions that haven't been seen before in the equivalence class
-                new_actions = [a for a in state.actions if eq_class.has_new_action(a)]
-
-                # If there are new actions, explore the page and its actions
-                if new_actions:
-                    explore_page(url)
-                # If there are no new actions, print a message indicating no new actions were found
-                else:
-                    print(f"No new actions found in equivalence class for page: {url}")
-
-                # # Navigate back to the page state and wait for it to load
-                # page.goto(state.url)
-                # wait_for_load(page)
         save_equivalence_classes(equiv_classes, output_dir)
 
 explore("https://us.supreme.com/pages/shop", headless=True)
