@@ -17,11 +17,30 @@ def get_element_details(html):
         if element.name == 'span' and 'a-text-bold' in element.get('class', []):
             text = element.text.strip()
             if text:
-                titles.append(text)
-        elif element.name in ['a', 'button', 'input']:
+                if isinstance(text, str):
+                    titles.append(text)
+                elif isinstance(text, list):
+                    titles.extend(text)
+                else:
+                    assert False, f"Unexpected title type: {type(text)}"
+        elif element.name in ['button', 'input']: # This
             title = element.get('title') or element.text.strip()
             if title:
-                titles.append(title)
+                if isinstance(title, str):
+                    titles.append(title)
+                elif isinstance(title, list):
+                    titles.extend(title)
+                else:
+                    assert False, f"Unexpected title type: {type(title)}"
+        elif element.name in ['a']: # This
+            title = element.get('class') or element.text.strip()
+            if title:
+                if isinstance(title, str):
+                    titles.append(title)
+                elif isinstance(title, list):
+                    titles.extend(title)
+                else:
+                    assert False, f"Unexpected title type: {type(title)}"
     return titles
 
 
