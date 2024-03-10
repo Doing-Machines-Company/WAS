@@ -24,6 +24,7 @@ def display_equivalence_classes(equiv_classes):
             # print(f"      After HTML: {action_info.after_html[:100]}...")
             print(f"      Before Screenshot: {action_info.before_screenshot}")
             print(f"      After Screenshot: {action_info.after_screenshot}")
+            print(f"      Tree Line: {action_info.action.tree_line}")
             print()
 
         input("Press Enter to continue to the next equivalence class...")

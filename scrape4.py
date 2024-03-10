@@ -189,7 +189,7 @@ def ax_node_to_action(ax_node: AxNode) -> Optional[Action]:
         'article', 'cell', 'definition', 'directory', 'document',
         'feed', 'figure', 'group', 'img', 'list',
         'listitem', 'math', 'progressbar',
-        'separator', 'toolbar', 'tooltip', 'presentation']
+        'separator', 'toolbar', 'tooltip', 'presentation', 'option']
 
     input_roles = [
         'textbox', 'searchbox', 'slider', 'spinbutton', 'radiogroup',
@@ -392,8 +392,7 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
             # Retrieve the accessibility tree and create an AxObservation object
             cleaned = AxObservation(get_ax_tree(cdpSession), page.url)
-            print(cleaned)
-            input('waittc')
+
             # IMPORTANT: ASSUMES THAT IF ACTION SOMEHOW DISAPPEARS WHILE SCRAPING SAME PAGE THAT IT IS NOT IMPORTANT
 
             # Extract actions from the accessibility nodes and filter out None values
