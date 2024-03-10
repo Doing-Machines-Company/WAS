@@ -230,8 +230,19 @@ def ax_node_to_action(ax_node: AxNode) -> Optional[Action]:
             action = Action(Action.Type.CLICK_GENERAL, xpath, html)
             action.set_tree_line(f"{role}: {ax_node['name']}")
             return action
-
-        elif role.strip() in input_roles:
+        # elif role.strip() in input_roles:
+        #     action = Action(Action.Type.INPUT, xpath, html)
+        #     action.set_tree_line(f"{role}: {ax_node['name']}")
+        #     return action
+        elif '<input' in html:
+            action = Action(Action.Type.INPUT, xpath, html)
+            action.set_tree_line(f"{role}: {ax_node['name']}")
+            return action
+        elif 'contenteditable' in html:
+            action = Action(Action.Type.INPUT, xpath, html)
+            action.set_tree_line(f"{role}: {ax_node['name']}")
+            return action
+        elif '<textarea' in html:
             action = Action(Action.Type.INPUT, xpath, html)
             action.set_tree_line(f"{role}: {ax_node['name']}")
             return action
@@ -243,7 +254,6 @@ def apply_action(page: PlaywrightPage, a: Action) -> bool:
     match a.action_type:
         case Action.Type.CLICK_LINK | Action.Type.CLICK_IMPORTANT | Action.Type.CLICK_CHECKBOX | Action.Type.CLICK_RADIO:
             friendly_path = a.xpath if '(' in a.xpath.split("/")[0] else f"//{a.xpath}"
-
             try:
                 page.evaluate(
                     f"() => {{ let e = document.evaluate('{friendly_path}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; e.scrollIntoViewIfNeeded(); e.click(); }}")
@@ -382,7 +392,8 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
             # Retrieve the accessibility tree and create an AxObservation object
             cleaned = AxObservation(get_ax_tree(cdpSession), page.url)
-
+            print(cleaned)
+            input('waittc')
             # IMPORTANT: ASSUMES THAT IF ACTION SOMEHOW DISAPPEARS WHILE SCRAPING SAME PAGE THAT IT IS NOT IMPORTANT
 
             # Extract actions from the accessibility nodes and filter out None values
@@ -526,5 +537,5 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
         save_equivalence_classes(equiv_classes, output_dir)
 
-explore("https://us.supreme.com/products/cy2dbtgcsd1feuyr", headless=True, root="https://us.supreme.com")
+explore("https://us.supreme.com/products/3zpnfdg-xnb5kjxu", headless=True, root="https://us.supreme.com")
 # explore("https://www.amazon.com/Brita-Filter-Pitcher-Standard-Without/dp/B09W4PLVQP/ref=sr_1_7?crid=3LCD2O3C4HNKO&dib=eyJ2IjoiMSJ9.XDFWvhkafbpG8bvke6HUJ1m7eZxOWDVPyhN0MM4tp6A4cF0UNkO2YR9ZtyNOPwzoqrhKHmWWbV5CJxzG_lRfHMy7Vu9fEwo2prr0asnohjrskeR_uMRTyEEIbN3DsS_6Lk-XDjigWxQVxqlDGGkd4MSDIPaU6nltNygG4URYkFf1b5Ib3p_3qlRvmELVRFo3-RxQ95GQVOW1jbYZErMvw5cv0OfHHHobJvcNrc-AgKKc8wXKTyJ4rW4b-FBLokmA23RnUPMO-yC4NJDvodqNabZ-AIbXrRh528W_Y-AwkwY.97zl7k14p0fVKq6Qbr7JmKMcgwchKGD8KgNIznoDwdQ&dib_tag=se&keywords=brita&qid=1709442919&sprefix=brita%2Caps%2C98&sr=8-7&th=1")

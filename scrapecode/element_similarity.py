@@ -23,8 +23,17 @@ def get_element_details(html):
                     titles.extend(text)
                 else:
                     assert False, f"Unexpected title type: {type(text)}"
-        elif element.name in ['button', 'input']: # This
-            title = element.get('title') or element.text.strip()
+        elif element.name in ['button']: # Buttons want class, as a lot of buttons duplicate a lot, just have very low tolerance
+            title = element.get('class') or element.text.strip()
+            if title:
+                if isinstance(title, str):
+                    titles.append(title)
+                elif isinstance(title, list):
+                    titles.extend(title)
+                else:
+                    assert False, f"Unexpected title type: {type(title)}"
+        elif element.name in ['input']:
+            title = element.get('class') or element.text.strip()
             if title:
                 if isinstance(title, str):
                     titles.append(title)
