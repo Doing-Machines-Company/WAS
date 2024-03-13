@@ -36,6 +36,7 @@ class EquivalenceClass:
         self.page_urls = set()
         self.page_states: dict[str, PageState] = {}
         self.unique_actions: dict[str, ActionInfo] = {}
+        self.noted_divs = dict()  # New addition for storing div information
 
     def add_page(self, state: PageState):
         normalized_url = normalize_url(state.url)
@@ -329,7 +330,7 @@ def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
         load_time_ms)  # this is very finicky, if you set it to a lower time, you risk getting the actions from the previous page. TODO: fix this race
 
 
-def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'scrape_trials', root: Optional[str] = ""):
+def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'scrape_amazon', root: Optional[str] = ""):
     def save_equivalence_classes(equiv_classes: EquivalenceClassSet, output_dir: str):
         # Create the output directory if it doesn't exist
         Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -392,6 +393,8 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
             # Retrieve the accessibility tree and create an AxObservation object
             cleaned = AxObservation(get_ax_tree(cdpSession), page.url)
+            # print(cleaned)
+            # exit()
 
             # IMPORTANT: ASSUMES THAT IF ACTION SOMEHOW DISAPPEARS WHILE SCRAPING SAME PAGE THAT IT IS NOT IMPORTANT
 
@@ -480,7 +483,7 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
                                     f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoView();")
                             else:
                                 print(f"Element not found for XPath: {action.xpath}") # this happens a weirdly large amount of times
-                                print(action.html)
+                                # print(action.html)
                                 continue
 
                         time.sleep(0.5)
@@ -536,5 +539,5 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
         save_equivalence_classes(equiv_classes, output_dir)
 
-explore("https://us.supreme.com/products/3zpnfdg-xnb5kjxu", headless=True, root="https://us.supreme.com")
+# explore("https://us.supreme.com/products/cy2dbtgcsd1feuyr", headless=True, root="")
 # explore("https://www.amazon.com/Brita-Filter-Pitcher-Standard-Without/dp/B09W4PLVQP/ref=sr_1_7?crid=3LCD2O3C4HNKO&dib=eyJ2IjoiMSJ9.XDFWvhkafbpG8bvke6HUJ1m7eZxOWDVPyhN0MM4tp6A4cF0UNkO2YR9ZtyNOPwzoqrhKHmWWbV5CJxzG_lRfHMy7Vu9fEwo2prr0asnohjrskeR_uMRTyEEIbN3DsS_6Lk-XDjigWxQVxqlDGGkd4MSDIPaU6nltNygG4URYkFf1b5Ib3p_3qlRvmELVRFo3-RxQ95GQVOW1jbYZErMvw5cv0OfHHHobJvcNrc-AgKKc8wXKTyJ4rW4b-FBLokmA23RnUPMO-yC4NJDvodqNabZ-AIbXrRh528W_Y-AwkwY.97zl7k14p0fVKq6Qbr7JmKMcgwchKGD8KgNIznoDwdQ&dib_tag=se&keywords=brita&qid=1709442919&sprefix=brita%2Caps%2C98&sr=8-7&th=1")
