@@ -36,7 +36,8 @@ class EquivalenceClass:
         self.page_urls = set()
         self.page_states: dict[str, PageState] = {}
         self.unique_actions: dict[str, ActionInfo] = {}
-        self.noted_divs = dict()  # New addition for storing div information
+        # self.noted_divs = dict()  # New addition for storing div information
+        # removed noted_divs, not needed bc models are not being used
 
     def add_page(self, state: PageState):
         normalized_url = normalize_url(state.url)
@@ -72,6 +73,7 @@ class EquivalenceClassSet:
     def __init__(self):
         self.classes: list[EquivalenceClass] = []
         self.added_urls: set[str] = set()
+        self.common_actions = []
 
     def get_class(self, url: str, html: str) -> Optional[EquivalenceClass]:
         for eq_class in self.classes:
@@ -393,8 +395,8 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
             # Retrieve the accessibility tree and create an AxObservation object
             cleaned = AxObservation(get_ax_tree(cdpSession), page.url)
-            # print(cleaned)
-            # exit()
+            print(cleaned)
+            exit()
 
             # IMPORTANT: ASSUMES THAT IF ACTION SOMEHOW DISAPPEARS WHILE SCRAPING SAME PAGE THAT IT IS NOT IMPORTANT
 
@@ -430,6 +432,7 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
             def explore_actions():
                 scrape_flag = False
+                input("WAIT!")
 
                 # Retrieve new actions that haven't been seen before in the equivalence class
                 before_state = get_page_state() # URL not normalized
@@ -540,4 +543,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
         save_equivalence_classes(equiv_classes, output_dir)
 
 # explore("https://us.supreme.com/products/cy2dbtgcsd1feuyr", headless=True, root="")
-# explore("https://www.amazon.com/Brita-Filter-Pitcher-Standard-Without/dp/B09W4PLVQP/ref=sr_1_7?crid=3LCD2O3C4HNKO&dib=eyJ2IjoiMSJ9.XDFWvhkafbpG8bvke6HUJ1m7eZxOWDVPyhN0MM4tp6A4cF0UNkO2YR9ZtyNOPwzoqrhKHmWWbV5CJxzG_lRfHMy7Vu9fEwo2prr0asnohjrskeR_uMRTyEEIbN3DsS_6Lk-XDjigWxQVxqlDGGkd4MSDIPaU6nltNygG4URYkFf1b5Ib3p_3qlRvmELVRFo3-RxQ95GQVOW1jbYZErMvw5cv0OfHHHobJvcNrc-AgKKc8wXKTyJ4rW4b-FBLokmA23RnUPMO-yC4NJDvodqNabZ-AIbXrRh528W_Y-AwkwY.97zl7k14p0fVKq6Qbr7JmKMcgwchKGD8KgNIznoDwdQ&dib_tag=se&keywords=brita&qid=1709442919&sprefix=brita%2Caps%2C98&sr=8-7&th=1")
+explore("https://www.amazon.com/Brita-Filter-Pitcher-Standard-Without/dp/B09W4PLVQP/ref=sr_1_7?crid=3LCD2O3C4HNKO&dib=eyJ2IjoiMSJ9.XDFWvhkafbpG8bvke6HUJ1m7eZxOWDVPyhN0MM4tp6A4cF0UNkO2YR9ZtyNOPwzoqrhKHmWWbV5CJxzG_lRfHMy7Vu9fEwo2prr0asnohjrskeR_uMRTyEEIbN3DsS_6Lk-XDjigWxQVxqlDGGkd4MSDIPaU6nltNygG4URYkFf1b5Ib3p_3qlRvmELVRFo3-RxQ95GQVOW1jbYZErMvw5cv0OfHHHobJvcNrc-AgKKc8wXKTyJ4rW4b-FBLokmA23RnUPMO-yC4NJDvodqNabZ-AIbXrRh528W_Y-AwkwY.97zl7k14p0fVKq6Qbr7JmKMcgwchKGD8KgNIznoDwdQ&dib_tag=se&keywords=brita&qid=1709442919&sprefix=brita%2Caps%2C98&sr=8-7&th=1")
