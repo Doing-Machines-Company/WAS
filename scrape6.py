@@ -1,5 +1,6 @@
 import time
-
+from queue import Queue
+import threading
 from drivers import AxObservation
 from action import Action
 import json
@@ -24,6 +25,7 @@ class ActionInfo:
     after_html: str
     before_screenshot: bytes | str
     after_screenshot: bytes | str
+
 @dataclass
 class PageState:
     url: str
@@ -35,62 +37,69 @@ class PageState:
 
 class EquivalenceClass:
     def __init__(self):
+        self.lock = threading.Lock()
         self.page_urls = set()
         self.page_states: dict[str, PageState] = {}
         self.unique_actions: dict[str, ActionInfo] = {}
 
     def add_page(self, state: PageState):
-        normalized_url = normalize_url(state.url)
-        self.page_urls.add(normalized_url)
-        self.page_states[normalized_url] = state
+        with self.lock:
+            normalized_url = normalize_url(state.url)
+            self.page_urls.add(normalized_url)
+            self.page_states[normalized_url] = state
 
     def update_unique_actions(self, actions: list[Action], before_html: str, after_html: str, before_screenshot: bytes, after_screenshot: bytes):
-        for action in actions:
-            action_key = action.html
-            if action_key not in self.unique_actions or not self.has_similar_action(action):
-                self.unique_actions[action_key] = ActionInfo(action, before_html, after_html, before_screenshot, after_screenshot)
+        with self.lock:
+            for action in actions:
+                action_key = action.html
+                if action_key not in self.unique_actions or not self.has_similar_action(action):
+                    self.unique_actions[action_key] = ActionInfo(action, before_html, after_html, before_screenshot, after_screenshot)
 
     def has_similar_action(self, action: Action) -> bool:
-        return any(element_similarity(action.html, a.action.html) >= 0.9 for a in self.unique_actions.values())
+        with self.lock:
+            return any(element_similarity(action.html, a.action.html) >= 0.9 for a in self.unique_actions.values())
 
     def is_new_action(self, action: Action) -> bool:
-        return not self.has_similar_action(action)
+        with self.lock:
+            return not self.has_similar_action(action)
 
     def is_similar(self, url: str, html: str) -> bool:
-        normalized_url = normalize_url(url)
-        if normalized_url in self.page_urls:
+        with self.lock:
+            normalized_url = normalize_url(url)
+            if normalized_url in self.page_urls:
+                return True
+
+            for page_url in self.page_urls:
+                if page_similarity(html, self.page_states[page_url].html) < 0.8:
+                    return False
+
             return True
-
-        for page_url in self.page_urls:
-            if page_similarity(html, self.page_states[page_url].html) < 0.8:
-                return False
-
-        return True
-
 
 
 class EquivalenceClassSet:
     def __init__(self):
+        self.lock = threading.Lock()
         self.classes: list[EquivalenceClass] = []
         self.added_urls: set[str] = set()
         self.common_actions = []
 
     def get_class(self, url: str, html: str) -> Optional[EquivalenceClass]:
-        for eq_class in self.classes:
-            if eq_class.is_similar(url, html):
-                return eq_class
-        return None
+        with self.lock:
+            for eq_class in self.classes:
+                with eq_class.lock:
+                    if eq_class.is_similar(url, html):
+                        return eq_class
+            return None
 
-    def add_page(self, state: PageState, eq_class) -> EquivalenceClass:
-        self.added_urls.add(normalize_url(state.url))
-        if eq_class is None:
-            eq_class = EquivalenceClass()
-            self.classes.append(eq_class)
-        else:
-            # print("Adding page to existing equivalence class")
-            pass
-        eq_class.add_page(state)
-        return eq_class
+    def add_page(self, state: PageState, eq_class: Optional[EquivalenceClass]) -> EquivalenceClass:
+        with self.lock:
+            self.added_urls.add(normalize_url(state.url))
+            if eq_class is None:
+                eq_class = EquivalenceClass()
+                self.classes.append(eq_class)
+            with eq_class.lock:
+                eq_class.add_page(state)
+            return eq_class
 
 
 
@@ -303,6 +312,32 @@ def normalize_url(url: str) -> str:
     return urlunparse((scheme, netloc, path, '', '', ''))  # Ignoring the query and fragment
 
 
+def get_page_state(page: PlaywrightPage, cdpSession: CDPSession) -> PageState:
+    # Navigate to the given URL and wait for the page to load
+    wait_for_load(page)
+
+    # Retrieve the accessibility tree and create an AxObservation object
+    cleaned = AxObservation(get_ax_tree(cdpSession), page.url)
+
+    # Extract the header and footer HTML
+    header_html = page.evaluate("document.getElementsByTagName('header')[0]?.outerHTML || ''")
+    footer_html = page.evaluate("document.getElementsByTagName('footer')[0]?.outerHTML || ''")
+    # I love Claude :)
+    print(f"Header: {header_html}")
+    print(f"Footer: {footer_html}")
+
+    # Extract actions from the accessibility nodes and filter out None values
+    actions = [ax_node_to_action(node, header_html, footer_html) for node in cleaned.nodes_info]
+    actions = [a for a in actions if a is not None]
+
+    # Create and return a PageState object with the normalized URL, HTML content, actions, header HTML, and footer HTML
+    return PageState(
+        url=page.url,
+        html=page.content(),
+        actions=actions,
+        header_html=header_html,
+        footer_html=footer_html
+    )
 
 
 
@@ -314,6 +349,123 @@ def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
     # page.wait_for_load_state('networkidle')
     page.wait_for_timeout(
         load_time_ms)  # this is very finicky, if you set it to a lower time, you risk getting the actions from the previous page. TODO: fix this race
+
+
+
+def explore_page(url: str, equiv_classes_lock: threading.Lock, new_pages_lock: threading.Lock, equiv_classes: EquivalenceClassSet, new_pages: list[str], seen_urls: set[str], page: PlaywrightPage, cdpSession: CDPSession):
+    with new_pages_lock:
+        if normalize_url(url) in seen_urls:
+            print(f"Skipping already visited page: {url}")
+            return
+        seen_urls.add(normalize_url(url))
+
+    if not url.startswith(root):
+        print(f"Skipping page outside of root: {url}")
+        return
+
+    page.goto(url)
+    wait_for_load(page)
+
+    def explore_actions():
+        scrape_flag = False
+        input("WAIT!")
+
+        before_state = get_page_state(page, cdpSession)
+
+        with equiv_classes_lock:
+            eq_class = equiv_classes.get_class(before_state.url, before_state.html)
+
+        if eq_class is None:
+            scrape_flag = True
+            with equiv_classes_lock:
+                eq_class = equiv_classes.add_page(before_state, None)
+            with eq_class.lock:
+                new_actions = [a for a in before_state.actions if eq_class.is_new_action(a)]
+        else:
+            with eq_class.lock:
+                new_actions = [a for a in before_state.actions if eq_class.is_new_action(a)]
+                if len(new_actions) > 0:
+                    scrape_flag = True
+                    equiv_classes.add_page(before_state, eq_class)
+
+        if scrape_flag:
+            print('Exploring actions on page...')
+
+            unique_actions = []
+            for action in new_actions:
+                if not any(element_similarity(action.html, a.html) >= 0.9 for a in unique_actions):
+                    unique_actions.append(action)
+
+            for action in unique_actions:
+                if not action.xpath:
+                    print(f"Skipping action without XPath: {action}")
+                    continue
+
+                friendly_xpath = action.xpath if '(' in action.xpath.split("/")[0] else f"//{action.xpath}"
+
+                friendly_element = page.evaluate(
+                    f"document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
+
+                if friendly_element:
+                    page.evaluate(
+                        f"document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoView();")
+                else:
+                    element = page.evaluate(
+                        f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
+                    if element:
+                        page.evaluate(
+                            f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoView();")
+                    else:
+                        print(f"Element not found for XPath: {action.xpath}")
+                        continue
+
+                time.sleep(0.5)
+                before_screenshot = page.screenshot()
+
+                apply_action(page, action)
+                wait_for_load(page)
+
+                time.sleep(0.5)
+                if len(page.context.pages) > 1 and page.context.pages[-1] != page:
+                    new_page = page.context.pages[-1]
+                    after_screenshot = new_page.screenshot(full_page=False)
+                    with eq_class.lock:
+                        eq_class.update_unique_actions([action], before_state.html, new_page.content(),
+                                                       before_screenshot, after_screenshot)
+                    with new_pages_lock:
+                        new_pages.append(new_page.url)
+                    new_page.close()
+                else:
+                    after_screenshot = page.screenshot(full_page=False)
+                    with eq_class.lock:
+                        eq_class.update_unique_actions([action], before_state.html, page.content(),
+                                                       before_screenshot, after_screenshot)
+
+                if normalize_url(before_state.url) != normalize_url(page.url):
+                    with new_pages_lock:
+                        new_pages.append(page.url)
+                    page.goto(before_state.url)
+
+    explore_actions()
+
+
+def worker(url_queue: Queue, equiv_classes_lock: threading.Lock, new_pages_lock: threading.Lock, equiv_classes: EquivalenceClassSet, new_pages: list[str], seen_urls: set[str]):
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=headless)
+        context = browser.new_context(
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36')
+        page = context.new_page()
+        cdpSession = context.new_cdp_session(page)
+
+        if cookies is not None:
+            context.add_cookies(cookies)
+
+        while True:
+            url = url_queue.get()
+            if url is None:
+                break
+            explore_page(url, equiv_classes_lock, new_pages_lock, equiv_classes, new_pages, seen_urls, page, cdpSession)
+            url_queue.task_done()
 
 
 def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'scrape_amazon', root: Optional[str] = ""):
@@ -343,176 +495,45 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
     # Initialize an EquivalenceClassSet to store and manage equivalence classes
     equiv_classes = EquivalenceClassSet()
+    equiv_classes_lock = threading.Lock()
+    new_pages_lock = threading.Lock()
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     seen_urls = set()
+    new_pages = []
+
+    url_queue = Queue()
+    url_queue.put(starting_url)
+
+    threads = []
+    for _ in range(num_threads):
+        t = threading.Thread(target=worker,
+                             args=(url_queue, equiv_classes_lock, new_pages_lock, equiv_classes, new_pages, seen_urls))
+        t.start()
+        threads.append(t)
 
 
     # Initialize an empty list to store the URLs of new pages discovered during scraping
     new_pages = []
 
     # Use the sync_playwright context manager to launch a new browser instance
-    with sync_playwright() as p:
-        # Launch a new browser instance with the specified headless mode
-        browser = p.chromium.launch(headless=headless)
+    while True:
+        with new_pages_lock:
+            while new_pages:
+                url = new_pages.pop(0)
+                if normalize_url(url) not in seen_urls:
+                    url_queue.put(url)
+        if url_queue.empty():
+            break
+        time.sleep(1)
 
-        # Create a new browser context with a specific user agent
-        context = browser.new_context(
-            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36')
+    for _ in range(num_threads):
+        url_queue.put(None)
 
-        # Create a new page within the browser context
-        page = context.new_page()
+    for t in threads:
+        t.join()
 
-        # Establish a CDP (Chrome DevTools Protocol) session with the page
-        cdpSession = context.new_cdp_session(page)
-
-        # If cookies are provided, add them to the browser context
-        if cookies is not None:
-            context.add_cookies(cookies)
-
-        def get_page_state():
-            # Navigate to the given URL and wait for the page to load
-            wait_for_load(page)
-
-            # Retrieve the accessibility tree and create an AxObservation object
-            cleaned = AxObservation(get_ax_tree(cdpSession), page.url)
-
-            # Extract the header and footer HTML
-            header_html = page.evaluate("document.getElementsByTagName('header')[0]?.outerHTML || ''")
-            footer_html = page.evaluate("document.getElementsByTagName('footer')[0]?.outerHTML || ''")
-            # I love Claude :)
-            print(f"Header: {header_html}")
-            print(f"Footer: {footer_html}")
-
-            # Extract actions from the accessibility nodes and filter out None values
-            actions = [ax_node_to_action(node, header_html, footer_html) for node in cleaned.nodes_info]
-            actions = [a for a in actions if a is not None]
-
-            # Create and return a PageState object with the normalized URL, HTML content, actions, header HTML, and footer HTML
-            return PageState(
-                url=page.url,
-                html=page.content(),
-                actions=actions,
-                header_html=header_html,
-                footer_html=footer_html
-            )
-
-        def explore_page(url: str):
-
-            if normalize_url(url) in seen_urls:
-                print(f"Skipping already visited page: {url}")
-                return
-
-            seen_urls.add(normalize_url(url))
-
-            if not url.startswith(root):
-                print(f"Skipping page outside of root: {url}")
-                return
-
-            page.goto(url)
-            wait_for_load(page)
-
-            def explore_actions():
-                scrape_flag = False
-                input("WAIT!")
-
-                # Retrieve new actions that haven't been seen before in the equivalence class
-                before_state = get_page_state() # URL not normalized
-
-
-
-                eq_class = equiv_classes.get_class(before_state.url, before_state.html)
-
-                if eq_class is None:
-                    scrape_flag = True
-                    eq_class = equiv_classes.add_page(before_state, eq_class)
-                    new_actions = [a for a in before_state.actions if eq_class.is_new_action(a)]
-                else:
-                    new_actions = [a for a in before_state.actions if eq_class.is_new_action(a)]
-                    if len(new_actions) > 0:
-                        scrape_flag = True
-                        equiv_classes.add_page(before_state, eq_class)
-
-                # If there are new actions to explore
-                if scrape_flag:
-                    print('Exploring actions on page...')
-
-                    unique_actions = []
-                    for action in new_actions:
-                        if not any(element_similarity(action.html, a.html) >= 0.9 for a in unique_actions): # may want to play around with this hyperparam
-                            unique_actions.append(action)
-
-                    # For each unique action
-                    for action in unique_actions:
-                        if not action.xpath:
-                            print(f"Skipping action without XPath: {action}")
-                            continue
-
-
-                        friendly_xpath = action.xpath if '(' in action.xpath.split("/")[0] else f"//{action.xpath}"
-
-                        friendly_element = page.evaluate(
-                            f"document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
-
-
-                        if friendly_element:
-                            page.evaluate(
-                                f"document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoView();")
-                        else:
-                            element = page.evaluate(
-                                f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
-                            if element:
-                                page.evaluate(
-                                    f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoView();")
-                            else:
-                                print(f"Element not found for XPath: {action.xpath}")
-                                continue
-
-                        time.sleep(0.5)
-                        # Take a screenshot before applying the action
-                        before_screenshot = page.screenshot()
-
-                        # Apply the action and wait for the page to load
-                        apply_action(page, action)
-                        wait_for_load(page)
-
-                        time.sleep(0.5)
-                        # Check if a new tab is opened
-                        if len(page.context.pages) > 1 and page.context.pages[-1] != page:
-                            new_page = page.context.pages[-1]
-                            # Take a screenshot of the new tab
-                            after_screenshot = new_page.screenshot(full_page=False)
-                            # Update the unique actions in the equivalence class with the before and after states
-                            eq_class.update_unique_actions([action], before_state.html, new_page.content(),
-                                                           before_screenshot,
-                                                           after_screenshot)
-
-                            new_pages.append(new_page.url)
-                            new_page.close()
-                        else:
-                            # Take a screenshot after the action without scrolling
-                            after_screenshot = page.screenshot(full_page=False)
-                            # Update the unique actions in the equivalence class with the before and after states
-                            eq_class.update_unique_actions([action], before_state.html, page.content(),
-                                                           before_screenshot,
-                                                           after_screenshot)
-
-                        # If the action leads to a new page (different URL), append it to the new_pages list for later exploration
-                        if normalize_url(before_state.url) != normalize_url(page.url):
-                            new_pages.append(page.url)
-                            page.goto(before_state.url)
-
-
-            explore_actions()
-
-        explore_page(starting_url)
-
-        while new_pages:
-            print(len(new_pages))
-            url = new_pages.pop(0)
-            explore_page(url)
-
-        save_equivalence_classes(equiv_classes, output_dir)
+    save_equivalence_classes(equiv_classes, output_dir)
 
 explore("https://amazon.com/", headless=False, root="")
