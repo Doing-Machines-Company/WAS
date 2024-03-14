@@ -319,7 +319,8 @@ def get_page_state(page: PlaywrightPage, cdpSession: CDPSession) -> PageState:
 
     # Extract the header and footer HTML
     header_html = page.evaluate("document.getElementsByTagName('header')[0]?.outerHTML || ''")
-    footer_html = page.evaluate("document.getElementsByTagName('footer')[0]?.outerHTML || ''")
+    footer_html = page.evaluate("document.getElementById('navFooter')?.outerHTML || ''")
+    # ABOVE IS AMAZON SPECIFIC, WE NEED TO FIGURE OUT HOW TO PIPELINE THIS!
     # I love Claude :)
     print(f"Header: {header_html}")
     print(f"Footer: {footer_html}")
