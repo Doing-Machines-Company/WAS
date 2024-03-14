@@ -43,7 +43,9 @@ class EquivalenceClass:
         self.unique_actions: dict[str, ActionInfo] = {}
 
     def add_page(self, state: PageState):
+        print('trying to add page inside eq class')
         with self.lock:
+            print('trying to add page inside eq class2')
             normalized_url = normalize_url(state.url)
             self.page_urls.add(normalized_url)
             self.page_states[normalized_url] = state
@@ -92,13 +94,15 @@ class EquivalenceClassSet:
             return None
 
     def add_page(self, state: PageState, eq_class: Optional[EquivalenceClass]) -> EquivalenceClass:
+        print('trying to add apge inside equiv set')
         with self.lock:
             self.added_urls.add(normalize_url(state.url))
+            print('trying to add apge inside equiv set2')
             if eq_class is None:
                 eq_class = EquivalenceClass()
                 self.classes.append(eq_class)
-            with eq_class.lock:
-                eq_class.add_page(state)
+            print('trying to add apge inside equiv set3')
+            eq_class.add_page(state)
             return eq_class
 
 
@@ -311,6 +315,7 @@ def normalize_url(url: str) -> str:
 
 
 def get_page_state(page: PlaywrightPage, cdpSession: CDPSession) -> PageState:
+    print("GETTING PAGE STATE")
     # Navigate to the given URL and wait for the page to load
     wait_for_load(page)
 
@@ -322,8 +327,6 @@ def get_page_state(page: PlaywrightPage, cdpSession: CDPSession) -> PageState:
     footer_html = page.evaluate("document.getElementById('navFooter')?.outerHTML || ''")
     # ABOVE IS AMAZON SPECIFIC, WE NEED TO FIGURE OUT HOW TO PIPELINE THIS!
     # I love Claude :)
-    print(f"Header: {header_html}")
-    print(f"Footer: {footer_html}")
 
     # Extract actions from the accessibility nodes and filter out None values
     actions = [ax_node_to_action(node, header_html, footer_html) for node in cleaned.nodes_info]
@@ -359,31 +362,44 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, new_pages_lock: t
         print(f"Skipping page outside of root: {url}")
         return
 
-    page.goto(url)
-    wait_for_load(page)
+    try:
+        page.goto(url)
+        wait_for_load(page)
+    except Exception as e:
+        print(f"Error navigating to page: {url}. Error: {e}")
+        return
 
     def explore_actions():
         scrape_flag = False
-        input("WAIT!")
 
-        before_state = get_page_state(page, cdpSession)
-
+        try:
+            before_state = get_page_state(page, cdpSession)
+        except Exception as e:
+            print(f"Error getting page state: {url}. Error: {e}")
+            return
+        print(f"Got page state for {url}")
         with equiv_classes_lock:
             eq_class = equiv_classes.get_class(before_state.url, before_state.html)
+            print("Got equivalence class")
 
         if eq_class is None:
+            print("no eq class")
             scrape_flag = True
             with equiv_classes_lock:
-                eq_class = equiv_classes.add_page(before_state, None)
+                print('trying to add page to eq class')
+                eq_class = equiv_classes.add_page(before_state, None) # this is fucking broken
+            print("MADE eq class")
             with eq_class.lock:
                 new_actions = [a for a in before_state.actions if eq_class.is_new_action(a)]
+            print("GOT ACTION!")
         else:
+            print("found eq class")
             with eq_class.lock:
                 new_actions = [a for a in before_state.actions if eq_class.is_new_action(a)]
                 if len(new_actions) > 0:
                     scrape_flag = True
                     equiv_classes.add_page(before_state, eq_class)
-
+        print("TONK###")
         if scrape_flag:
             print('Exploring actions on page...')
 
@@ -463,7 +479,6 @@ def worker(url_queue: Queue, equiv_classes_lock: threading.Lock, new_pages_lock:
             explore_page(url, equiv_classes_lock, new_pages_lock, equiv_classes, new_pages, seen_urls, page, cdpSession, root)
             url_queue.task_done()
 
-
 def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'scrape_amazon', root: str = "", num_threads: int = 4):
     def save_equivalence_classes(equiv_classes: EquivalenceClassSet, output_dir: str):
         # Create the output directory if it doesn't exist
@@ -510,8 +525,10 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
         threads.append(t)
 
     while True:
+        print("TONK1")
         with new_pages_lock:
             while new_pages:
+                print("TONK2")
                 url = new_pages.pop(0)
                 if normalize_url(url) not in seen_urls:
                     url_queue.put(url)
@@ -527,4 +544,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
     save_equivalence_classes(equiv_classes, output_dir)
 
-explore("https://amazon.com/", headless=False, root="")
+explore("https://us.supreme.com/pages/shop", headless=True, root="")
