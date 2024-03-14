@@ -29,6 +29,8 @@ class PageState:
     url: str
     html: str
     actions: list[Action]
+    header_html: str
+    footer_html: str
 
 
 class EquivalenceClass:
@@ -36,8 +38,6 @@ class EquivalenceClass:
         self.page_urls = set()
         self.page_states: dict[str, PageState] = {}
         self.unique_actions: dict[str, ActionInfo] = {}
-        # self.noted_divs = dict()  # New addition for storing div information
-        # removed noted_divs, not needed bc models are not being used
 
     def add_page(self, state: PageState):
         normalized_url = normalize_url(state.url)
@@ -84,7 +84,6 @@ class EquivalenceClassSet:
     def add_page(self, state: PageState, eq_class) -> EquivalenceClass:
         self.added_urls.add(normalize_url(state.url))
         if eq_class is None:
-            # print(f"Creating new equivalence class")
             eq_class = EquivalenceClass()
             self.classes.append(eq_class)
         else:
@@ -162,8 +161,6 @@ def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
             )
             node["html"] = response["outerHTML"]
             node["xpath"] = node_xpath
-            # print(node['role']['value'])
-            # print(node['name']['value'])
 
         except Exception as e:
             node['xpath'] = ''
@@ -174,7 +171,7 @@ def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
     return accessibility_tree
 
 
-def ax_node_to_action(ax_node: AxNode) -> Optional[Action]:
+def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str) -> Optional[Action]:
     important_clickables = [
         'button',
     ]
@@ -198,16 +195,16 @@ def ax_node_to_action(ax_node: AxNode) -> Optional[Action]:
         'checkbox', 'radio', 'switch', 'option', 'listbox',
         'combobox', 'textarea', 'spinbutton'
     ]
-    # Error inputting element: Error: Element is not an <input>, <textarea> or [contenteditable] element
-
-    # currently_ignored = ['gridcell', 'columnheader', 'rowheader', 'tab',
-    #     'tabpanel', 'row', 'rowgroup', 'search', 'heading']
 
     xpath = ax_node["xpath"]
     html = ax_node["html"]
     role = ax_node["role"]
 
     if xpath and html and xpath.strip() != "" and html.strip() != "":
+        # Check if the action is a pure link in the header or footer
+        if role.strip() == 'link' and (html in header_html or html in footer_html):
+            return None
+
         if role.strip() == 'link':
             action = Action(Action.Type.CLICK_LINK, xpath, html)
             action.set_tree_line(f"{role}: {ax_node['name']}")
@@ -232,19 +229,7 @@ def ax_node_to_action(ax_node: AxNode) -> Optional[Action]:
             action = Action(Action.Type.CLICK_GENERAL, xpath, html)
             action.set_tree_line(f"{role}: {ax_node['name']}")
             return action
-        # elif role.strip() in input_roles:
-        #     action = Action(Action.Type.INPUT, xpath, html)
-        #     action.set_tree_line(f"{role}: {ax_node['name']}")
-        #     return action
-        elif '<input' in html:
-            action = Action(Action.Type.INPUT, xpath, html)
-            action.set_tree_line(f"{role}: {ax_node['name']}")
-            return action
-        elif 'contenteditable' in html:
-            action = Action(Action.Type.INPUT, xpath, html)
-            action.set_tree_line(f"{role}: {ax_node['name']}")
-            return action
-        elif '<textarea' in html:
+        elif role.strip() in input_roles:
             action = Action(Action.Type.INPUT, xpath, html)
             action.set_tree_line(f"{role}: {ax_node['name']}")
             return action
@@ -386,35 +371,34 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
         if cookies is not None:
             context.add_cookies(cookies)
 
-
         def get_page_state():
             # Navigate to the given URL and wait for the page to load
-            # page.goto(url) # TODO, perhaps not what you want
             wait_for_load(page)
 
             # Retrieve the accessibility tree and create an AxObservation object
             cleaned = AxObservation(get_ax_tree(cdpSession), page.url)
-            print(cleaned)
-            exit()
 
-            # IMPORTANT: ASSUMES THAT IF ACTION SOMEHOW DISAPPEARS WHILE SCRAPING SAME PAGE THAT IT IS NOT IMPORTANT
+            # Extract the header and footer HTML
+            header_html = page.evaluate("document.getElementsByTagName('header')[0]?.outerHTML || ''")
+            footer_html = page.evaluate("document.getElementsByTagName('footer')[0]?.outerHTML || ''")
+            # I love Claude :)
+            print(f"Header: {header_html}")
+            print(f"Footer: {footer_html}")
 
             # Extract actions from the accessibility nodes and filter out None values
-            actions = [ax_node_to_action(node) for node in cleaned.nodes_info]
+            actions = [ax_node_to_action(node, header_html, footer_html) for node in cleaned.nodes_info]
             actions = [a for a in actions if a is not None]
 
-            # Create and return a PageState object with the normalized URL, HTML content, actions, and screenshot
+            # Create and return a PageState object with the normalized URL, HTML content, actions, header HTML, and footer HTML
             return PageState(
                 url=page.url,
                 html=page.content(),
-                actions=actions
+                actions=actions,
+                header_html=header_html,
+                footer_html=footer_html
             )
 
         def explore_page(url: str):
-            # Normalize the URL
-            # normalized_url = normalize_url(url)
-
-
 
             if normalize_url(url) in seen_urls:
                 print(f"Skipping already visited page: {url}")
@@ -444,7 +428,6 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
                     scrape_flag = True
                     eq_class = equiv_classes.add_page(before_state, eq_class)
                     new_actions = [a for a in before_state.actions if eq_class.is_new_action(a)]
-                    # eq_class = equiv_classes.add_page(before_state, eq_class)
                 else:
                     new_actions = [a for a in before_state.actions if eq_class.is_new_action(a)]
                     if len(new_actions) > 0:
@@ -454,8 +437,7 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
                 # If there are new actions to explore
                 if scrape_flag:
                     print('Exploring actions on page...')
-                    # Filter out similar actions to get a list of unique actions
-                    # print('going')
+
                     unique_actions = []
                     for action in new_actions:
                         if not any(element_similarity(action.html, a.html) >= 0.9 for a in unique_actions): # may want to play around with this hyperparam
@@ -484,8 +466,7 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
                                 page.evaluate(
                                     f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoView();")
                             else:
-                                print(f"Element not found for XPath: {action.xpath}") # this happens a weirdly large amount of times
-                                # print(action.html)
+                                print(f"Element not found for XPath: {action.xpath}")
                                 continue
 
                         time.sleep(0.5)
@@ -495,7 +476,6 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
                         # Apply the action and wait for the page to load
                         apply_action(page, action)
                         wait_for_load(page)
-                        # input("Press Enter to continue...")
 
                         time.sleep(0.5)
                         # Check if a new tab is opened
@@ -524,22 +504,15 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
                             page.goto(before_state.url)
 
 
-            # Start exploring actions on the current page state and equivalence class
             explore_actions()
 
-        # Start the exploration process by exploring the starting URL
         explore_page(starting_url)
 
-        # Continue exploring new pages until there are no more pages to explore
-        while new_pages: # new_pages is a list of strings which are urls
-            # print(new_pages)
+        while new_pages:
             print(len(new_pages))
-            # print("Exploring new pages...")
-            # Pop a URL from the new_pages list
             url = new_pages.pop(0)
             explore_page(url)
 
         save_equivalence_classes(equiv_classes, output_dir)
 
-# explore("https://us.supreme.com/products/cy2dbtgcsd1feuyr", headless=True, root="")
-explore("https://www.amazon.com/Brita-Filter-Pitcher-Standard-Without/dp/B09W4PLVQP/ref=sr_1_7?crid=3LCD2O3C4HNKO&dib=eyJ2IjoiMSJ9.XDFWvhkafbpG8bvke6HUJ1m7eZxOWDVPyhN0MM4tp6A4cF0UNkO2YR9ZtyNOPwzoqrhKHmWWbV5CJxzG_lRfHMy7Vu9fEwo2prr0asnohjrskeR_uMRTyEEIbN3DsS_6Lk-XDjigWxQVxqlDGGkd4MSDIPaU6nltNygG4URYkFf1b5Ib3p_3qlRvmELVRFo3-RxQ95GQVOW1jbYZErMvw5cv0OfHHHobJvcNrc-AgKKc8wXKTyJ4rW4b-FBLokmA23RnUPMO-yC4NJDvodqNabZ-AIbXrRh528W_Y-AwkwY.97zl7k14p0fVKq6Qbr7JmKMcgwchKGD8KgNIznoDwdQ&dib_tag=se&keywords=brita&qid=1709442919&sprefix=brita%2Caps%2C98&sr=8-7&th=1")
+explore("https://amazon.com/", headless=False, root="")
