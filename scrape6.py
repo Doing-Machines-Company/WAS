@@ -102,8 +102,6 @@ class EquivalenceClassSet:
             return eq_class
 
 
-
-
 def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
     accessibility_tree = cdpSession.send(
         "Accessibility.getFullAXTree", {}
@@ -349,10 +347,7 @@ def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
     # page.wait_for_load_state('networkidle')
     page.wait_for_timeout(
         load_time_ms)  # this is very finicky, if you set it to a lower time, you risk getting the actions from the previous page. TODO: fix this race
-
-
-
-def explore_page(url: str, equiv_classes_lock: threading.Lock, new_pages_lock: threading.Lock, equiv_classes: EquivalenceClassSet, new_pages: list[str], seen_urls: set[str], page: PlaywrightPage, cdpSession: CDPSession):
+def explore_page(url: str, equiv_classes_lock: threading.Lock, new_pages_lock: threading.Lock, equiv_classes: EquivalenceClassSet, new_pages: list[str], seen_urls: set[str], page: PlaywrightPage, cdpSession: CDPSession, root: str):
     with new_pages_lock:
         if normalize_url(url) in seen_urls:
             print(f"Skipping already visited page: {url}")
@@ -449,7 +444,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, new_pages_lock: t
     explore_actions()
 
 
-def worker(url_queue: Queue, equiv_classes_lock: threading.Lock, new_pages_lock: threading.Lock, equiv_classes: EquivalenceClassSet, new_pages: list[str], seen_urls: set[str]):
+def worker(url_queue: Queue, equiv_classes_lock: threading.Lock, new_pages_lock: threading.Lock, equiv_classes: EquivalenceClassSet, new_pages: list[str], seen_urls: set[str], headless: bool, cookies: Optional[dict], root: str):
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless)
         context = browser.new_context(
@@ -464,11 +459,11 @@ def worker(url_queue: Queue, equiv_classes_lock: threading.Lock, new_pages_lock:
             url = url_queue.get()
             if url is None:
                 break
-            explore_page(url, equiv_classes_lock, new_pages_lock, equiv_classes, new_pages, seen_urls, page, cdpSession)
+            explore_page(url, equiv_classes_lock, new_pages_lock, equiv_classes, new_pages, seen_urls, page, cdpSession, root)
             url_queue.task_done()
 
 
-def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'scrape_amazon', root: Optional[str] = ""):
+def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'scrape_amazon', root: str = "", num_threads: int = 4):
     def save_equivalence_classes(equiv_classes: EquivalenceClassSet, output_dir: str):
         # Create the output directory if it doesn't exist
         Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -479,7 +474,7 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
                 before_screenshot_filename = f"action_{hash(key)}_before.png"
                 before_screenshot_path = Path(output_dir) / before_screenshot_filename
                 with open(before_screenshot_path, 'wb') as f:
-                    f.write(action_info.before_screenshot) # this is so jank, originally bytes, now str for pathing and ease of saving
+                    f.write(action_info.before_screenshot)
                 action_info.before_screenshot = str(before_screenshot_path)
 
                 after_screenshot_filename = f"action_{hash(key)}_after.png"
@@ -509,15 +504,10 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
     threads = []
     for _ in range(num_threads):
         t = threading.Thread(target=worker,
-                             args=(url_queue, equiv_classes_lock, new_pages_lock, equiv_classes, new_pages, seen_urls))
+                             args=(url_queue, equiv_classes_lock, new_pages_lock, equiv_classes, new_pages, seen_urls, headless, cookies, root))
         t.start()
         threads.append(t)
 
-
-    # Initialize an empty list to store the URLs of new pages discovered during scraping
-    new_pages = []
-
-    # Use the sync_playwright context manager to launch a new browser instance
     while True:
         with new_pages_lock:
             while new_pages:
