@@ -58,12 +58,10 @@ class EquivalenceClass:
                     self.unique_actions[action_key] = ActionInfo(action, before_html, after_html, before_screenshot, after_screenshot)
 
     def has_similar_action(self, action: Action) -> bool:
-        with self.lock:
-            return any(element_similarity(action.html, a.action.html) >= 0.9 for a in self.unique_actions.values())
+        return any(element_similarity(action.html, a.action.html) >= 0.9 for a in self.unique_actions.values())
 
     def is_new_action(self, action: Action) -> bool:
-        with self.lock:
-            return not self.has_similar_action(action)
+        return not self.has_similar_action(action)
 
     def is_similar(self, url: str, html: str) -> bool:
         with self.lock:
