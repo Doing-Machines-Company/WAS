@@ -317,35 +317,38 @@ def normalize_url(url: str) -> str:
     path = parsed_url.path.rstrip('/')  # Remove trailing slashes from the path
     return urlunparse((scheme, netloc, path, '', '', ''))  # Ignoring the query and fragment
 
-
-
 def enumerated_ax_tree(obs: AxObservation):
-    '''
-    Heavily processes the tree for the prompt
-    Skips options via function calls
-
-    :param obs:
-    :return:
-    '''
-
-
     cleaned_tree = ''
+    div_info = {}
 
     for i in range(len(obs.nodes_info)):
         if obs.nodes_info[i]['role'] != 'RootWebArea':
             node_action = ax_node_to_action(obs.nodes_info[i])
+            for div_id in obs.nodes_info[i]['enclosing_divs']:
+                if div_id not in div_info:
+                    div_info[div_id] = {'start': i, 'end': i}
+                else:
+                    div_info[div_id]['end'] = i
             if node_action:
                 cleaned_tree += f"[{i}]{obs.nodes_info[i]['indent']}ACTION {obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
             else:
                 cleaned_tree += f"[{i}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
         else:
-            if obs.nodes_info[i]['name'].strip != "":
+            if obs.nodes_info[i]['name'].strip() != "":
                 cleaned_tree += f"{obs.nodes_info[i]['indent']}You are currently on the page for:\n {obs.nodes_info[i]['name']}\n"
 
-            # input('finshed processing tree')
+    # Insert div markers into the cleaned_tree
+    lines = cleaned_tree.split('\n')
+    div_insertions = []
+    for i, (div_id, info) in enumerate(div_info.items(), 1):
+        div_insertions.append((info['start'], f"(Div {i})\n"))
+        div_insertions.append((info['end'] + 1, f"(/Div {i})\n"))
 
-    return cleaned_tree
+    div_insertions.sort(key=lambda x: x[0], reverse=True)
+    for index, marker in div_insertions:
+        lines.insert(index, marker)
 
+    return '\n'.join(lines)
 
 def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
     # https://playwright.dev/python/docs/navigations#navigation-events
