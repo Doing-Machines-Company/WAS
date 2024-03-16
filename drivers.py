@@ -33,6 +33,7 @@ class AxObservation(PageObservation):
             node = self.axtree[idx]
             indent = "\t" * depth
             valid_node = True
+            include_in_nodes_info = True
             try:
                 role = node["role"]["value"]
                 name = node["name"]["value"]
@@ -57,7 +58,7 @@ class AxObservation(PageObservation):
                 if not name.strip():
                     if not properties:
                         if role in [
-                            "generic",  # may need this for more divs
+                            "generic",  # include generic types for finding divs
                             "img",
                             "list",
                             "strong",
@@ -69,25 +70,25 @@ class AxObservation(PageObservation):
                             "Legend",
                             "listitem",
                         ]:
-                            valid_node = False
+                            include_in_nodes_info = False
                     elif role in ["listitem"]:
-                        valid_node = False
-
+                        include_in_nodes_info = False
 
                 if valid_node:
                     enclosing_divs = find_enclosing_divs(node, self.axtree)
-                    node_info = {
-                        "nodeId": obs_node_id,
-                        "name": name,
-                        "role": role,
-                        "indent": indent,
-                        "properties": properties,
-                        "html": node['html'],
-                        "xpath": node['xpath'],
-                        "parentId": node['parentId'] if 'parentId' in node else None,
-                        "enclosing_divs": enclosing_divs
-                    }
-                    self.nodes_info.append(node_info)
+                    if include_in_nodes_info:
+                        node_info = {
+                            "nodeId": obs_node_id,
+                            "name": name,
+                            "role": role,
+                            "indent": indent,
+                            "properties": properties,
+                            "html": node['html'],
+                            "xpath": node['xpath'],
+                            "parentId": node['parentId'] if 'parentId' in node else None,
+                            "enclosing_divs": enclosing_divs
+                        }
+                        self.nodes_info.append(node_info)
             except Exception as e:
                 valid_node = False
 
@@ -95,7 +96,7 @@ class AxObservation(PageObservation):
                 if child_node_id not in node_id_to_idx:
                     continue
                 # mark this to save some tokens
-                child_depth = depth + 1 if valid_node else depth
+                child_depth = depth + 1 if valid_node and include_in_nodes_info else depth
                 dfs(
                     node_id_to_idx[child_node_id], child_node_id, child_depth
                 )
@@ -125,6 +126,7 @@ class AxObservation(PageObservation):
             tree_str += f"{node['indent']}[{node['nodeId']}] {node['role']} {repr(node['name'])} " + " ".join(
                 node["properties"]) + "\n"
         return tree_str
+
 class MyDriver(WebDriver):
     def __init__(self, agent, knowledge_base, page):
         super().__init__(agent, knowledge_base)
