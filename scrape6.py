@@ -405,7 +405,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, new_pages_lock: t
             for action in new_actions:
                 if not any(element_similarity(action.html, a.html) >= 0.9 for a in unique_actions):
                     unique_actions.append(action)
-
+            print("got unique actions")
             for action in unique_actions:
                 if not action.xpath:
                     print(f"Skipping action without XPath: {action}")
@@ -431,30 +431,33 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, new_pages_lock: t
 
                 time.sleep(0.5)
                 before_screenshot = page.screenshot()
-
+                print("applying action")
                 apply_action(page, action)
+                print("applied actions and waiting for load")
                 wait_for_load(page)
 
                 time.sleep(0.5)
                 if len(page.context.pages) > 1 and page.context.pages[-1] != page:
                     new_page = page.context.pages[-1]
                     after_screenshot = new_page.screenshot(full_page=False)
-                    with eq_class.lock:
-                        eq_class.update_unique_actions([action], before_state.html, new_page.content(),
-                                                       before_screenshot, after_screenshot)
+                    # with eq_class.lock:
+                    eq_class.update_unique_actions([action], before_state.html, new_page.content(),
+                                                   before_screenshot, after_screenshot)
                     with new_pages_lock:
                         new_pages.append(new_page.url)
                     new_page.close()
                 else:
                     after_screenshot = page.screenshot(full_page=False)
-                    with eq_class.lock:
-                        eq_class.update_unique_actions([action], before_state.html, page.content(),
-                                                       before_screenshot, after_screenshot)
+                    # with eq_class.lock:
+                    eq_class.update_unique_actions([action], before_state.html, page.content(),
+                                                   before_screenshot, after_screenshot)
 
+                print("updated equiv classes") # breaks!
                 if normalize_url(before_state.url) != normalize_url(page.url):
                     with new_pages_lock:
                         new_pages.append(page.url)
                     page.goto(before_state.url)
+                print('yay!')
 
     explore_actions()
 
@@ -542,4 +545,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
     save_equivalence_classes(equiv_classes, output_dir)
 
-explore("https://us.supreme.com/pages/shop", headless=True, root="")
+explore("https://us.supreme.com/pages/shop", headless=False, root="")
