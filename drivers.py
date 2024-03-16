@@ -4,6 +4,8 @@ from models import WebDriver, Action
 from models import PageObservation
 # from impls import *
 from action import Action
+
+
 class AxObservation(PageObservation):
     def __init__(self, axtree, url):
         self.axtree = axtree
@@ -13,6 +15,18 @@ class AxObservation(PageObservation):
             node_id_to_idx[node["nodeId"]] = idx
 
         self.nodes_info = []
+
+        def find_enclosing_divs(node: dict, tree: list[dict]) -> list[str]:
+            enclosing_divs = []
+            parent_id = node.get('parentId')
+            while parent_id is not None:
+                parent_node = next((n for n in tree if n['nodeId'] == parent_id), None)
+                if parent_node is None:
+                    break
+                if 'div' in parent_node.get('html', ''):
+                    enclosing_divs.append(parent_node['nodeId'])
+                parent_id = parent_node.get('parentId')
+            return enclosing_divs
 
         def dfs(idx: int, obs_node_id: str, depth: int) -> str:
             pua_cleaner = re.compile('[\ue000-\uf8ff]')
@@ -26,7 +40,8 @@ class AxObservation(PageObservation):
                 properties = []
                 for property in node.get("properties", []):
                     try:
-                        ignored_properties = {"focusable","editable","readonly","level","settable", "multiline","invalid",}
+                        ignored_properties = {"focusable", "editable", "readonly", "level", "settable", "multiline",
+                                              "invalid", }
                         if property["name"] in ignored_properties:
                             continue
                         properties.append(
@@ -42,7 +57,7 @@ class AxObservation(PageObservation):
                 if not name.strip():
                     if not properties:
                         if role in [
-                            "generic",
+                            "generic",  # may need this for more divs
                             "img",
                             "list",
                             "strong",
@@ -57,16 +72,20 @@ class AxObservation(PageObservation):
                             valid_node = False
                     elif role in ["listitem"]:
                         valid_node = False
-    
+
+
                 if valid_node:
+                    enclosing_divs = find_enclosing_divs(node, self.axtree)
                     node_info = {
                         "nodeId": obs_node_id,
-                        "name" : name,
-                        "role" : role,
-                        "indent" : indent,
-                        "properties" : properties,
-                        "html" : node['html'],
-                        "xpath" : node['xpath']
+                        "name": name,
+                        "role": role,
+                        "indent": indent,
+                        "properties": properties,
+                        "html": node['html'],
+                        "xpath": node['xpath'],
+                        "parentId": node['parentId'] if 'parentId' in node else None,
+                        "enclosing_divs": enclosing_divs
                     }
                     self.nodes_info.append(node_info)
             except Exception as e:
@@ -82,9 +101,7 @@ class AxObservation(PageObservation):
                 )
 
         dfs(0, self.axtree[0]["nodeId"], 0)
-        # print(self.nodes_info)
         """further clean accesibility tree"""
-        #maybe make this part single pass? - TODO CEM
         cleaned_nodes = []
         for node in self.nodes_info:
             # remove statictext if the content already appears in the previous line
@@ -98,14 +115,16 @@ class AxObservation(PageObservation):
                     continue
             cleaned_nodes.append(node)
         self.nodes_info = cleaned_nodes
+
     def __eq__(self):
         pass
+
     def __str__(self):
         tree_str = ''
         for node in self.nodes_info:
-            tree_str += f"{node['indent']}[{node['nodeId']}] {node['role']} {repr(node['name'])} " + " ".join(node["properties"]) + "\n"
+            tree_str += f"{node['indent']}[{node['nodeId']}] {node['role']} {repr(node['name'])} " + " ".join(
+                node["properties"]) + "\n"
         return tree_str
-
 class MyDriver(WebDriver):
     def __init__(self, agent, knowledge_base, page):
         super().__init__(agent, knowledge_base)
