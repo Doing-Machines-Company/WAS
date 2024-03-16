@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from urllib.parse import urlparse, urlunparse
 from scrapecode.page_similarity import page_similarity
 from scrapecode.element_similarity import element_similarity
+from bs4 import BeautifulSoup
 
 PlaywrightPage = Any
 CDPSession = Any
@@ -190,8 +191,7 @@ def ax_node_to_action(ax_node: AxNode) -> Optional[Action]:
         'region', 'status', 'img', 'note', 'application',
         'article', 'cell', 'definition', 'directory', 'document',
         'feed', 'figure', 'group', 'img', 'list',
-        'listitem', 'math', 'progressbar',
-        'separator', 'toolbar', 'tooltip', 'presentation', 'option']
+        'listitem', 'math', 'progressbar', 'toolbar', 'tooltip', 'presentation', 'option']
 
     input_roles = [
         'textbox', 'searchbox', 'slider', 'spinbutton', 'radiogroup',
@@ -201,7 +201,7 @@ def ax_node_to_action(ax_node: AxNode) -> Optional[Action]:
     # Error inputting element: Error: Element is not an <input>, <textarea> or [contenteditable] element
 
     # currently_ignored = ['gridcell', 'columnheader', 'rowheader', 'tab',
-    #     'tabpanel', 'row', 'rowgroup', 'search', 'heading']
+    #     'tabpanel', 'row', 'rowgroup', 'search', 'heading', 'separator']
 
     xpath = ax_node["xpath"]
     html = ax_node["html"]
@@ -319,7 +319,32 @@ def normalize_url(url: str) -> str:
 
 
 
+def enumerated_ax_tree(obs: AxObservation):
+    '''
+    Heavily processes the tree for the prompt
+    Skips options via function calls
 
+    :param obs:
+    :return:
+    '''
+
+
+    cleaned_tree = ''
+
+    for i in range(len(obs.nodes_info)):
+        if obs.nodes_info[i]['role'] != 'RootWebArea':
+            node_action = ax_node_to_action(obs.nodes_info[i])
+            if node_action:
+                cleaned_tree += f"[{i}]{obs.nodes_info[i]['indent']}ACTION {obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
+            else:
+                cleaned_tree += f"[{i}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
+        else:
+            if obs.nodes_info[i]['name'].strip != "":
+                cleaned_tree += f"{obs.nodes_info[i]['indent']}You are currently on the page for:\n {obs.nodes_info[i]['name']}\n"
+
+            # input('finshed processing tree')
+
+    return cleaned_tree
 
 
 def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
@@ -394,7 +419,8 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
             # Retrieve the accessibility tree and create an AxObservation object
             cleaned = AxObservation(get_ax_tree(cdpSession), page.url)
-            print(cleaned)
+            enum_cleaned = enumerated_ax_tree(cleaned)
+            print(enum_cleaned)
             exit()
 
             # IMPORTANT: ASSUMES THAT IF ACTION SOMEHOW DISAPPEARS WHILE SCRAPING SAME PAGE THAT IT IS NOT IMPORTANT
