@@ -4,7 +4,13 @@ from models import WebDriver, Action
 from models import PageObservation
 # from impls import *
 from action import Action
+from dataclasses import dataclass
 
+
+@dataclass
+class DivAttributes:
+    div_id: str
+    div_class: str
 
 class AxObservation(PageObservation):
     def __init__(self, axtree, url):
@@ -15,6 +21,7 @@ class AxObservation(PageObservation):
             node_id_to_idx[node["nodeId"]] = idx
 
         self.nodes_info = []
+        self.div_attributes = {}
 
         def find_enclosing_divs(node: dict, tree: list[dict]) -> list[str]:
             enclosing_divs = []
@@ -41,13 +48,10 @@ class AxObservation(PageObservation):
                 properties = []
                 for property in node.get("properties", []):
                     try:
-                        ignored_properties = {"focusable", "editable", "readonly", "level", "settable", "multiline",
-                                              "invalid", }
+                        ignored_properties = {"focusable", "editable", "readonly", "level", "settable", "multiline", "invalid"}
                         if property["name"] in ignored_properties:
                             continue
-                        properties.append(
-                            f'{property["name"]}: {property["value"]["value"]}'
-                        )
+                        properties.append(f'{property["name"]}: {property["value"]["value"]}')
                     except KeyError:
                         pass
                 # check valid
@@ -57,19 +61,7 @@ class AxObservation(PageObservation):
                 # empty generic node
                 if not name.strip():
                     if not properties:
-                        if role in [
-                            "generic",  # include generic types for finding divs
-                            "img",
-                            "list",
-                            "strong",
-                            "paragraph",
-                            "banner",
-                            "navigation",
-                            "Section",
-                            "LabelText",
-                            "Legend",
-                            "listitem",
-                        ]:
+                        if role in ["generic", "img", "list", "strong", "paragraph", "banner", "navigation", "Section", "LabelText", "Legend", "listitem"]:
                             include_in_nodes_info = False
                     elif role in ["listitem"]:
                         include_in_nodes_info = False
@@ -89,6 +81,14 @@ class AxObservation(PageObservation):
                             "enclosing_divs": enclosing_divs
                         }
                         self.nodes_info.append(node_info)
+
+                    if role == 'generic' and 'div' in node.get('html', ''):
+                        div_id = get_div_id(node)
+                        div_class = get_div_class(node)
+
+                        div_attributes = DivAttributes(div_id=div_id, div_class=div_class)
+                        self.div_attributes[obs_node_id] = div_attributes
+
             except Exception as e:
                 valid_node = False
 
@@ -97,9 +97,7 @@ class AxObservation(PageObservation):
                     continue
                 # mark this to save some tokens
                 child_depth = depth + 1 if valid_node and include_in_nodes_info else depth
-                dfs(
-                    node_id_to_idx[child_node_id], child_node_id, child_depth
-                )
+                dfs(node_id_to_idx[child_node_id], child_node_id, child_depth)
 
         dfs(0, self.axtree[0]["nodeId"], 0)
         """further clean accesibility tree"""
@@ -123,9 +121,14 @@ class AxObservation(PageObservation):
     def __str__(self):
         tree_str = ''
         for node in self.nodes_info:
-            tree_str += f"{node['indent']}[{node['nodeId']}] {node['role']} {repr(node['name'])} " + " ".join(
-                node["properties"]) + "\n"
+            tree_str += f"{node['indent']}[{node['nodeId']}] {node['role']} {repr(node['name'])} " + " ".join(node["properties"]) + "\n"
         return tree_str
+
+def get_div_id(node):
+    return node.get('attributes', {}).get('id', '')
+
+def get_div_class(node):
+    return node.get('attributes', {}).get('class', '')
 
 class MyDriver(WebDriver):
     def __init__(self, agent, knowledge_base, page):
