@@ -342,7 +342,30 @@ def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
     # page.wait_for_load_state('networkidle')
     page.wait_for_timeout(
         load_time_ms)  # this is very finicky, if you set it to a lower time, you risk getting the actions from the previous page. TODO: fix this race
-def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: threading.Lock, new_pages_lock: threading.Lock, seen_urls_lock: threading.Lock, equiv_classes: EquivalenceClassSet, new_pages: list[str], seen_urls: set[str], page: PlaywrightPage, cdpSession: CDPSession, root: str, thread_id: int, idle_flags: dict):
+def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: threading.Lock,
+                 page_queue_lock: threading.Lock,
+                 seen_urls_lock: threading.Lock, equiv_classes: EquivalenceClassSet, url_queue: Queue, seen_urls: set[str],
+                 page: PlaywrightPage, cdpSession: CDPSession, root: str, thread_id: int, idle_flags: dict):
+
+    '''
+    explore_page(url, equiv_classes_lock, eq_class_lock, page_queue_lock, seen_urls_lock, equiv_classes,
+                        seen_urls, page, cdpSession, root, thread_id, idle_flags)
+
+    :param url:
+    :param equiv_classes_lock:
+    :param eq_class_lock:
+    :param page_queue_lock:
+    :param seen_urls_lock:
+    :param equiv_classes:
+    :param url_queue:
+    :param seen_urls:
+    :param page:
+    :param cdpSession:
+    :param root:
+    :param thread_id:
+    :param idle_flags:
+    :return:
+    '''
     with seen_urls_lock:
         if normalize_url(url) in seen_urls:
             print(f"Skipping already visited page: {url}")
@@ -400,10 +423,6 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
 
             if not unique_actions:
                 print("No more actions to explore on this page.")
-                # with new_pages_lock:
-                #     if not new_pages:
-                #         print("No more new pages to explore. Stopping thread.")
-                #         stop_event.set()
                 return
             for action in unique_actions:
                 if not action.xpath:
@@ -441,8 +460,10 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                     after_screenshot = new_page.screenshot(full_page=False)
                     eq_class.update_unique_actions([action], before_state.html, new_page.content(),
                                                    before_screenshot, after_screenshot)
-                    with new_pages_lock:
-                        new_pages.append(new_page.url)
+                    with page_queue_lock:
+                        with seen_urls_lock:
+                            if normalize_url(new_page.url) not in seen_urls:
+                                url_queue.put(new_page.url)
                     new_page.close()
                 else:
                     after_screenshot = page.screenshot(full_page=False)
@@ -451,18 +472,21 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
 
                 print("updated equiv classes")
                 if normalize_url(before_state.url) != normalize_url(page.url):
-                    with new_pages_lock:
-                        new_pages.append(page.url)
+                    with page_queue_lock:
+                        with seen_urls_lock:
+                            if normalize_url(page.url) not in seen_urls:
+                                url_queue.put(page.url)
+
                     page.goto(before_state.url)
                 print('yay!')
         print("DONE EXPLORING")
     explore_actions()
-    with new_pages_lock:
-        if not new_pages:
-            idle_flags[thread_id] = True
+    if url_queue.empty():
+        print('setting idle inside explore_page')
+        idle_flags[thread_id] = True
 
 
-def worker(thread_id: int, idle_flags: dict, url_queue: Queue, equiv_classes_lock: threading.Lock, eq_class_lock: threading.Lock, new_pages_lock: threading.Lock, seen_urls_lock: threading.Lock, equiv_classes: EquivalenceClassSet, new_pages: list[str], seen_urls: set[str], headless: bool, cookies: Optional[dict], root: str, stop_event: threading.Event):
+def worker(thread_id: int, idle_flags: dict, url_queue: Queue, equiv_classes_lock: threading.Lock, eq_class_lock: threading.Lock, page_queue_lock: threading.Lock, seen_urls_lock: threading.Lock, equiv_classes: EquivalenceClassSet, seen_urls: set[str], headless: bool, cookies: Optional[dict], root: str, stop_event: threading.Event):
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless)
         context = browser.new_context(
@@ -474,12 +498,28 @@ def worker(thread_id: int, idle_flags: dict, url_queue: Queue, equiv_classes_loc
             context.add_cookies(cookies)
 
         while not stop_event.is_set():
-            url = url_queue.get()
-            if url is None:
+            url = None
+            try:
+                url = url_queue.get(timeout=2)  # Use a timeout to periodically check the stop_event
+            except Exception as e:
+                idle_flags[thread_id] = True
+                print('setting idle inside worker')
+                continue
+
+            if url is not None:
+                explore_page(url, equiv_classes_lock, eq_class_lock, page_queue_lock, seen_urls_lock, equiv_classes,
+                             url_queue, seen_urls, page, cdpSession, root, thread_id, idle_flags)
+                url_queue.task_done()
+            else:
+                idle_flags[thread_id] = True
+            print('yoink')
+            if stop_event.is_set():
                 break
-            explore_page(url, equiv_classes_lock, eq_class_lock, new_pages_lock, seen_urls_lock, equiv_classes,
-                         new_pages, seen_urls, page, cdpSession, root, thread_id, idle_flags)
-            url_queue.task_done()
+
+            time.sleep(1)
+
+        print("fucking off")
+        browser.close()
 
 def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'scrape_supreme', root: str = "", num_threads: int = 4):
     def save_equivalence_classes(equiv_classes: EquivalenceClassSet, output_dir: str):
@@ -510,13 +550,13 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
     equiv_classes = EquivalenceClassSet()
     equiv_classes_lock = threading.Lock()
     eq_class_lock = threading.Lock()
-    new_pages_lock = threading.Lock()
+    page_queue_lock = threading.Lock()
     seen_urls_lock = threading.Lock()
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     seen_urls = set()
-    new_pages = []
+    # new_pages = []
 
     url_queue = Queue()
     url_queue.put(starting_url)
@@ -529,9 +569,9 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
         thread_id = f"Thread-{i}"
         idle_flags[thread_id] = False
         t = threading.Thread(target=worker,
-                             args=(thread_id, idle_flags, url_queue, equiv_classes_lock, eq_class_lock, new_pages_lock,
+                             args=(thread_id, idle_flags, url_queue, equiv_classes_lock, eq_class_lock, page_queue_lock,
                                    seen_urls_lock,
-                                   equiv_classes, new_pages, seen_urls,
+                                   equiv_classes, seen_urls,
                                    headless, cookies, root, stop_event))
         t.start()
         threads.append(t)
@@ -540,29 +580,21 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
         print("TONK1")
         print([idle_flags[i] for i in idle_flags])
         print(stop_event.is_set())
-        with new_pages_lock:
-            while new_pages:
-                print("TONK2")
-                url = new_pages.pop(0)
-                with seen_urls_lock:
-                    if normalize_url(url) not in seen_urls:
-                        url_queue.put(url)
+        print(url_queue.empty())
 
         if url_queue.empty() and all(idle_flags[i] for i in idle_flags):
             print("PONKKS")
             # Double-check if there are any new pages after a short delay
             time.sleep(1)
-            with new_pages_lock:
-                if not new_pages:
-                    stop_event.set()
-                    print("ByeEEEE")
-                    break
+            stop_event.set()
+            print("ByeEEEE")
+            break
         else:
             time.sleep(1)
 
     for t in threads:
         t.join()
-    print(new_pages)
+    print("YAY!")
 
     save_equivalence_classes(equiv_classes, output_dir)
 
