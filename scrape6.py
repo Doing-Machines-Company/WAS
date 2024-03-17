@@ -233,7 +233,7 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str) -> Op
         elif role.strip() in input_roles:
             action = Action(Action.Type.INPUT, xpath, html)
             action.set_tree_line(f"{role}: {ax_node['name']}")
-            return action
+            return None
 
     return None
 
@@ -258,20 +258,21 @@ def apply_action(page: PlaywrightPage, a: Action) -> bool:
             return False
 
         case Action.Type.INPUT:
-            # input_text = a.input_string
-            input_text = "test"
-            try:
-                page.wait_for_load_state('networkidle')
-                page.locator(f'xpath={a.xpath}').first.fill(input_text)
-                page.wait_for_load_state('networkidle')
-                if "search" in a.html:
-                    # print("SEARCHING PRESS ENTER")
-                    page.keyboard.press('Enter')
-                    page.wait_for_load_state('networkidle')
-
-            except Exception as e:
-                print(f"Error inputting element: {e}")
-                return False
+            # # input_text = a.input_string
+            # input_text = "test"
+            # try:
+            #     page.wait_for_load_state('networkidle')
+            #     page.locator(f'xpath={a.xpath}').first.fill(input_text)
+            #     page.wait_for_load_state('networkidle')
+            #     if "search" in a.html:
+            #         # print("SEARCHING PRESS ENTER")
+            #         page.keyboard.press('Enter')
+            #         page.wait_for_load_state('networkidle')
+            #
+            # except Exception as e:
+            #     print(f"Error inputting element: {e}")
+            #     return False
+            return False
 
         case Action.Type.GET_NEXT_SUBTASK_FINISHED:
             pass
@@ -341,8 +342,8 @@ def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
     # page.wait_for_load_state('networkidle')
     page.wait_for_timeout(
         load_time_ms)  # this is very finicky, if you set it to a lower time, you risk getting the actions from the previous page. TODO: fix this race
-def explore_page(url: str, equiv_classes_lock: threading.Lock, new_pages_lock: threading.Lock, equiv_classes: EquivalenceClassSet, new_pages: list[str], seen_urls: set[str], page: PlaywrightPage, cdpSession: CDPSession, root: str):
-    with new_pages_lock:
+def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: threading.Lock, new_pages_lock: threading.Lock, seen_urls_lock: threading.Lock, equiv_classes: EquivalenceClassSet, new_pages: list[str], seen_urls: set[str], page: PlaywrightPage, cdpSession: CDPSession, root: str, thread_id: int, idle_flags: dict):
+    with seen_urls_lock:
         if normalize_url(url) in seen_urls:
             print(f"Skipping already visited page: {url}")
             return
@@ -360,6 +361,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, new_pages_lock: t
         return
 
     def explore_actions():
+
         scrape_flag = False
 
         try:
@@ -368,26 +370,24 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, new_pages_lock: t
             print(f"Error getting page state: {url}. Error: {e}")
             return
         print(f"Got page state for {url}")
+
         with equiv_classes_lock:
             eq_class = equiv_classes.get_class(before_state.url, before_state.html)
             print("Got equivalence class")
 
-        if eq_class is None:
-            print("no eq class")
-            scrape_flag = True
-            with equiv_classes_lock:
-                print('trying to add page to eq class')
+            if eq_class is None:
+                print("no eq class")
+                scrape_flag = True
                 eq_class = equiv_classes.add_page(before_state, None)
-            print("MADE eq class")
-            new_actions = [a for a in before_state.actions if eq_class.is_new_action(a)]
-            print("GOT ACTION!")
-        else:
-            print("found eq class")
+                print("MADE eq class")
+            else:
+                print("found eq class")
+
+        with eq_class_lock:
             new_actions = [a for a in before_state.actions if eq_class.is_new_action(a)]
             if len(new_actions) > 0:
                 scrape_flag = True
-                with equiv_classes_lock:
-                    equiv_classes.add_page(before_state, eq_class)
+
         print("TONK###")
         if scrape_flag:
             print('Exploring actions on page...')
@@ -397,6 +397,14 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, new_pages_lock: t
                 if not any(element_similarity(action.html, a.html) >= 0.9 for a in unique_actions):
                     unique_actions.append(action)
             print("got unique actions")
+
+            if not unique_actions:
+                print("No more actions to explore on this page.")
+                # with new_pages_lock:
+                #     if not new_pages:
+                #         print("No more new pages to explore. Stopping thread.")
+                #         stop_event.set()
+                return
             for action in unique_actions:
                 if not action.xpath:
                     print(f"Skipping action without XPath: {action}")
@@ -447,11 +455,14 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, new_pages_lock: t
                         new_pages.append(page.url)
                     page.goto(before_state.url)
                 print('yay!')
-
+        print("DONE EXPLORING")
     explore_actions()
+    with new_pages_lock:
+        if not new_pages:
+            idle_flags[thread_id] = True
 
 
-def worker(url_queue: Queue, equiv_classes_lock: threading.Lock, new_pages_lock: threading.Lock, equiv_classes: EquivalenceClassSet, new_pages: list[str], seen_urls: set[str], headless: bool, cookies: Optional[dict], root: str):
+def worker(thread_id: int, idle_flags: dict, url_queue: Queue, equiv_classes_lock: threading.Lock, eq_class_lock: threading.Lock, new_pages_lock: threading.Lock, seen_urls_lock: threading.Lock, equiv_classes: EquivalenceClassSet, new_pages: list[str], seen_urls: set[str], headless: bool, cookies: Optional[dict], root: str, stop_event: threading.Event):
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless)
         context = browser.new_context(
@@ -462,11 +473,12 @@ def worker(url_queue: Queue, equiv_classes_lock: threading.Lock, new_pages_lock:
         if cookies is not None:
             context.add_cookies(cookies)
 
-        while True:
+        while not stop_event.is_set():
             url = url_queue.get()
             if url is None:
                 break
-            explore_page(url, equiv_classes_lock, new_pages_lock, equiv_classes, new_pages, seen_urls, page, cdpSession, root)
+            explore_page(url, equiv_classes_lock, eq_class_lock, new_pages_lock, seen_urls_lock, equiv_classes,
+                         new_pages, seen_urls, page, cdpSession, root, thread_id, idle_flags)
             url_queue.task_done()
 
 def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'scrape_supreme', root: str = "", num_threads: int = 4):
@@ -497,7 +509,9 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
     # Initialize an EquivalenceClassSet to store and manage equivalence classes
     equiv_classes = EquivalenceClassSet()
     equiv_classes_lock = threading.Lock()
+    eq_class_lock = threading.Lock()
     new_pages_lock = threading.Lock()
+    seen_urls_lock = threading.Lock()
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
@@ -507,27 +521,44 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
     url_queue = Queue()
     url_queue.put(starting_url)
 
+    stop_event = threading.Event()
+
     threads = []
-    for _ in range(num_threads):
+    idle_flags = dict()
+    for i in range(num_threads):
+        thread_id = f"Thread-{i}"
+        idle_flags[thread_id] = False
         t = threading.Thread(target=worker,
-                             args=(url_queue, equiv_classes_lock, new_pages_lock, equiv_classes, new_pages, seen_urls,
-                                   headless, cookies, root))
+                             args=(thread_id, idle_flags, url_queue, equiv_classes_lock, eq_class_lock, new_pages_lock,
+                                   seen_urls_lock,
+                                   equiv_classes, new_pages, seen_urls,
+                                   headless, cookies, root, stop_event))
         t.start()
         threads.append(t)
 
     while True:
         print("TONK1")
-        print(new_pages)
+        print([idle_flags[i] for i in idle_flags])
+        print(stop_event.is_set())
         with new_pages_lock:
             while new_pages:
                 print("TONK2")
                 url = new_pages.pop(0)
-                if normalize_url(url) not in seen_urls:
-                    url_queue.put(url)
-        if url_queue.empty() and all(not t.is_alive() for t in threads):
-            print("ByeEEEE")
-            break
-        time.sleep(1)
+                with seen_urls_lock:
+                    if normalize_url(url) not in seen_urls:
+                        url_queue.put(url)
+
+        if url_queue.empty() and all(idle_flags[i] for i in idle_flags):
+            print("PONKKS")
+            # Double-check if there are any new pages after a short delay
+            time.sleep(1)
+            with new_pages_lock:
+                if not new_pages:
+                    stop_event.set()
+                    print("ByeEEEE")
+                    break
+        else:
+            time.sleep(1)
 
     for t in threads:
         t.join()
