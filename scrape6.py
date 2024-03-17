@@ -42,8 +42,8 @@ class EquivalenceClass:
         self.unique_actions: dict[str, ActionInfo] = {}
 
     def add_page(self, state: PageState):
-        print('trying to add page inside eq class')
-        print('trying to add page inside eq class2')
+        # print('trying to add page inside eq class')
+        # print('trying to add page inside eq class2')
         normalized_url = normalize_url(state.url)
         self.page_urls.add(normalized_url)
         self.page_states[normalized_url] = state
@@ -55,6 +55,7 @@ class EquivalenceClass:
                 self.unique_actions[action_key] = ActionInfo(action, before_html, after_html, before_screenshot, after_screenshot)
 
     def has_similar_action(self, action: Action) -> bool:
+        # print("CHECKING SIMILARITY")
         return any(element_similarity(action.html, a.action.html) >= 0.9 for a in self.unique_actions.values())
 
     def is_new_action(self, action: Action) -> bool:
@@ -85,13 +86,13 @@ class EquivalenceClassSet:
         return None
 
     def add_page(self, state: PageState, eq_class: Optional[EquivalenceClass]) -> EquivalenceClass:
-        print('trying to add apge inside equiv set')
+        # print('trying to add apge inside equiv set')
         self.added_urls.add(normalize_url(state.url))
-        print('trying to add apge inside equiv set2')
+        # print('trying to add apge inside equiv set2')
         if eq_class is None:
             eq_class = EquivalenceClass()
             self.classes.append(eq_class)
-        print('trying to add apge inside equiv set3')
+        # print('trying to add apge inside equiv set3')
         eq_class.add_page(state)
         return eq_class
 
@@ -306,7 +307,7 @@ def normalize_url(url: str) -> str:
 
 
 def get_page_state(page: PlaywrightPage, cdpSession: CDPSession) -> PageState:
-    print("GETTING PAGE STATE")
+    # print("GETTING PAGE STATE")
     # Navigate to the given URL and wait for the page to load
     wait_for_load(page)
 
@@ -347,6 +348,8 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                  seen_urls_lock: threading.Lock, equiv_classes: EquivalenceClassSet, url_queue: Queue, seen_urls: set[str],
                  page: PlaywrightPage, cdpSession: CDPSession, root: str, thread_id: int, idle_flags: dict):
 
+    idle_flags[thread_id] = False
+
     '''
     explore_page(url, equiv_classes_lock, eq_class_lock, page_queue_lock, seen_urls_lock, equiv_classes,
                         seen_urls, page, cdpSession, root, thread_id, idle_flags)
@@ -368,11 +371,11 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
     '''
     with seen_urls_lock:
         if normalize_url(url) in seen_urls:
-            print(f"Skipping already visited page: {url}")
+            # print(f"Skipping already visited page: {url}")
             return
         seen_urls.add(normalize_url(url))
 
-    if not url.startswith(root):
+    if root not in url:
         print(f"Skipping page outside of root: {url}")
         return
 
@@ -390,36 +393,38 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
         try:
             before_state = get_page_state(page, cdpSession)
         except Exception as e:
-            print(f"Error getting page state: {url}. Error: {e}")
+            # print(f"Error getting page state: {url}. Error: {e}")
             return
-        print(f"Got page state for {url}")
+        # print(f"Got page state for {url}")
 
         with equiv_classes_lock:
             eq_class = equiv_classes.get_class(before_state.url, before_state.html)
-            print("Got equivalence class")
+            # print("Got equivalence class")
 
             if eq_class is None:
-                print("no eq class")
+                # print("no eq class")
                 scrape_flag = True
                 eq_class = equiv_classes.add_page(before_state, None)
-                print("MADE eq class")
+                # print("MADE eq class")
             else:
-                print("found eq class")
+                pass
+                # print("found eq class")
 
         with eq_class_lock:
             new_actions = [a for a in before_state.actions if eq_class.is_new_action(a)]
             if len(new_actions) > 0:
                 scrape_flag = True
 
-        print("TONK###")
+        # print("TONK###")
         if scrape_flag:
-            print('Exploring actions on page...')
+            # print('Exploring actions on page...')
 
             unique_actions = []
             for action in new_actions:
                 if not any(element_similarity(action.html, a.html) >= 0.9 for a in unique_actions):
                     unique_actions.append(action)
             print("got unique actions")
+            print(unique_actions)
 
             if not unique_actions:
                 print("No more actions to explore on this page.")
@@ -449,9 +454,9 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
 
                 time.sleep(0.5)
                 before_screenshot = page.screenshot()
-                print("applying action")
+                # print("applying action")
                 apply_action(page, action)
-                print("applied actions and waiting for load")
+                # print("applied actions and waiting for load")
                 wait_for_load(page)
 
                 time.sleep(0.5)
@@ -464,25 +469,27 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                         with seen_urls_lock:
                             if normalize_url(new_page.url) not in seen_urls:
                                 url_queue.put(new_page.url)
+                                print(new_page.url)
                     new_page.close()
                 else:
                     after_screenshot = page.screenshot(full_page=False)
                     eq_class.update_unique_actions([action], before_state.html, page.content(),
                                                    before_screenshot, after_screenshot)
 
-                print("updated equiv classes")
+                # print("updated equiv classes")
                 if normalize_url(before_state.url) != normalize_url(page.url):
                     with page_queue_lock:
                         with seen_urls_lock:
                             if normalize_url(page.url) not in seen_urls:
                                 url_queue.put(page.url)
+                                print(page.url)
 
                     page.goto(before_state.url)
-                print('yay!')
-        print("DONE EXPLORING")
+                # print('yay!')
+        # print("DONE EXPLORING")
     explore_actions()
-    if url_queue.empty():
-        print('setting idle inside explore_page')
+    if url_queue.empty() and url_queue.qsize() <= 0:
+        # print('setting idle inside explore_page')
         idle_flags[thread_id] = True
 
 
@@ -503,7 +510,7 @@ def worker(thread_id: int, idle_flags: dict, url_queue: Queue, equiv_classes_loc
                 url = url_queue.get(timeout=2)  # Use a timeout to periodically check the stop_event
             except Exception as e:
                 idle_flags[thread_id] = True
-                print('setting idle inside worker')
+                # print('setting idle inside worker')
                 continue
 
             if url is not None:
@@ -577,26 +584,28 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
         threads.append(t)
 
     while True:
-        print("TONK1")
-        print([idle_flags[i] for i in idle_flags])
-        print(stop_event.is_set())
-        print(url_queue.empty())
+        # print("TONK1")
+        # print([idle_flags[i] for i in idle_flags])
+        # print(stop_event.is_set())
+        # print(url_queue.empty())
 
-        if url_queue.empty() and all(idle_flags[i] for i in idle_flags):
-            print("PONKKS")
+        if url_queue.empty() and all(idle_flags[i] for i in idle_flags) and url_queue.qsize() <= 0:
+            # print("PONKKS")
             # Double-check if there are any new pages after a short delay
             time.sleep(1)
             stop_event.set()
-            print("ByeEEEE")
+            # print("ByeEEEE")
             break
         else:
             time.sleep(1)
 
     for t in threads:
         t.join()
-    print("YAY!")
+    # print("YAY!")
 
     save_equivalence_classes(equiv_classes, output_dir)
+    print(url_queue.qsize())
+    print(seen_urls)
 
 
-explore("https://us.supreme.com/pages/shop", headless=False, root="https://us.supreme.com")
+explore("https://us.supreme.com/pages/shop", headless=False, root="supreme.com")
