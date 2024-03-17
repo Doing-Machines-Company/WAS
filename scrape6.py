@@ -410,10 +410,11 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 pass
                 # print("found eq class")
 
+        # with eq_class_lock:
         with eq_class_lock:
             new_actions = [a for a in before_state.actions if eq_class.is_new_action(a)]
-            if len(new_actions) > 0:
-                scrape_flag = True
+        if len(new_actions) > 0:
+            scrape_flag = True
 
         # print("TONK###")
         if scrape_flag:
@@ -423,8 +424,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
             for action in new_actions:
                 if not any(element_similarity(action.html, a.html) >= 0.9 for a in unique_actions):
                     unique_actions.append(action)
-            print("got unique actions")
-            print(unique_actions)
+
 
             if not unique_actions:
                 print("No more actions to explore on this page.")
@@ -435,6 +435,15 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                     continue
 
                 friendly_xpath = action.xpath if '(' in action.xpath.split("/")[0] else f"//{action.xpath}"
+
+                '''
+                
+                Error clicking element via javascript click: TypeError: Cannot read properties of null (reading 'scrollIntoViewIfNeeded')
+                at eval (eval at evaluate (:226:30), <anonymous>:1:181)
+                at UtilityScript.evaluate (<anonymous>:233:19)
+                at UtilityScript.<anonymous> (<anonymous>:1:44)
+                
+                '''
 
                 friendly_element = page.evaluate(
                     f"document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
@@ -463,8 +472,9 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 if len(page.context.pages) > 1 and page.context.pages[-1] != page:
                     new_page = page.context.pages[-1]
                     after_screenshot = new_page.screenshot(full_page=False)
-                    eq_class.update_unique_actions([action], before_state.html, new_page.content(),
-                                                   before_screenshot, after_screenshot)
+                    with eq_class_lock:
+                        eq_class.update_unique_actions([action], before_state.html, new_page.content(),
+                                                       before_screenshot, after_screenshot)
                     with page_queue_lock:
                         with seen_urls_lock:
                             if normalize_url(new_page.url) not in seen_urls:
@@ -473,8 +483,9 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                     new_page.close()
                 else:
                     after_screenshot = page.screenshot(full_page=False)
-                    eq_class.update_unique_actions([action], before_state.html, page.content(),
-                                                   before_screenshot, after_screenshot)
+                    with eq_class_lock:
+                        eq_class.update_unique_actions([action], before_state.html, page.content(), # need to lock
+                                                       before_screenshot, after_screenshot)
 
                 # print("updated equiv classes")
                 if normalize_url(before_state.url) != normalize_url(page.url):
@@ -507,10 +518,9 @@ def worker(thread_id: int, idle_flags: dict, url_queue: Queue, equiv_classes_loc
         while not stop_event.is_set():
             url = None
             try:
-                url = url_queue.get(timeout=2)  # Use a timeout to periodically check the stop_event
+                url = url_queue.get(timeout=0.5)  # Reduced timeout value
             except Exception as e:
                 idle_flags[thread_id] = True
-                # print('setting idle inside worker')
                 continue
 
             if url is not None:
@@ -519,8 +529,9 @@ def worker(thread_id: int, idle_flags: dict, url_queue: Queue, equiv_classes_loc
                 url_queue.task_done()
             else:
                 idle_flags[thread_id] = True
-            print('yoink')
+            # print('yoink')
             if stop_event.is_set():
+                print('breaking')
                 break
 
             time.sleep(1)
@@ -528,7 +539,7 @@ def worker(thread_id: int, idle_flags: dict, url_queue: Queue, equiv_classes_loc
         print("fucking off")
         browser.close()
 
-def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'scrape_supreme', root: str = "", num_threads: int = 4):
+def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'scrape_supreme', root: str = "", num_threads: int = 10):
     def save_equivalence_classes(equiv_classes: EquivalenceClassSet, output_dir: str):
         # Create the output directory if it doesn't exist
         Path(output_dir).mkdir(parents=True, exist_ok=True)
