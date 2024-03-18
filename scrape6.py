@@ -5,7 +5,7 @@ from drivers import AxObservation
 from action import Action
 import json
 from pathlib import Path
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, Page, Dialog
 import pickle
 from typing import Optional, Any
 from time import sleep
@@ -198,6 +198,16 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str) -> Op
         'combobox', 'textarea', 'spinbutton'
     ]
 
+    non_browser_attributes = [
+        'mailto:',
+        'tel:',
+        'print()',
+        'window.print()',
+        'onclick="window.print()"',
+        'printthis()',
+        'onclick="printthis()"',
+    ]
+
     xpath = ax_node["xpath"]
     html = ax_node["html"]
     role = ax_node["role"]
@@ -205,6 +215,9 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str) -> Op
     if xpath and html and xpath.strip() != "" and html.strip() != "":
         # Check if the action is a pure link in the header or footer
         if role.strip() == 'link' and (html in header_html or html in footer_html):
+            return None
+
+        if any(attr in html.lower() for attr in non_browser_attributes):
             return None
 
         if role.strip() == 'link':
@@ -238,6 +251,22 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str) -> Op
 
     return None
 
+def close_print_dialog(page: Page):
+    try:
+        page.wait_for_timeout(500)  # Wait for the print dialog to open
+        page.evaluate("""
+            () => {
+                const iframe = document.querySelector('iframe[name="print_frame"]');
+                if (iframe) {
+                    const cancelButton = iframe.contentDocument.querySelector('button[id="cancel"]');
+                    if (cancelButton) {
+                        cancelButton.click();
+                    }
+                }
+            }
+        """)
+    except Exception as e:
+        print(f"Error closing print dialog: {e}")
 
 def apply_action(page: PlaywrightPage, a: Action) -> bool:
     match a.action_type:
@@ -250,11 +279,15 @@ def apply_action(page: PlaywrightPage, a: Action) -> bool:
             except Exception as e:
                 print(f"Error clicking element via javascript click: {e}")
 
+
             try:
                 page.locator(f"xpath={friendly_path}").click()
+                close_print_dialog(page)  # TODO DOESN'T WORK
                 return True
             except Exception as e:
                 print(f"Error clicking element via playwright xpath locator.click: {e}")
+                close_print_dialog(page)  # TODO DOESN'T WORK
+                return False
 
             return False
 
@@ -413,8 +446,8 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
         # with eq_class_lock:
         with eq_class_lock:
             new_actions = [a for a in before_state.actions if eq_class.is_new_action(a)]
-        if len(new_actions) > 0:
-            scrape_flag = True
+            if len(new_actions) > 0:
+                scrape_flag = True
 
         # print("TONK###")
         if scrape_flag:
@@ -461,14 +494,14 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                         print(f"Element not found for XPath: {action.xpath}")
                         continue
 
-                time.sleep(0.5)
+                time.sleep(2)
                 before_screenshot = page.screenshot()
                 # print("applying action")
                 apply_action(page, action)
                 # print("applied actions and waiting for load")
                 wait_for_load(page)
 
-                time.sleep(0.5)
+                time.sleep(2)
                 if len(page.context.pages) > 1 and page.context.pages[-1] != page:
                     new_page = page.context.pages[-1]
                     after_screenshot = new_page.screenshot(full_page=False)
@@ -495,7 +528,12 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                                 url_queue.put(page.url)
                                 print(page.url)
 
+                    # try:
+                    print(before_state.url)
                     page.goto(before_state.url)
+                    # except Exception as e:
+                    #     print(f"Error navigating back to before_state.url: {before_state.url}. Error: {e}")
+                    #     continue
                 # print('yay!')
         # print("DONE EXPLORING")
     explore_actions()
