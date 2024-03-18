@@ -42,8 +42,6 @@ class EquivalenceClass:
         self.unique_actions: dict[str, ActionInfo] = {}
 
     def add_page(self, state: PageState):
-        # print('trying to add page inside eq class')
-        # print('trying to add page inside eq class2')
         normalized_url = normalize_url(state.url)
         self.page_urls.add(normalized_url)
         self.page_states[normalized_url] = state
@@ -55,7 +53,6 @@ class EquivalenceClass:
                 self.unique_actions[action_key] = ActionInfo(action, before_html, after_html, before_screenshot, after_screenshot)
 
     def has_similar_action(self, action: Action) -> bool:
-        # print("CHECKING SIMILARITY")
         return any(element_similarity(action.html, a.action.html) >= 0.9 for a in self.unique_actions.values())
 
     def is_new_action(self, action: Action) -> bool:
@@ -86,13 +83,10 @@ class EquivalenceClassSet:
         return None
 
     def add_page(self, state: PageState, eq_class: Optional[EquivalenceClass]) -> EquivalenceClass:
-        # print('trying to add apge inside equiv set')
         self.added_urls.add(normalize_url(state.url))
-        # print('trying to add apge inside equiv set2')
         if eq_class is None:
             eq_class = EquivalenceClass()
             self.classes.append(eq_class)
-        # print('trying to add apge inside equiv set3')
         eq_class.add_page(state)
         return eq_class
 
@@ -251,22 +245,6 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str) -> Op
 
     return None
 
-def close_print_dialog(page: Page):
-    try:
-        page.wait_for_timeout(500)  # Wait for the print dialog to open
-        page.evaluate("""
-            () => {
-                const iframe = document.querySelector('iframe[name="print_frame"]');
-                if (iframe) {
-                    const cancelButton = iframe.contentDocument.querySelector('button[id="cancel"]');
-                    if (cancelButton) {
-                        cancelButton.click();
-                    }
-                }
-            }
-        """)
-    except Exception as e:
-        print(f"Error closing print dialog: {e}")
 
 def apply_action(page: PlaywrightPage, a: Action) -> bool:
     match a.action_type:
@@ -279,17 +257,13 @@ def apply_action(page: PlaywrightPage, a: Action) -> bool:
             except Exception as e:
                 print(f"Error clicking element via javascript click: {e}")
 
-
             try:
                 page.locator(f"xpath={friendly_path}").click()
-                close_print_dialog(page)  # TODO DOESN'T WORK
                 return True
             except Exception as e:
                 print(f"Error clicking element via playwright xpath locator.click: {e}")
-                close_print_dialog(page)  # TODO DOESN'T WORK
                 return False
 
-            return False
 
         case Action.Type.INPUT:
             # # input_text = a.input_string
@@ -306,6 +280,12 @@ def apply_action(page: PlaywrightPage, a: Action) -> bool:
             # except Exception as e:
             #     print(f"Error inputting element: {e}")
             #     return False
+
+            '''
+            
+            THIS NEEDS TO BE BETTER
+            
+            '''
             return False
 
         case Action.Type.GET_NEXT_SUBTASK_FINISHED:
@@ -340,7 +320,6 @@ def normalize_url(url: str) -> str:
 
 
 def get_page_state(page: PlaywrightPage, cdpSession: CDPSession) -> PageState:
-    # print("GETTING PAGE STATE")
     # Navigate to the given URL and wait for the page to load
     wait_for_load(page)
 
@@ -404,7 +383,6 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
     '''
     with seen_urls_lock:
         if normalize_url(url) in seen_urls:
-            # print(f"Skipping already visited page: {url}")
             return
         seen_urls.add(normalize_url(url))
 
@@ -426,32 +404,23 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
         try:
             before_state = get_page_state(page, cdpSession)
         except Exception as e:
-            # print(f"Error getting page state: {url}. Error: {e}")
+            print(f"Error getting page state: {url}. Error: {e}")
             return
-        # print(f"Got page state for {url}")
 
         with equiv_classes_lock:
             eq_class = equiv_classes.get_class(before_state.url, before_state.html)
-            # print("Got equivalence class")
 
             if eq_class is None:
-                # print("no eq class")
                 scrape_flag = True
                 eq_class = equiv_classes.add_page(before_state, None)
-                # print("MADE eq class")
-            else:
-                pass
-                # print("found eq class")
 
-        # with eq_class_lock:
+
         with eq_class_lock:
             new_actions = [a for a in before_state.actions if eq_class.is_new_action(a)]
             if len(new_actions) > 0:
                 scrape_flag = True
 
-        # print("TONK###")
         if scrape_flag:
-            # print('Exploring actions on page...')
 
             unique_actions = []
             for action in new_actions:
@@ -467,6 +436,12 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                     print(f"Skipping action without XPath: {action}")
                     continue
 
+                page.evaluate("""
+                    window.print = function() {
+                        console.log('Print was triggered');
+                    };
+                """)
+
                 friendly_xpath = action.xpath if '(' in action.xpath.split("/")[0] else f"//{action.xpath}"
 
                 '''
@@ -475,6 +450,8 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 at eval (eval at evaluate (:226:30), <anonymous>:1:181)
                 at UtilityScript.evaluate (<anonymous>:233:19)
                 at UtilityScript.<anonymous> (<anonymous>:1:44)
+                
+                I want to scroll to what I'm interacting with before I interact, for action effect reasons.
                 
                 '''
 
@@ -494,14 +471,12 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                         print(f"Element not found for XPath: {action.xpath}")
                         continue
 
-                time.sleep(2)
+                time.sleep(2)  # wait for page to load before ss
                 before_screenshot = page.screenshot()
-                # print("applying action")
                 apply_action(page, action)
-                # print("applied actions and waiting for load")
                 wait_for_load(page)
 
-                time.sleep(2)
+                time.sleep(2)  # wait for page to load before ss
                 if len(page.context.pages) > 1 and page.context.pages[-1] != page:
                     new_page = page.context.pages[-1]
                     after_screenshot = new_page.screenshot(full_page=False)
@@ -520,7 +495,6 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                         eq_class.update_unique_actions([action], before_state.html, page.content(), # need to lock
                                                        before_screenshot, after_screenshot)
 
-                # print("updated equiv classes")
                 if normalize_url(before_state.url) != normalize_url(page.url):
                     with page_queue_lock:
                         with seen_urls_lock:
@@ -528,17 +502,12 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                                 url_queue.put(page.url)
                                 print(page.url)
 
-                    # try:
-                    print(before_state.url)
-                    page.goto(before_state.url)
-                    # except Exception as e:
-                    #     print(f"Error navigating back to before_state.url: {before_state.url}. Error: {e}")
-                    #     continue
-                # print('yay!')
-        # print("DONE EXPLORING")
+                    page.goto(before_state.url)  # this threw an error once, idk why
+
+
+
     explore_actions()
     if url_queue.empty() and url_queue.qsize() <= 0:
-        # print('setting idle inside explore_page')
         idle_flags[thread_id] = True
 
 
@@ -567,14 +536,12 @@ def worker(thread_id: int, idle_flags: dict, url_queue: Queue, equiv_classes_loc
                 url_queue.task_done()
             else:
                 idle_flags[thread_id] = True
-            # print('yoink')
             if stop_event.is_set():
-                print('breaking')
                 break
 
             time.sleep(1)
 
-        print("fucking off")
+        print(f"worker Thread-{thread_id} fucking off")
         browser.close()
 
 def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'scrape_supreme', root: str = "", num_threads: int = 10):
@@ -612,7 +579,6 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     seen_urls = set()
-    # new_pages = []
 
     url_queue = Queue()
     url_queue.put(starting_url)
@@ -633,28 +599,20 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
         threads.append(t)
 
     while True:
-        # print("TONK1")
-        # print([idle_flags[i] for i in idle_flags])
-        # print(stop_event.is_set())
-        # print(url_queue.empty())
-
         if url_queue.empty() and all(idle_flags[i] for i in idle_flags) and url_queue.qsize() <= 0:
-            # print("PONKKS")
-            # Double-check if there are any new pages after a short delay
             time.sleep(1)
             stop_event.set()
-            # print("ByeEEEE")
             break
         else:
             time.sleep(1)
 
     for t in threads:
         t.join()
-    # print("YAY!")
+
 
     save_equivalence_classes(equiv_classes, output_dir)
     print(url_queue.qsize())
     print(seen_urls)
 
 
-explore("https://us.supreme.com/pages/shop", headless=False, root="supreme.com")
+explore("https://us.supreme.com/pages/terms", headless=False, root="supreme.com")
