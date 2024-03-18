@@ -13,6 +13,7 @@ def get_element_details(html):
     """
     soup = BeautifulSoup(html, 'html.parser')
     titles = []
+    # TODO, NEED STRICTER FOR INPUTS, DO NOT FALSELY MATCH INPUTS
     for element in soup.find_all(['a', 'button', 'input', 'span']):
         if element.name == 'span' and 'a-text-bold' in element.get('class', []):
             text = element.text.strip()
@@ -33,7 +34,7 @@ def get_element_details(html):
                 else:
                     assert False, f"Unexpected title type: {type(title)}"
         elif element.name in ['input']:
-            title = element.get('class') or element.text.strip()
+            title = element.get('id') or element.text.strip()
             if title:
                 if isinstance(title, str):
                     titles.append(title)
