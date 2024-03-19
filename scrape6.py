@@ -13,7 +13,6 @@ from dataclasses import dataclass
 from urllib.parse import urlparse, urlunparse
 from scrapecode.page_similarity import page_similarity
 from scrapecode.element_similarity import element_similarity
-from bs4 import BeautifulSoup
 
 PlaywrightPage = Any
 CDPSession = Any
@@ -327,11 +326,9 @@ def get_page_state(page: PlaywrightPage, cdpSession: CDPSession) -> PageState:
     # Retrieve the accessibility tree and create an AxObservation object
     cleaned = AxObservation(get_ax_tree(cdpSession), page.url)
 
-    page_html = page.content()
-    soup = BeautifulSoup(page_html, 'html.parser')
     # Extract the header and footer HTML
-    header_html = str(soup.select_one('header'))  # Adjust the selector based on the page structure
-    footer_html = str(soup.select_one('#navFooter'))
+    header_html = page.evaluate("document.getElementsByTagName('header')[0]?.outerHTML || ''")
+    footer_html = page.evaluate("document.getElementById('navFooter')?.outerHTML || ''")
     # ABOVE IS AMAZON SPECIFIC, WE NEED TO FIGURE OUT HOW TO PIPELINE THIS!
     # I love Claude :)
 
@@ -618,4 +615,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
     print(seen_urls)
 
 
-# explore("https://us.supreme.com/pages/terms", headless=False, root="supreme.com")
+explore("https://us.supreme.com/pages/terms", headless=False, root="supreme.com")
