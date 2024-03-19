@@ -317,39 +317,60 @@ def normalize_url(url: str) -> str:
     path = parsed_url.path.rstrip('/')  # Remove trailing slashes from the path
     return urlunparse((scheme, netloc, path, '', '', ''))  # Ignoring the query and fragment
 
+
 def enumerated_ax_tree(obs: AxObservation):
     cleaned_tree = ''
-    div_info = {}
+    # div_info = {}
+    # action_content = set()
 
     for i in range(len(obs.nodes_info)):
-        if obs.nodes_info[i]['role'] != 'RootWebArea':
-            node_action = ax_node_to_action(obs.nodes_info[i])
-            for div_id in obs.nodes_info[i]['enclosing_divs']:
-                if div_id not in div_info:
-                    div_info[div_id] = {'start': i, 'end': i}
-                else:
-                    div_info[div_id]['end'] = i
-            if node_action:
-                cleaned_tree += f"[{i}]{obs.nodes_info[i]['indent']}ACTION {obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
+        node = obs.nodes_info[i]
+        # if node['role'] != 'RootWebArea':
+        node_action = ax_node_to_action(node)
+        if node_action or node['properties'] or node['role'] not in ['img']:
+            cleaned_tree += f"[{i}]{node['indent']}"
+            if node_action and node['name'].strip() != "":
+                cleaned_tree += f"ACTION of {node['role']}: {node['name']}\n"
+                # action_content.add(i)
             else:
-                cleaned_tree += f"[{i}]{obs.nodes_info[i]['indent']}{obs.nodes_info[i]['role']}: {obs.nodes_info[i]['name']}\n"
-        else:
-            if obs.nodes_info[i]['name'].strip() != "":
-                cleaned_tree += f"{obs.nodes_info[i]['indent']}You are currently on the page for:\n {obs.nodes_info[i]['name']}\n"
+                cleaned_tree += f"{node['role']}: {node['name']}\n"
+
+                # for div_id in node['enclosing_divs']:
+                #     if div_id not in div_info:
+                #         div_info[div_id] = {'start': i, 'end': i}
+                #     else:
+                #         div_info[div_id]['end'] = i
+        # else:
+        #     if node['name'].strip() != "":
+        #         cleaned_tree += f"{node['indent']}You are currently on the page for:\n {node['name']}\n"
 
     # Insert div markers into the cleaned_tree
-    lines = cleaned_tree.split('\n')
-    div_insertions = []
-    for i, (div_id, info) in enumerate(div_info.items(), 1):
-        div_insertions.append((info['start'], f"(Div {i})\n"))
-        div_insertions.append((info['end'] + 1, f"(/Div {i})\n"))
+    # lines = cleaned_tree.split('\n')
+    # div_insertions = []
+    # inserted_offset = []
+    # start_end_pairs = [(info['start'], info['end']) for info in div_info.values()]
+    # sorted_start_end_pairs = sorted(start_end_pairs, key=lambda x: (x[0], x[1]))
+    #
+    # for i, (start, end) in enumerate(sorted_start_end_pairs):
+    #     has_action_content = False
+    #     for j in range(start, end + 1):
+    #         if j in action_content:
+    #             has_action_content = True
+    #             break
+    #     if has_action_content:
+    #         start_offset = sum([start >= x for x in inserted_offset])
+    #         inserted_offset.append(start)
+    #         offset_end = sum([end + 1 >= x for x in inserted_offset])
+    #         inserted_offset.append(end + 1)
+    #
+    #         div_insertions.append((start + start_offset, f"(Div {i})"))
+    #         div_insertions.append((end + offset_end + 1, f"(/Div {i})"))
+    #
+    # for index, marker in div_insertions:
+    #     lines.insert(index, marker)
 
-    div_insertions.sort(key=lambda x: x[0], reverse=True)
-    for index, marker in div_insertions:
-        lines.insert(index, marker)
-
-    return '\n'.join(lines)
-
+    # return '\n'.join(lines)
+    return cleaned_tree
 def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
     # https://playwright.dev/python/docs/navigations#navigation-events
     # https://playwright.dev/python/docs/api/class-page#page-wait-for-load-state-option-state
@@ -424,6 +445,8 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
             cleaned = AxObservation(get_ax_tree(cdpSession), page.url)
             enum_cleaned = enumerated_ax_tree(cleaned)
             print(enum_cleaned)
+            with open('enum_cleaned.txt', 'w') as f:
+                f.write(enum_cleaned)
             exit()
 
             # IMPORTANT: ASSUMES THAT IF ACTION SOMEHOW DISAPPEARS WHILE SCRAPING SAME PAGE THAT IT IS NOT IMPORTANT

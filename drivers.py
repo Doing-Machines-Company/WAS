@@ -21,19 +21,19 @@ class AxObservation(PageObservation):
             node_id_to_idx[node["nodeId"]] = idx
 
         self.nodes_info = []
-        self.div_attributes = {}
+        # self.div_attributes = {}
 
-        def find_enclosing_divs(node: dict, tree: list[dict]) -> list[str]:
-            enclosing_divs = []
-            parent_id = node.get('parentId')
-            while parent_id is not None:
-                parent_node = next((n for n in tree if n['nodeId'] == parent_id), None)
-                if parent_node is None:
-                    break
-                if 'div' in parent_node.get('html', ''):
-                    enclosing_divs.append(parent_node['nodeId'])
-                parent_id = parent_node.get('parentId')
-            return enclosing_divs
+        # def find_enclosing_divs(node: dict, tree: list[dict]) -> list[str]:
+        #     enclosing_divs = []
+        #     parent_id = node.get('parentId')
+        #     while parent_id is not None:
+        #         parent_node = next((n for n in tree if n['nodeId'] == parent_id), None)
+        #         if parent_node is None:
+        #             break
+        #         if 'div' in parent_node.get('html', ''):
+        #             enclosing_divs.append(parent_node['nodeId'])
+        #         parent_id = parent_node.get('parentId')
+        #     return enclosing_divs
 
         def dfs(idx: int, obs_node_id: str, depth: int) -> str:
             pua_cleaner = re.compile('[\ue000-\uf8ff]')
@@ -55,19 +55,20 @@ class AxObservation(PageObservation):
                     except KeyError:
                         pass
                 # check valid
-                if not role and not name:
+                if not role and not name.strip():
                     valid_node = False
 
                 # empty generic node
                 if not name.strip():
-                    if not properties:
-                        if role in ["generic", "img", "list", "strong", "paragraph", "banner", "navigation", "Section", "LabelText", "Legend", "listitem"]:
-                            include_in_nodes_info = False
-                    elif role in ["listitem"]:
+                    # if not properties:
+                    if role in ["generic", "img", "list", "strong", "paragraph", "banner", "navigation", "Section",
+                                "LabelText", "Legend", "listitem", "LineBreak", "ListMarker", "gridcell", "link"]:  # TODO, double check logic, I did this arbitrarily ripping things out
                         include_in_nodes_info = False
+                    # elif role in ["listitem"]:
+                    #     include_in_nodes_info = False
 
                 if valid_node:
-                    enclosing_divs = find_enclosing_divs(node, self.axtree)
+                    # enclosing_divs = find_enclosing_divs(node, self.axtree)
                     if include_in_nodes_info:
                         node_info = {
                             "nodeId": obs_node_id,
@@ -78,16 +79,16 @@ class AxObservation(PageObservation):
                             "html": node['html'],
                             "xpath": node['xpath'],
                             "parentId": node['parentId'] if 'parentId' in node else None,
-                            "enclosing_divs": enclosing_divs
+                            # "enclosing_divs": enclosing_divs
                         }
                         self.nodes_info.append(node_info)
 
-                    if role == 'generic' and 'div' in node.get('html', ''):
-                        div_id = get_div_id(node)
-                        div_class = get_div_class(node)
+                    # if role == 'generic' and 'div' in node.get('html', ''):
+                    #     div_id = get_div_id(node)
+                    #     div_class = get_div_class(node)
 
-                        div_attributes = DivAttributes(div_id=div_id, div_class=div_class)
-                        self.div_attributes[obs_node_id] = div_attributes
+                        # div_attributes = DivAttributes(div_id=div_id, div_class=div_class)
+                        # self.div_attributes[obs_node_id] = div_attributes
 
             except Exception as e:
                 valid_node = False
