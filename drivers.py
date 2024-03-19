@@ -7,10 +7,7 @@ from action import Action
 from dataclasses import dataclass
 
 
-@dataclass
-class DivAttributes:
-    div_id: str
-    div_class: str
+
 
 class AxObservation(PageObservation):
     def __init__(self, axtree, url):
@@ -21,20 +18,6 @@ class AxObservation(PageObservation):
             node_id_to_idx[node["nodeId"]] = idx
 
         self.nodes_info = []
-        # self.div_attributes = {}
-
-        # def find_enclosing_divs(node: dict, tree: list[dict]) -> list[str]:
-        #     enclosing_divs = []
-        #     parent_id = node.get('parentId')
-        #     while parent_id is not None:
-        #         parent_node = next((n for n in tree if n['nodeId'] == parent_id), None)
-        #         if parent_node is None:
-        #             break
-        #         if 'div' in parent_node.get('html', ''):
-        #             enclosing_divs.append(parent_node['nodeId'])
-        #         parent_id = parent_node.get('parentId')
-        #     return enclosing_divs
-
         def dfs(idx: int, obs_node_id: str, depth: int) -> str:
             pua_cleaner = re.compile('[\ue000-\uf8ff]')
             node = self.axtree[idx]
@@ -79,16 +62,10 @@ class AxObservation(PageObservation):
                             "html": node['html'],
                             "xpath": node['xpath'],
                             "parentId": node['parentId'] if 'parentId' in node else None,
-                            # "enclosing_divs": enclosing_divs
                         }
                         self.nodes_info.append(node_info)
 
-                    # if role == 'generic' and 'div' in node.get('html', ''):
-                    #     div_id = get_div_id(node)
-                    #     div_class = get_div_class(node)
 
-                        # div_attributes = DivAttributes(div_id=div_id, div_class=div_class)
-                        # self.div_attributes[obs_node_id] = div_attributes
 
             except Exception as e:
                 valid_node = False
@@ -125,11 +102,7 @@ class AxObservation(PageObservation):
             tree_str += f"{node['indent']}[{node['nodeId']}] {node['role']} {repr(node['name'])} " + " ".join(node["properties"]) + "\n"
         return tree_str
 
-def get_div_id(node):
-    return node.get('attributes', {}).get('id', '')
 
-def get_div_class(node):
-    return node.get('attributes', {}).get('class', '')
 
 class MyDriver(WebDriver):
     def __init__(self, agent, knowledge_base, page):

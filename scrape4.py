@@ -25,6 +25,7 @@ class ActionInfo:
     after_html: str
     before_screenshot: bytes | str
     after_screenshot: bytes | str
+
 @dataclass
 class PageState:
     url: str
@@ -191,23 +192,35 @@ def ax_node_to_action(ax_node: AxNode) -> Optional[Action]:
         'region', 'status', 'img', 'note', 'application',
         'article', 'cell', 'definition', 'directory', 'document',
         'feed', 'figure', 'group', 'img', 'list',
-        'listitem', 'math', 'progressbar', 'toolbar', 'tooltip', 'presentation', 'option']
+        'listitem', 'math', 'progressbar',
+        'separator', 'toolbar', 'tooltip', 'presentation', 'option']
 
     input_roles = [
         'textbox', 'searchbox', 'slider', 'spinbutton', 'radiogroup',
         'checkbox', 'radio', 'switch', 'option', 'listbox',
         'combobox', 'textarea', 'spinbutton'
     ]
-    # Error inputting element: Error: Element is not an <input>, <textarea> or [contenteditable] element
 
-    # currently_ignored = ['gridcell', 'columnheader', 'rowheader', 'tab',
-    #     'tabpanel', 'row', 'rowgroup', 'search', 'heading', 'separator']
+    non_browser_attributes = [
+        'mailto:',
+        'tel:',
+        'print()',
+        'window.print()',
+        'onclick="window.print()"',
+        'printthis()',
+        'onclick="printthis()"',
+    ]
 
     xpath = ax_node["xpath"]
     html = ax_node["html"]
     role = ax_node["role"]
 
     if xpath and html and xpath.strip() != "" and html.strip() != "":
+        # Check if the action is a pure link in the header or footer
+
+        if any(attr in html.lower() for attr in non_browser_attributes):
+            return None
+
         if role.strip() == 'link':
             action = Action(Action.Type.CLICK_LINK, xpath, html)
             action.set_tree_line(f"{role}: {ax_node['name']}")
@@ -232,22 +245,10 @@ def ax_node_to_action(ax_node: AxNode) -> Optional[Action]:
             action = Action(Action.Type.CLICK_GENERAL, xpath, html)
             action.set_tree_line(f"{role}: {ax_node['name']}")
             return action
-        # elif role.strip() in input_roles:
-        #     action = Action(Action.Type.INPUT, xpath, html)
-        #     action.set_tree_line(f"{role}: {ax_node['name']}")
-        #     return action
-        elif '<input' in html:
+        elif role.strip() in input_roles:
             action = Action(Action.Type.INPUT, xpath, html)
             action.set_tree_line(f"{role}: {ax_node['name']}")
-            return action
-        elif 'contenteditable' in html:
-            action = Action(Action.Type.INPUT, xpath, html)
-            action.set_tree_line(f"{role}: {ax_node['name']}")
-            return action
-        elif '<textarea' in html:
-            action = Action(Action.Type.INPUT, xpath, html)
-            action.set_tree_line(f"{role}: {ax_node['name']}")
-            return action
+            return None
 
     return None
 
@@ -318,58 +319,22 @@ def normalize_url(url: str) -> str:
     return urlunparse((scheme, netloc, path, '', '', ''))  # Ignoring the query and fragment
 
 
+# def enumerated_ax_tree(obs: AxObservation, ignore_htmls: list[str]):
 def enumerated_ax_tree(obs: AxObservation):
     cleaned_tree = ''
-    # div_info = {}
-    # action_content = set()
-
+    count = 0
     for i in range(len(obs.nodes_info)):
         node = obs.nodes_info[i]
-        # if node['role'] != 'RootWebArea':
         node_action = ax_node_to_action(node)
+
         if node_action or node['properties'] or node['role'] not in ['img']:
-            cleaned_tree += f"[{i}]{node['indent']}"
+            cleaned_tree += f"[{count}]{node['indent']}"
+            count += 1
             if node_action and node['name'].strip() != "":
                 cleaned_tree += f"ACTION of {node['role']}: {node['name']}\n"
-                # action_content.add(i)
             else:
                 cleaned_tree += f"{node['role']}: {node['name']}\n"
-
-                # for div_id in node['enclosing_divs']:
-                #     if div_id not in div_info:
-                #         div_info[div_id] = {'start': i, 'end': i}
-                #     else:
-                #         div_info[div_id]['end'] = i
-        # else:
-        #     if node['name'].strip() != "":
-        #         cleaned_tree += f"{node['indent']}You are currently on the page for:\n {node['name']}\n"
-
-    # Insert div markers into the cleaned_tree
-    # lines = cleaned_tree.split('\n')
-    # div_insertions = []
-    # inserted_offset = []
-    # start_end_pairs = [(info['start'], info['end']) for info in div_info.values()]
-    # sorted_start_end_pairs = sorted(start_end_pairs, key=lambda x: (x[0], x[1]))
-    #
-    # for i, (start, end) in enumerate(sorted_start_end_pairs):
-    #     has_action_content = False
-    #     for j in range(start, end + 1):
-    #         if j in action_content:
-    #             has_action_content = True
-    #             break
-    #     if has_action_content:
-    #         start_offset = sum([start >= x for x in inserted_offset])
-    #         inserted_offset.append(start)
-    #         offset_end = sum([end + 1 >= x for x in inserted_offset])
-    #         inserted_offset.append(end + 1)
-    #
-    #         div_insertions.append((start + start_offset, f"(Div {i})"))
-    #         div_insertions.append((end + offset_end + 1, f"(/Div {i})"))
-    #
-    # for index, marker in div_insertions:
-    #     lines.insert(index, marker)
-
-    # return '\n'.join(lines)
+    # print(count)
     return cleaned_tree
 def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
     # https://playwright.dev/python/docs/navigations#navigation-events
@@ -441,13 +406,44 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
             # page.goto(url) # TODO, perhaps not what you want
             wait_for_load(page)
 
+            # page_html = page.content()
+            # soup = BeautifulSoup(page_html, 'html.parser')
+            #
+            # header_elements = soup.select('header, #navbar-main')
+            # header_html = ''.join(str(element) for element in header_elements)
+            #
+            # footer_elements = soup.select('#navFooter')
+            # footer_html = ''.join(str(element) for element in footer_elements)
+            #
+            # copilot_elements = soup.select('#rhf')
+            # copilot_html = ''.join(str(element) for element in copilot_elements)
+            #
+            # ignore_htmls = [header_html, footer_html, copilot_html]
+
+            # page_html = page.content()
+            # soup = BeautifulSoup(page_html, 'html.parser')
+            # header_html = str(soup.select_one('header'))  # Adjust the selector based on the page structure
+            # header_html2 = str(soup.select_one('#navbar-main'))  # Adjust the selector based on the page structure
+            # footer_html = str(soup.select_one('#navFooter'))  # Adjust the selector based on the page structure
+            # copilot_html = str(soup.select_one('#rhf'))  # Adjust the selector based on the page structure
+
+            # header_html = page.evaluate("document.getElementsByTagName('header')[0]?.outerHTML || ''")
+            # header_html2 = page.evaluate("document.getElementById('navbar-main')?.outerHTML || ''")
+            # footer_html = page.evaluate("document.getElementById('navFooter')?.outerHTML || ''")
+            # copilot_html = page.evaluate("document.getElementById('rhf')?.outerHTML || ''")
+            #
+            # ignore_htmls = [header_html, footer_html, copilot_html]
+
+
             # Retrieve the accessibility tree and create an AxObservation object
             cleaned = AxObservation(get_ax_tree(cdpSession), page.url)
             enum_cleaned = enumerated_ax_tree(cleaned)
             print(enum_cleaned)
             with open('enum_cleaned.txt', 'w') as f:
                 f.write(enum_cleaned)
+            input("look and stufff")
             exit()
+
 
             # IMPORTANT: ASSUMES THAT IF ACTION SOMEHOW DISAPPEARS WHILE SCRAPING SAME PAGE THAT IT IS NOT IMPORTANT
 
@@ -584,10 +580,7 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
         # Continue exploring new pages until there are no more pages to explore
         while new_pages: # new_pages is a list of strings which are urls
-            # print(new_pages)
             print(len(new_pages))
-            # print("Exploring new pages...")
-            # Pop a URL from the new_pages list
             url = new_pages.pop(0)
             explore_page(url)
 
