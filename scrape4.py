@@ -13,6 +13,7 @@ from urllib.parse import urlparse, urlunparse
 from scrapecode.page_similarity import page_similarity
 from scrapecode.element_similarity import element_similarity
 from bs4 import BeautifulSoup
+import re
 
 PlaywrightPage = Any
 CDPSession = Any
@@ -98,7 +99,7 @@ class EquivalenceClassSet:
 
 
 
-def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
+def get_ax_tree(cdpSession: CDPSession) -> (list[AxNode], str):
     accessibility_tree = cdpSession.send(
         "Accessibility.getFullAXTree", {}
     )["nodes"]
@@ -319,7 +320,6 @@ def normalize_url(url: str) -> str:
     return urlunparse((scheme, netloc, path, '', '', ''))  # Ignoring the query and fragment
 
 
-# def enumerated_ax_tree(obs: AxObservation, ignore_htmls: list[str]):
 def enumerated_ax_tree(obs: AxObservation):
     cleaned_tree = ''
     count = 0
@@ -327,11 +327,16 @@ def enumerated_ax_tree(obs: AxObservation):
         node = obs.nodes_info[i]
         node_action = ax_node_to_action(node)
 
-        if node_action or node['properties'] or node['role'] not in ['img']:
+        if (node_action or node['properties'] or node['role'] not in ['img']):
+            # no_whitespaces_html = re.sub(r"\s+", "", node['html'])
+            # if no_whitespaces_html in ignore_htmls:
+            #     print('skipppp!')
+            #     continue
             cleaned_tree += f"[{count}]{node['indent']}"
             count += 1
-            if node_action and node['name'].strip() != "":
-                cleaned_tree += f"ACTION of {node['role']}: {node['name']}\n"
+            if node_action:
+                if node['name'].strip() != "":
+                    cleaned_tree += f"ACTION of {node['role']}: {node['name']}\n"
             else:
                 cleaned_tree += f"{node['role']}: {node['name']}\n"
     # print(count)
@@ -406,42 +411,44 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
             # page.goto(url) # TODO, perhaps not what you want
             wait_for_load(page)
 
-            # page_html = page.content()
-            # soup = BeautifulSoup(page_html, 'html.parser')
-            #
-            # header_elements = soup.select('header, #navbar-main')
-            # header_html = ''.join(str(element) for element in header_elements)
-            #
-            # footer_elements = soup.select('#navFooter')
-            # footer_html = ''.join(str(element) for element in footer_elements)
-            #
-            # copilot_elements = soup.select('#rhf')
-            # copilot_html = ''.join(str(element) for element in copilot_elements)
-            #
-            # ignore_htmls = [header_html, footer_html, copilot_html]
+            # Remove the header and footer using JavaScript
+            page.evaluate("""
+                    () => {
+                        const header = document.querySelector('header');
+                        if (header) {
+                            header.remove();
+                        }
 
-            # page_html = page.content()
-            # soup = BeautifulSoup(page_html, 'html.parser')
-            # header_html = str(soup.select_one('header'))  # Adjust the selector based on the page structure
-            # header_html2 = str(soup.select_one('#navbar-main'))  # Adjust the selector based on the page structure
-            # footer_html = str(soup.select_one('#navFooter'))  # Adjust the selector based on the page structure
-            # copilot_html = str(soup.select_one('#rhf'))  # Adjust the selector based on the page structure
+                        const footer = document.getElementById('navFooter');
+                        if (footer) {
+                            footer.remove();
+                        }
+                        
+                        const recs = document.getElementById('rhf');
+                        if (recs) {
+                            recs.remove();
+                        }
+                        
+                        const simfeats = document.getElementById('similarities_feature_div');
+                        if (simfeats) {
+                            simfeats.remove();
+                        }
+                    }
+                """)
 
-            # header_html = page.evaluate("document.getElementsByTagName('header')[0]?.outerHTML || ''")
-            # header_html2 = page.evaluate("document.getElementById('navbar-main')?.outerHTML || ''")
-            # footer_html = page.evaluate("document.getElementById('navFooter')?.outerHTML || ''")
-            # copilot_html = page.evaluate("document.getElementById('rhf')?.outerHTML || ''")
-            #
-            # ignore_htmls = [header_html, footer_html, copilot_html]
+            input('look at it')
+
+            # remove_string = get_need_remove_elements()
+            ax_nodes = get_ax_tree(cdpSession)
+
+            cleaned = AxObservation(ax_nodes, page.url)
+            # input('give a moment')
 
 
-            # Retrieve the accessibility tree and create an AxObservation object
-            cleaned = AxObservation(get_ax_tree(cdpSession), page.url)
             enum_cleaned = enumerated_ax_tree(cleaned)
             print(enum_cleaned)
             with open('enum_cleaned.txt', 'w') as f:
                 f.write(enum_cleaned)
-            input("look and stufff")
             exit()
 
 

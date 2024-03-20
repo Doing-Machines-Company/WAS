@@ -4,6 +4,7 @@ from models import WebDriver, Action
 from models import PageObservation
 # from impls import *
 from action import Action
+from bs4 import BeautifulSoup
 from dataclasses import dataclass
 
 
@@ -23,7 +24,6 @@ class AxObservation(PageObservation):
             node = self.axtree[idx]
             indent = "\t" * depth
             valid_node = True
-            include_in_nodes_info = True
             try:
                 role = node["role"]["value"]
                 name = node["name"]["value"]
@@ -46,24 +46,22 @@ class AxObservation(PageObservation):
                     # if not properties:
                     if role in ["generic", "img", "list", "strong", "paragraph", "banner", "navigation", "Section",
                                 "LabelText", "Legend", "listitem", "LineBreak", "ListMarker", "gridcell", "link"]:  # TODO, double check logic, I did this arbitrarily ripping things out
-                        include_in_nodes_info = False
+                        valid_node = False
                     # elif role in ["listitem"]:
                     #     include_in_nodes_info = False
 
                 if valid_node:
-                    # enclosing_divs = find_enclosing_divs(node, self.axtree)
-                    if include_in_nodes_info:
-                        node_info = {
-                            "nodeId": obs_node_id,
-                            "name": name,
-                            "role": role,
-                            "indent": indent,
-                            "properties": properties,
-                            "html": node['html'],
-                            "xpath": node['xpath'],
-                            "parentId": node['parentId'] if 'parentId' in node else None,
-                        }
-                        self.nodes_info.append(node_info)
+                    node_info = {
+                        "nodeId": obs_node_id,
+                        "name": name,
+                        "role": role,
+                        "indent": indent,
+                        "properties": properties,
+                        "html": node['html'],
+                        "xpath": node['xpath'],
+                        "parentId": node['parentId'] if 'parentId' in node else None,
+                    }
+                    self.nodes_info.append(node_info)
 
 
 
@@ -74,7 +72,7 @@ class AxObservation(PageObservation):
                 if child_node_id not in node_id_to_idx:
                     continue
                 # mark this to save some tokens
-                child_depth = depth + 1 if valid_node and include_in_nodes_info else depth
+                child_depth = depth + 1 if valid_node else depth
                 dfs(node_id_to_idx[child_node_id], child_node_id, child_depth)
 
         dfs(0, self.axtree[0]["nodeId"], 0)
