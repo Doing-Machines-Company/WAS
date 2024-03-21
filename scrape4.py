@@ -410,7 +410,7 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
             # Navigate to the given URL and wait for the page to load
             # page.goto(url) # TODO, perhaps not what you want
             wait_for_load(page)
-
+            input('give it a moment')
             # Remove the header and footer using JavaScript
             page.evaluate("""
                     () => {
@@ -429,10 +429,10 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
                             recs.remove();
                         }
                         
-                        const simfeats = document.getElementById('similarities_feature_div');
-                        if (simfeats) {
-                            simfeats.remove();
-                        }
+                        const sf = document.getElementById('similarities_feature_div');
+                        if (sf) {
+                            sf.remove();
+                        }       
                     }
                 """)
 
@@ -594,4 +594,5 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
         save_equivalence_classes(equiv_classes, output_dir)
 
 # explore("https://us.supreme.com/products/cy2dbtgcsd1feuyr", headless=True, root="")
-explore("https://www.amazon.com/Brita-Filter-Pitcher-Standard-Without/dp/B09W4PLVQP/ref=sr_1_7?crid=3LCD2O3C4HNKO&dib=eyJ2IjoiMSJ9.XDFWvhkafbpG8bvke6HUJ1m7eZxOWDVPyhN0MM4tp6A4cF0UNkO2YR9ZtyNOPwzoqrhKHmWWbV5CJxzG_lRfHMy7Vu9fEwo2prr0asnohjrskeR_uMRTyEEIbN3DsS_6Lk-XDjigWxQVxqlDGGkd4MSDIPaU6nltNygG4URYkFf1b5Ib3p_3qlRvmELVRFo3-RxQ95GQVOW1jbYZErMvw5cv0OfHHHobJvcNrc-AgKKc8wXKTyJ4rW4b-FBLokmA23RnUPMO-yC4NJDvodqNabZ-AIbXrRh528W_Y-AwkwY.97zl7k14p0fVKq6Qbr7JmKMcgwchKGD8KgNIznoDwdQ&dib_tag=se&keywords=brita&qid=1709442919&sprefix=brita%2Caps%2C98&sr=8-7&th=1")
+# explore("https://www.amazon.com/Brita-Filter-Pitcher-Standard-Without/dp/B09W4PLVQP/ref=sr_1_7?crid=3LCD2O3C4HNKO&dib=eyJ2IjoiMSJ9.XDFWvhkafbpG8bvke6HUJ1m7eZxOWDVPyhN0MM4tp6A4cF0UNkO2YR9ZtyNOPwzoqrhKHmWWbV5CJxzG_lRfHMy7Vu9fEwo2prr0asnohjrskeR_uMRTyEEIbN3DsS_6Lk-XDjigWxQVxqlDGGkd4MSDIPaU6nltNygG4URYkFf1b5Ib3p_3qlRvmELVRFo3-RxQ95GQVOW1jbYZErMvw5cv0OfHHHobJvcNrc-AgKKc8wXKTyJ4rW4b-FBLokmA23RnUPMO-yC4NJDvodqNabZ-AIbXrRh528W_Y-AwkwY.97zl7k14p0fVKq6Qbr7JmKMcgwchKGD8KgNIznoDwdQ&dib_tag=se&keywords=brita&qid=1709442919&sprefix=brita%2Caps%2C98&sr=8-7&th=1")
+explore("https://www.amazon.com/Piece-Slim-Fit-Suit-Set-One-Button-Blazer-Jacket-Vest-Pants-Solid-Party-Wedding-Dress-Tux-Waistcoat-140-160lbs/dp/B07NS8D25J/ref=pd_ci_mcx_mh_mcx_views_2?pd_rd_w=aMRNH&content-id=amzn1.sym.225b4624-972d-4629-9040-f1bf9923dd95%3Aamzn1.symc.40e6a10e-cbc4-4fa5-81e3-4435ff64d03b&pf_rd_p=225b4624-972d-4629-9040-f1bf9923dd95&pf_rd_r=VT3NN47QWJE6Q8AFE04M&pd_rd_wg=SW3ME&pd_rd_r=d1b4b8e2-5fc6-48f0-9186-2d2543786987&pd_rd_i=B07NS8D25J&th=1")
