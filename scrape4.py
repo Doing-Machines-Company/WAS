@@ -328,18 +328,14 @@ def enumerated_ax_tree(obs: AxObservation):
         node_action = ax_node_to_action(node)
 
         if (node_action or node['properties'] or node['role'] not in ['img']):
-            # no_whitespaces_html = re.sub(r"\s+", "", node['html'])
-            # if no_whitespaces_html in ignore_htmls:
-            #     print('skipppp!')
-            #     continue
-            cleaned_tree += f"[{count}]{node['indent']}"
-            count += 1
             if node_action:
                 if node['name'].strip() != "":
-                    cleaned_tree += f"ACTION of {node['role']}: {node['name']}\n"
+                    count += 1
+                    cleaned_tree += f"[{count}]{node['indent']}ACTION of {node['role']}: {node['name']}\n"
             else:
-                cleaned_tree += f"{node['role']}: {node['name']}\n"
-    # print(count)
+                count += 1
+                cleaned_tree += f"[{count}]{node['indent']}{node['role']}: {node['name']}\n"
+
     return cleaned_tree
 def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
     # https://playwright.dev/python/docs/navigations#navigation-events
@@ -594,5 +590,5 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
         save_equivalence_classes(equiv_classes, output_dir)
 
 # explore("https://us.supreme.com/products/cy2dbtgcsd1feuyr", headless=True, root="")
-# explore("https://www.amazon.com/Brita-Filter-Pitcher-Standard-Without/dp/B09W4PLVQP/ref=sr_1_7?crid=3LCD2O3C4HNKO&dib=eyJ2IjoiMSJ9.XDFWvhkafbpG8bvke6HUJ1m7eZxOWDVPyhN0MM4tp6A4cF0UNkO2YR9ZtyNOPwzoqrhKHmWWbV5CJxzG_lRfHMy7Vu9fEwo2prr0asnohjrskeR_uMRTyEEIbN3DsS_6Lk-XDjigWxQVxqlDGGkd4MSDIPaU6nltNygG4URYkFf1b5Ib3p_3qlRvmELVRFo3-RxQ95GQVOW1jbYZErMvw5cv0OfHHHobJvcNrc-AgKKc8wXKTyJ4rW4b-FBLokmA23RnUPMO-yC4NJDvodqNabZ-AIbXrRh528W_Y-AwkwY.97zl7k14p0fVKq6Qbr7JmKMcgwchKGD8KgNIznoDwdQ&dib_tag=se&keywords=brita&qid=1709442919&sprefix=brita%2Caps%2C98&sr=8-7&th=1")
-explore("https://www.amazon.com/Piece-Slim-Fit-Suit-Set-One-Button-Blazer-Jacket-Vest-Pants-Solid-Party-Wedding-Dress-Tux-Waistcoat-140-160lbs/dp/B07NS8D25J/ref=pd_ci_mcx_mh_mcx_views_2?pd_rd_w=aMRNH&content-id=amzn1.sym.225b4624-972d-4629-9040-f1bf9923dd95%3Aamzn1.symc.40e6a10e-cbc4-4fa5-81e3-4435ff64d03b&pf_rd_p=225b4624-972d-4629-9040-f1bf9923dd95&pf_rd_r=VT3NN47QWJE6Q8AFE04M&pd_rd_wg=SW3ME&pd_rd_r=d1b4b8e2-5fc6-48f0-9186-2d2543786987&pd_rd_i=B07NS8D25J&th=1")
+explore("https://www.amazon.com/Brita-Filter-Pitcher-Standard-Without/dp/B09W4PLVQP/ref=sr_1_7?crid=3LCD2O3C4HNKO&dib=eyJ2IjoiMSJ9.XDFWvhkafbpG8bvke6HUJ1m7eZxOWDVPyhN0MM4tp6A4cF0UNkO2YR9ZtyNOPwzoqrhKHmWWbV5CJxzG_lRfHMy7Vu9fEwo2prr0asnohjrskeR_uMRTyEEIbN3DsS_6Lk-XDjigWxQVxqlDGGkd4MSDIPaU6nltNygG4URYkFf1b5Ib3p_3qlRvmELVRFo3-RxQ95GQVOW1jbYZErMvw5cv0OfHHHobJvcNrc-AgKKc8wXKTyJ4rW4b-FBLokmA23RnUPMO-yC4NJDvodqNabZ-AIbXrRh528W_Y-AwkwY.97zl7k14p0fVKq6Qbr7JmKMcgwchKGD8KgNIznoDwdQ&dib_tag=se&keywords=brita&qid=1709442919&sprefix=brita%2Caps%2C98&sr=8-7&th=1")
+# explore("https://www.amazon.com/Piece-Slim-Fit-Suit-Set-One-Button-Blazer-Jacket-Vest-Pants-Solid-Party-Wedding-Dress-Tux-Waistcoat-140-160lbs/dp/B07NS8D25J/ref=pd_ci_mcx_mh_mcx_views_2?pd_rd_w=aMRNH&content-id=amzn1.sym.225b4624-972d-4629-9040-f1bf9923dd95%3Aamzn1.symc.40e6a10e-cbc4-4fa5-81e3-4435ff64d03b&pf_rd_p=225b4624-972d-4629-9040-f1bf9923dd95&pf_rd_r=VT3NN47QWJE6Q8AFE04M&pd_rd_wg=SW3ME&pd_rd_r=d1b4b8e2-5fc6-48f0-9186-2d2543786987&pd_rd_i=B07NS8D25J&th=1")
