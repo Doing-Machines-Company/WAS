@@ -59,7 +59,7 @@ class AxObservation(PageObservation):
                         "properties": properties,
                         "html": node['html'],
                         "xpath": node['xpath'],
-                        "parentId": node['parentId'] if 'parentId' in node else None,
+                        "parent_html": node['parent_html'] if 'parent_html' in node else None
                     }
                     self.nodes_info.append(node_info)
 
@@ -173,7 +173,7 @@ class MyDriver(WebDriver):
                         "objectId" : remote_object_id,
                     },
                 )
-                node["html"]=response["outerHTML"]
+                node["html"] = response["outerHTML"]
                 node["xpath"] = node_xpath
             except Exception as e:
                 node['xpath'] = ''
