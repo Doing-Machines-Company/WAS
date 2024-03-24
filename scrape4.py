@@ -347,16 +347,14 @@ def enumerated_ax_tree(obs: AxObservation):
         node_action = ax_node_to_action(node)
 
         if (node_action or node['properties'] or node['role'] not in ['img']):
-            if node_action:
-                if node['name'].strip() != "":
-                    count += 1
-                    cleaned_tree += f"[{count}]{node['indent']}ACTION of {node['role']}: {node['name']}\n"
+            if node_action and node['name'].strip() != "":
+                cleaned_tree += f"[{count}]{node['indent']}ACTION of {node['role']}: {node['name']}\n"
             else:
-                count += 1
                 # if node['role'] == 'StaticText':
                 #     print('here\'s some text')
                 #     input(node['parent_html'])
                 cleaned_tree += f"[{count}]{node['indent']}{node['role']}: {node['name']}\n"
+            count += 1
 
     return cleaned_tree
 def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
