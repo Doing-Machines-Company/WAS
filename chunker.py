@@ -295,3 +295,6 @@ def get_chunks(page_state: PageState):
         result[string] = copy.deepcopy(enumed_nodes[start:end+1])  # TODO, don't use a dictionary that's dumb af
 
     return result
+
+def get_chunks_for_equiv_class(equiv_class: EquivalenceClass):
+    pass
