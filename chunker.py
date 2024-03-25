@@ -16,6 +16,7 @@ from bs4 import BeautifulSoup
 import re
 import os
 import anthropic
+import copy
 
 api_key = os.getenv('ANTHROPIC_API_KEY')
 
@@ -126,9 +127,7 @@ def normalize_url(url: str) -> str:
     path = parsed_url.path.rstrip('/')  # Remove trailing slashes from the path
     return urlunparse((scheme, netloc, path, '', '', ''))  # Ignoring the query and fragment
 
-
-
-def get_chunks(page_tree: str):
+def get_chunks_llm(page_tree: str):
     message = anthropic_client.messages.create(
         model="claude-3-opus-20240229",
         max_tokens=1000,
@@ -158,6 +157,8 @@ def get_chunks(page_tree: str):
         end = int(match[2])
         if start and end and string:
             results.append((string, start, end))
+
+    return results
 def ax_node_to_action(ax_node: AxNode) -> Optional[Action]:
     important_clickables = [
         'button',
@@ -234,11 +235,36 @@ def ax_node_to_action(ax_node: AxNode) -> Optional[Action]:
 
     return None
 
+def normalize_statictext_html(html: str):
+    result = None
+    return result
+
 def search_chunk(chunk: Chunk, ax_html: str):
     for chunk_html in chunk.ordered_candidates:
         if element_similarity(chunk_html, ax_html) > 0.9:
             return True
     return False
+
+def enumerated_ax_tree(obs: AxObservation):
+    cleaned_tree = ''
+    count = 0
+    enumed_nodes = list()
+    for i in range(len(obs.nodes_info)):
+        node = obs.nodes_info[i]
+        node_action = ax_node_to_action(node)
+
+        if (node_action or node['properties'] or node['role'] not in ['img']):
+            enumed_nodes.append(node)
+            if node_action and node['name'].strip() != "":
+                cleaned_tree += f"[{count}]{node['indent']}ACTION of {node['role']}: {node['name']}\n"
+            else:
+                if node['role'] == 'StaticText':
+                    print('here\'s some text')
+                    input(node['parent_html'])
+                cleaned_tree += f"[{count}]{node['indent']}{node['role']}: {node['name']}\n"
+            count += 1
+
+    return cleaned_tree, enumed_nodes
 
 def match_chunks(page_state: PageState, all_chunks: list[Chunk]):  # Should mutate page_state to give it chunk info
     page_axtree = page_state.obs
@@ -258,5 +284,14 @@ def match_chunks(page_state: PageState, all_chunks: list[Chunk]):  # Should muta
                     if start_id is not None and end_id is None:
                         end_id = count
                 count += 1
-
     return None
+
+def get_chunks(page_state: PageState):
+    enum_ax_tree, enumed_nodes = enumerated_ax_tree(page_state.obs)
+    chunks = get_chunks_llm(enum_ax_tree)
+    result = dict()
+
+    for (string, start, end) in chunks:
+        result[string] = copy.deepcopy(enumed_nodes[start:end+1])  # TODO, don't use a dictionary that's dumb af
+
+    return result
