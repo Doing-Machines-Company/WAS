@@ -13,6 +13,11 @@ from dataclasses import dataclass
 from urllib.parse import urlparse, urlunparse
 from scrapecode.page_similarity import page_similarity
 from scrapecode.element_similarity import element_similarity
+import re
+from bs4 import BeautifulSoup
+import numpy as np
+import cv2
+
 
 PlaywrightPage = Any
 CDPSession = Any
@@ -27,12 +32,19 @@ class ActionInfo:
     after_screenshot: bytes | str
 
 @dataclass
+class Chunk:
+    description: str
+    start_identifier: list[str] | None
+    end_identifier: list[str] | None
+    ordered_candidates: list[str]
+
+@dataclass
 class PageState:
     url: str
     html: str
     actions: list[Action]
-    header_html: str
-    footer_html: str
+    chunks: list[Chunk]
+    obs: AxObservation
 
 
 class EquivalenceClass:
@@ -166,6 +178,38 @@ def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
 
     return accessibility_tree
 
+def create_boundingbox(page, action, screenshot: bytes, friendly_xpath):
+    nparr = np.frombuffer(screenshot, np.uint8)  # get numpy array
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+    # Get the current scroll position of the page
+    scroll_x, scroll_y = page.evaluate("[window.scrollX, window.scrollY]")
+
+    # Get the bounding box of the element using locator
+    locator = page.locator(f"xpath={friendly_xpath}")
+    if locator:
+        bounding_box = locator.bounding_box()
+        if bounding_box:
+            x, y, w, h = bounding_box["x"], bounding_box["y"], bounding_box["width"], bounding_box["height"]
+
+            # Adjust the bounding box coordinates based on the scroll position
+            x -= scroll_x
+            y -= scroll_y
+
+            # Draw the bounding box on the image
+            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+            # Add the label "1" to the top-left corner of the bounding box
+            cv2.putText(img, "1", (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+
+    # Save debug
+    output_path = f"screenshot_with_boundingbox_{action.action_type}.png"
+    cv2.imwrite(output_path, img)
+    # _, img_encoded = cv2.imencode(".png", img)
+    # return img_encoded.tobytes()
+def get_input_llm(page, action, before_screenshot, friendly_xpath):
+
+    return 'test input'
 
 def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str) -> Optional[Action]:
     important_clickables = [
@@ -206,6 +250,8 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str) -> Op
     html = ax_node["html"]
     role = ax_node["role"]
 
+    soup = BeautifulSoup(html, 'html.parser')
+
     if xpath and html and xpath.strip() != "" and html.strip() != "":
         # Check if the action is a pure link in the header or footer
         if role.strip() == 'link' and (html in header_html or html in footer_html):
@@ -238,27 +284,45 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str) -> Op
             action = Action(Action.Type.CLICK_GENERAL, xpath, html)
             action.set_tree_line(f"{role}: {ax_node['name']}")
             return action
-        elif role.strip() in input_roles:
-            action = Action(Action.Type.INPUT, xpath, html)
+
+        elif role.strip() in input_roles or soup.find(('input', 'textarea', 'select')):
+
+            input_type = None
+
+            input_element = soup.find('input')
+
+            if input_element:
+                input_type = input_element.get('type', '').lower()
+
+            if input_type == 'checkbox':
+                action = Action(Action.Type.CLICK_CHECKBOX, xpath, html)
+
+            elif input_type == 'radio':
+                action = Action(Action.Type.CLICK_RADIO, xpath, html)
+
+            else:
+                action = Action(Action.Type.INPUT, xpath, html)
+
             action.set_tree_line(f"{role}: {ax_node['name']}")
-            return None
+
+            return action
 
     return None
 
 
-def apply_action(page: PlaywrightPage, a: Action) -> bool:
+def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, friendly_xpath) -> bool:
     match a.action_type:
         case Action.Type.CLICK_LINK | Action.Type.CLICK_IMPORTANT | Action.Type.CLICK_CHECKBOX | Action.Type.CLICK_RADIO:
-            friendly_path = a.xpath if '(' in a.xpath.split("/")[0] else f"//{a.xpath}"
+            # friendly_path = a.xpath if '(' in a.xpath.split("/")[0] else f"//{a.xpath}"
             try:
                 page.evaluate(
-                    f"() => {{ let e = document.evaluate('{friendly_path}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; e.scrollIntoViewIfNeeded(); e.click(); }}")
+                    f"() => {{ let e = document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; e.scrollIntoViewIfNeeded(); e.click(); }}")
                 return True
             except Exception as e:
                 print(f"Error clicking element via javascript click: {e}")
 
             try:
-                page.locator(f"xpath={friendly_path}").click()
+                page.locator(f"xpath={friendly_xpath}").click()
                 return True
             except Exception as e:
                 print(f"Error clicking element via playwright xpath locator.click: {e}")
@@ -280,12 +344,17 @@ def apply_action(page: PlaywrightPage, a: Action) -> bool:
             # except Exception as e:
             #     print(f"Error inputting element: {e}")
             #     return False
+            # friendly_path = a.xpath if '(' in a.xpath.split("/")[0] else f"//{a.xpath}"
+            try:
+                input_element = page.locator(f"xpath={friendly_xpath}")
+                input_fill = get_input_llm(page, a, before_screenshot, friendly_xpath)
+                # input_fill = 'test input'
+                input_element.fill(input_fill)
+                return True
+            except Exception as e:
+                print(f"Error inputting text into element: {e}")
+                return False
 
-            '''
-            
-            THIS NEEDS TO BE BETTER
-            
-            '''
             return False
 
         case Action.Type.GET_NEXT_SUBTASK_FINISHED:
@@ -473,7 +542,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
 
                 time.sleep(2)  # wait for page to load before ss
                 before_screenshot = page.screenshot()
-                apply_action(page, action)
+                apply_action(page, action, before_screenshot, friendly_xpath)
                 wait_for_load(page)
 
                 time.sleep(2)  # wait for page to load before ss
