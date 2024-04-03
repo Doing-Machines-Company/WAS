@@ -14,6 +14,7 @@ from urllib.parse import urlparse, urlunparse
 from scrapecode.page_similarity import page_similarity
 from scrapecode.element_similarity import element_similarity
 import re
+import os
 from bs4 import BeautifulSoup
 import numpy as np
 import cv2
@@ -389,11 +390,14 @@ def normalize_url(url: str) -> str:
 
 
 def get_page_state(page: PlaywrightPage, cdpSession: CDPSession) -> PageState:
+
+    input('give it a')
     # Navigate to the given URL and wait for the page to load
     wait_for_load(page)
 
     # Retrieve the accessibility tree and create an AxObservation object
     cleaned = AxObservation(get_ax_tree(cdpSession), page.url)
+    print(cleaned)
 
     # Extract the header and footer HTML
     header_html = page.evaluate("document.getElementsByTagName('header')[0]?.outerHTML || ''")
@@ -683,5 +687,7 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
     print(url_queue.qsize())
     print(seen_urls)
 
+num_cores = os.cpu_count()
 
-explore("https://us.supreme.com/pages/terms", headless=False, root="supreme.com")
+explore("https://www.dominos.com/en/pages/order/#!/section/Food/category/Pizza/", headless=False, root="dominos.com", num_threads=num_cores)
+# explore("https://www.dominos.com/en/pages/order/#!/section/Food/category/Pizza/", headless=False, root="dominos.com", num_threads=1)
