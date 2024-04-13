@@ -1,7 +1,7 @@
 import pickle
 from pathlib import Path
 from pprint import pprint
-from scrape4 import *
+from scrape6 import *
 
 
 def load_scraper_state(file_path: str):
@@ -29,10 +29,30 @@ def display_equivalence_classes(equiv_classes):
 
         input("Press Enter to continue to the next equivalence class...")
 
+def get_div_content(file_path, div_number):
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+
+    div_start = f"(Div {div_number})"
+    div_end = f"(/Div {div_number})"
+
+    inside_div = False
+    div_content = []
+
+    for line in lines:
+        if line.strip() == div_start:
+            inside_div = True
+        elif line.strip() == div_end:
+            inside_div = False
+        elif inside_div and '(Div' not in line and '(/Div' not in line:
+            div_content.append(line)
+
+    return ''.join(div_content)
 def main():
-    scraper_state_file = 'scrape_trials/scraper_state.pkl'
+    scraper_state_file = 'scrape_supreme/scraper_state.pkl'
     equiv_classes = load_scraper_state(scraper_state_file)
     display_equivalence_classes(equiv_classes)
+    # print(get_div_content("enum_cleaned.txt", 38))
 
 if __name__ == '__main__':
     main()
