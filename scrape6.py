@@ -19,6 +19,13 @@ from bs4 import BeautifulSoup
 import numpy as np
 import cv2
 
+#TODO: 
+#action stack/queue + "intra-url" changes
+#trajectory tracking logic 
+#thread compliance compliance with action stack/queue
+#combine locks into single context lock
+#A* (LLM-guided) scrape?
+
 
 PlaywrightPage = Any
 CDPSession = Any
@@ -44,9 +51,9 @@ class PageState:
     url: str
     html: str
     actions: list[Action]
-    chunks: list[Chunk]
-    obs: AxObservation
-
+    header_html: str
+    footer_html: str
+#removed some of the fields from pagestate, not sure if they will ultimately be needed?
 
 class EquivalenceClass:
     def __init__(self):
@@ -93,7 +100,7 @@ class EquivalenceClassSet:
         for eq_class in self.classes:
             if eq_class.is_similar(url, html):
                 return eq_class
-        return None
+        return None 
 
     def add_page(self, state: PageState, eq_class: Optional[EquivalenceClass]) -> EquivalenceClass:
         self.added_urls.add(normalize_url(state.url))
@@ -107,7 +114,7 @@ class EquivalenceClassSet:
 def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
     accessibility_tree = cdpSession.send(
         "Accessibility.getFullAXTree", {}
-    )["nodes"]
+    )["nodes"]  
     seen_ids = set()
     _accessibility_tree = []
     for node in accessibility_tree:
@@ -391,22 +398,21 @@ def normalize_url(url: str) -> str:
 
 def get_page_state(page: PlaywrightPage, cdpSession: CDPSession) -> PageState:
 
-    input('give it a')
     # Navigate to the given URL and wait for the page to load
     wait_for_load(page)
 
     # Retrieve the accessibility tree and create an AxObservation object
     cleaned = AxObservation(get_ax_tree(cdpSession), page.url)
+    #DON'T PRINT FOR NOW, IT'S CLUTTERING EVERYTHING
     print(cleaned)
 
     # Extract the header and footer HTML
     header_html = page.evaluate("document.getElementsByTagName('header')[0]?.outerHTML || ''")
-    footer_html = page.evaluate("document.getElementById('navFooter')?.outerHTML || ''")
-    # ABOVE IS AMAZON SPECIFIC, WE NEED TO FIGURE OUT HOW TO PIPELINE THIS!
-    # I love Claude :)
+    footer_html = page.evaluate("document.getElementsByTagName('footer')[0]?.outerHTML || ''")
+    #currently page specific
 
-    # Extract actions from the accessibility nodes and filter out None values
-    actions = [ax_node_to_action(node, header_html, footer_html) for node in cleaned.nodes_info]
+    # Extract actions from the accessibility nodes and filter out None values, only scrape header and footer on homepage
+    actions = [ax_node_to_action(node, header_html if page.url not in 'https://www.dominos.com/en/' else '', footer_html if page.url not in 'https://www.dominos.com/en/' else '') for node in cleaned.nodes_info]
     actions = [a for a in actions if a is not None]
 
     # Create and return a PageState object with the normalized URL, HTML content, actions, header HTML, and footer HTML
@@ -458,7 +464,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
         if normalize_url(url) in seen_urls:
             return
         seen_urls.add(normalize_url(url))
-
+    #TODO: ROOT MAY TAKE DIFFERENT FORMS, FIX THIS
     if root not in url:
         print(f"Skipping page outside of root: {url}")
         return
@@ -471,9 +477,9 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
         return
 
     def explore_actions():
-
+        #basically scrape_flag is do we need to keep scraping this page
         scrape_flag = False
-
+        print("Exploring ", url)
         try:
             before_state = get_page_state(page, cdpSession)
         except Exception as e:
@@ -497,9 +503,10 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
 
             unique_actions = []
             for action in new_actions:
-                if not any(element_similarity(action.html, a.html) >= 0.9 for a in unique_actions):
+                if (action.html in before_state.header_html or action.html in before_state.footer_html 
+                or not any(element_similarity(action.html, a.html) >= 0.9 for a in unique_actions)):
                     unique_actions.append(action)
-
+                    
 
             if not unique_actions:
                 print("No more actions to explore on this page.")
@@ -527,7 +534,8 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 I want to scroll to what I'm interacting with before I interact, for action effect reasons.
                 
                 '''
-
+                #this sleep is necessary
+                time.sleep(2)
                 friendly_element = page.evaluate(
                     f"document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
 
@@ -541,10 +549,14 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                         page.evaluate(
                             f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoView();")
                     else:
-                        print(f"Element not found for XPath: {action.xpath}")
+                        print(f"Element not found for XPath: {action.xpath}, Ax object: {action.tree_line}")
                         continue
-
-                time.sleep(2)  # wait for page to load before ss
+                print("Action: ", action.html)
+                print("Ax object", action.tree_line)
+                print("-------------------------------")
+                time.sleep(2)  #need so page can render page properly, otherwise xpaths don't work, idk this just fixed the errorrs lol
+                page.reload()
+                wait_for_load(page)
                 before_screenshot = page.screenshot()
                 apply_action(page, action, before_screenshot, friendly_xpath)
                 wait_for_load(page)
@@ -567,15 +579,15 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                     with eq_class_lock:
                         eq_class.update_unique_actions([action], before_state.html, page.content(), # need to lock
                                                        before_screenshot, after_screenshot)
-
+                
                 if normalize_url(before_state.url) != normalize_url(page.url):
                     with page_queue_lock:
                         with seen_urls_lock:
                             if normalize_url(page.url) not in seen_urls:
                                 url_queue.put(page.url)
                                 print(page.url)
-
-                    page.goto(before_state.url)  # this threw an error once, idk why
+                    print("REDIRECTING")
+                page.goto(before_state.url)  # this threw an error once, idk why
 
 
 
@@ -617,7 +629,7 @@ def worker(thread_id: int, idle_flags: dict, url_queue: Queue, equiv_classes_loc
         print(f"worker Thread-{thread_id} fucking off")
         browser.close()
 
-def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'scrape_supreme', root: str = "", num_threads: int = 10):
+def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'dominos', root: str = "", num_threads: int = 10):
     def save_equivalence_classes(equiv_classes: EquivalenceClassSet, output_dir: str):
         # Create the output directory if it doesn't exist
         Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -689,5 +701,5 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
 num_cores = os.cpu_count()
 
-explore("https://www.dominos.com/en/pages/order/#!/section/Food/category/Pizza/", headless=False, root="dominos.com", num_threads=num_cores)
+explore("https://www.dominos.com/en/pages/order/menu#!/menu/category/viewall/", headless=False, root="dominos.com", num_threads=1)
 # explore("https://www.dominos.com/en/pages/order/#!/section/Food/category/Pizza/", headless=False, root="dominos.com", num_threads=1)
