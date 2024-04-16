@@ -404,7 +404,7 @@ def get_page_state(page: PlaywrightPage, cdpSession: CDPSession) -> PageState:
     # Retrieve the accessibility tree and create an AxObservation object
     cleaned = AxObservation(get_ax_tree(cdpSession), page.url)
     #DON'T PRINT FOR NOW, IT'S CLUTTERING EVERYTHING
-    print(cleaned)
+    # print(cleaned)
 
     # Extract the header and footer HTML
     header_html = page.evaluate("document.getElementsByTagName('header')[0]?.outerHTML || ''")
@@ -475,43 +475,65 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
     except Exception as e:
         print(f"Error navigating to page: {url}. Error: {e}")
         return
+    #we use trajectory to track the sequence of actions needed to trigger the 
+    #creation of any actions that do not readily exist on the base/unmodified
+    #version of the website
+    trajectory = []
 
+
+    #out of a set of actions generated from an observation, removes duplicates.
+    #does not remove duplicates in header or footer because they are generally 
+    #significant enough that we want to keep them 
+    def get_unique_actions(new_state):
+        unique_actions = []
+        new_actions = new_state.actions
+        header_html = new_state.header_html
+        footer_html = new_state.footer_html
+        for action in new_actions:
+            if (action.html in header_html or action.html in footer_html 
+            or not any(element_similarity(action.html, a.html) >= 0.9 for a in unique_actions)):
+                unique_actions.append(action)
+        return unique_actions
+    
     def explore_actions():
         #basically scrape_flag is do we need to keep scraping this page
         scrape_flag = False
+        print("*" * 80)
         print("Exploring ", url)
+        
         try:
             before_state = get_page_state(page, cdpSession)
         except Exception as e:
             print(f"Error getting page state: {url}. Error: {e}")
             return
-
+        #REMEMBER TO HANDLE EQUIVALENCE CLASS CODE - CEM !!!!
         with equiv_classes_lock:
             eq_class = equiv_classes.get_class(before_state.url, before_state.html)
 
             if eq_class is None:
                 scrape_flag = True
                 eq_class = equiv_classes.add_page(before_state, None)
-
-
         with eq_class_lock:
             new_actions = [a for a in before_state.actions if eq_class.is_new_action(a)]
             if len(new_actions) > 0:
                 scrape_flag = True
 
         if scrape_flag:
+            
+            #used to check whether an action has already been queued yet (if seen again, we shouldn't requeue)
+            seen_actions = []
+            #data structure to control flow of new actions
+            action_queue = Queue()
+            
+            unique_actions = get_unique_actions(before_state)
 
-            unique_actions = []
-            for action in new_actions:
-                if (action.html in before_state.header_html or action.html in before_state.footer_html 
-                or not any(element_similarity(action.html, a.html) >= 0.9 for a in unique_actions)):
-                    unique_actions.append(action)
-                    
-
-            if not unique_actions:
-                print("No more actions to explore on this page.")
-                return
-            for action in unique_actions:
+            #at this point, seen_actions is empty, so we can just put the unique actions into the queue
+            for a in unique_actions:
+                action_queue.put(a)
+            #we can just set seen_actions since it is empty
+            seen_actions = unique_actions
+            while action_queue.qsize() > 0:
+                action = action_queue.get(timeout=0.5) 
                 if not action.xpath:
                     print(f"Skipping action without XPath: {action}")
                     continue
@@ -551,9 +573,9 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                     else:
                         print(f"Element not found for XPath: {action.xpath}, Ax object: {action.tree_line}")
                         continue
-                print("Action: ", action.html)
+                print("-" * 80)
+                # print("Action: ", action.html)
                 print("Ax object", action.tree_line)
-                print("-------------------------------")
                 time.sleep(2)  #need so page can render page properly, otherwise xpaths don't work, idk this just fixed the errorrs lol
                 page.reload()
                 wait_for_load(page)
@@ -580,13 +602,37 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                         eq_class.update_unique_actions([action], before_state.html, page.content(), # need to lock
                                                        before_screenshot, after_screenshot)
                 
-                if normalize_url(before_state.url) != normalize_url(page.url):
+                #the url is being normalized a bit too aggressively to the point 
+                #that pages that are clearly different are being put into the same eq 
+                #because normalized url is the same
+                # if normalize_url(before_state.url) != normalize_url(page.url):
+                if before_state.url != page.url:
                     with page_queue_lock:
                         with seen_urls_lock:
                             if normalize_url(page.url) not in seen_urls:
                                 url_queue.put(page.url)
                                 print(page.url)
-                    print("REDIRECTING")
+                else:
+                    #since we stayed on the same page we want to see if applying
+                    #this action generated new content on the page
+                    try:
+                        new_state = get_page_state(page, cdpSession)
+                        new_actions = get_unique_actions(new_state)
+
+                        #take the set difference unique_actions \ seen_actions
+                        difference = [a for a in new_actions if not any(element_similarity(a.html, b.html) for b in seen_actions)]
+                        
+                        #put the difference onto the queue
+                        if difference:
+                            print("***Detected new actions***")
+                        for different_action in difference:
+                            print("New action: ", different_action.tree_line)
+                            action_queue.put(different_action)
+                        #put the difference into the seen_actions, effectively unique_actions U seen_actions    
+                        seen_actions += difference    
+                    except Exception as e:
+                        print(f"Error getting page state after applying {action.tree_line} at {url}. Error: {e}")
+                        return
                 page.goto(before_state.url)  # this threw an error once, idk why
 
 
@@ -701,5 +747,5 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
 num_cores = os.cpu_count()
 
-explore("https://www.dominos.com/en/pages/order/menu#!/menu/category/viewall/", headless=False, root="dominos.com", num_threads=1)
+explore("https://www.dominos.com/en/", headless=False, root="dominos.com", num_threads=1)
 # explore("https://www.dominos.com/en/pages/order/#!/section/Food/category/Pizza/", headless=False, root="dominos.com", num_threads=1)

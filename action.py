@@ -1,5 +1,5 @@
 from enum import IntEnum
-from typing import Optional
+from typing import Optional, List
 
 class Action:
     class Type(IntEnum):
@@ -15,12 +15,13 @@ class Action:
         GET_NEXT_SUBTASK_IMPOSSIBLE = 9
         GO_BACK = 10
 
-    def __init__(self, action_type: 'Action.Type', xpath: str, html: str, tree_line: str = "", input_string: Optional[str] = None):
+    def __init__(self, action_type: 'Action.Type', xpath: str, html: str, tree_line: str = "", input_string: Optional[str] = None, trajectory: List[str] = []):
         self.action_type = action_type
         self.html = html
         self.xpath = xpath
         self.input_string = None # input_string if action_type == Action.Type.INPUT else None
         self.tree_line = tree_line
+        self.trajectory = trajectory #added trajectory to show how the action can be 'created', an empty traj indicates existence at base state of url 
 
     def set_input_string(self, input_string: str):
         self.input_string = input_string
