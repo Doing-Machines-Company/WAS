@@ -18,10 +18,10 @@ import os
 from bs4 import BeautifulSoup
 import numpy as np
 import cv2
+import copy as cp
 
 #TODO: 
-#action stack/queue + "intra-url" changes
-#trajectory tracking logic 
+    #trajectory tracking logic 
 #thread compliance compliance with action stack/queue
 #combine locks into single context lock
 #A* (LLM-guided) scrape?
@@ -471,14 +471,14 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
 
     try:
         page.goto(url)
-        wait_for_load(page)
+        wait_for_load(page, load_time_ms=3000)
     except Exception as e:
         print(f"Error navigating to page: {url}. Error: {e}")
         return
     #we use trajectory to track the sequence of actions needed to trigger the 
     #creation of any actions that do not readily exist on the base/unmodified
     #version of the website
-    trajectory = []
+
 
 
     #out of a set of actions generated from an observation, removes duplicates.
@@ -556,8 +556,19 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 I want to scroll to what I'm interacting with before I interact, for action effect reasons.
                 
                 '''
-                #this sleep is necessary
-                time.sleep(2)
+                page.reload()
+                #MIGHT NEED A SLEEP HERE!!!
+                
+                print("-" * 80)
+                # print("Action: ", action.html)
+                print("Ax object", action.tree_line)
+                print("Trajectory: ", action.display_trajectory())
+                if action.trajectory:
+                    print("***Executing Trajectory***")
+                for traj in action.trajectory:
+                    apply_action(page, traj, page.screenshot(), traj.friendly_xpath)
+                    wait_for_load(page, load_time_ms=3000)
+                before_screenshot = page.screenshot()
                 friendly_element = page.evaluate(
                     f"document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
 
@@ -573,17 +584,9 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                     else:
                         print(f"Element not found for XPath: {action.xpath}, Ax object: {action.tree_line}")
                         continue
-                print("-" * 80)
-                # print("Action: ", action.html)
-                print("Ax object", action.tree_line)
-                time.sleep(2)  #need so page can render page properly, otherwise xpaths don't work, idk this just fixed the errorrs lol
-                page.reload()
-                wait_for_load(page)
-                before_screenshot = page.screenshot()
+                action.set_friendly_xpath(friendly_xpath)
                 apply_action(page, action, before_screenshot, friendly_xpath)
-                wait_for_load(page)
-
-                time.sleep(2)  # wait for page to load before ss
+                wait_for_load(page, load_time_ms=3000)
                 if len(page.context.pages) > 1 and page.context.pages[-1] != page:
                     new_page = page.context.pages[-1]
                     after_screenshot = new_page.screenshot(full_page=False)
@@ -621,12 +624,16 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
 
                         #take the set difference unique_actions \ seen_actions
                         difference = [a for a in new_actions if not any(element_similarity(a.html, b.html) for b in seen_actions)]
-                        
                         #put the difference onto the queue
+                        new_trajectory = []
                         if difference:
+                            new_trajectory = cp.deepcopy(action.trajectory)
+                            new_trajectory.append(action)
                             print("***Detected new actions***")
                         for different_action in difference:
                             print("New action: ", different_action.tree_line)
+                            #update trajectory with parent's trajectory + parent
+                            different_action.set_trajectory(new_trajectory)
                             action_queue.put(different_action)
                         #put the difference into the seen_actions, effectively unique_actions U seen_actions    
                         seen_actions += difference    
@@ -634,7 +641,9 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                         print(f"Error getting page state after applying {action.tree_line} at {url}. Error: {e}")
                         return
                 page.goto(before_state.url)  # this threw an error once, idk why
+                time.sleep(2)
 
+        #NEED TO ACTUALLY UPDATE THE ACTIONS, THEY ARE ONLY ADDED AT THE BEGINNING - Cem
 
 
     explore_actions()
@@ -664,6 +673,7 @@ def worker(thread_id: int, idle_flags: dict, url_queue: Queue, equiv_classes_loc
             if url is not None:
                 explore_page(url, equiv_classes_lock, eq_class_lock, page_queue_lock, seen_urls_lock, equiv_classes,
                              url_queue, seen_urls, page, cdpSession, root, thread_id, idle_flags)
+                time.sleep(2)
                 url_queue.task_done()
             else:
                 idle_flags[thread_id] = True
@@ -748,4 +758,3 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 num_cores = os.cpu_count()
 
 explore("https://www.dominos.com/en/", headless=False, root="dominos.com", num_threads=1)
-# explore("https://www.dominos.com/en/pages/order/#!/section/Food/category/Pizza/", headless=False, root="dominos.com", num_threads=1)
