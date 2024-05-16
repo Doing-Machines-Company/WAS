@@ -437,29 +437,28 @@ def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
 def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: threading.Lock,
                  page_queue_lock: threading.Lock,
                  seen_urls_lock: threading.Lock, equiv_classes: EquivalenceClassSet, url_queue: Queue, seen_urls: set[str],
-                 page: PlaywrightPage, cdpSession: CDPSession, root: str, thread_id: int, idle_flags: dict):
+                 browser, cookies, root: str, thread_id: int, idle_flags: dict):
+
+    # context = browser.new_context(
+    #     user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36')
+    # page = context.new_page()  # instead of making page here, make page in explore_page
+    # cdpSession = context.new_cdp_session(page)
+    #
+    # if cookies is not None:
+    #     context.add_cookies(cookies)
+
+    def create_new_context_and_page(browser, cookies):
+        context = browser.new_context(
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36')
+        if cookies is not None:
+            context.add_cookies(cookies)
+        page = context.new_page()
+        cdpSession = context.new_cdp_session(page)
+        return context, page, cdpSession
 
     idle_flags[thread_id] = False
 
-    '''
-    explore_page(url, equiv_classes_lock, eq_class_lock, page_queue_lock, seen_urls_lock, equiv_classes,
-                        seen_urls, page, cdpSession, root, thread_id, idle_flags)
 
-    :param url:
-    :param equiv_classes_lock:
-    :param eq_class_lock:
-    :param page_queue_lock:
-    :param seen_urls_lock:
-    :param equiv_classes:
-    :param url_queue:
-    :param seen_urls:
-    :param page:
-    :param cdpSession:
-    :param root:
-    :param thread_id:
-    :param idle_flags:
-    :return:
-    '''
     with seen_urls_lock:
         if normalize_url(url) in seen_urls:
             return
@@ -469,12 +468,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
         print(f"Skipping page outside of root: {url}")
         return
 
-    try:
-        page.goto(url)
-        wait_for_load(page, load_time_ms=3000)
-    except Exception as e:
-        print(f"Error navigating to page: {url}. Error: {e}")
-        return
+
     #we use trajectory to track the sequence of actions needed to trigger the 
     #creation of any actions that do not readily exist on the base/unmodified
     #version of the website
@@ -494,8 +488,15 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
             or not any(element_similarity(action.html, a.html) >= 0.9 for a in unique_actions)):
                 unique_actions.append(action)
         return unique_actions
-    
+
     def explore_actions():
+        context, page, cdpSession = create_new_context_and_page(browser, cookies)
+        try:
+            page.goto(url)
+            wait_for_load(page, load_time_ms=3000)
+        except Exception as e:
+            print(f"Error navigating to page: {url}. Error: {e}")
+            return
         #basically scrape_flag is do we need to keep scraping this page
         scrape_flag = False
         print("*" * 80)
@@ -640,8 +641,21 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                     except Exception as e:
                         print(f"Error getting page state after applying {action.tree_line} at {url}. Error: {e}")
                         return
+
+                cdpSession.detach()
+                page.close()
+                context.close()
+
+                context, page, cdpSession = create_new_context_and_page(browser, cookies)
+
                 page.goto(before_state.url)  # this threw an error once, idk why
                 time.sleep(2)
+
+        #  finally close here
+        cdpSession.detach()
+        page.close()
+        context.close()
+
 
         #NEED TO ACTUALLY UPDATE THE ACTIONS, THEY ARE ONLY ADDED AT THE BEGINNING - Cem
 
@@ -654,13 +668,13 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
 def worker(thread_id: int, idle_flags: dict, url_queue: Queue, equiv_classes_lock: threading.Lock, eq_class_lock: threading.Lock, page_queue_lock: threading.Lock, seen_urls_lock: threading.Lock, equiv_classes: EquivalenceClassSet, seen_urls: set[str], headless: bool, cookies: Optional[dict], root: str, stop_event: threading.Event):
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless)
-        context = browser.new_context(
-            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36')
-        page = context.new_page()
-        cdpSession = context.new_cdp_session(page)
+        # context = browser.new_context(
+        #     user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36')
+        # page = context.new_page()  # instead of making page here, make page in explore_page
+        # cdpSession = context.new_cdp_session(page)
 
-        if cookies is not None:
-            context.add_cookies(cookies)
+        # if cookies is not None:
+        #     context.add_cookies(cookies)
 
         while not stop_event.is_set():
             url = None
@@ -672,7 +686,7 @@ def worker(thread_id: int, idle_flags: dict, url_queue: Queue, equiv_classes_loc
 
             if url is not None:
                 explore_page(url, equiv_classes_lock, eq_class_lock, page_queue_lock, seen_urls_lock, equiv_classes,
-                             url_queue, seen_urls, page, cdpSession, root, thread_id, idle_flags)
+                             url_queue, seen_urls, browser, cookies, root, thread_id, idle_flags)
                 time.sleep(2)
                 url_queue.task_done()
             else:
