@@ -21,7 +21,7 @@ import cv2
 import copy as cp
 
 #TODO: 
-    #trajectory tracking logic 
+#fix equivalence class representations
 #thread compliance compliance with action stack/queue
 #combine locks into single context lock
 #A* (LLM-guided) scrape?
@@ -219,7 +219,7 @@ def get_input_llm(page, action, before_screenshot, friendly_xpath):
 
     return 'test input'
 
-def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str) -> Optional[Action]:
+def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: str) -> Optional[Action]:
     important_clickables = [
         'button',
     ]
@@ -236,7 +236,7 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str) -> Op
         'article', 'cell', 'definition', 'directory', 'document',
         'feed', 'figure', 'group', 'img', 'list',
         'listitem', 'math', 'progressbar',
-        'separator', 'toolbar', 'tooltip', 'presentation', 'option']
+        'separator', 'toolbar', 'tooltip', 'presentation', 'option', 'tab']
 
     input_roles = [
         'textbox', 'searchbox', 'slider', 'spinbutton', 'radiogroup',
@@ -262,9 +262,10 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str) -> Op
 
     if xpath and html and xpath.strip() != "" and html.strip() != "":
         # Check if the action is a pure link in the header or footer
-        if role.strip() == 'link' and (html in header_html or html in footer_html):
+        if html in footer_html or (html in header_html and url not in 'https://www.dominos.com/en/'):
             return None
 
+        #not sure what this does at all - Cem
         if any(attr in html.lower() for attr in non_browser_attributes):
             return None
 
@@ -320,7 +321,7 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str) -> Op
 
 def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, friendly_xpath) -> bool:
     match a.action_type:
-        case Action.Type.CLICK_LINK | Action.Type.CLICK_IMPORTANT | Action.Type.CLICK_CHECKBOX | Action.Type.CLICK_RADIO:
+        case Action.Type.CLICK_LINK | Action.Type.CLICK_IMPORTANT | Action.Type.CLICK_CHECKBOX | Action.Type.CLICK_RADIO | Action.Type.CLICK_GENERAL: #we just included general for now
             # friendly_path = a.xpath if '(' in a.xpath.split("/")[0] else f"//{a.xpath}"
             try:
                 page.evaluate(
@@ -412,7 +413,8 @@ def get_page_state(page: PlaywrightPage, cdpSession: CDPSession) -> PageState:
     #currently page specific
 
     # Extract actions from the accessibility nodes and filter out None values, only scrape header and footer on homepage
-    actions = [ax_node_to_action(node, header_html if page.url not in 'https://www.dominos.com/en/' else '', footer_html if page.url not in 'https://www.dominos.com/en/' else '') for node in cleaned.nodes_info]
+    # actions = [ax_node_to_action(node, header_html if page.url not in 'https://www.dominos.com/en/' else '', footer_html if page.url not in 'https://www.dominos.com/en/' else '') for node in cleaned.nodes_info]
+    actions = [ax_node_to_action(node, header_html, footer_html, page.url) for node in cleaned.nodes_info]
     actions = [a for a in actions if a is not None]
 
     # Create and return a PageState object with the normalized URL, HTML content, actions, header HTML, and footer HTML
@@ -558,7 +560,8 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 
                 '''
                 page.reload()
-                #MIGHT NEED A SLEEP HERE!!!
+                time.sleep(2)
+                #need sleep here for going between different contexts for some reason
                 
                 print("-" * 80)
                 # print("Action: ", action.html)
@@ -771,4 +774,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
 num_cores = os.cpu_count()
 
-explore("https://www.dominos.com/en/", headless=False, root="dominos.com", num_threads=1)
+explore("https://www.dominos.com/en/restaurants", headless=False, root="dominos.com", num_threads=1)
