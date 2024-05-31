@@ -38,6 +38,7 @@ class ActionInfo:
     after_html: str
     before_screenshot: bytes | str
     after_screenshot: bytes | str
+    url: str
 
 @dataclass
 class Chunk:
@@ -66,11 +67,11 @@ class EquivalenceClass:
         self.page_urls.add(normalized_url)
         self.page_states[normalized_url] = state
 
-    def update_unique_actions(self, actions: list[Action], before_html: str, after_html: str, before_screenshot: bytes, after_screenshot: bytes):
+    def update_unique_actions(self, actions: list[Action], before_html: str, after_html: str, before_screenshot: bytes, after_screenshot: bytes, url: str):
         for action in actions:
             action_key = action.html
             if action_key not in self.unique_actions or not self.has_similar_action(action):
-                self.unique_actions[action_key] = ActionInfo(action, before_html, after_html, before_screenshot, after_screenshot)
+                self.unique_actions[action_key] = ActionInfo(action, before_html, after_html, before_screenshot, after_screenshot, url)
 
     def has_similar_action(self, action: Action) -> bool:
         return any(element_similarity(action.html, a.action.html) >= 0.9 for a in self.unique_actions.values())
@@ -325,7 +326,7 @@ def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, frie
             # friendly_path = a.xpath if '(' in a.xpath.split("/")[0] else f"//{a.xpath}"
             try:
                 page.evaluate(
-                    f"() => {{ let e = document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; e.scrollIntoViewIfNeeded(); e.click(); }}")
+                    f"() => {{ let e = document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; e.click(); }}")
                 return True
             except Exception as e:
                 print(f"Error clicking element via javascript click: {e}")
@@ -358,7 +359,8 @@ def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, frie
                 input_element = page.locator(f"xpath={friendly_xpath}")
                 input_fill = get_input_llm(page, a, before_screenshot, friendly_xpath)
                 # input_fill = 'test input'
-                input_element.fill(input_fill)
+                input_element.fill(input_fill, force = True)
+                
                 return True
             except Exception as e:
                 print(f"Error inputting text into element: {e}")
@@ -451,6 +453,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
 
     def create_new_context_and_page(browser, cookies):
         context = browser.new_context(
+            permissions=[], #this is to prevent popups
             user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36')
         if cookies is not None:
             context.add_cookies(cookies)
@@ -596,18 +599,19 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                     after_screenshot = new_page.screenshot(full_page=False)
                     with eq_class_lock:
                         eq_class.update_unique_actions([action], before_state.html, new_page.content(),
-                                                       before_screenshot, after_screenshot)
+                                                       before_screenshot, after_screenshot, url)
                     with page_queue_lock:
                         with seen_urls_lock:
                             if normalize_url(new_page.url) not in seen_urls:
-                                url_queue.put(new_page.url)
+                                #REMEMBER TO ADD BACK THIS LINE IMMEDIATELY 
+                                #url_queue.put(new_page.url) 
                                 print(new_page.url)
                     new_page.close()
                 else:
                     after_screenshot = page.screenshot(full_page=False)
                     with eq_class_lock:
                         eq_class.update_unique_actions([action], before_state.html, page.content(), # need to lock
-                                                       before_screenshot, after_screenshot)
+                                                       before_screenshot, after_screenshot, url)
                 
                 #the url is being normalized a bit too aggressively to the point 
                 #that pages that are clearly different are being put into the same eq 
@@ -617,7 +621,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                     with page_queue_lock:
                         with seen_urls_lock:
                             if normalize_url(page.url) not in seen_urls:
-                                url_queue.put(page.url)
+                                #url_queue.put(page.url)
                                 print(page.url)
                 else:
                     #since we stayed on the same page we want to see if applying
@@ -658,7 +662,8 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
         cdpSession.detach()
         page.close()
         context.close()
-
+        #remove this, only here for testing
+        
 
         #NEED TO ACTUALLY UPDATE THE ACTIONS, THEY ARE ONLY ADDED AT THE BEGINNING - Cem
 
@@ -710,18 +715,25 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
         # Save the screenshots separately and update the file paths
         for eq_class in equiv_classes.classes:
             for key, action_info in eq_class.unique_actions.items():
+                subdir_path = Path (output_dir) / (action_info.action.tree_line + str(hash(key)))
+                subdir_path.mkdir(parents = True, exist_ok = True)
                 before_screenshot_filename = f"action_{hash(key)}_before.png"
-                before_screenshot_path = Path(output_dir) / before_screenshot_filename
+                before_screenshot_path = subdir_path / before_screenshot_filename
                 with open(before_screenshot_path, 'wb') as f:
                     f.write(action_info.before_screenshot)
                 action_info.before_screenshot = str(before_screenshot_path)
 
                 after_screenshot_filename = f"action_{hash(key)}_after.png"
-                after_screenshot_path = Path(output_dir) / after_screenshot_filename
+                after_screenshot_path = subdir_path / after_screenshot_filename
                 with open(after_screenshot_path, 'wb') as f:
                     f.write(action_info.after_screenshot)
                 action_info.after_screenshot = str(after_screenshot_path)
 
+                with open(Path(subdir_path) / 'info.txt', 'w') as f:
+                    f.write(f"URL: {action_info.url}\n")
+                    f.write(f"XPATH: {action_info.action.friendly_xpath}\n")
+                    f.write(f"TRAJECTORY: {action_info.action.trajectory}\n\n")
+                    f.write(f"HTML: {action_info.action.html}\n")
         # Save the EquivalenceClassSet object using pickling
         output_path = Path(output_dir) / 'scraper_state.pkl'
         with open(output_path, 'wb') as f:
