@@ -190,6 +190,8 @@ def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
 
 
 def create_boundingbox(image_bytes, bounding_box):
+    if not bounding_box:
+        return image_bytes
     nparr = np.frombuffer(image_bytes, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
@@ -214,7 +216,7 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
         'button',
     ]
 
-    general_clickables = [
+    general_clickables = [  # dialog clickable?
         'menuitem',
         'treeitem', 'switch', 'option', 'menuitemcheckbox',
         'menuitemradio',
@@ -618,7 +620,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                     with page_queue_lock:
                         with seen_urls_lock:
                             if normalize_url(page.url) not in seen_urls:
-                                #url_queue.put(page.url)
+                                url_queue.put(page.url)
                                 print(page.url)
                 else:
                     #since we stayed on the same page we want to see if applying
@@ -639,7 +641,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                             print("New action: ", different_action.tree_line)
                             #update trajectory with parent's trajectory + parent
                             different_action.set_trajectory(new_trajectory)
-                            # action_queue.put(different_action)
+                            action_queue.put(different_action)
                         #put the difference into the seen_actions, effectively unique_actions U seen_actions    
                         seen_actions += difference    
                     except Exception as e:
@@ -783,4 +785,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
 num_cores = os.cpu_count()
 
-explore("https://www.dominos.com/en/restaurants", headless=False, root="dominos.com", num_threads=1)
+explore("https://www.dominos.com/en", headless=False, root="dominos.com", num_threads=1)
