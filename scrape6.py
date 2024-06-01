@@ -18,6 +18,7 @@ import os
 from bs4 import BeautifulSoup
 import numpy as np
 from PIL import Image, ImageDraw
+import cv2
 import copy as cp
 
 #TODO: 
@@ -188,15 +189,22 @@ def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
     return accessibility_tree
 
 
-def create_boundingbox(image, bounding_box):
-    # Open the screenshot image
-    draw = ImageDraw.Draw(image)
+def create_boundingbox(image_bytes, bounding_box):
+    nparr = np.frombuffer(image_bytes, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-    # Draw the bounding box
     x, y, width, height = bounding_box['x'], bounding_box['y'], bounding_box['width'], bounding_box['height']
-    draw.rectangle([x, y, x + width, y + height], outline="red", width=5)
+    top_left = (int(x), int(y))
+    bottom_right = (int(x + width), int(y + height))
+    color = (0, 255, 0)
+    thickness = 2
 
-    return image
+    cv2.rectangle(img, top_left, bottom_right, color, thickness)
+
+    cv2.imwrite('testtest.png', img)
+
+    _, buffer = cv2.imencode('.png', img)
+    return buffer.tobytes()
 def get_input_llm(page, action, before_screenshot, friendly_xpath):
 
     return 'test input'
@@ -314,6 +322,7 @@ def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, frie
 
             try:
                 page.locator(f"xpath={friendly_xpath}").click()
+                # page.query_selector(friendly_xpath)
                 return True
             except Exception as e:
                 print(f"Error clicking element via playwright xpath locator.click: {e}")
@@ -575,9 +584,10 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 action.set_friendly_xpath(friendly_xpath)
                 #  fix screenshot here
                 # print(type(before_screenshot))
-                # print(friendly_element.bounding_box())
-                # before_screenshot = create_boundingbox(before_screenshot)
-                apply_action(page, action, before_screenshot, friendly_xpath)
+
+                before_screenshot = create_boundingbox(before_screenshot, page.locator(f"xpath={action.xpath}").bounding_box())
+                # print(type(before_screenshot))
+                success = apply_action(page, action, before_screenshot, friendly_xpath)
                 wait_for_load(page, load_time_ms=3000)
                 if len(page.context.pages) > 1 and page.context.pages[-1] != page:
                     new_page = page.context.pages[-1]
@@ -629,7 +639,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                             print("New action: ", different_action.tree_line)
                             #update trajectory with parent's trajectory + parent
                             different_action.set_trajectory(new_trajectory)
-                            action_queue.put(different_action)
+                            # action_queue.put(different_action)
                         #put the difference into the seen_actions, effectively unique_actions U seen_actions    
                         seen_actions += difference    
                     except Exception as e:
