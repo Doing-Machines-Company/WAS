@@ -17,7 +17,7 @@ import re
 import os
 from bs4 import BeautifulSoup
 import numpy as np
-import cv2
+from PIL import Image, ImageDraw
 import copy as cp
 
 #TODO: 
@@ -187,35 +187,16 @@ def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
 
     return accessibility_tree
 
-def create_boundingbox(page, action, screenshot: bytes, friendly_xpath):
-    nparr = np.frombuffer(screenshot, np.uint8)  # get numpy array
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-    # Get the current scroll position of the page
-    scroll_x, scroll_y = page.evaluate("[window.scrollX, window.scrollY]")
+def create_boundingbox(image, bounding_box):
+    # Open the screenshot image
+    draw = ImageDraw.Draw(image)
 
-    # Get the bounding box of the element using locator
-    locator = page.locator(f"xpath={friendly_xpath}")
-    if locator:
-        bounding_box = locator.bounding_box()
-        if bounding_box:
-            x, y, w, h = bounding_box["x"], bounding_box["y"], bounding_box["width"], bounding_box["height"]
+    # Draw the bounding box
+    x, y, width, height = bounding_box['x'], bounding_box['y'], bounding_box['width'], bounding_box['height']
+    draw.rectangle([x, y, x + width, y + height], outline="red", width=5)
 
-            # Adjust the bounding box coordinates based on the scroll position
-            x -= scroll_x
-            y -= scroll_y
-
-            # Draw the bounding box on the image
-            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
-
-            # Add the label "1" to the top-left corner of the bounding box
-            cv2.putText(img, "1", (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-
-    # Save debug
-    output_path = f"screenshot_with_boundingbox_{action.action_type}.png"
-    cv2.imwrite(output_path, img)
-    # _, img_encoded = cv2.imencode(".png", img)
-    # return img_encoded.tobytes()
+    return image
 def get_input_llm(page, action, before_screenshot, friendly_xpath):
 
     return 'test input'
@@ -592,6 +573,10 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                         print(f"Element not found for XPath: {action.xpath}, Ax object: {action.tree_line}")
                         continue
                 action.set_friendly_xpath(friendly_xpath)
+                #  fix screenshot here
+                # print(type(before_screenshot))
+                # print(friendly_element.bounding_box())
+                # before_screenshot = create_boundingbox(before_screenshot)
                 apply_action(page, action, before_screenshot, friendly_xpath)
                 wait_for_load(page, load_time_ms=3000)
                 if len(page.context.pages) > 1 and page.context.pages[-1] != page:
@@ -604,7 +589,9 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                         with seen_urls_lock:
                             if normalize_url(new_page.url) not in seen_urls:
                                 #REMEMBER TO ADD BACK THIS LINE IMMEDIATELY 
-                                #url_queue.put(new_page.url) 
+                                url_queue.put(new_page.url)  # Adds stuff to be scraped
+                                #  Make sure everything is discovered, unknown unknowns
+
                                 print(new_page.url)
                     new_page.close()
                 else:
@@ -708,14 +695,14 @@ def worker(thread_id: int, idle_flags: dict, url_queue: Queue, equiv_classes_loc
         browser.close()
 
 def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'dominos', root: str = "", num_threads: int = 10):
-    def save_equivalence_classes(equiv_classes: EquivalenceClassSet, output_dir: str):
+    def save_equivalence_classes(equiv_classes: EquivalenceClassSet, output_dir: str):  #  Update the folders so it groups them by URL, replace/modify the url as paths can't take in slashes
         # Create the output directory if it doesn't exist
         Path(output_dir).mkdir(parents=True, exist_ok=True)
 
         # Save the screenshots separately and update the file paths
         for eq_class in equiv_classes.classes:
             for key, action_info in eq_class.unique_actions.items():
-                subdir_path = Path (output_dir) / (action_info.action.tree_line + str(hash(key)))
+                subdir_path = Path (output_dir) / Path (normalize_url(action_info.url)) / (action_info.action.tree_line + str(hash(key)))  # root / url / curraction, make new url folder if it doesn't exist
                 subdir_path.mkdir(parents = True, exist_ok = True)
                 before_screenshot_filename = f"action_{hash(key)}_before.png"
                 before_screenshot_path = subdir_path / before_screenshot_filename
