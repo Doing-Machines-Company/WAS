@@ -581,13 +581,13 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
 
                 if friendly_element:
                     page.evaluate(
-                        f"document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoView();")
+                        f"document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoViewIfNeeded();")
                 else:
                     element = page.evaluate(
                         f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
                     if element:
                         page.evaluate(
-                            f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoView();")
+                            f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoViewIfNeeded();")
                     else:
                         print(f"Element not found for XPath: {action.xpath}, Ax object: {action.tree_line}")
                         continue
