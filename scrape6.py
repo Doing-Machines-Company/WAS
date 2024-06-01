@@ -20,6 +20,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 import cv2
 import copy as cp
+from scrape_llm import use_gpt_fill_input
 
 #TODO: 
 #fix equivalence class representations
@@ -207,9 +208,7 @@ def create_boundingbox(image_bytes, bounding_box):
 
     _, buffer = cv2.imencode('.png', img)
     return buffer.tobytes()
-def get_input_llm(page, action, before_screenshot, friendly_xpath):
 
-    return 'test input'
 
 def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: str) -> Optional[Action]:
     important_clickables = [
@@ -305,7 +304,11 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
                 action = Action(Action.Type.INPUT, xpath, html)
 
             action.set_tree_line(f"{role}: {ax_node['name']}")
+            return action
 
+        elif soup.has_attr('contenteditable') and soup['contenteditable'].lower() == 'true':
+            action = Action(Action.Type.INPUT, xpath, html)
+            action.set_tree_line(f"{role}: {ax_node['name']}")
             return action
 
     return None
@@ -349,7 +352,7 @@ def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, frie
             # friendly_path = a.xpath if '(' in a.xpath.split("/")[0] else f"//{a.xpath}"
             try:
                 input_element = page.locator(f"xpath={friendly_xpath}")
-                input_fill = get_input_llm(page, a, before_screenshot, friendly_xpath)
+                input_fill = use_gpt_fill_input('None', before_screenshot, a.html, False)
                 # input_fill = 'test input'
                 input_element.fill(input_fill, force = True)
                 
@@ -560,6 +563,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 
                 print("-" * 80)
                 # print("Action: ", action.html)
+                print("Page url: ", page.url)
                 print("Ax object", action.tree_line)
                 print("Trajectory: ", action.display_trajectory())
                 if action.trajectory:
@@ -785,4 +789,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
 num_cores = os.cpu_count()
 
-explore("https://www.dominos.com/en", headless=False, root="dominos.com", num_threads=1)
+explore("https://www.dominos.com/en/restaurants?type=Delivery", headless=False, root="dominos.com", num_threads=1)
