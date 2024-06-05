@@ -321,7 +321,7 @@ def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, frie
                 try:
                     page.evaluate(
                         f"() => {{ let e = document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; e.click(); }}")
-                    a.action_type = a_type
+                    a.action_type = a_type  # probs not good
                     return True, a
                 except Exception as e:
                     print(f"Error clicking element via JavaScript click: {e}")
@@ -366,7 +366,7 @@ def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, frie
         except Exception as e:
             print(f"Unhandled exception for action type {a_type}: {e}")
 
-    return False, None
+    return False, a
 
 
 # this is the aggressive normalization
