@@ -192,7 +192,10 @@ def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
 
 def create_boundingbox(image_bytes, bounding_box):
     if not bounding_box:
+        print("FOR SOME REASON NO BOUNDING BOX")
         return image_bytes
+    else:
+        print(f"BOUNDING BOX: {bounding_box}")
     nparr = np.frombuffer(image_bytes, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
@@ -582,7 +585,14 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 #  fix screenshot here
                 # print(type(before_screenshot))
 
-                before_screenshot = create_boundingbox(before_screenshot, page.locator(f"xpath={action.xpath}").bounding_box())
+                to_box_coords = None
+                try:
+                    to_box_item = page.locator(f"xpath={action.xpath}")
+                    to_box_coords = to_box_item.bounding_box(timeout=5000)
+                except Exception as e:
+                    print(e)
+
+                before_screenshot = create_boundingbox(before_screenshot, to_box_coords)
                 # print(type(before_screenshot))
                 success, action = apply_action(page, action, before_screenshot, friendly_xpath, possible_types)
                 if not success:
@@ -784,4 +794,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
 num_cores = os.cpu_count()
 
-explore("https://www.dominos.com/en", headless=False, root="dominos.com", num_threads=1)
+explore("https://biz.dominos.com/", headless=False, root="biz.dominos.com", num_threads=1)
