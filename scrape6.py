@@ -517,11 +517,11 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
             #data structure to control flow of new actions
             action_queue = Queue()
 
-            unique_actions = get_unique_actions(before_state)
+            unique_actions = get_unique_actions(before_state)  # should check typing
 
             #at this point, seen_actions is empty, so we can just put the unique actions into the queue
-            for a in unique_actions:
-                action_queue.put(a)
+            for (tL, a) in unique_actions:
+                action_queue.put((tL, a))
             #we can just set seen_actions since it is empty
             seen_actions = unique_actions
             while action_queue.qsize() > 0:
@@ -586,7 +586,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 # print(type(before_screenshot))
                 success, action = apply_action(page, action, before_screenshot, friendly_xpath, possible_types)
                 if not success:
-                    print(f'This action was not successful: {action.html})
+                    print(f"This action was not successful: {action.html}")
                     continue  # hopefully no issues with this
 
                 wait_for_load(page, load_time_ms=3000)
@@ -629,18 +629,18 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                         new_actions = get_unique_actions(new_state)
 
                         #take the set difference unique_actions \ seen_actions
-                        difference = [a for a in new_actions if not any(element_similarity(a.html, b.html) for b in seen_actions)]
+                        difference = [(aTl, a) for (aTl, a) in new_actions if not any(element_similarity(a.html, b.html) for (bTl, b) in seen_actions)]
                         #put the difference onto the queue
                         new_trajectory = []
                         if difference:
                             new_trajectory = cp.deepcopy(action.trajectory)
                             new_trajectory.append(action)
                             print("***Detected new actions***")
-                        for different_action in difference:
+                        for dTl, different_action in difference:
                             print("New action: ", different_action.tree_line)
                             #update trajectory with parent's trajectory + parent
                             different_action.set_trajectory(new_trajectory)
-                            action_queue.put(different_action)
+                            action_queue.put((dTl, different_action))
                         #put the difference into the seen_actions, effectively unique_actions U seen_actions
                         seen_actions += difference
                     except Exception as e:
