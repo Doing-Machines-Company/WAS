@@ -5,7 +5,7 @@ from drivers import AxObservation
 from action import Action
 import json
 from pathlib import Path
-from playwright.sync_api import sync_playwright, Page, Dialog
+from playwright.sync_api import sync_playwright, Page, Dialog, TimeoutError
 import pickle
 from typing import Optional, Any
 from time import sleep
@@ -22,7 +22,7 @@ import cv2
 import copy as cp
 from scrape_llm import use_gpt_fill_input
 
-#TODO: 
+#TODO:
 #fix equivalence class representations
 #thread compliance compliance with action stack/queue
 #combine locks into single context lock
@@ -53,7 +53,7 @@ class Chunk:
 class PageState:
     url: str
     html: str
-    actions: list[Action]
+    actions: list[(list[Action.Type], Action)]
     header_html: str
     footer_html: str
 #removed some of the fields from pagestate, not sure if they will ultimately be needed?
@@ -103,7 +103,7 @@ class EquivalenceClassSet:
         for eq_class in self.classes:
             if eq_class.is_similar(url, html):
                 return eq_class
-        return None 
+        return None
 
     def add_page(self, state: PageState, eq_class: Optional[EquivalenceClass]) -> EquivalenceClass:
         self.added_urls.add(normalize_url(state.url))
@@ -117,7 +117,7 @@ class EquivalenceClassSet:
 def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
     accessibility_tree = cdpSession.send(
         "Accessibility.getFullAXTree", {}
-    )["nodes"]  
+    )["nodes"]
     seen_ids = set()
     _accessibility_tree = []
     for node in accessibility_tree:
@@ -210,7 +210,10 @@ def create_boundingbox(image_bytes, bounding_box):
     return buffer.tobytes()
 
 
-def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: str) -> Optional[Action]:
+def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: str) -> (list[Action.Type], Action):
+
+    possible_action_types = []
+
     important_clickables = [
         'button',
     ]
@@ -220,7 +223,7 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
         'treeitem', 'switch', 'option', 'menuitemcheckbox',
         'menuitemradio',
         'slider', 'listbox', 'tree',
-        'grid', 'alert', 'alertdialog', 'dialog',
+        'grid', 'alert', 'alertdialog',
         'log', 'marquee', 'timer', 'tooltip', 'banner',
         'complementary', 'contentinfo', 'form', 'main', 'navigation',
         'region', 'status', 'img', 'note', 'application',
@@ -230,9 +233,9 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
         'separator', 'toolbar', 'tooltip', 'presentation', 'option', 'tab']
 
     input_roles = [
-        'textbox', 'searchbox', 'slider', 'spinbutton', 'radiogroup',
-        'checkbox', 'radio', 'switch', 'option', 'listbox',
-        'combobox', 'textarea', 'spinbutton'
+        'textbox',
+        'checkbox', 'radio',
+        'textarea'
     ]
 
     non_browser_attributes = [
@@ -254,36 +257,30 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
     if xpath and html and xpath.strip() != "" and html.strip() != "":
         # Check if the action is a pure link in the header or footer
         if html in footer_html or (html in header_html and url not in 'https://www.dominos.com/en/'):
-            return None
+            return ([], None)
 
         #not sure what this does at all - Cem
         if any(attr in html.lower() for attr in non_browser_attributes):
-            return None
+            return ([], None)
 
         if role.strip() == 'link':
-            action = Action(Action.Type.CLICK_LINK, xpath, html)
-            action.set_tree_line(f"{role}: {ax_node['name']}")
-            return action
+            possible_action_types.append(Action.Type.CLICK_LINK)
 
         elif role.strip() in important_clickables:
-            action = Action(Action.Type.CLICK_IMPORTANT, xpath, html)
-            action.set_tree_line(f"{role}: {ax_node['name']}")
-            return action
+            possible_action_types.append(Action.Type.CLICK_IMPORTANT)
 
         elif role.strip() == 'radio':
             action = Action(Action.Type.CLICK_RADIO, xpath, html)
             action.set_tree_line(f"{role}: {ax_node['name']}")
-            return action
+            possible_action_types.append(Action.Type.CLICK_RADIO)
 
         elif role.strip() == 'checkbox':
-            action = Action(Action.Type.CLICK_CHECKBOX, xpath, html)
-            action.set_tree_line(f"{role}: {ax_node['name']}")
-            return action
+            possible_action_types.append(Action.Type.CLICK_CHECKBOX)
 
         elif role.strip() in general_clickables:
             action = Action(Action.Type.CLICK_GENERAL, xpath, html)
             action.set_tree_line(f"{role}: {ax_node['name']}")
-            return action
+            possible_action_types.append(Action.Type.CLICK_GENERAL)
 
         elif role.strip() in input_roles or soup.find(('input', 'textarea', 'select')):
 
@@ -294,95 +291,82 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
             if input_element:
                 input_type = input_element.get('type', '').lower()
 
-            if input_type == 'checkbox':
-                action = Action(Action.Type.CLICK_CHECKBOX, xpath, html)
+            if input_type == 'checkbox' and Action.Type.CLICK_CHECKBOX not in possible_action_types:
+                possible_action_types.append(Action.Type.CLICK_CHECKBOX)
 
-            elif input_type == 'radio':
-                action = Action(Action.Type.CLICK_RADIO, xpath, html)
+            elif input_type == 'radio' and Action.Type.CLICK_RADIO not in possible_action_types:
+                possible_action_types.append(Action.Type.CLICK_RADIO)
 
             else:
-                action = Action(Action.Type.INPUT, xpath, html)
+                possible_action_types.append(Action.Type.INPUT)
 
-            action.set_tree_line(f"{role}: {ax_node['name']}")
-            return action
 
         elif soup.has_attr('contenteditable') and soup['contenteditable'].lower() == 'true':
-            action = Action(Action.Type.INPUT, xpath, html)
-            action.set_tree_line(f"{role}: {ax_node['name']}")
-            return action
+            possible_action_types.append(Action.Type.INPUT)
 
-    return None
-
-
-def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, friendly_xpath) -> bool:
-    match a.action_type:
-        case Action.Type.CLICK_LINK | Action.Type.CLICK_IMPORTANT | Action.Type.CLICK_CHECKBOX | Action.Type.CLICK_RADIO | Action.Type.CLICK_GENERAL: #we just included general for now
-            # friendly_path = a.xpath if '(' in a.xpath.split("/")[0] else f"//{a.xpath}"
-            try:
-                page.evaluate(
-                    f"() => {{ let e = document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; e.click(); }}")
-                return True
-            except Exception as e:
-                print(f"Error clicking element via javascript click: {e}")
-
-            try:
-                page.locator(f"xpath={friendly_xpath}").click()
-                # page.query_selector(friendly_xpath)
-                return True
-            except Exception as e:
-                print(f"Error clicking element via playwright xpath locator.click: {e}")
-                return False
+    if possible_action_types != []:
+        action = Action(None, xpath, html)
+        action.set_tree_line(f"{role}: {ax_node['name']}")
+        return (possible_action_types, action)
+    else:
+        return ([], None)
 
 
-        case Action.Type.INPUT:
-            # # input_text = a.input_string
-            # input_text = "test"
-            # try:
-            #     page.wait_for_load_state('networkidle')
-            #     page.locator(f'xpath={a.xpath}').first.fill(input_text)
-            #     page.wait_for_load_state('networkidle')
-            #     if "search" in a.html:
-            #         # print("SEARCHING PRESS ENTER")
-            #         page.keyboard.press('Enter')
-            #         page.wait_for_load_state('networkidle')
-            #
-            # except Exception as e:
-            #     print(f"Error inputting element: {e}")
-            #     return False
-            # friendly_path = a.xpath if '(' in a.xpath.split("/")[0] else f"//{a.xpath}"
-            try:
-                input_element = page.locator(f"xpath={friendly_xpath}")
-                input_fill = use_gpt_fill_input('None', before_screenshot, a.html, False)
-                # input_fill = 'test input'
-                input_element.fill(input_fill, force = True)
-                
-                return True
-            except Exception as e:
-                print(f"Error inputting text into element: {e}")
-                return False
 
-            return False
+def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, friendly_xpath, possible_types) -> (bool, Action):  # TODO handle multiple possible action types
+    for a_type in possible_types:
+        try:
+            if a_type in [Action.Type.CLICK_LINK, Action.Type.CLICK_IMPORTANT, Action.Type.CLICK_CHECKBOX,
+                               Action.Type.CLICK_RADIO, Action.Type.CLICK_GENERAL]:
+                try:
+                    page.evaluate(
+                        f"() => {{ let e = document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; e.click(); }}")
+                    a.action_type = a_type
+                    return True, a
+                except Exception as e:
+                    print(f"Error clicking element via JavaScript click: {e}")
 
-        case Action.Type.GET_NEXT_SUBTASK_FINISHED:
-            pass
+                try:
+                    page.locator(f"xpath={friendly_xpath}").click(timeout=5000)
+                    a.action_type = a_type
+                    return True, a
+                except Exception as e:
+                    print(f"Error clicking element via Playwright locator.click: {e}")
 
-        case Action.Type.GET_NEXT_SUBTASK_IMPOSSIBLE:
-            pass
+            elif a_type == Action.Type.INPUT:
+                try:
+                    input_element = page.locator(f"xpath={friendly_xpath}")
+                    input_fill = use_gpt_fill_input('None', before_screenshot, a.html, True)
+                    input_element.fill(input_fill, force=True, timeout=5000)
+                    a.action_type = a_type
+                    return True, a
+                except Exception as e:
+                    print(f"Error inputting text into element: {e}")
 
-        case Action.Type.STOP:
-            input("ABOUT TO STOP")
-            exit()
+            elif a_type == Action.Type.GOTO_URL:
+                try:
+                    page.goto(a.input_string, timeout=5000)
+                    page.wait_for_load_state('networkidle', timeout=5000)
+                    a.action_type = a_type
+                    return True, a
+                except Exception as e:
+                    print(f"Error navigating to URL: {e}")
 
-        case Action.Type.GOTO_URL:  # haven't tested
-            page.goto(a.input_string)
-            page.wait_for_load_state('networkidle')
+            elif a_type == Action.Type.GO_BACK:
+                pass
+                # try:
+                #     page.go_back(), timeout=5000
+                #     page.wait_for_load_state('networkidle', timeout=5000)
+                #     return True, action_type
+                # except Exception as e:
+                #     print(f"Error going back: {e}")
+                page.goto(a.input_string)
+                page.wait_for_load_state('networkidle')
 
-        case Action.Type.GO_BACK:
-            # self.page.go_back() not actually using go_back as occasionally the last page is not useful, need to make better this is jank
-            page.goto(a.input_string)
-            page.wait_for_load_state('networkidle')
+        except Exception as e:
+            print(f"Unhandled exception for action type {a_type}: {e}")
 
-    return True
+    return False, None
 
 
 # this is the aggressive normalization
@@ -411,14 +395,21 @@ def get_page_state(page: PlaywrightPage, cdpSession: CDPSession) -> PageState:
 
     # Extract actions from the accessibility nodes and filter out None values, only scrape header and footer on homepage
     # actions = [ax_node_to_action(node, header_html if page.url not in 'https://www.dominos.com/en/' else '', footer_html if page.url not in 'https://www.dominos.com/en/' else '') for node in cleaned.nodes_info]
-    actions = [ax_node_to_action(node, header_html, footer_html, page.url) for node in cleaned.nodes_info]
-    actions = [a for a in actions if a is not None]
+    indefinite_actions = [ax_node_to_action(node, header_html, footer_html, page.url) for node in cleaned.nodes_info]
+
+    new_indefinite_actions = []
+    for tL, a in indefinite_actions:
+        if a is not None and tL != []:
+            new_indefinite_actions.append((tL, a))
+    # indefinite_actions = [(tL, a) for (tL, a) in indefinite_actions if tL != []]  # TODO now a list of lists of actions
+
+
 
     # Create and return a PageState object with the normalized URL, HTML content, actions, header HTML, and footer HTML
     return PageState(
         url=page.url,
         html=page.content(),
-        actions=actions,
+        actions=new_indefinite_actions,
         header_html=header_html,
         footer_html=footer_html
     )
@@ -469,24 +460,24 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
         return
 
 
-    #we use trajectory to track the sequence of actions needed to trigger the 
+    #we use trajectory to track the sequence of actions needed to trigger the
     #creation of any actions that do not readily exist on the base/unmodified
     #version of the website
 
 
 
     #out of a set of actions generated from an observation, removes duplicates.
-    #does not remove duplicates in header or footer because they are generally 
-    #significant enough that we want to keep them 
+    #does not remove duplicates in header or footer because they are generally
+    #significant enough that we want to keep them
     def get_unique_actions(new_state):
         unique_actions = []
         new_actions = new_state.actions
         header_html = new_state.header_html
         footer_html = new_state.footer_html
-        for action in new_actions:
-            if (action.html in header_html or action.html in footer_html 
-            or not any(element_similarity(action.html, a.html) >= 0.9 for a in unique_actions)):
-                unique_actions.append(action)
+        for (possible_types, action) in new_actions:
+            if (action.html in header_html or action.html in footer_html
+            or not any(element_similarity(action.html, a.html) >= 0.9 for (tL, a) in unique_actions)):
+                unique_actions.append((possible_types, action))
         return unique_actions
 
     def explore_actions():
@@ -501,7 +492,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
         scrape_flag = False
         print("*" * 80)
         print("Exploring ", url)
-        
+
         try:
             before_state = get_page_state(page, cdpSession)
         except Exception as e:
@@ -515,17 +506,17 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 scrape_flag = True
                 eq_class = equiv_classes.add_page(before_state, None)
         with eq_class_lock:
-            new_actions = [a for a in before_state.actions if eq_class.is_new_action(a)]
+            new_actions = [(tL, a) for (tL, a) in before_state.actions if eq_class.is_new_action(a)]
             if len(new_actions) > 0:
                 scrape_flag = True
 
         if scrape_flag:
-            
+
             #used to check whether an action has already been queued yet (if seen again, we shouldn't requeue)
             seen_actions = []
             #data structure to control flow of new actions
             action_queue = Queue()
-            
+
             unique_actions = get_unique_actions(before_state)
 
             #at this point, seen_actions is empty, so we can just put the unique actions into the queue
@@ -534,7 +525,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
             #we can just set seen_actions since it is empty
             seen_actions = unique_actions
             while action_queue.qsize() > 0:
-                action = action_queue.get(timeout=0.5) 
+                possible_types, action = action_queue.get(timeout=0.5)  # possible_types should have some sort of importance ordering
                 if not action.xpath:
                     print(f"Skipping action without XPath: {action}")
                     continue
@@ -560,7 +551,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 page.reload()
                 time.sleep(2)
                 #need sleep here for going between different contexts for some reason
-                
+
                 print("-" * 80)
                 # print("Action: ", action.html)
                 print("Page url: ", page.url)
@@ -568,8 +559,8 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 print("Trajectory: ", action.display_trajectory())
                 if action.trajectory:
                     print("***Executing Trajectory***")
-                for traj in action.trajectory:
-                    apply_action(page, traj, page.screenshot(), traj.friendly_xpath)
+                for traj_action in action.trajectory:
+                    apply_action(page, traj_action, page.screenshot(), traj_action.friendly_xpath, [traj_action.action_type])
                     wait_for_load(page, load_time_ms=3000)
                 before_screenshot = page.screenshot()
                 friendly_element = page.evaluate(
@@ -593,7 +584,11 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
 
                 before_screenshot = create_boundingbox(before_screenshot, page.locator(f"xpath={action.xpath}").bounding_box())
                 # print(type(before_screenshot))
-                success = apply_action(page, action, before_screenshot, friendly_xpath)
+                success, action = apply_action(page, action, before_screenshot, friendly_xpath, possible_types)
+                if not success:
+                    print(f'This action was not successful: {action.html})
+                    continue  # hopefully no issues with this
+
                 wait_for_load(page, load_time_ms=3000)
                 if len(page.context.pages) > 1 and page.context.pages[-1] != page:
                     new_page = page.context.pages[-1]
@@ -604,7 +599,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                     with page_queue_lock:
                         with seen_urls_lock:
                             if normalize_url(new_page.url) not in seen_urls:
-                                #REMEMBER TO ADD BACK THIS LINE IMMEDIATELY 
+                                #REMEMBER TO ADD BACK THIS LINE IMMEDIATELY
                                 url_queue.put(new_page.url)  # Adds stuff to be scraped
                                 #  Make sure everything is discovered, unknown unknowns
 
@@ -615,9 +610,9 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                     with eq_class_lock:
                         eq_class.update_unique_actions([action], before_state.html, page.content(), # need to lock
                                                        before_screenshot, after_screenshot, url)
-                
-                #the url is being normalized a bit too aggressively to the point 
-                #that pages that are clearly different are being put into the same eq 
+
+                #the url is being normalized a bit too aggressively to the point
+                #that pages that are clearly different are being put into the same eq
                 #because normalized url is the same
                 # if normalize_url(before_state.url) != normalize_url(page.url):
                 if before_state.url != page.url:
@@ -646,8 +641,8 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                             #update trajectory with parent's trajectory + parent
                             different_action.set_trajectory(new_trajectory)
                             action_queue.put(different_action)
-                        #put the difference into the seen_actions, effectively unique_actions U seen_actions    
-                        seen_actions += difference    
+                        #put the difference into the seen_actions, effectively unique_actions U seen_actions
+                        seen_actions += difference
                     except Exception as e:
                         print(f"Error getting page state after applying {action.tree_line} at {url}. Error: {e}")
                         return
@@ -666,7 +661,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
         page.close()
         context.close()
         #remove this, only here for testing
-        
+
 
         #NEED TO ACTUALLY UPDATE THE ACTIONS, THEY ARE ONLY ADDED AT THE BEGINNING - Cem
 
@@ -789,4 +784,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
 num_cores = os.cpu_count()
 
-explore("https://www.dominos.com/en/restaurants?type=Delivery", headless=False, root="dominos.com", num_threads=1)
+explore("https://www.dominos.com/en", headless=False, root="dominos.com", num_threads=1)
