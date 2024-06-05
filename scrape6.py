@@ -560,11 +560,18 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 print("Page url: ", page.url)
                 print("Ax object", action.tree_line)
                 print("Trajectory: ", action.display_trajectory())
+                traj_success = True
                 if action.trajectory:
                     print("***Executing Trajectory***")
                 for traj_action in action.trajectory:
-                    apply_action(page, traj_action, page.screenshot(), traj_action.friendly_xpath, [traj_action.action_type])
+                    success, action = apply_action(page, traj_action, page.screenshot(), traj_action.friendly_xpath, [traj_action.action_type])
+                    if not success:
+                        print("Trajectory broken, skipping")
+                        traj_success = False
+                        break
                     wait_for_load(page, load_time_ms=3000)
+                if not traj_success:
+                    continue
                 before_screenshot = page.screenshot()
                 friendly_element = page.evaluate(
                     f"document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
@@ -794,4 +801,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
 num_cores = os.cpu_count()
 
-explore("https://biz.dominos.com/", headless=False, root="biz.dominos.com", num_threads=1)
+explore("https://dominos.com/", headless=False, root="dominos.com", num_threads=1)
