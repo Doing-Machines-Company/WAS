@@ -316,7 +316,7 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
 
 
 
-def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, friendly_xpath, possible_types) -> (bool, Action):  # TODO handle multiple possible action types
+def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, friendly_xpath, backup_friendly_xpath=None, possible_types=None) -> (bool, Action):  # TODO handle multiple possible action types
     for a_type in possible_types:
         try:
             if a_type in [Action.Type.CLICK_LINK, Action.Type.CLICK_IMPORTANT, Action.Type.CLICK_CHECKBOX,
@@ -335,10 +335,34 @@ def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, frie
                     return True, a
                 except Exception as e:
                     print(f"Error clicking element via Playwright locator.click: {e}")
+                if backup_friendly_xpath:
+                    try:
+                        page.evaluate(
+                            f"() => {{ let e = document.evaluate('{backup_friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; e.click(); }}")
+                        a.action_type = a_type  # probs not good
+                        return True, a
+                    except Exception as e:
+                        print(f"Error clicking element via JavaScript click: {e}")
+
+                    try:
+                        page.locator(f"xpath={backup_friendly_xpath}").click(timeout=5000)
+                        a.action_type = a_type
+                        return True, a
+                    except Exception as e:
+                        print(f"Error clicking element via Playwright locator.click: {e}")
 
             elif a_type == Action.Type.INPUT:
                 try:
                     input_element = page.locator(f"xpath={friendly_xpath}")
+                    input_fill = use_gpt_fill_input('None', before_screenshot, a.html, True)
+                    input_element.fill(input_fill, force=True, timeout=5000)
+                    a.action_type = a_type
+                    return True, a
+                except Exception as e:
+                    print(f"Error inputting text into element: {e}")
+
+                try:
+                    input_element = page.locator(f"xpath={backup_friendly_xpath}")
                     input_fill = use_gpt_fill_input('None', before_screenshot, a.html, True)
                     input_element.fill(input_fill, force=True, timeout=5000)
                     a.action_type = a_type
@@ -483,6 +507,40 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 unique_actions.append((possible_types, action))
         return unique_actions
 
+    def get_xpath_by_outer_html(page, outer_html):
+        # JavaScript function to find the element by outerHTML and generate its XPath
+        js_code = """
+        (outerHTML) => {
+            function getElementXPath(element) {
+                if (element.id !== '') {
+                    return 'id("' + element.id + '")';
+                }
+                if (element === document.body) {
+                    return element.tagName.toLowerCase();
+                }
+                var ix = 0;
+                var siblings = element.parentNode.childNodes;
+                for (var i = 0; i < siblings.length; i++) {
+                    var sibling = siblings[i];
+                    if (sibling === element) {
+                        return getElementXPath(element.parentNode) + '/' + element.tagName.toLowerCase() + '[' + (ix + 1) + ']';
+                    }
+                    if (sibling.nodeType === 1 && sibling.tagName === element.tagName) {
+                        ix++;
+                    }
+                }
+            }
+            var element = Array.from(document.querySelectorAll('*')).find(el => el.outerHTML === outerHTML);
+            if (element) {
+                return getElementXPath(element);
+            }
+            return null;
+        }
+        """
+        # Evaluate the JavaScript code in the context of the page
+        xpath = page.evaluate(js_code, outer_html)
+        return xpath
+
     def explore_actions():
         context, page, cdpSession = create_new_context_and_page(browser, cookies)
         try:
@@ -564,8 +622,12 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 if action.trajectory:
                     print("***Executing Trajectory***")
                 for traj_action in action.trajectory:
-                    success, action = apply_action(page, traj_action, page.screenshot(), traj_action.friendly_xpath, [traj_action.action_type])
+                    #  TODO Need to get new good xpath for action
+                    backup_xpath = get_xpath_by_outer_html(page, traj_action.html)
+                    backup_friendly_xpath = backup_xpath if '(' in backup_xpath.split("/")[0] else f"//{backup_xpath}"
+                    success, action = apply_action(page, traj_action, page.screenshot(), backup_friendly_xpath, traj_action.friendly_xpath, [traj_action.action_type])
                     if not success:
+                        print(traj_action)
                         print("Trajectory broken, skipping")
                         traj_success = False
                         break
@@ -601,7 +663,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
 
                 before_screenshot = create_boundingbox(before_screenshot, to_box_coords)
                 # print(type(before_screenshot))
-                success, action = apply_action(page, action, before_screenshot, friendly_xpath, possible_types)
+                success, action = apply_action(page, action, before_screenshot, friendly_xpath, None, possible_types)
                 if not success:
                     print(f"This action was not successful: {action.html}")
                     continue  # hopefully no issues with this
