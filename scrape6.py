@@ -628,8 +628,12 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 for traj_action in action.trajectory:
                     #  TODO Need to get new good xpath for action
                     backup_xpath = get_xpath_by_outer_html(page, traj_action.html)
-                    backup_friendly_xpath = backup_xpath if '(' in backup_xpath.split("/")[0] else f"//{backup_xpath}"
-                    success, action = apply_action(page, traj_action, page.screenshot(), backup_friendly_xpath, traj_action.friendly_xpath, [traj_action.action_type])
+                    if backup_xpath:
+                        backup_friendly_xpath = backup_xpath if '(' in backup_xpath.split("/")[0] else f"//{backup_xpath}"
+                        success, action = apply_action(page, traj_action, page.screenshot(), backup_friendly_xpath, traj_action.friendly_xpath, [traj_action.action_type])
+                    else:
+                        success, action = apply_action(page, traj_action, page.screenshot(), traj_action.friendly_xpath,
+                                                       None, [traj_action.action_type])
                     if not success:
                         print(traj_action)
                         print("Trajectory broken, skipping")
