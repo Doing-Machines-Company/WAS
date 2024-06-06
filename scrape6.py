@@ -321,20 +321,22 @@ def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, frie
         try:
             if a_type in [Action.Type.CLICK_LINK, Action.Type.CLICK_IMPORTANT, Action.Type.CLICK_CHECKBOX,
                                Action.Type.CLICK_RADIO, Action.Type.CLICK_GENERAL]:
-                try:
-                    page.evaluate(
-                        f"() => {{ let e = document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; e.click(); }}")
-                    a.action_type = a_type  # probs not good
-                    return True, a
-                except Exception as e:
-                    print(f"Error clicking element via JavaScript click: {e}")
+                if friendly_xpath:
+                    try:
+                        page.evaluate(
+                            f"() => {{ let e = document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; e.click(); }}")
+                        a.action_type = a_type  # probs not good
+                        return True, a
+                    except Exception as e:
+                        print(f"Error clicking element via JavaScript click: {e}")
 
-                try:
-                    page.locator(f"xpath={friendly_xpath}").click(timeout=5000)
-                    a.action_type = a_type
-                    return True, a
-                except Exception as e:
-                    print(f"Error clicking element via Playwright locator.click: {e}")
+                    try:
+                        page.locator(f"xpath={friendly_xpath}").click(timeout=5000)
+                        a.action_type = a_type
+                        return True, a
+                    except Exception as e:
+                        print(f"Error clicking element via Playwright locator.click: {e}")
+
                 if backup_friendly_xpath:
                     try:
                         page.evaluate(
@@ -352,23 +354,25 @@ def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, frie
                         print(f"Error clicking element via Playwright locator.click: {e}")
 
             elif a_type == Action.Type.INPUT:
-                try:
-                    input_element = page.locator(f"xpath={friendly_xpath}")
-                    input_fill = use_gpt_fill_input('None', before_screenshot, a.html, True)
-                    input_element.fill(input_fill, force=True, timeout=5000)
-                    a.action_type = a_type
-                    return True, a
-                except Exception as e:
-                    print(f"Error inputting text into element: {e}")
+                if friendly_xpath:
+                    try:
+                        input_element = page.locator(f"xpath={friendly_xpath}")
+                        input_fill = use_gpt_fill_input('None', before_screenshot, a.html, True)
+                        input_element.fill(input_fill, force=True, timeout=5000)
+                        a.action_type = a_type
+                        return True, a
+                    except Exception as e:
+                        print(f"Error inputting text into element: {e}")
 
-                try:
-                    input_element = page.locator(f"xpath={backup_friendly_xpath}")
-                    input_fill = use_gpt_fill_input('None', before_screenshot, a.html, True)
-                    input_element.fill(input_fill, force=True, timeout=5000)
-                    a.action_type = a_type
-                    return True, a
-                except Exception as e:
-                    print(f"Error inputting text into element: {e}")
+                if backup_friendly_xpath:
+                    try:
+                        input_element = page.locator(f"xpath={backup_friendly_xpath}")
+                        input_fill = use_gpt_fill_input('None', before_screenshot, a.html, True)
+                        input_element.fill(input_fill, force=True, timeout=5000)
+                        a.action_type = a_type
+                        return True, a
+                    except Exception as e:
+                        print(f"Error inputting text into element: {e}")
 
             elif a_type == Action.Type.GOTO_URL:
                 try:
