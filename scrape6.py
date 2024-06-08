@@ -207,7 +207,7 @@ def create_boundingbox(image_bytes, bounding_box):
 
     cv2.rectangle(img, top_left, bottom_right, color, thickness)
 
-    cv2.imwrite('testtest.png', img)
+    # cv2.imwrite('testtest.png', img)
 
     _, buffer = cv2.imencode('.png', img)
     return buffer.tobytes()
