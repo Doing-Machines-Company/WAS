@@ -486,8 +486,17 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
             return
         seen_urls.add(normalize_url(url))
     #TODO: ROOT MAY TAKE DIFFERENT FORMS, FIX THIS
-    if root not in url:
-        print(f"Skipping page outside of root: {url}")
+    def root_check(url_item, root_item):
+        parsed_url = urlparse(url_item)
+        return root_item in parsed_url.netloc if parsed_url.netloc else False
+
+    try:  # this really shouldn't ever fail
+        result = root_check(url, root)
+        if result:
+            print(f"Skipping page outside of root: {url}")
+            return
+    except:
+        print(f"Root check failed, skipping: {url}")
         return
 
 
@@ -871,4 +880,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
 num_cores = os.cpu_count()
 
-explore("https://dominos.com/", headless=False, root="dominos.com", num_threads=1)
+explore("https://www.dominos.com/", headless=False, root="dominos.com", num_threads=1)
