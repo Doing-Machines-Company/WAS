@@ -228,12 +228,12 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
         'slider', 'listbox', 'tree',
         'grid', 'alert', 'alertdialog',
         'log', 'marquee', 'timer', 'tooltip', 'banner',
-        'complementary', 'contentinfo', 'form', 'main', 'navigation',
+        'complementary', 'contentinfo', 'form', 'navigation',
         'region', 'status', 'img', 'note', 'application',
-        'article', 'cell', 'definition', 'directory', 'document',
+        'cell', 'definition', 'directory', 'document',
         'feed', 'figure', 'group', 'img', 'list',
-        'listitem', 'math', 'progressbar',
-        'separator', 'toolbar', 'tooltip', 'presentation', 'option', 'tab']
+        'listitem',
+        'option', 'tab']
 
     input_roles = [
         'textbox',
@@ -285,23 +285,23 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
             action.set_tree_line(f"{role}: {ax_node['name']}")
             possible_action_types.append(Action.Type.CLICK_GENERAL)
 
-        elif role.strip() in input_roles or soup.find(('input', 'textarea', 'select')):
+        elif role.strip() in input_roles or soup.find(('input', 'textarea')):
 
-            input_type = None
+            # input_type = None
+            #
+            # input_element = soup.find('input')
+            #
+            # if input_element:
+            #     input_type = input_element.get('type', '').lower()
 
-            input_element = soup.find('input')
+            # if input_type == 'checkbox' and Action.Type.CLICK_CHECKBOX not in possible_action_types:
+            #     possible_action_types.append(Action.Type.CLICK_CHECKBOX)
+            #
+            # elif input_type == 'radio' and Action.Type.CLICK_RADIO not in possible_action_types:
+            #     possible_action_types.append(Action.Type.CLICK_RADIO)
 
-            if input_element:
-                input_type = input_element.get('type', '').lower()
-
-            if input_type == 'checkbox' and Action.Type.CLICK_CHECKBOX not in possible_action_types:
-                possible_action_types.append(Action.Type.CLICK_CHECKBOX)
-
-            elif input_type == 'radio' and Action.Type.CLICK_RADIO not in possible_action_types:
-                possible_action_types.append(Action.Type.CLICK_RADIO)
-
-            else:
-                possible_action_types.append(Action.Type.INPUT)
+            # else:
+            possible_action_types.append(Action.Type.INPUT)
 
 
         elif soup.has_attr('contenteditable') and soup['contenteditable'].lower() == 'true':
@@ -310,6 +310,9 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
     if possible_action_types != []:
         action = Action(None, xpath, html)
         action.set_tree_line(f"{role}: {ax_node['name']}")
+        # if xpath and xpath == "id(\"tab-Delivery\")":
+        #     print("FOUND DELIVERY OPTION")
+        #     print(possible_action_types)
         return (possible_action_types, action)
     else:
         return ([], None)
@@ -377,7 +380,7 @@ def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, frie
             elif a_type == Action.Type.GOTO_URL:
                 try:
                     page.goto(a.input_string, timeout=5000)
-                    page.wait_for_load_state('networkidle', timeout=5000)
+                    # page.wait_for_load_state('networkidle', timeout=5000)
                     a.action_type = a_type
                     return True, a
                 except Exception as e:
@@ -635,21 +638,27 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 traj_success = True
                 if action.trajectory:
                     print("***Executing Trajectory***")
-                for traj_action in action.trajectory:
-                    #  TODO Need to get new good xpath for action
-                    backup_xpath = get_xpath_by_outer_html(page, traj_action.html)
-                    if backup_xpath:
-                        backup_friendly_xpath = backup_xpath if '(' in backup_xpath.split("/")[0] else f"//{backup_xpath}"
-                        success, action = apply_action(page, traj_action, page.screenshot(), backup_friendly_xpath, traj_action.friendly_xpath, [traj_action.action_type])
-                    else:
-                        success, action = apply_action(page, traj_action, page.screenshot(), traj_action.friendly_xpath,
-                                                       None, [traj_action.action_type])
-                    if not success:
-                        print(traj_action)
-                        print("Trajectory broken, skipping")
-                        traj_success = False
-                        break
+                    for traj_action in action.trajectory:
+                        #  TODO Need to get new good xpath for action
+                        backup_xpath = get_xpath_by_outer_html(page, traj_action.html)
+
+                        possible_types_list = []
+                        possible_types_list.append(traj_action.action_type)
+                        # print(possible_types_list)
+                        #  [traj_action.action_type] this is bad
+                        if backup_xpath:
+                            backup_friendly_xpath = backup_xpath if '(' in backup_xpath.split("/")[0] else f"//{backup_xpath}"
+                            success, _ = apply_action(page, traj_action, page.screenshot(), backup_friendly_xpath, traj_action.friendly_xpath, possible_types_list)
+                        else:
+                            success, _ = apply_action(page, traj_action, page.screenshot(), traj_action.friendly_xpath,
+                                                           None, possible_types_list)
+                        if not success:
+                            print("Trajectory broken, skipping")
+                            traj_success = False
+                            break
+                        wait_for_load(page, load_time_ms=3000)
                     wait_for_load(page, load_time_ms=3000)
+                    print("***Finished Executing Trajectory***")
                 if not traj_success:
                     continue
                 before_screenshot = page.screenshot()
@@ -681,10 +690,14 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
 
                 before_screenshot = create_boundingbox(before_screenshot, to_box_coords)
                 # print(type(before_screenshot))
-                success, action = apply_action(page, action, before_screenshot, friendly_xpath, None, possible_types)
+                success, new_action = apply_action(page, action, before_screenshot, friendly_xpath, None, possible_types)
+                action = new_action
                 if not success:
-                    print(f"This action was not successful: {action.html}")
+                    print(f"This action was not successful: {action}")
                     continue  # hopefully no issues with this
+
+                # print("THIS ACTION SUCCESSFUL")
+                # print(action)
 
                 wait_for_load(page, load_time_ms=3000)
                 if len(page.context.pages) > 1 and page.context.pages[-1] != page:
@@ -881,4 +894,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
 num_cores = os.cpu_count()
 
-explore("https://www.dominos.com/", headless=False, root="www.dominos.com", num_threads=1)
+explore("https://www.dominos.com/en/restaurants", headless=False, root="www.dominos.com", num_threads=1)
