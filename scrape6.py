@@ -488,11 +488,12 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
     #TODO: ROOT MAY TAKE DIFFERENT FORMS, FIX THIS
     def root_check(url_item, root_item):
         parsed_url = urlparse(url_item)
-        return root_item in parsed_url.netloc if parsed_url.netloc else False
+        # return root_item in parsed_url.netloc if parsed_url.netloc else False
+        return root_item == parsed_url.netloc if parsed_url.netloc else False
 
     try:  # this really shouldn't ever fail
-        result = root_check(url, root)
-        if result:
+        is_in_root = root_check(url, root)
+        if not is_in_root:
             print(f"Skipping page outside of root: {url}")
             return
     except:
@@ -880,4 +881,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
 num_cores = os.cpu_count()
 
-explore("https://www.dominos.com/", headless=False, root="dominos.com", num_threads=1)
+explore("https://www.dominos.com/", headless=False, root="www.dominos.com", num_threads=1)
