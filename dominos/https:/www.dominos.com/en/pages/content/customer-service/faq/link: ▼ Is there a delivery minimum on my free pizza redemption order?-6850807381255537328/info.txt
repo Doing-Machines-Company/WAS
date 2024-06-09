@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/en/pages/content/customer-service/faq?faqsection=rewards
+XPATH: id("faqPage")/div[1]/ul[1]/li[4]/ul[1]/li[13]/a[1]
+TRAJECTORY: []
+
+HTML: <a href="#" data-quid="loyalty-faqs-delivery"> <span>▼</span> Is there a delivery minimum on my free pizza redemption order? <span></span> </a>

@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/en/restaurants
+XPATH: id("delivery-panel-content")/form[1]/fieldset[1]/div[6]/button[1]
+TRAJECTORY: [CLICK_GENERAL:id("tab-Delivery")(<button tabindex="0" role="tab" type="button" class="css-1u290wa" id="tab-Delivery" aria-selected="f)]
+
+HTML: <button type="submit" class="css-14js2j3">Continue for Delivery</button>

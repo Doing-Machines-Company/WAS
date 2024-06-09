@@ -614,7 +614,6 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                     };
                 """)
 
-                friendly_xpath = action.xpath if '(' in action.xpath.split("/")[0] else f"//{action.xpath}"
 
                 '''
                 
@@ -642,16 +641,13 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                         #  TODO Need to get new good xpath for action
                         backup_xpath = get_xpath_by_outer_html(page, traj_action.html)
 
-                        possible_types_list = []
-                        possible_types_list.append(traj_action.action_type)
-                        # print(possible_types_list)
-                        #  [traj_action.action_type] this is bad
+                        possible_types_traj = [traj_action.action_type]
                         if backup_xpath:
                             backup_friendly_xpath = backup_xpath if '(' in backup_xpath.split("/")[0] else f"//{backup_xpath}"
-                            success, _ = apply_action(page, traj_action, page.screenshot(), backup_friendly_xpath, traj_action.friendly_xpath, possible_types_list)
+                            success, _ = apply_action(page, traj_action, page.screenshot(), backup_friendly_xpath, traj_action.friendly_xpath, possible_types_traj)
                         else:
                             success, _ = apply_action(page, traj_action, page.screenshot(), traj_action.friendly_xpath,
-                                                           None, possible_types_list)
+                                                           None, possible_types_traj)
                         if not success:
                             print("Trajectory broken, skipping")
                             traj_success = False
@@ -662,6 +658,11 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 if not traj_success:
                     continue
                 before_screenshot = page.screenshot()
+
+                friendly_xpath = action.xpath if '(' in action.xpath.split("/")[0] else f"//{action.xpath}"
+
+                backup_xpath = get_xpath_by_outer_html(page, action.html)
+
                 friendly_element = page.evaluate(
                     f"document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
 
@@ -694,6 +695,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 action = new_action
                 if not success:
                     print(f"This action was not successful: {action}")
+                    print(f"Attempted types: {possible_types}")
                     continue  # hopefully no issues with this
 
                 # print("THIS ACTION SUCCESSFUL")
@@ -894,4 +896,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
 num_cores = os.cpu_count()
 
-explore("https://www.dominos.com/en/restaurants", headless=False, root="www.dominos.com", num_threads=1)
+explore("https://www.dominos.com/", headless=False, root="www.dominos.com", num_threads=1)

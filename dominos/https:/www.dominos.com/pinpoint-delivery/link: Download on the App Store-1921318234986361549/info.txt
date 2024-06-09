@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/pinpoint-delivery/
+XPATH: id("app-store-cta")
+TRAJECTORY: []
+
+HTML: <a href="https://apps.apple.com/us/app/dominos-pizza-usa/id436491861" target="_blank" class="block rounded-md border-2 border-white border-opacity-0 transition duration-300 ease-out hover:border-opacity-100" id="app-store-cta" data-v-3169af6c=""><img class="m-0 block h-auto w-full max-w-[6.25rem] sm:max-w-[7.4rem] lg:max-w-[9.25rem]" src="/pinpoint-delivery/_nuxt/app-store-button.a6729a25.svg" alt="Download on the App Store" data-v-3169af6c=""></a>

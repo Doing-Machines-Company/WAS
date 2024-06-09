@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/en/pages/content/customer-service/faq?faqsection=rewards
+XPATH: id("faqPage")/div[1]/ul[1]/li[4]/ul[1]/li[12]/a[1]
+TRAJECTORY: [CLICK_LINK:id("faqPage")/div[1]/a[1](<a href="#expand" class="js-expand buttonType3"> Expand All ▼ </a>)]
+
+HTML: <a href="#" data-quid="loyalty-faqs-mix-match"> <span>▲</span> Can I use my Medium 2-Topping Rewards pizza toward the "$6.99 Mix and Match" deal? <span></span> </a>

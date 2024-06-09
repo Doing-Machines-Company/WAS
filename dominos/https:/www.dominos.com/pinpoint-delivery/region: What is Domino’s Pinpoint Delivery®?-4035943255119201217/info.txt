@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/pinpoint-delivery/
+XPATH: id("item1")
+TRAJECTORY: []
+
+HTML: <div class="answer text-gray-darker max-w-[50.625rem] px-3 font-onedot-condensed text-15 leading-snug lg:px-5 lg:text-24" id="item1" role="region" aria-labelledby="panel1id" itemscope="" itemprop="acceptedAnswer" itemtype="https://schema.org/Answer" data-v-83d78729=""><div class="pb-3 lg:-mt-1 lg:pb-5" data-v-83d78729=""><!--[--><div itemprop="text"><p>Domino’s Pinpoint Delivery is a new feature within the Domino’s app that provides you with even more ordering convenience when you’re out and about or on the go. Just drop a pin, place an order and you can receive your Domino’s favorites nearly anywhere including places such as beaches, parks, campsites, and more.</p></div><!--]--></div></div>
