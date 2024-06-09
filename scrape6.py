@@ -659,34 +659,74 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                     continue
                 before_screenshot = page.screenshot()
 
-                friendly_xpath = action.xpath if '(' in action.xpath.split("/")[0] else f"//{action.xpath}"
+                def make_xpath_friendly(des_xpath):
+                    return des_xpath if '(' in des_xpath.split("/")[0] else f"//{des_xpath}"
 
-                backup_xpath = get_xpath_by_outer_html(page, action.html)
+                def get_element(des_page, des_xpath):
+                    return des_page.evaluate(f"document.evaluate('{des_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
 
-                friendly_element = page.evaluate(
-                    f"document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
+                def scroll_if_needed(des_page, des_xpath):
+                    des_page.evaluate(f"document.evaluate('{des_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoViewIfNeeded();")
 
-                if friendly_element:
-                    page.evaluate(
-                        f"document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoViewIfNeeded();")
-                else:
-                    element = page.evaluate(
-                        f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
-                    if element:
-                        page.evaluate(
-                            f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoViewIfNeeded();")
+                # friendly_xpath = action.xpath if '(' in action.xpath.split("/")[0] else f"//{action.xpath}"
+                friendly_xpath = make_xpath_friendly(action.xpath)
+
+                new_action_found_xpath = None
+
+                if action.trajectory:
+
+                    backup_xpath = get_xpath_by_outer_html(page, action.html)
+
+                    backup_friendly_xpath = make_xpath_friendly(backup_xpath)
+
+                    backup_friendly_element = get_element(page, backup_friendly_xpath)
+
+                    if backup_friendly_element:
+                        scroll_if_needed(page, backup_friendly_xpath)
+                        new_action_found_xpath = backup_friendly_xpath
                     else:
-                        print(f"Element not found for XPath: {action.xpath}, Ax object: {action.tree_line}")
-                        continue
-                action.set_friendly_xpath(friendly_xpath)
+                        backup_element = get_element(page, backup_xpath)
+                        if backup_element:
+                            scroll_if_needed(page, backup_xpath)
+                            new_action_found_xpath = backup_xpath
+
+                if new_action_found_xpath is None:
+
+                    # friendly_element = page.evaluate(
+                    #     f"document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
+                    friendly_element = get_element(page, friendly_xpath)
+
+                    if friendly_element:
+                        # page.evaluate(
+                        #     f"document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoViewIfNeeded();")
+                        scroll_if_needed(page, friendly_xpath)
+                        new_action_found_xpath = friendly_xpath
+                    else:
+                        # element = page.evaluate(
+                        #     f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
+                        element = get_element(page, action.xpath)
+                        if element:
+                            # page.evaluate(
+                                # f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoViewIfNeeded();")
+                            scroll_if_needed(page, action.xpath)
+                            new_action_found_xpath = action.xpath
+                        else:
+                            print(f"Element not found for XPath: {action.xpath}, Ax object: {action.tree_line}")
+                            continue
+                action.set_friendly_xpath(new_action_found_xpath)
                 #  fix screenshot here
                 # print(type(before_screenshot))
 
                 to_box_coords = None
                 try:
-                    to_box_item = page.locator(f"xpath={action.xpath}")
-                    to_box_coords = to_box_item.bounding_box(timeout=5000)
+                    to_box_item = page.locator(f"xpath={action.friendly_xpath}")
+                    if to_box_item:
+                        to_box_coords = to_box_item.bounding_box(timeout=5000)
+                    else:
+                        to_box_item = page.locator(f"xpath={action.xpath}")
+                        to_box_coords = to_box_item.bounding_box(timeout=5000)
                 except Exception as e:
+                    print(f'GETTING BOUNDING BOXES FAILED FOR {action}')
                     print(e)
 
                 before_screenshot = create_boundingbox(before_screenshot, to_box_coords)
