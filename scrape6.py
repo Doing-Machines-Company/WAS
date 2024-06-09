@@ -660,10 +660,16 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 before_screenshot = page.screenshot()
 
                 def make_xpath_friendly(des_xpath):
-                    return des_xpath if '(' in des_xpath.split("/")[0] else f"//{des_xpath}"
+                    if des_xpath:  # if not empty string and not none
+                       return des_xpath if '(' in des_xpath.split("/")[0] else f"//{des_xpath}"
+                    else:
+                        return ''
 
                 def get_element(des_page, des_xpath):
-                    return des_page.evaluate(f"document.evaluate('{des_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
+                    if des_xpath:
+                        return des_page.evaluate(f"document.evaluate('{des_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
+                    else:
+                        return None
 
                 def scroll_if_needed(des_page, des_xpath):
                     des_page.evaluate(f"document.evaluate('{des_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoViewIfNeeded();")
