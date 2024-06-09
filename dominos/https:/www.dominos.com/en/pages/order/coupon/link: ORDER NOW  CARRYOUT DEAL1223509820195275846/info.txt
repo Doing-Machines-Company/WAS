@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/en/pages/order/coupon
+XPATH: id("__next")/main[1]/section[2]/article[1]/div[3]/div[1]/div[4]/div[2]/a[1]
+TRAJECTORY: []
+
+HTML: <a data-quid="carryout-deal-button" class="css-13kbtau" href="/en/restaurants?couponCode_0=WeekLongCarryout&amp;partnerCode=DOMINOS&amp;so=hp&amp;amp&amp;type=Carryout">Order Now<span style="border: 0px; clip: rect(0px, 0px, 0px, 0px); height: 1px; margin: -1px; overflow: hidden; padding: 0px; position: absolute; white-space: nowrap; width: 1px;">&nbsp;Carryout Deal</span></a>

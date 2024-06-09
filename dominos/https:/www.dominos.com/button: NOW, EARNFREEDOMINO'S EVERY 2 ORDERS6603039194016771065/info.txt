@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/
+XPATH: id("login-modal")/div[1]/form[1]/div[1]/footer[1]/button[2]
+TRAJECTORY: []
+
+HTML: <button type="button" aria-expanded="false" aria-controls="login-modal" aria-haspopup="dialog" data-quid="primary-nav-sign-in-earn-points" class="css-1yzmq61"><span class="css-4npyc2"><span>Now, earn<span class="css-ja4dqb">free</span>Domino's</span><span class="css-7vvs0f">Every 2 orders</span></span></button>

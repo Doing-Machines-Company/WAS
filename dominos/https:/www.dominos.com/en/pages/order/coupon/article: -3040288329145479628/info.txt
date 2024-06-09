@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/en/pages/order/coupon
+XPATH: id("__next")/main[1]/section[1]/article[1]
+TRAJECTORY: []
+
+HTML: <article class="css-0"><div class="css-1aygpmx"><p>Find your local Domino's Pizza restaurant to see your current local pizza coupon promos and deals.</p><div><a data-quid="local-coupons-cta" href="/en/restaurants" class="css-14js2j3">See local coupons</a></div></div></article>

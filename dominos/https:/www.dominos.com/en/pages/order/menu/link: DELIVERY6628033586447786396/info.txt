@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/en/pages/order/menu
+XPATH: id("js-startYourOrder")/div[1]/div[2]/a[1]
+TRAJECTORY: []
+
+HTML: <a data-method="Delivery" data-quid="start-your-order-delivery" href="/en/pages/order/#!/locations/search/?type=Delivery" class="btn smart-order__cta smart-order__cta--delivery smart-order__cta--color">Delivery</a>

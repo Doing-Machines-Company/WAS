@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/
+XPATH: id("__next")/main[1]/section[1]/div[1]/div[1]/a[1]
+TRAJECTORY: []
+
+HTML: <a data-dpz-track-evt-name="SYO_Delivery" data-quid="start-your-order-delivery-cta" href="/en/restaurants?type=Delivery" class="css-14js2j3">Delivery</a>

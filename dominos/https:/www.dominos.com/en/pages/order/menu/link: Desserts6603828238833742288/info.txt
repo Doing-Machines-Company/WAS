@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/en/pages/order/menu
+XPATH: id("js-categoryArea")/div[1]/div[8]/a[1]
+TRAJECTORY: []
+
+HTML: <a class="qa-dessert grid c-order-entree-qa-dessert grid" href="#!/menu/category/desserts/" data-wt-panelname="Desserts" data-quid="entree-Desserts"> <div class="grid__cell grid__cell--1/5@desktop media__image"> <img src="https://cache.dominos.com/olo/6_134_4/assets/build/market/US/_en/images/img/entree-page/dessert.png" alt=""> </div> <div class="grid__cell grid__cell--4/5@desktop media__body c-order-entrees-Desserts"> <h2 class="media__title" data-quid="entree-title-Desserts">   Desserts  </h2>  </div> </a>
