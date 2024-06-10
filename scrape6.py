@@ -604,19 +604,19 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
         print("Exploring ", url)
 
         try:
-            before_state = get_page_state(page, cdpSession)
+            root_state = get_page_state(page, cdpSession)
         except Exception as e:
             print(f"Error getting page state: {url}. Error: {e}")
             return
         # REMEMBER TO HANDLE EQUIVALENCE CLASS CODE - CEM !!!!
         with equiv_classes_lock:
-            eq_class = equiv_classes.get_class(before_state.url, before_state.html)
+            eq_class = equiv_classes.get_class(root_state.url, root_state.html)
 
             if eq_class is None:
                 scrape_flag = True
-                eq_class = equiv_classes.add_page(before_state, None)
+                eq_class = equiv_classes.add_page(root_state, None)
         with eq_class_lock:
-            new_actions = [(tL, a) for (tL, a) in before_state.actions if eq_class.is_new_action(a)]
+            new_actions = [(tL, a) for (tL, a) in root_state.actions if eq_class.is_new_action(a)]
             if len(new_actions) > 0:
                 scrape_flag = True
 
@@ -627,7 +627,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
             #data structure to control flow of new actions
             action_queue = Queue()
 
-            unique_actions = get_unique_actions(before_state)  # should check typing
+            unique_actions = get_unique_actions(root_state)  # should check typing
 
             #at this point, seen_actions is empty, so we can just put the unique actions into the queue
             for (tL, a) in unique_actions:
@@ -754,8 +754,9 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
 
                 before_screenshot = create_boundingbox(before_screenshot, to_box_coords)
                 # print(type(before_screenshot))
+                before_state = get_page_state(page, cdpSession)
                 success, new_action = apply_action(page, action, before_screenshot, friendly_xpath, None, possible_types)
-                action = new_action
+                action = new_action  # There may have been an aliasing issue here
                 if not success:
                     print(f"This action was not successful: {action}")
                     print(f"Attempted types: {possible_types}")
@@ -790,7 +791,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 #that pages that are clearly different are being put into the same eq
                 #because normalized url is the same
                 # if normalize_url(before_state.url) != normalize_url(page.url):
-                if before_state.url != page.url:
+                if root_state.url != page.url:
                     with page_queue_lock:
                         with seen_urls_lock:
                             if normalize_url(page.url) not in seen_urls:
@@ -830,7 +831,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
 
                 do_login(page)  # this should be the only other do_login we need hopefully
 
-                page.goto(before_state.url)  # this threw an error once, idk why
+                page.goto(root_state.url)  # this threw an error once, idk why
                 time.sleep(2)
 
         #  finally close here
