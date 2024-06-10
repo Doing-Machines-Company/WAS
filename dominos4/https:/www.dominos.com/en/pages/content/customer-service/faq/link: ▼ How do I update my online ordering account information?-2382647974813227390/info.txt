@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/en/pages/content/customer-service/faq?faqsection=rewards
+XPATH: id("faqPage")/div[1]/ul[1]/li[1]/ul[1]/li[3]/a[1]
+TRAJECTORY: [CLICK_LINK:id("faqPage")/div[1]/ul[1]/li[1]/a[1](<a href="#"> <span>▼</span> Ordering (including online ordering), email, and text messaging <span></)]
+
+HTML: <a href="#"> <span>▼</span> How do I update my online ordering account information? <span></span> </a>

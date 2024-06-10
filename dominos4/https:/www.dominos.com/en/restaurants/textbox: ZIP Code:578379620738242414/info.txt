@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/en/restaurants
+XPATH: id("PostalCode")
+TRAJECTORY: [CLICK_GENERAL:id("tab-Delivery")(<button tabindex="0" role="tab" type="button" class="css-1u290wa" id="tab-Delivery" aria-selected="f)]
+
+HTML: <input data-quid="PostalCode" id="PostalCode" name="PostalCode" aria-required="true" required="" autocomplete="postal-code" type="text" class="css-19b01an ez1ispa0" value="" aria-describedby="hint-PostalCode">

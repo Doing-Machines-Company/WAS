@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/en/pages/order/menu#!/menu/category/viewall/
+XPATH: id("js-categoryArea")/div[1]/div[1]/a[1]
+TRAJECTORY: []
+
+HTML: <a class="qa-Pizza grid c-order-entree-qa-Pizza grid" href="/en/pages/order/#!/product/S_PIZZA/builder/?flavorCode=HANDTOSS" data-wt-panelname="Build" data-quid="entree-Build"> <div class="grid__cell grid__cell--1/5@desktop media__image"> <img src="https://cache.dominos.com/olo/6_134_4/assets/build/market/US/_en/images/img/entree-page/build.png" alt=""> </div> <div class="grid__cell grid__cell--4/5@desktop media__body c-order-entrees-Build"> <h2 class="media__title" data-quid="entree-title-Build">   Build Your Own Pizza  </h2>  </div> </a>

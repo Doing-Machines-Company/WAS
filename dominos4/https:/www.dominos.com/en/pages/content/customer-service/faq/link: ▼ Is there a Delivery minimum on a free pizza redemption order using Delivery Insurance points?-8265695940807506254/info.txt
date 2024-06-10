@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/en/pages/content/customer-service/faq?faqsection=rewards
+XPATH: id("faqPage")/div[1]/ul[1]/li[5]/ul[1]/li[6]/a[1]
+TRAJECTORY: [CLICK_LINK:id("faqPage")/div[1]/ul[1]/li[5]/a[1](<a data-quid="dip_delivery_ins_prog" href="#"> <span>▼</span> Delivery Insurance program <span></spa)]
+
+HTML: <a data-quid="dip_delivery_minimum" href="#"> <span>▼</span> Is there a Delivery minimum on a free pizza redemption order using Delivery Insurance points? <span></span> </a>

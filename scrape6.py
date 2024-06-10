@@ -448,9 +448,23 @@ def get_page_state(page: PlaywrightPage, cdpSession: CDPSession) -> PageState:
         footer_html=footer_html
     )
 
-
-
-
+def do_login(page):
+    print('LOGGING IN')
+    page.goto('https://www.dominos.com/en/restaurants?type=Delivery')
+    wait_for_load(page)
+    page.get_by_label("Street Address", exact=False).fill('5819 Centre Ave')
+    page.get_by_label("Suite/Apt #", exact=False).fill('Apt 448')
+    page.get_by_label("ZIP Code", exact=False).fill('15206')
+    page.get_by_label("City", exact=False).fill('Pittsburgh')
+    page.get_by_label("State", exact=False).select_option('PA')
+    page.get_by_role("button", name="Continue for Delivery").click()
+    wait_for_load(page)
+    page.get_by_role("button", name="Delivery To").click()
+    page.get_by_role("button", name="Change").click()
+    page.get_by_role("button", name="Carryout").click()
+    page.get_by_role("button", name="Continue").click()
+    wait_for_load(page)
+    print('LOGIN SUCCESSFUL')
 def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
     # https://playwright.dev/python/docs/navigations#navigation-events
     # https://playwright.dev/python/docs/api/class-page#page-wait-for-load-state-option-state
@@ -560,6 +574,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
 
     def explore_actions():
         context, page, cdpSession = create_new_context_and_page(browser, cookies)
+        do_login(page)
         try:
             page.goto(url)
             wait_for_load(page, load_time_ms=3000)

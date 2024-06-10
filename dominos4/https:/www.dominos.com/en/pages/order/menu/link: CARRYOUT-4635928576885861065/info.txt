@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/en/pages/order/menu#!/menu/category/viewall/
+XPATH: id("js-startYourOrder")/div[1]/div[2]/a[2]
+TRAJECTORY: []
+
+HTML: <a data-method="Carryout" data-quid="start-your-order-carryout" href="/en/pages/order/#!/locations/search/?type=Carryout" class="btn smart-order__cta smart-order__cta--carryout smart-order__cta--color">Carryout</a>

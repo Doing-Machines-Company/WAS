@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/en/pages/tracker/#!/track/order/
+XPATH: id("genericOverlay")/section[1]/header[1]/button[1]
+TRAJECTORY: [CLICK_LINK:id("phoneForm")/div[3]/div[1]/p[1]/a[1](<a class="js-isTemplatePopup underline" data-template-popup="contentPageTerms" href="/en/#!/content/)]
+
+HTML: <button class="card--overlay__close js-closeButton " data-dpz-track-evt-name="×" data-quid="generic-overlay-close" type="button" aria-label="Close"></button>

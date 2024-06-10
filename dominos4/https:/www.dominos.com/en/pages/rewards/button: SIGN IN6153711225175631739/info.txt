@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/en/pages/rewards/#!/rewards/
+XPATH: id("js-rewards")/div[1]/div[1]/div[1]/button[1]
+TRAJECTORY: []
+
+HTML: <button data-quid="loyalty-rewards-sign-in-cta" class="btn loyalty-rewards-profile-links__btn">Sign In</button>

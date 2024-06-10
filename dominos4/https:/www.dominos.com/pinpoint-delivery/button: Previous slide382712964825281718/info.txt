@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/pinpoint-delivery/
+XPATH: id("get-delivery-section")/div[1]/div[1]/div[2]/div[1]/div[1]/button[1]
+TRAJECTORY: []
+
+HTML: <button class="delivery-prev swiper-button-disabled" data-v-ac31e626="" disabled="" tabindex="-1" aria-label="Previous slide" aria-controls="swiper-wrapper-dc28626d2f34107b5" aria-disabled="true"><img src="/pinpoint-delivery/_nuxt/arrow-down.2bc2c316.svg" alt="" width="50" height="15" data-v-ac31e626=""></button>

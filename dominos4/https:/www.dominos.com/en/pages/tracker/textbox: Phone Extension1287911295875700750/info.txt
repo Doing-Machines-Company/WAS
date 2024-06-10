@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/en/pages/tracker/#!/track/order/
+XPATH: id("Extension")
+TRAJECTORY: []
+
+HTML: <input type="tel" id="Extension" name="Extension" class="js-extension" size="6" maxlength="6" placeholder="Ext." aria-label="Phone Extension" autocomplete="tel-extension">

@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/en/pages/rewards/#!/rewards/
+XPATH: id("genericOverlay")/section[1]/div[1]/div[1]/div[1]/div[2]/ol[1]/li[2]/ol[1]/li[4]/a[1]
+TRAJECTORY: [CLICK_IMPORTANT:id("js-rewards")/div[1]/section[5]/span[1]/div[1]/button[1](<button data-quid="rewards-legal-terms" type="button" class="btn--link profile-links-activate__terms)]
+
+HTML: <a href="https://order.dominos.com/en/#/content/privacy/">Sponsor's Privacy Policy</a>

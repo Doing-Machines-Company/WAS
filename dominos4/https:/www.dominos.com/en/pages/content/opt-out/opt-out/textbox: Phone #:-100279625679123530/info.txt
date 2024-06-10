@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/en/pages/content/opt-out/opt-out
+XPATH: id("Phone")
+TRAJECTORY: []
+
+HTML: <input type="tel" id="Phone" name="Phone" class="js-phone" size="15" value="" autocomplete="tel" required="" aria-required="true" maxlength="14">
