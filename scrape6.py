@@ -572,16 +572,33 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
         xpath = page.evaluate(js_code, outer_html)
         return xpath
 
+    def make_xpath_friendly(des_xpath):
+        if des_xpath:  # if not empty string and not none
+            return des_xpath if '(' in des_xpath.split("/")[0] else f"//{des_xpath}"
+        else:
+            return ''
+
+    def get_element(des_page, des_xpath):
+        if des_xpath:
+            return des_page.evaluate(
+                f"document.evaluate('{des_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
+        else:
+            return None
+
+    def scroll_if_needed(des_page, des_xpath):
+        des_page.evaluate(
+            f"document.evaluate('{des_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoViewIfNeeded();")
+
     def explore_actions():
         context, page, cdpSession = create_new_context_and_page(browser, cookies)
-        do_login(page)
+        do_login(page)  # Initial login
         try:
             page.goto(url)
             wait_for_load(page, load_time_ms=3000)
         except Exception as e:
             print(f"Error navigating to page: {url}. Error: {e}")
             return
-        #basically scrape_flag is do we need to keep scraping this page
+        # basically scrape_flag is do we need to keep scraping this page
         scrape_flag = False
         print("*" * 80)
         print("Exploring ", url)
@@ -591,7 +608,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
         except Exception as e:
             print(f"Error getting page state: {url}. Error: {e}")
             return
-        #REMEMBER TO HANDLE EQUIVALENCE CLASS CODE - CEM !!!!
+        # REMEMBER TO HANDLE EQUIVALENCE CLASS CODE - CEM !!!!
         with equiv_classes_lock:
             eq_class = equiv_classes.get_class(before_state.url, before_state.html)
 
@@ -673,21 +690,6 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 if not traj_success:
                     continue
                 before_screenshot = page.screenshot()
-
-                def make_xpath_friendly(des_xpath):
-                    if des_xpath:  # if not empty string and not none
-                       return des_xpath if '(' in des_xpath.split("/")[0] else f"//{des_xpath}"
-                    else:
-                        return ''
-
-                def get_element(des_page, des_xpath):
-                    if des_xpath:
-                        return des_page.evaluate(f"document.evaluate('{des_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
-                    else:
-                        return None
-
-                def scroll_if_needed(des_page, des_xpath):
-                    des_page.evaluate(f"document.evaluate('{des_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoViewIfNeeded();")
 
                 # friendly_xpath = action.xpath if '(' in action.xpath.split("/")[0] else f"//{action.xpath}"
                 friendly_xpath = make_xpath_friendly(action.xpath)
@@ -825,6 +827,8 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 context.close()
 
                 context, page, cdpSession = create_new_context_and_page(browser, cookies)
+
+                do_login(page)  # this should be the only other do_login we need hopefully
 
                 page.goto(before_state.url)  # this threw an error once, idk why
                 time.sleep(2)
