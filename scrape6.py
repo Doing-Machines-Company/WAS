@@ -591,7 +591,12 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
 
     def explore_actions():
         context, page, cdpSession = create_new_context_and_page(browser, cookies)
-        do_login(page)  # Initial login
+        try:
+            do_login(page)  # Initial login
+        except Exception as e:
+            page.screenshot(path='login_failure.png', full_page=True)
+            print(f"Error logging in for: {url}. Error: {e}")
+            return
         try:
             page.goto(url)
             wait_for_load(page, load_time_ms=3000)
@@ -774,8 +779,8 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                                                        before_screenshot, after_screenshot, url)
                     with page_queue_lock:
                         with seen_urls_lock:
-                            if normalize_url(new_page.url) not in seen_urls:
-                                #REMEMBER TO ADD BACK THIS LINE IMMEDIATELY
+                            if normalize_url(new_page.url) not in seen_urls and root_state.url != page.url:
+                                # REMEMBER TO ADD BACK THIS LINE IMMEDIATELY
                                 url_queue.put(new_page.url)  # Adds stuff to be scraped
                                 #  Make sure everything is discovered, unknown unknowns
 
