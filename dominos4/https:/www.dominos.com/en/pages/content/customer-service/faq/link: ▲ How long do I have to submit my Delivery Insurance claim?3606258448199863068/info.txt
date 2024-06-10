@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/en/pages/content/customer-service/faq?faqsection=rewards
+XPATH: id("faqPage")/div[1]/ul[1]/li[5]/ul[1]/li[3]/a[1]
+TRAJECTORY: [CLICK_LINK:id("faqPage")/div[1]/a[1](<a href="#expand" class="js-expand buttonType3"> Expand All ▼ </a>)]
+
+HTML: <a data-quid="dip_how_long_to_submit_claim" href="#"> <span>▲</span> How long do I have to submit my Delivery Insurance claim? <span></span> </a>

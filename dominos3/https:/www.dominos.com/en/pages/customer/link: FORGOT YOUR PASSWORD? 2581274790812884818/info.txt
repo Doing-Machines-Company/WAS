@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/en/pages/customer/#!/customer/login/
+XPATH: id("customerLoginPage")/div[1]/div[1]/div[2]/div[1]/form[1]/div[1]/div[1]/a[1]
+TRAJECTORY: []
+
+HTML: <a class="buttonType5 italic mrg-right js-toggleLogin js-resetPassword" href="#"> Forgot your password? </a>

@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/en/restaurants
+XPATH: id("__next")/main[1]/section[1]/article[1]/div[1]/div[2]/div[1]/button[1]
+TRAJECTORY: [CLICK_GENERAL:id("tab-Delivery")(<button tabindex="0" role="tab" type="button" class="css-1u290wa" id="tab-Delivery" aria-selected="f)]
+
+HTML: <button type="button" aria-controls="delivery-panel-content" class="css-1lq2mri">Find Nearby Domino's Hotspots®</button>

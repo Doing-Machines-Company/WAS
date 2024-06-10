@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/en/pages/content/customer-service/faq?faqsection=rewards
+XPATH: id("faqPage")/div[1]/a[2]
+TRAJECTORY: []
+
+HTML: <a href="#collapse" class="js-collapse buttonType3"> Collapse All ▲ </a>

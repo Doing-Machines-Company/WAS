@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/
+XPATH: id("__next")/header[1]/div[1]/nav[1]/ul[2]/li[2]/button[1]
+TRAJECTORY: []
+
+HTML: <button type="button" aria-expanded="false" aria-controls="login-modal" aria-haspopup="dialog" data-quid="nav-sign-in-button" class="e1jlvhcu3 css-14em039">Sign in &amp; earn rewards</button>

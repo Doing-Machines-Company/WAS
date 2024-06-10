@@ -21,14 +21,14 @@ class Action:
         self.xpath = xpath
         self.input_string = None # input_string if action_type == Action.Type.INPUT else None
         self.tree_line = tree_line
-        self.trajectory = trajectory #added trajectory to show how the action can be 'created', an empty traj indicates existence at base state of url 
+        self.trajectory = trajectory #added trajectory to show how the action can be 'created', an empty traj indicates existence at base state of url
         self.friendly_xpath = friendly_xpath
     def set_input_string(self, input_string: str):
         self.input_string = input_string
 
     def set_tree_line(self, tree_line: str):
         self.tree_line = tree_line
-    
+
     def set_trajectory(self, trajectory: List['Action']):
         self.trajectory = trajectory
     def set_friendly_xpath(self, friendly_xpath: str):
@@ -41,6 +41,6 @@ class Action:
         for traj in self.trajectory:
             trajectory += traj.tree_line + '\n'
         return trajectory
-    
+
     def __repr__(self) -> str:
-        return str(f"{self.action_type.name}{'(' + self.input_string + ')' if self.input_string else ''}:{self.xpath}({self.html[:100]})")
+        return str(f"{self.action_type.name if self.action_type else ''}{'(' + self.input_string + ')' if self.input_string else ''}:{self.xpath}({self.html[:100]})")

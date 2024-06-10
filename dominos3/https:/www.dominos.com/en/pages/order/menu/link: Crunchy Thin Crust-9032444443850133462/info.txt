@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/en/pages/order/menu#!/menu/category/viewall/
+XPATH: id("js-categoryArea")/div[1]/div[1]/div[1]/ul[1]/li[3]/a[1]
+TRAJECTORY: []
+
+HTML: <a href="/en/pages/order/#!/product/S_PIZZA/builder/?flavorCode=THIN">Crunchy Thin Crust</a>

@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/en/pages/content/customer-service/faq?faqsection=rewards
+XPATH: id("faqPage")/div[1]/ul[1]/li[4]/ul[1]/li[16]/a[1]
+TRAJECTORY: [CLICK_LINK:id("faqPage")/div[1]/a[1](<a href="#expand" class="js-expand buttonType3"> Expand All ▼ </a>)]
+
+HTML: <a href="#" data-quid="loyalty-faqs-points-expiration"> <span>▲</span> Do my rewards points expire? <span></span> </a>

@@ -228,12 +228,12 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
         'slider', 'listbox', 'tree',
         'grid', 'alert', 'alertdialog',
         'log', 'marquee', 'timer', 'tooltip', 'banner',
-        'complementary', 'contentinfo', 'form', 'main', 'navigation',
+        'complementary', 'contentinfo', 'form', 'navigation',
         'region', 'status', 'img', 'note', 'application',
-        'article', 'cell', 'definition', 'directory', 'document',
+        'cell', 'definition', 'directory', 'document',
         'feed', 'figure', 'group', 'img', 'list',
-        'listitem', 'math', 'progressbar',
-        'separator', 'toolbar', 'tooltip', 'presentation', 'option', 'tab']
+        'listitem',
+        'option', 'tab']
 
     input_roles = [
         'textbox',
@@ -285,23 +285,23 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
             action.set_tree_line(f"{role}: {ax_node['name']}")
             possible_action_types.append(Action.Type.CLICK_GENERAL)
 
-        elif role.strip() in input_roles or soup.find(('input', 'textarea', 'select')):
+        elif role.strip() in input_roles or soup.find(('input', 'textarea')):
 
-            input_type = None
+            # input_type = None
+            #
+            # input_element = soup.find('input')
+            #
+            # if input_element:
+            #     input_type = input_element.get('type', '').lower()
 
-            input_element = soup.find('input')
+            # if input_type == 'checkbox' and Action.Type.CLICK_CHECKBOX not in possible_action_types:
+            #     possible_action_types.append(Action.Type.CLICK_CHECKBOX)
+            #
+            # elif input_type == 'radio' and Action.Type.CLICK_RADIO not in possible_action_types:
+            #     possible_action_types.append(Action.Type.CLICK_RADIO)
 
-            if input_element:
-                input_type = input_element.get('type', '').lower()
-
-            if input_type == 'checkbox' and Action.Type.CLICK_CHECKBOX not in possible_action_types:
-                possible_action_types.append(Action.Type.CLICK_CHECKBOX)
-
-            elif input_type == 'radio' and Action.Type.CLICK_RADIO not in possible_action_types:
-                possible_action_types.append(Action.Type.CLICK_RADIO)
-
-            else:
-                possible_action_types.append(Action.Type.INPUT)
+            # else:
+            possible_action_types.append(Action.Type.INPUT)
 
 
         elif soup.has_attr('contenteditable') and soup['contenteditable'].lower() == 'true':
@@ -310,6 +310,9 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
     if possible_action_types != []:
         action = Action(None, xpath, html)
         action.set_tree_line(f"{role}: {ax_node['name']}")
+        # if xpath and xpath == "id(\"tab-Delivery\")":
+        #     print("FOUND DELIVERY OPTION")
+        #     print(possible_action_types)
         return (possible_action_types, action)
     else:
         return ([], None)
@@ -377,7 +380,7 @@ def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, frie
             elif a_type == Action.Type.GOTO_URL:
                 try:
                     page.goto(a.input_string, timeout=5000)
-                    page.wait_for_load_state('networkidle', timeout=5000)
+                    # page.wait_for_load_state('networkidle', timeout=5000)
                     a.action_type = a_type
                     return True, a
                 except Exception as e:
@@ -445,9 +448,23 @@ def get_page_state(page: PlaywrightPage, cdpSession: CDPSession) -> PageState:
         footer_html=footer_html
     )
 
-
-
-
+def do_login(page):
+    print('LOGGING IN')
+    page.goto('https://www.dominos.com/en/restaurants?type=Delivery')
+    wait_for_load(page)
+    page.get_by_label("Street Address", exact=False).fill('5819 Centre Ave')
+    page.get_by_label("Suite/Apt #", exact=False).fill('Apt 448')
+    page.get_by_label("ZIP Code", exact=False).fill('15206')
+    page.get_by_label("City", exact=False).fill('Pittsburgh')
+    page.get_by_label("State", exact=False).select_option('PA')
+    page.get_by_role("button", name="Continue for Delivery").click()
+    wait_for_load(page)
+    page.get_by_role("button", name="Delivery To").click()
+    page.get_by_role("button", name="Change").click()
+    page.get_by_role("button", name="Carryout").click()
+    page.get_by_role("button", name="Continue").click()
+    wait_for_load(page)
+    print('LOGIN SUCCESSFUL')
 def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
     # https://playwright.dev/python/docs/navigations#navigation-events
     # https://playwright.dev/python/docs/api/class-page#page-wait-for-load-state-option-state
@@ -565,33 +582,56 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
         xpath = page.evaluate(js_code, outer_html)
         return xpath
 
+    def make_xpath_friendly(des_xpath):
+        if des_xpath:  # if not empty string and not none
+            return des_xpath if '(' in des_xpath.split("/")[0] else f"//{des_xpath}"
+        else:
+            return ''
+
+    def get_element(des_page, des_xpath):
+        if des_xpath:
+            return des_page.evaluate(
+                f"document.evaluate('{des_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
+        else:
+            return None
+
+    def scroll_if_needed(des_page, des_xpath):
+        des_page.evaluate(
+            f"document.evaluate('{des_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoViewIfNeeded();")
+
     def explore_actions():
         context, page, cdpSession = create_new_context_and_page(browser, cookies)
+        try:
+            do_login(page)  # Initial login
+        except Exception as e:
+            page.screenshot(path='login_failure.png', full_page=True)
+            print(f"Error logging in for: {url}. Error: {e}")
+            return
         try:
             page.goto(url)
             wait_for_load(page, load_time_ms=3000)
         except Exception as e:
             print(f"Error navigating to page: {url}. Error: {e}")
             return
-        #basically scrape_flag is do we need to keep scraping this page
+        # basically scrape_flag is do we need to keep scraping this page
         scrape_flag = False
         print("*" * 80)
         print("Exploring ", url)
 
         try:
-            before_state = get_page_state(page, cdpSession)
+            root_state = get_page_state(page, cdpSession)
         except Exception as e:
             print(f"Error getting page state: {url}. Error: {e}")
             return
-        #REMEMBER TO HANDLE EQUIVALENCE CLASS CODE - CEM !!!!
+        # REMEMBER TO HANDLE EQUIVALENCE CLASS CODE - CEM !!!!
         with equiv_classes_lock:
-            eq_class = equiv_classes.get_class(before_state.url, before_state.html)
+            eq_class = equiv_classes.get_class(root_state.url, root_state.html)
 
             if eq_class is None:
                 scrape_flag = True
-                eq_class = equiv_classes.add_page(before_state, None)
+                eq_class = equiv_classes.add_page(root_state, None)
         with eq_class_lock:
-            new_actions = [(tL, a) for (tL, a) in before_state.actions if eq_class.is_new_action(a)]
+            new_actions = [(tL, a) for (tL, a) in root_state.actions if eq_class.is_new_action(a)]
             if len(new_actions) > 0:
                 scrape_flag = True
 
@@ -602,7 +642,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
             #data structure to control flow of new actions
             action_queue = Queue()
 
-            unique_actions = get_unique_actions(before_state)  # should check typing
+            unique_actions = get_unique_actions(root_state)  # should check typing
 
             #at this point, seen_actions is empty, so we can just put the unique actions into the queue
             for samples in unique_actions:
@@ -624,7 +664,6 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                         };
                     """)
 
-                    friendly_xpath = action.xpath if '(' in action.xpath.split("/")[0] else f"//{action.xpath}"
 
                     '''
                     
@@ -648,56 +687,101 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                     traj_success = True
                     if action.trajectory:
                         print("***Executing Trajectory***")
-                    for traj_action in action.trajectory:
-                        #  TODO Need to get new good xpath for action
-                        backup_xpath = get_xpath_by_outer_html(page, traj_action.html)
-                        if backup_xpath:
-                            backup_friendly_xpath = backup_xpath if '(' in backup_xpath.split("/")[0] else f"//{backup_xpath}"
-                            success, action = apply_action(page, traj_action, page.screenshot(), backup_friendly_xpath, traj_action.friendly_xpath, [traj_action.action_type])
-                        else:
-                            success, action = apply_action(page, traj_action, page.screenshot(), traj_action.friendly_xpath,
-                                                        None, [traj_action.action_type])
-                        if not success:
-                            print(traj_action)
-                            print("Trajectory broken, skipping")
-                            traj_success = False
-                            break
+                        for traj_action in action.trajectory:
+                            #  TODO Need to get new good xpath for action
+                            backup_xpath = get_xpath_by_outer_html(page, traj_action.html)
+
+                            possible_types_traj = [traj_action.action_type]
+                            if backup_xpath:
+                                backup_friendly_xpath = backup_xpath if '(' in backup_xpath.split("/")[0] else f"//{backup_xpath}"
+                                success, _ = apply_action(page, traj_action, page.screenshot(), backup_friendly_xpath, traj_action.friendly_xpath, possible_types_traj)
+                            else:
+                                success, _ = apply_action(page, traj_action, page.screenshot(), traj_action.friendly_xpath,
+                                                            None, possible_types_traj)
+                            if not success:
+                                print("Trajectory broken, skipping")
+                                traj_success = False
+                                break
+                            wait_for_load(page, load_time_ms=3000)
                         wait_for_load(page, load_time_ms=3000)
+                        print("***Finished Executing Trajectory***")
                     if not traj_success:
                         continue
                     before_screenshot = page.screenshot()
-                    friendly_element = page.evaluate(
-                        f"document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
 
-                    if friendly_element:
-                        page.evaluate(
-                            f"document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoViewIfNeeded();")
-                    else:
-                        element = page.evaluate(
-                            f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
-                        if element:
-                            page.evaluate(
-                                f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoViewIfNeeded();")
+                    # friendly_xpath = action.xpath if '(' in action.xpath.split("/")[0] else f"//{action.xpath}"
+                    friendly_xpath = make_xpath_friendly(action.xpath)
+
+                    new_action_found_xpath = None
+
+                    if action.trajectory:
+
+                        backup_xpath = get_xpath_by_outer_html(page, action.html)
+
+                        backup_friendly_xpath = make_xpath_friendly(backup_xpath)
+
+                        backup_friendly_element = get_element(page, backup_friendly_xpath)
+
+                        if backup_friendly_element:
+                            scroll_if_needed(page, backup_friendly_xpath)
+                            new_action_found_xpath = backup_friendly_xpath
                         else:
-                            print(f"Element not found for XPath: {action.xpath}, Ax object: {action.tree_line}")
-                            continue
-                    action.set_friendly_xpath(friendly_xpath)
+                            backup_element = get_element(page, backup_xpath)
+                            if backup_element:
+                                scroll_if_needed(page, backup_xpath)
+                                new_action_found_xpath = backup_xpath
+
+                    if new_action_found_xpath is None:
+
+                        # friendly_element = page.evaluate(
+                        #     f"document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
+                        friendly_element = get_element(page, friendly_xpath)
+
+                        if friendly_element:
+                            # page.evaluate(
+                            #     f"document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoViewIfNeeded();")
+                            scroll_if_needed(page, friendly_xpath)
+                            new_action_found_xpath = friendly_xpath
+                        else:
+                            # element = page.evaluate(
+                            #     f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
+                            element = get_element(page, action.xpath)
+                            if element:
+                                # page.evaluate(
+                                    # f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoViewIfNeeded();")
+                                scroll_if_needed(page, action.xpath)
+                                new_action_found_xpath = action.xpath
+                            else:
+                                print(f"Element not found for XPath: {action.xpath}, Ax object: {action.tree_line}")
+                                continue
+                    action.set_friendly_xpath(new_action_found_xpath)
                     #  fix screenshot here
                     # print(type(before_screenshot))
 
                     to_box_coords = None
                     try:
-                        to_box_item = page.locator(f"xpath={action.xpath}")
-                        to_box_coords = to_box_item.bounding_box(timeout=5000)
+                        to_box_item = page.locator(f"xpath={action.friendly_xpath}")
+                        if to_box_item:
+                            to_box_coords = to_box_item.bounding_box(timeout=5000)
+                        else:
+                            to_box_item = page.locator(f"xpath={action.xpath}")
+                            to_box_coords = to_box_item.bounding_box(timeout=5000)
                     except Exception as e:
+                        print(f'GETTING BOUNDING BOXES FAILED FOR {action}')
                         print(e)
 
                     before_screenshot = create_boundingbox(before_screenshot, to_box_coords)
                     # print(type(before_screenshot))
-                    success, action = apply_action(page, action, before_screenshot, friendly_xpath, None, possible_types)
+                    before_state = get_page_state(page, cdpSession)
+                    success, new_action = apply_action(page, action, before_screenshot, friendly_xpath, None, possible_types)
+                    action = new_action  # There may have been an aliasing issue here
                     if not success:
-                        print(f"This action was not successful: {action.html}")
+                        print(f"This action was not successful: {action}")
+                        print(f"Attempted types: {possible_types}")
                         continue  # hopefully no issues with this
+
+                        # print("THIS ACTION SUCCESSFUL")
+                    # print(action)
 
                     wait_for_load(page, load_time_ms=3000)
                     if len(page.context.pages) > 1 and page.context.pages[-1] != page:
@@ -706,9 +790,9 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                         sample_action_infos.append(ActionInfo(action, before_state.html, new_page.content(), before_screenshot, after_screenshot, url))
                         with page_queue_lock:
                             with seen_urls_lock:
-                                if normalize_url(new_page.url) not in seen_urls:
-                                    #REMEMBER TO ADD BACK THIS LINE IMMEDIATELY
-                                    # url_queue.put(new_page.url)  # Adds stuff to be scraped
+                                if normalize_url(new_page.url) not in seen_urls and root_state.url != page.url:
+                                    # REMEMBER TO ADD BACK THIS LINE IMMEDIATELY
+                                    url_queue.put(new_page.url)  # Adds stuff to be scraped
                                     #  Make sure everything is discovered, unknown unknowns
 
                                     print(new_page.url)
@@ -716,17 +800,17 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                     else:
                         after_screenshot = page.screenshot(full_page=False)
                         sample_action_infos.append(ActionInfo(action, before_state.html, page.content(), before_screenshot, after_screenshot, url))
-                            
+                                
 
                     #the url is being normalized a bit too aggressively to the point
                     #that pages that are clearly different are being put into the same eq
                     #because normalized url is the same
                     # if normalize_url(before_state.url) != normalize_url(page.url):
-                    if before_state.url != page.url:
+                    if root_state.url != page.url:
                         with page_queue_lock:
                             with seen_urls_lock:
                                 if normalize_url(page.url) not in seen_urls:
-                                    # url_queue.put(page.url)
+                                    url_queue.put(page.url)
                                     print(page.url)
                     else:
                         #since we stayed on the same page we want to see if applying
@@ -762,7 +846,9 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
 
                     context, page, cdpSession = create_new_context_and_page(browser, cookies)
 
-                    page.goto(before_state.url)  # this threw an error once, idk why
+                    do_login(page)  # this should be the only other do_login we need hopefully
+
+                    page.goto(root_state.url)  # this threw an error once, idk why
                     time.sleep(2)
                 if sample_action_infos: #the only reason sample_action_infos may be empty is if the action errored out and never got added
                     with eq_class_lock:

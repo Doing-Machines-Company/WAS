@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/en/pages/content/customer-service/faq?faqsection=rewards
+XPATH: id("faqPage")/div[1]/ul[1]/li[9]/ul[1]/li[5]/a[1]
+TRAJECTORY: [CLICK_LINK:id("faqPage")/div[1]/a[1](<a href="#expand" class="js-expand buttonType3"> Expand All ▼ </a>)]
+
+HTML: <a href="#"> <span>▲</span> How do I contact the Domino's Pizza World Resource Center? <span></span> </a>

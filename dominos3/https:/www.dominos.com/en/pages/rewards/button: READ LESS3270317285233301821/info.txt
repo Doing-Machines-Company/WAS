@@ -1,0 +1,5 @@
+URL: https://www.dominos.com/en/pages/rewards/#!/rewards/
+XPATH: id("js-rewards")/div[1]/section[4]/div[1]/div[1]/button[1]
+TRAJECTORY: [CLICK_IMPORTANT:id("js-rewards")/div[1]/section[4]/div[1]/div[1]/button[1](<button data-quid="earn-rewards-points-toggle" type="button" aria-describedby="title-earn-rewards-po)]
+
+HTML: <button data-quid="earn-rewards-points-toggle" type="button" aria-describedby="title-earn-rewards-points" class="loyalty-rewards-program-detail__read-more expanded">Read less</button>
