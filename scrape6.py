@@ -510,15 +510,25 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
     #out of a set of actions generated from an observation, removes duplicates.
     #does not remove duplicates in header or footer because they are generally
     #significant enough that we want to keep them
-    def get_unique_actions(new_state):
+    def get_unique_actions(new_state):            
+        sample_size = 3 #maximum number of samples to include among similar actions
         unique_actions = []
         new_actions = new_state.actions
         header_html = new_state.header_html
         footer_html = new_state.footer_html
         for (possible_types, action) in new_actions:
-            if (action.html in header_html or action.html in footer_html
-            or not any(element_similarity(action.html, a.html) >= 0.9 for (tL, a) in unique_actions)):
-                unique_actions.append((possible_types, action))
+            if action.html in header_html or action.html in footer_html:
+                unique_actions.append([(possible_types, action)]) #add header/footer items to own sample
+            else:
+                unique = True
+                for samples in unique_actions:
+                    if any(element_similarity(action.html, sample.html) >= 0.9 for (tL, sample) in samples):
+                        if len(samples) < sample_size:
+                            samples.append((possible_types,action))
+                        unique = False
+                        break
+                if unique:
+                    unique_actions.append([(possible_types, action)])
         return unique_actions
 
     def get_xpath_by_outer_html(page, outer_html):
@@ -595,163 +605,170 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
             unique_actions = get_unique_actions(before_state)  # should check typing
 
             #at this point, seen_actions is empty, so we can just put the unique actions into the queue
-            for (tL, a) in unique_actions:
-                action_queue.put((tL, a))
+            for samples in unique_actions:
+                action_queue.put(samples)
             #we can just set seen_actions since it is empty
+            #TO IMPROVE EFFICIENCY MAYBE JUST SET THIS TO STRICTLY UNIQUE  - CEM
             seen_actions = unique_actions
             while action_queue.qsize() > 0:
-                possible_types, action = action_queue.get(timeout=0.5)  # possible_types should have some sort of importance ordering
-                if not action.xpath:
-                    print(f"Skipping action without XPath: {action}")
-                    continue
-
-                page.evaluate("""
-                    window.print = function() {
-                        console.log('Print was triggered');
-                    };
-                """)
-
-                friendly_xpath = action.xpath if '(' in action.xpath.split("/")[0] else f"//{action.xpath}"
-
-                '''
-                
-                Error clicking element via javascript click: TypeError: Cannot read properties of null (reading 'scrollIntoViewIfNeeded')
-                at eval (eval at evaluate (:226:30), <anonymous>:1:181)
-                at UtilityScript.evaluate (<anonymous>:233:19)
-                at UtilityScript.<anonymous> (<anonymous>:1:44)
-                
-                I want to scroll to what I'm interacting with before I interact, for action effect reasons.
-                
-                '''
-                page.reload()
-                time.sleep(2)
-                #need sleep here for going between different contexts for some reason
-
-                print("-" * 80)
-                # print("Action: ", action.html)
-                print("Page url: ", page.url)
-                print("Ax object", action.tree_line)
-                print("Trajectory: ", action.display_trajectory())
-                traj_success = True
-                if action.trajectory:
-                    print("***Executing Trajectory***")
-                for traj_action in action.trajectory:
-                    #  TODO Need to get new good xpath for action
-                    backup_xpath = get_xpath_by_outer_html(page, traj_action.html)
-                    if backup_xpath:
-                        backup_friendly_xpath = backup_xpath if '(' in backup_xpath.split("/")[0] else f"//{backup_xpath}"
-                        success, action = apply_action(page, traj_action, page.screenshot(), backup_friendly_xpath, traj_action.friendly_xpath, [traj_action.action_type])
-                    else:
-                        success, action = apply_action(page, traj_action, page.screenshot(), traj_action.friendly_xpath,
-                                                       None, [traj_action.action_type])
-                    if not success:
-                        print(traj_action)
-                        print("Trajectory broken, skipping")
-                        traj_success = False
-                        break
-                    wait_for_load(page, load_time_ms=3000)
-                if not traj_success:
-                    continue
-                before_screenshot = page.screenshot()
-                friendly_element = page.evaluate(
-                    f"document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
-
-                if friendly_element:
-                    page.evaluate(
-                        f"document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoViewIfNeeded();")
-                else:
-                    element = page.evaluate(
-                        f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
-                    if element:
-                        page.evaluate(
-                            f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoViewIfNeeded();")
-                    else:
-                        print(f"Element not found for XPath: {action.xpath}, Ax object: {action.tree_line}")
+                samples = action_queue.get(timeout=0.5)  # possible_types should have some sort of importance ordering
+                sample_action_infos : list[ActionInfo] = []
+                for possible_types, action in samples:
+                    if not action.xpath:
+                        print(f"Skipping action without XPath: {action}")
                         continue
-                action.set_friendly_xpath(friendly_xpath)
-                #  fix screenshot here
-                # print(type(before_screenshot))
 
-                to_box_coords = None
-                try:
-                    to_box_item = page.locator(f"xpath={action.xpath}")
-                    to_box_coords = to_box_item.bounding_box(timeout=5000)
-                except Exception as e:
-                    print(e)
+                    page.evaluate("""
+                        window.print = function() {
+                            console.log('Print was triggered');
+                        };
+                    """)
 
-                before_screenshot = create_boundingbox(before_screenshot, to_box_coords)
-                # print(type(before_screenshot))
-                success, action = apply_action(page, action, before_screenshot, friendly_xpath, None, possible_types)
-                if not success:
-                    print(f"This action was not successful: {action.html}")
-                    continue  # hopefully no issues with this
+                    friendly_xpath = action.xpath if '(' in action.xpath.split("/")[0] else f"//{action.xpath}"
 
-                wait_for_load(page, load_time_ms=3000)
-                if len(page.context.pages) > 1 and page.context.pages[-1] != page:
-                    new_page = page.context.pages[-1]
-                    after_screenshot = new_page.screenshot(full_page=False)
-                    with eq_class_lock:
-                        eq_class.update_unique_actions([action], before_state.html, new_page.content(),
-                                                       before_screenshot, after_screenshot, url)
-                    with page_queue_lock:
-                        with seen_urls_lock:
-                            if normalize_url(new_page.url) not in seen_urls:
-                                #REMEMBER TO ADD BACK THIS LINE IMMEDIATELY
-                                url_queue.put(new_page.url)  # Adds stuff to be scraped
-                                #  Make sure everything is discovered, unknown unknowns
+                    '''
+                    
+                    Error clicking element via javascript click: TypeError: Cannot read properties of null (reading 'scrollIntoViewIfNeeded')
+                    at eval (eval at evaluate (:226:30), <anonymous>:1:181)
+                    at UtilityScript.evaluate (<anonymous>:233:19)
+                    at UtilityScript.<anonymous> (<anonymous>:1:44)
+                    
+                    I want to scroll to what I'm interacting with before I interact, for action effect reasons.
+                    
+                    '''
+                    page.reload()
+                    time.sleep(2)
+                    #need sleep here for going between different contexts for some reason
 
-                                print(new_page.url)
-                    new_page.close()
-                else:
-                    after_screenshot = page.screenshot(full_page=False)
-                    with eq_class_lock:
-                        eq_class.update_unique_actions([action], before_state.html, page.content(), # need to lock
-                                                       before_screenshot, after_screenshot, url)
+                    print("-" * 80)
+                    # print("Action: ", action.html)
+                    print("Page url: ", page.url)
+                    print("Ax object", action.tree_line)
+                    print("Trajectory: ", action.display_trajectory())
+                    traj_success = True
+                    if action.trajectory:
+                        print("***Executing Trajectory***")
+                    for traj_action in action.trajectory:
+                        #  TODO Need to get new good xpath for action
+                        backup_xpath = get_xpath_by_outer_html(page, traj_action.html)
+                        if backup_xpath:
+                            backup_friendly_xpath = backup_xpath if '(' in backup_xpath.split("/")[0] else f"//{backup_xpath}"
+                            success, action = apply_action(page, traj_action, page.screenshot(), backup_friendly_xpath, traj_action.friendly_xpath, [traj_action.action_type])
+                        else:
+                            success, action = apply_action(page, traj_action, page.screenshot(), traj_action.friendly_xpath,
+                                                        None, [traj_action.action_type])
+                        if not success:
+                            print(traj_action)
+                            print("Trajectory broken, skipping")
+                            traj_success = False
+                            break
+                        wait_for_load(page, load_time_ms=3000)
+                    if not traj_success:
+                        continue
+                    before_screenshot = page.screenshot()
+                    friendly_element = page.evaluate(
+                        f"document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
 
-                #the url is being normalized a bit too aggressively to the point
-                #that pages that are clearly different are being put into the same eq
-                #because normalized url is the same
-                # if normalize_url(before_state.url) != normalize_url(page.url):
-                if before_state.url != page.url:
-                    with page_queue_lock:
-                        with seen_urls_lock:
-                            if normalize_url(page.url) not in seen_urls:
-                                url_queue.put(page.url)
-                                print(page.url)
-                else:
-                    #since we stayed on the same page we want to see if applying
-                    #this action generated new content on the page
+                    if friendly_element:
+                        page.evaluate(
+                            f"document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoViewIfNeeded();")
+                    else:
+                        element = page.evaluate(
+                            f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
+                        if element:
+                            page.evaluate(
+                                f"document.evaluate('{action.xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoViewIfNeeded();")
+                        else:
+                            print(f"Element not found for XPath: {action.xpath}, Ax object: {action.tree_line}")
+                            continue
+                    action.set_friendly_xpath(friendly_xpath)
+                    #  fix screenshot here
+                    # print(type(before_screenshot))
+
+                    to_box_coords = None
                     try:
-                        new_state = get_page_state(page, cdpSession)
-                        new_actions = get_unique_actions(new_state)
-
-                        #take the set difference unique_actions \ seen_actions
-                        difference = [(aTl, a) for (aTl, a) in new_actions if not any(element_similarity(a.html, b.html) for (bTl, b) in seen_actions)]
-                        #put the difference onto the queue
-                        new_trajectory = []
-                        if difference:
-                            new_trajectory = cp.deepcopy(action.trajectory)
-                            new_trajectory.append(action)
-                            print("***Detected new actions***")
-                        for dTl, different_action in difference:
-                            print("New action: ", different_action.tree_line)
-                            #update trajectory with parent's trajectory + parent
-                            different_action.set_trajectory(new_trajectory)
-                            action_queue.put((dTl, different_action))
-                        #put the difference into the seen_actions, effectively unique_actions U seen_actions
-                        seen_actions += difference
+                        to_box_item = page.locator(f"xpath={action.xpath}")
+                        to_box_coords = to_box_item.bounding_box(timeout=5000)
                     except Exception as e:
-                        print(f"Error getting page state after applying {action.tree_line} at {url}. Error: {e}")
-                        return
+                        print(e)
 
-                cdpSession.detach()
-                page.close()
-                context.close()
+                    before_screenshot = create_boundingbox(before_screenshot, to_box_coords)
+                    # print(type(before_screenshot))
+                    success, action = apply_action(page, action, before_screenshot, friendly_xpath, None, possible_types)
+                    if not success:
+                        print(f"This action was not successful: {action.html}")
+                        continue  # hopefully no issues with this
 
-                context, page, cdpSession = create_new_context_and_page(browser, cookies)
+                    wait_for_load(page, load_time_ms=3000)
+                    if len(page.context.pages) > 1 and page.context.pages[-1] != page:
+                        new_page = page.context.pages[-1]
+                        after_screenshot = new_page.screenshot(full_page=False)
+                        sample_action_infos.append(ActionInfo(action, before_state.html, new_page.content(), before_screenshot, after_screenshot, url))
+                        with page_queue_lock:
+                            with seen_urls_lock:
+                                if normalize_url(new_page.url) not in seen_urls:
+                                    #REMEMBER TO ADD BACK THIS LINE IMMEDIATELY
+                                    # url_queue.put(new_page.url)  # Adds stuff to be scraped
+                                    #  Make sure everything is discovered, unknown unknowns
 
-                page.goto(before_state.url)  # this threw an error once, idk why
-                time.sleep(2)
+                                    print(new_page.url)
+                        new_page.close()
+                    else:
+                        after_screenshot = page.screenshot(full_page=False)
+                        sample_action_infos.append(ActionInfo(action, before_state.html, page.content(), before_screenshot, after_screenshot, url))
+                            
+
+                    #the url is being normalized a bit too aggressively to the point
+                    #that pages that are clearly different are being put into the same eq
+                    #because normalized url is the same
+                    # if normalize_url(before_state.url) != normalize_url(page.url):
+                    if before_state.url != page.url:
+                        with page_queue_lock:
+                            with seen_urls_lock:
+                                if normalize_url(page.url) not in seen_urls:
+                                    # url_queue.put(page.url)
+                                    print(page.url)
+                    else:
+                        #since we stayed on the same page we want to see if applying
+                        #this action generated new content on the page
+                        try:
+                            new_state = get_page_state(page, cdpSession)
+                            new_actions = get_unique_actions(new_state)
+
+                            #take the set difference unique_actions \ seen_actions
+                            #it is fine to just compare one action from each sample, since we assume transitive similarity
+                            difference = [sample for sample in new_actions if not any(element_similarity(sample[0][1].html, seen_sample[0][1].html) for seen_sample in seen_actions)]
+                            #put the difference onto the queue
+                            new_trajectory = []
+                            if difference:
+                                new_trajectory = cp.deepcopy(action.trajectory)
+                                new_trajectory.append(action)
+                                print("***Detected new actions***")
+                            for sample in difference:
+                                print("New sample")
+                                for dTl, different_action in sample:
+                                    print("\tNew action: ", different_action.tree_line)
+                                    #update trajectory with parent's trajectory + parent
+                                    different_action.set_trajectory(new_trajectory)
+                                action_queue.put(sample)
+                            #put the difference into the seen_actions, effectively unique_actions U seen_actions
+                            seen_actions += difference
+                        except Exception as e:
+                            print(f"Error getting page state after applying {action.tree_line} at {url}. Error: {e}")
+                            return
+                    cdpSession.detach()
+                    page.close()
+                    context.close()
+
+                    context, page, cdpSession = create_new_context_and_page(browser, cookies)
+
+                    page.goto(before_state.url)  # this threw an error once, idk why
+                    time.sleep(2)
+                if sample_action_infos: #the only reason sample_action_infos may be empty is if the action errored out and never got added
+                    with eq_class_lock:
+                        representative_html = sample_action_infos[0].action.html
+                        if representative_html not in eq_class.unique_actions:
+                            eq_class.unique_actions[representative_html] = sample_action_infos
 
         #  finally close here
         cdpSession.detach()
@@ -809,26 +826,30 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
         # Save the screenshots separately and update the file paths
         for eq_class in equiv_classes.classes:
-            for key, action_info in eq_class.unique_actions.items():
-                subdir_path = Path (output_dir) / Path (normalize_url(action_info.url)) / (action_info.action.tree_line + str(hash(key)))  # root / url / curraction, make new url folder if it doesn't exist
-                subdir_path.mkdir(parents = True, exist_ok = True)
-                before_screenshot_filename = f"action_{hash(key)}_before.png"
-                before_screenshot_path = subdir_path / before_screenshot_filename
-                with open(before_screenshot_path, 'wb') as f:
-                    f.write(action_info.before_screenshot)
-                action_info.before_screenshot = str(before_screenshot_path)
+            for key, action_infos in eq_class.unique_actions.items():
+                action_info = action_infos[0]
+                sample_path = Path (output_dir) / Path (normalize_url(action_info.url)) / (action_info.action.tree_line + str(hash(key)))  # root / url / curraction, make new url folder if it doesn't exist
+                sample_path.mkdir(parents = True, exist_ok = True)
+                for action_info in action_infos:
+                    subdir_path = sample_path / (action_info.action.tree_line + str(hash(key)))
+                    subdir_path.mkdir(parents = True, exist_ok = True)
+                    before_screenshot_filename = f"action_{hash(key)}_before.png"
+                    before_screenshot_path = subdir_path / before_screenshot_filename
+                    with open(before_screenshot_path, 'wb') as f:
+                        f.write(action_info.before_screenshot)
+                    action_info.before_screenshot = str(before_screenshot_path)
 
-                after_screenshot_filename = f"action_{hash(key)}_after.png"
-                after_screenshot_path = subdir_path / after_screenshot_filename
-                with open(after_screenshot_path, 'wb') as f:
-                    f.write(action_info.after_screenshot)
-                action_info.after_screenshot = str(after_screenshot_path)
+                    after_screenshot_filename = f"action_{hash(key)}_after.png"
+                    after_screenshot_path = subdir_path / after_screenshot_filename
+                    with open(after_screenshot_path, 'wb') as f:
+                        f.write(action_info.after_screenshot)
+                    action_info.after_screenshot = str(after_screenshot_path)
 
-                with open(Path(subdir_path) / 'info.txt', 'w') as f:
-                    f.write(f"URL: {action_info.url}\n")
-                    f.write(f"XPATH: {action_info.action.friendly_xpath}\n")
-                    f.write(f"TRAJECTORY: {action_info.action.trajectory}\n\n")
-                    f.write(f"HTML: {action_info.action.html}\n")
+                    with open(Path(subdir_path) / 'info.txt', 'w') as f:
+                        f.write(f"URL: {action_info.url}\n")
+                        f.write(f"XPATH: {action_info.action.friendly_xpath}\n")
+                        f.write(f"TRAJECTORY: {action_info.action.trajectory}\n\n")
+                        f.write(f"HTML: {action_info.action.html}\n")
         # Save the EquivalenceClassSet object using pickling
         output_path = Path(output_dir) / 'scraper_state.pkl'
         with open(output_path, 'wb') as f:
@@ -881,4 +902,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
 num_cores = os.cpu_count()
 
-explore("https://www.dominos.com/", headless=False, root="www.dominos.com", num_threads=1)
+explore("https://www.dominos.com/en/restaurants", headless=False, root="www.dominos.com", num_threads=1)
