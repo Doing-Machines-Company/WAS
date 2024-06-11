@@ -14,6 +14,7 @@ class Action:
         GET_NEXT_SUBTASK_FINISHED = 8
         GET_NEXT_SUBTASK_IMPOSSIBLE = 9
         GO_BACK = 10
+        SELECT_GENERAL = 11
 
     def __init__(self, action_type: 'Action.Type', xpath: str, html: str, tree_line: str = "", input_string: Optional[str] = None, trajectory: List['Action'] = [], friendly_xpath : Optional[str]= None):
         self.action_type = action_type
@@ -21,10 +22,17 @@ class Action:
         self.xpath = xpath
         self.input_string = None # input_string if action_type == Action.Type.INPUT else None
         self.tree_line = tree_line
+        self.desired_option = None
         self.trajectory = trajectory #added trajectory to show how the action can be 'created', an empty traj indicates existence at base state of url
         self.friendly_xpath = friendly_xpath
     def set_input_string(self, input_string: str):
         self.input_string = input_string
+
+    def set_desired_option(self, desired_option: str):
+        self.desired_option = desired_option
+
+    def set_xpath(self, xpath: str):
+        self.xpath = xpath
 
     def set_tree_line(self, tree_line: str):
         self.tree_line = tree_line
