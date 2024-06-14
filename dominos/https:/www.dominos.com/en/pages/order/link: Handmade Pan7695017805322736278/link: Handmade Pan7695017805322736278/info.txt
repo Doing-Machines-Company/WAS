@@ -1,0 +1,6 @@
+URL: https://www.dominos.com/en/pages/order/#!/section/Food/category/AllEntrees/
+TREE LINE: link: Handmade Pan
+XPATH: id("entreesPage")/div[2]/div[7]/ul[1]/li[2]/a[1]
+TRAJECTORY: []
+
+HTML: <a href="#!/product/S_PIZZA/builder/?flavorCode=NPAN" data-quid="entrees-panel-epic-links-link-NPAN">Handmade Pan</a>

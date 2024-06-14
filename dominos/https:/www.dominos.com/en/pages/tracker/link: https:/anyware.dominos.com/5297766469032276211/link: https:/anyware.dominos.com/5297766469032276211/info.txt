@@ -1,0 +1,6 @@
+URL: https://www.dominos.com/en/pages/tracker/#!/track/order/
+TREE LINE: link: https://anyware.dominos.com/
+XPATH: id("terms-of-use")/p[1]/a[1]
+TRAJECTORY: [CLICK_LINK:id("phoneForm")/div[3]/div[1]/p[1]/a[1](<a class="js-isTemplatePopup underline" data-template-popup="contentPageTerms" href="/en/#!/content/)]
+
+HTML: <a href="https://anyware.dominos.com/">https://anyware.dominos.com/</a>

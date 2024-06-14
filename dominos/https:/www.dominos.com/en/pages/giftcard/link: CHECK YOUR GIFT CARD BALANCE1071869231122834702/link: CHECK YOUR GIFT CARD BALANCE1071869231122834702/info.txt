@@ -1,0 +1,6 @@
+URL: https://www.dominos.com/en/pages/giftcard/
+TREE LINE: link: CHECK YOUR GIFT CARD BALANCE
+XPATH: id("pageContent")/main[1]/div[1]/div[2]/a[1]
+TRAJECTORY: []
+
+HTML: <a href="https://dominosstore.wgiftcard.com/bc/dominos" class="btn btn--large btn--secondary btn--block gift-card-page__button">Check Your Gift Card Balance</a>

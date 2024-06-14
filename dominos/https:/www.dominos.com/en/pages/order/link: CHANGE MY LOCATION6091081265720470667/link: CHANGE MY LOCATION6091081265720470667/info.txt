@@ -1,0 +1,6 @@
+URL: https://www.dominos.com/en/pages/order/#!/section/Food/category/AllEntrees/
+TREE LINE: link: CHANGE MY LOCATION
+XPATH: id("orderDetailsInColumn")/ul[1]/li[1]/h3[1]/a[1]
+TRAJECTORY: []
+
+HTML: <a class="buttonType5 qa-Myl_Change card__link" href="#!/locations/search/" data-quid="change-my-location" data-dpz-track-evt-name="Change | My Location"> Change <span class="is-visually-hidden"> My Location </span> </a>

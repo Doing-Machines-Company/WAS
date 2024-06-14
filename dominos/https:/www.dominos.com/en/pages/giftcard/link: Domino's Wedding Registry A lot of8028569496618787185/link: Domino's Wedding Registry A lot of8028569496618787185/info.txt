@@ -1,0 +1,6 @@
+URL: https://www.dominos.com/en/pages/giftcard/
+TREE LINE: link: Domino's Wedding Registry A lot of newlywed couples are either too busy to cook or just don’t know how. Since they can’t live on love alone, a Domino’s gift card is a great way to help them when they’re just starting out. SET UP OR VISIT A REGISTRY
+XPATH: id("pageContent")/main[1]/div[1]/div[2]/div[2]/a[1]
+TRAJECTORY: []
+
+HTML: <a href="https://www.dominosweddingregistry.com/" class="gift-card-card gift-card-card--full"><div class="gift-card-card__body"><h2 class="gift-card-card__image"><img alt="Domino's Wedding Registry" src="https://cache.dominos.com/olo/6_135_0/assets/build/market/US/_en/images/img/giftcards/dominos-wedding-registry.webp"></h2><p class="gift-card-card__text"><div class="markup"><strong>A lot of newlywed couples are either too busy to cook or just don’t know how.</strong> Since they can’t live on love alone, a Domino’s gift card is a great way to help them when they’re just starting out.</div></p></div><h2 class="gift-card-card__heading gift-card-card__heading--bottom">Set Up or Visit A Registry</h2></a>

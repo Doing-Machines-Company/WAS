@@ -1,0 +1,6 @@
+URL: https://www.dominos.com/en/pages/order/#!/section/Food/category/AllEntrees/
+TREE LINE: link: Build Your Own Pizza Watch the pizza of your wildest dreams come to life.
+XPATH: id("entree-BuildYourOwn")/a[1]
+TRAJECTORY: []
+
+HTML: <a class="js-buildYourOwnPizza qa-BYO grid c-order-entree-buildyourown c-order-entree-js-buildYourOwnPizza qa-BYO grid c-order-entree-buildyourown" data-quid="entree-epic" data-wt-panelname="epic" href="#!/product/S_PIZZA/builder/"> <div class="grid__cell--1/4 media__image "> <img src="https://cache.dominos.com/olo/6_135_0/assets/build/market/US/_en/images/img/entree-page/gridLayout/build.png" alt=""> </div> <div class="grid__cell--3/4 media__body c-order-entrees-epic"> <h2 class="media__title" data-quid="entree-title-epic"> Build Your Own Pizza </h2> <p class="media__description is-hidden@handheld"> Watch the pizza of your wildest dreams come to life. </p> </div> </a>

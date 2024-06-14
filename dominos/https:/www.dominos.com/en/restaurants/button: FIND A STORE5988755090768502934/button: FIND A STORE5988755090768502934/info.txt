@@ -1,0 +1,6 @@
+URL: https://www.dominos.com/en/restaurants?locations=1
+TREE LINE: button: FIND A STORE
+XPATH: id("__next")/main[1]/section[1]/article[1]/div[1]/div[2]/div[2]/form[1]/div[1]/button[1]
+TRAJECTORY: []
+
+HTML: <button type="submit" class="css-14js2j3">Find a Store</button>

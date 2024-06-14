@@ -1,0 +1,6 @@
+URL: https://www.dominos.com/en/pages/order/#!/section/Food/category/AllEntrees/
+TREE LINE: link: Mix & Match offer details
+XPATH: id("entreesPage")/div[2]/div[2]/div[1]/div[1]/div[1]/div[1]/p[1]/a[1]
+TRAJECTORY: []
+
+HTML: <a href="#mix-match-offer-disclaimer" class="btn btn--link">Mix &amp; Match offer details</a>

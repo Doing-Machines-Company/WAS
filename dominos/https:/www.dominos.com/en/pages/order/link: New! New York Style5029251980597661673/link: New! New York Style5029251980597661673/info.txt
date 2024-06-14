@@ -1,0 +1,6 @@
+URL: https://www.dominos.com/en/pages/order/#!/section/Food/category/AllEntrees/
+TREE LINE: link: New! New York Style
+XPATH: id("entreesPage")/div[2]/div[7]/ul[1]/li[5]/a[1]
+TRAJECTORY: []
+
+HTML: <a href="#!/product/S_PIZZA/builder/?flavorCode=BK" data-quid="entrees-panel-epic-links-link-BK"><span class="is-visually-hidden">New!</span>New York Style</a>

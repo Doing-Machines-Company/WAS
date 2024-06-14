@@ -1,0 +1,6 @@
+URL: https://www.dominos.com/en/pages/order/#!/section/Food/category/AllEntrees/
+TREE LINE: link: Breads & Oven-Baked Dips
+XPATH: id("entree-Bread")
+TRAJECTORY: []
+
+HTML: <a class="grid__cell--1/3@desktop grid__cell--1/2 grid__card qa-Bread grid" id="entree-Bread" href="#!/section/Food/category/BreadAndOvenBakedDips/" data-wt-panelname="breadandovenbakeddips" data-quid="entree-breadandovenbakeddips">  <div class="media__image "> <img src="https://cache.dominos.com/olo/6_135_0/assets/build/market/US/_en/images/img/entree-page/gridLayout/breadandovenbakeddips.png" alt=""> </div> <div class="media__body c-order-entrees-breadandovenbakeddips"> <h2 class="media__title" data-quid="entree-title-breadandovenbakeddips"> Breads &amp; Oven-Baked Dips </h2> </div> </a>

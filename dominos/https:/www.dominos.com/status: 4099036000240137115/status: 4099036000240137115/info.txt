@@ -1,0 +1,6 @@
+URL: https://www.dominos.com
+TREE LINE: status: 
+XPATH: id("__next")/header[1]/div[1]/nav[1]/ul[2]/li[3]/span[1]
+TRAJECTORY: []
+
+HTML: <span role="status" aria-live="polite" style="border: 0px; clip: rect(0px, 0px, 0px, 0px); height: 1px; margin: -1px; overflow: hidden; padding: 0px; position: absolute; white-space: nowrap; width: 1px;">0 items in your cart</span>

@@ -1,0 +1,6 @@
+URL: https://www.dominos.com
+TREE LINE: button: CONTINUE
+XPATH: id("login-modal")/div[1]/form[1]/section[1]/footer[1]/button[1]
+TRAJECTORY: [CLICK_IMPORTANT:id("__next")/header[1]/div[1]/nav[1]/ul[2]/li[1]/div[1]/button[1](<button type="button" aria-expanded="false" aria-controls="login-modal" aria-haspopup="dialog" data-)]
+
+HTML: <button type="button" data-quid="otp-sign-in-continue-button" class="css-14js2j3">Continue</button>

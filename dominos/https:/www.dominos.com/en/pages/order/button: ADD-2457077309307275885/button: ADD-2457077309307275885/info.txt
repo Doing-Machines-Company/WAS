@@ -1,0 +1,6 @@
+URL: https://www.dominos.com/en/pages/order/#!/section/Food/category/AllEntrees/
+TREE LINE: button: ADD
+XPATH: id("entreesPage")/div[2]/div[10]/div[1]/div[2]/ul[1]/li[2]/div[1]/button[1]
+TRAJECTORY: []
+
+HTML: <button aria-describedby="recent-items-card-card-1" data-dpz-no-track="true" class="recent-items-card__button">Add</button>

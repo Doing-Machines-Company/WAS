@@ -1,0 +1,6 @@
+URL: https://www.dominos.com/en/pages/order/#!/section/Food/category/AllEntrees/
+TREE LINE: link: Drinks
+XPATH: id("entreesPage")/div[2]/div[8]/a[9]
+TRAJECTORY: []
+
+HTML: <a class="grid__cell--1/3@desktop grid__cell--1/2 grid__card qa-Drinks grid" id="" href="#!/section/Food/category/AllDrinks/" data-wt-panelname="drinks" data-quid="entree-drinks">  <div class="media__image "> <img src="https://cache.dominos.com/olo/6_135_0/assets/build/market/US/_en/images/img/entree-page/gridLayout/drinks.png" alt=""> </div> <div class="media__body c-order-entrees-drinks"> <h2 class="media__title" data-quid="entree-title-drinks"> Drinks </h2> </div> </a>

@@ -1,0 +1,6 @@
+URL: https://www.dominos.com/pinpoint-delivery/
+TREE LINE: region: Can anyone order Domino’s Pinpoint Delivery®?
+XPATH: id("item3")
+TRAJECTORY: []
+
+HTML: <div class="answer text-gray-darker max-w-[50.625rem] px-3 font-onedot-condensed text-15 leading-snug lg:px-5 lg:text-24" id="item3" role="region" aria-labelledby="panel3id" itemscope="" itemprop="acceptedAnswer" itemtype="https://schema.org/Answer" data-v-83d78729=""><div class="pb-3 lg:-mt-1 lg:pb-5" data-v-83d78729=""><!--[--><div itemprop="text"><p>Yes! Anyone with the Domino’s mobile app – available on the App Store or Google Play – can order Domino’s Pinpoint Delivery®.</p></div><!--]--></div></div>
