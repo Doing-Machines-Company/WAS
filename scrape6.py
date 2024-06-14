@@ -991,7 +991,9 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
         for eq_class in equiv_classes.classes:
             for key, action_infos in eq_class.unique_actions.items():
                 action_info = action_infos[0]
-                sample_path = Path (output_dir) / Path (normalize_url(action_info.url)) / (action_info.action.tree_line + str(hash(key)))  # root / url / curraction, make new url folder if it doesn't exist
+                tree_string = action_info.action.tree_line
+                tree_string = tree_string if len(tree_string) <= 40 else tree_string[:40]
+                sample_path = Path (output_dir) / Path (normalize_url(action_info.url)) / (tree_string + str(hash(key)))  # root / url / curraction, make new url folder if it doesn't exist
                 sample_path.mkdir(parents = True, exist_ok = True)
                 for action_info in action_infos:
                     tree_string = action_info.action.tree_line
