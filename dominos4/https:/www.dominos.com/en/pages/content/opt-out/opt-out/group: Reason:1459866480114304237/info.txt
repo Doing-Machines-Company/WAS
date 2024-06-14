@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/en/pages/content/opt-out/opt-out
-XPATH: id("customerEmailUnsubscribe")/div[2]/form[2]/div[1]/div[2]/fieldset[1]
-TRAJECTORY: []
-
-HTML: <fieldset class="form__control-group fieldset--no-border"> <legend class="bold"><span class="bold" aria-hidden="true">*</span><span>Reason:</span></legend> <div><label><input type="radio" name="Reason_Description_Phone" value="0001" required="" aria-required="true">Text messages too expensive</label></div> <div><label><input type="radio" name="Reason_Description_Phone" value="0002" required="" aria-required="true">Communication too frequent</label></div> <div><label><input type="radio" name="Reason_Description_Phone" value="0003" required="" aria-required="true">Communication not relevant to my interest or needs</label></div> <div><label><input type="radio" name="Reason_Description_Phone" value="0004" required="" aria-required="true">No longer in a Domino’s delivery area</label></div> <div><label><input type="radio" name="Reason_Description_Phone" value="0005" checked="checked" required="" aria-required="true">Other</label></div> </fieldset>

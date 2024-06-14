@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/en/pages/tracker/#!/track/order/
-XPATH: id("Phone")
-TRAJECTORY: []
-
-HTML: <input type="tel" id="Phone" name="Phone" class="js-phone focus" size="15" placeholder="Phone" autocomplete="tel-national" maxlength="14">

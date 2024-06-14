@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/en/pages/order/menu
-XPATH: id("js-nationalMenuTxt")/div[1]/div[1]/p[2]/a[1]
-TRAJECTORY: []
-
-HTML: <a href="/en/pages/order/" class="national-menu-txt__link">select your local store</a>

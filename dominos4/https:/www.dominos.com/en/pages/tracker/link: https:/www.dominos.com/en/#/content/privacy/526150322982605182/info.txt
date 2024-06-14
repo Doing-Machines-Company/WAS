@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/en/pages/tracker/#!/track/order/
-XPATH: id("terms-of-use")/p[15]/a[1]
-TRAJECTORY: [CLICK_LINK:id("phoneForm")/div[3]/div[1]/p[1]/a[1](<a class="js-isTemplatePopup underline" data-template-popup="contentPageTerms" href="/en/#!/content/)]
-
-HTML: <a href="https://www.dominos.com/en/#/content/privacy/" target="_blank">https://www.dominos.com/en/#/content/privacy/</a>

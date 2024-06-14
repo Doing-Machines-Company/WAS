@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/pinpoint-delivery/
-XPATH: id("panel1id")
-TRAJECTORY: []
-
-HTML: <button class="group flex w-full items-center justify-between text-left focus:outline-none" id="panel1id" aria-expanded="false" aria-controls="item1" data-v-83d78729=""><h3 itemprop="name" class="text-gray-darker font-onedot-bold pr-3 text-19 leading-tight lg:pr-5 lg:text-28 lg:leading-none" data-v-83d78729="">What is Domino’s Pinpoint Delivery®?</h3><div class="arrow flex-shrink-0" data-v-83d78729=""></div></button>

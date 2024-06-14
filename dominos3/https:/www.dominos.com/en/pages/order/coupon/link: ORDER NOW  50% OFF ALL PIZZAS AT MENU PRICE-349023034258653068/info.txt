@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/en/pages/order/coupon
-XPATH: id("__next")/main[1]/section[2]/article[1]/div[1]/div[1]/div[5]/a[1]
-TRAJECTORY: []
-
-HTML: <a data-quid="fiftyPercentOff-button" class="css-xk985q" href="/en/restaurants?couponCode_0=9413&amp;partnerCode=DOMINOS">Order Now<span style="border: 0px; clip: rect(0px, 0px, 0px, 0px); height: 1px; margin: -1px; overflow: hidden; padding: 0px; position: absolute; white-space: nowrap; width: 1px;">&nbsp;50% off all pizzas at menu price</span></a>

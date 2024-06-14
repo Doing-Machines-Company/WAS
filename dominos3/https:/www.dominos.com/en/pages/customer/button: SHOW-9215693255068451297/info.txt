@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/en/pages/customer/#!/customer/login/
-XPATH: id("customerLoginPage")/div[1]/div[1]/div[2]/div[1]/form[1]/fieldset[1]/div[8]/span[1]/button[1]
-TRAJECTORY: []
-
-HTML: <button data-quid="show-hide-password" data-dpz-no-track="true" type="button" class="btn btn--show-hide-password">show</button>

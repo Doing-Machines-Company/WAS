@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/en/pages/content/customer-service/faq?faqsection=rewards
-XPATH: id("faqPage")/div[1]/ul[1]/li[8]/ul[1]/li[2]/a[1]
-TRAJECTORY: [CLICK_LINK:id("faqPage")/div[1]/ul[1]/li[8]/a[1](<a href="#"> <span>▼</span> Donations and Sponsorships <span></span> </a>)]
-
-HTML: <a href="#"> <span>▼</span> How do I request a pizza donation for my organization or event? <span></span> </a>

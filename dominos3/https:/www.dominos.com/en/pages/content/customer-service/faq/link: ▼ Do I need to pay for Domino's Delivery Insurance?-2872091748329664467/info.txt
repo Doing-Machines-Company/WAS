@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/en/pages/content/customer-service/faq?faqsection=rewards
-XPATH: id("faqPage")/div[1]/ul[1]/li[5]/ul[1]/li[1]/a[1]
-TRAJECTORY: [CLICK_LINK:id("faqPage")/div[1]/ul[1]/li[5]/a[1](<a data-quid="dip_delivery_ins_prog" href="#"> <span>▼</span> Delivery Insurance program <span></spa)]
-
-HTML: <a data-quid="dip_do_i_pay_for_dominos_ins" href="#"> <span>▼</span> Do I need to pay for Domino's Delivery Insurance? <span></span> </a>

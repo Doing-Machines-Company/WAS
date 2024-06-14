@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/en/pages/content/customer-service/faq?faqsection=rewards
-XPATH: id("faqPage")/div[1]/a[1]
-TRAJECTORY: []
-
-HTML: <a href="#expand" class="js-expand buttonType3"> Expand All ▼ </a>

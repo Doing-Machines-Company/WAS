@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/en/pages/customer/#!/customer/login/
-XPATH: id("customerLoginPage")/div[1]/p[1]/a[1]
-TRAJECTORY: []
-
-HTML: <a class="uppercase btn--arrow createAccount" href="#!/customer/profile/new">create one</a>

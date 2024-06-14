@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/en/pages/content/customer-service/faq?faqsection=rewards
-XPATH: id("faqPage")/div[1]/ul[1]/li[9]/ul[1]/li[7]/a[1]
-TRAJECTORY: []
-
-HTML: <a href="#"> <span>▼</span> Corporate and Advertising Information <span></span> </a>

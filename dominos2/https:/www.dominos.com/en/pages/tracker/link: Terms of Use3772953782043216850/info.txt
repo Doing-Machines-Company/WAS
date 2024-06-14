@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/en/pages/tracker/#!/track/order/
-XPATH: id("terms-of-use")/p[19]/a[1]
-TRAJECTORY: []
-
-HTML: <a class="js-isTemplatePopup underline" data-template-popup="contentPageTerms" href="/en/#!/content/terms/">Terms of Use</a>

@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/en/pages/rewards/#!/rewards/
-XPATH: id("Password")
-TRAJECTORY: [CLICK_IMPORTANT:id("js-rewards")/div[1]/div[1]/div[1]/button[1](<button data-quid="loyalty-rewards-sign-in-cta" class="btn loyalty-rewards-profile-links__btn">Sign )]
-
-HTML: <input autocapitalize="none" autocorrect="off" type="password" id="Password" name="Password" maxlength="40" autocomplete="current-password" class="grid__cell--1 js-password c-pizza-profile-overlay-password" data-quid="password" required="" aria-required="true">

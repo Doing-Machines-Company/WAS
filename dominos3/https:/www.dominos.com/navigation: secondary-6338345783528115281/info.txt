@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/
-XPATH: id("__next")/main[1]/nav[1]
-TRAJECTORY: [CLICK_IMPORTANT:id("__next")/header[1]/div[1]/nav[1]/ul[2]/li[3]/button[1](<button type="button" aria-expanded="false" aria-controls="mini-cart-modal" aria-haspopup="dialog" d)]
-
-HTML: <nav role="navigation" aria-label="secondary" class="css-82ke6q"><ul><li><a data-quid="location" href="/en/pages/order/?locations=1#!/locations/" class="css-0">Locations</a></li><li><a data-quid="email-text-offers" href="/en/pages/content/opt-in/opt-in" class="css-0">Email &amp; Text Offers</a></li><li><a data-quid="gift-cards" href="/en/pages/giftcard/" class="css-0">Gift Cards</a></li><li><a data-quid="tracker" href="/en/pages/tracker/#!/track/order/" class="css-0">tracker</a></li><li><a data-quid="nutrition" href="/en/pages/content/nutritional/nutrition" class="css-0">Nutrition</a></li></ul></nav>

@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/en/pages/rewards/#!/rewards/
-XPATH: id("js-rewards")/div[1]/section[4]/div[1]/div[3]/span[1]/a[1]
-TRAJECTORY: []
-
-HTML: <a data-quid="dominos-rewards-faq-link" href="/en/pages/content/customer-service/faq?faqsection=rewards" tabindex="0" type="button" class="loyalty-rewards-program-detail__read-more-faq">Read More FAQ's</a>

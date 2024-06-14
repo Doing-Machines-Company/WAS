@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/en/pages/rewards/#!/rewards/
-XPATH: id("js-rewards")/div[1]/div[1]/span[1]/div[1]/a[1]
-TRAJECTORY: []
-
-HTML: <a href="/en/pages/rewards/#!/create-profile/?EnrollmentSourceTag=PP_CreateLink" data-quid="loyalty-rewards-profile-no-rewards-link" class="btn--link loyalty-rewards-profile-links__no-rewards-link">Click here</a>

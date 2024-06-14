@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/en/pages/customer/#!/customer/login/
-XPATH: id("customerLoginPage")/div[1]/div[1]/div[2]/div[1]/form[1]/div[1]/div[2]/a[1]
-TRAJECTORY: [CLICK_LINK:id("customerLoginPage")/div[1]/div[1]/div[2]/div[1]/form[1]/div[1]/div[1]/a[1](<a class="buttonType5 italic mrg-right js-toggleLogin js-resetPassword" href="#"> Forgot your passwo)]
-
-HTML: <a class="buttonType5 italic mrg-right js-toggleLogin" href="#"> Back to Sign-in </a>

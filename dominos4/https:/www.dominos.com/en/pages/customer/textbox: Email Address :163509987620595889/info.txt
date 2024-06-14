@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/en/pages/customer/#!/customer/login/
-XPATH: id("Email")
-TRAJECTORY: []
-
-HTML: <input type="email" id="Email" name="Email" maxlength="100" autocomplete="email" class="form__input--block js-email c-customerprofile-email focus" value="" data-quid="email" data-error-container=".js-emailErrorContainer" required="" aria-required="true">

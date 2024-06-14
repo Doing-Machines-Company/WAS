@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/en/pages/tracker/#!/track/order/
-XPATH: id("phoneForm")/fieldset[1]
-TRAJECTORY: []
-
-HTML: <fieldset class="fieldset--reset"> <legend class="form__legend--margin-bottom">Enter your phone number below</legend> <div class="form__control-group form__control-group--required"> <label for="Phone" alt="required"><strong>*</strong>Phone #:</label> <div class="numericInputGroup form__control-group--flex">  <input type="tel" id="Phone" name="Phone" class="js-phone focus" size="15" placeholder="Phone" autocomplete="tel-national" maxlength="14">  <label for="Extension">Ext.</label> <input type="tel" id="Extension" name="Extension" class="js-extension" size="6" maxlength="6" placeholder="Ext." aria-label="Phone Extension" autocomplete="tel-extension">  </div> </div>  <div class="noteText noteText--tracker-phone">  </div>  </fieldset>

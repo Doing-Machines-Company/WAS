@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/
-XPATH: id("Email")
-TRAJECTORY: [CLICK_IMPORTANT:id("__next")/header[1]/div[1]/nav[1]/ul[2]/li[1]/div[1]/button[1](<button type="button" aria-expanded="false" aria-controls="login-modal" aria-haspopup="dialog" data-)]
-
-HTML: <input data-quid="email" id="Email" name="Email" aria-required="true" required="" autocomplete="email" type="email" class="css-1mzxrwu ez1ispa0">

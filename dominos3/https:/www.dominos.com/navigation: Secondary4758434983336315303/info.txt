@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/
-XPATH: id("__next")/header[1]/nav[1]
-TRAJECTORY: [CLICK_IMPORTANT:id("__next")/header[1]/div[1]/nav[1]/ul[2]/li[3]/button[1](<button type="button" aria-expanded="false" aria-controls="mini-cart-modal" aria-haspopup="dialog" d)]
-
-HTML: <nav aria-label="Secondary" class="css-sbojdn e1jlvhcu20"><ul class="css-1die1eu e1jlvhcu17"><li class="css-a8az07 e1jlvhcu10"></li></ul></nav>

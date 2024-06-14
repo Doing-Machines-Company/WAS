@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/en/pages/order/coupon
-XPATH: id("__next")/main[1]/aside[1]
-TRAJECTORY: []
-
-HTML: <aside class="css-3cugoc"><section class="css-ko23dm"><div class="smart-order"><h1 class="smart-order__heading-text">Start Your Order</h1><div class="smart-order__ctas"><a data-dpz-track-evt-name="SYO_Delivery" data-quid="start-your-order-delivery-cta" href="/en/restaurants?type=Delivery" class="css-14js2j3">Delivery</a><span class="smart-order__or"> or</span><a data-dpz-track-evt-name="SYO_Carryout" data-quid="start-your-order-carryout-cta" href="/en/restaurants?type=Carryout" class="css-14js2j3">Carryout</a></div></div></section></aside>

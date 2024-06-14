@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/en/restaurants
-XPATH: id("pinpoint-delivery-modal")/div[1]/div[1]/p[2]/a[1]
-TRAJECTORY: [CLICK_GENERAL:id("tab-Delivery")(<button tabindex="0" role="tab" type="button" class="css-1u290wa" id="tab-Delivery" aria-selected="f), CLICK_IMPORTANT:id("__next")/main[1]/section[1]/article[1]/div[1]/div[2]/div[1]/button[1](<button type="button" aria-controls="delivery-panel-content" class="css-1lq2mri">Find Nearby Domino')]
-
-HTML: <a title="Learn more about Domino's Pinpoint Delivery®" href="https://dominos.com/pinpoint-delivery" class="css-0">Learn more</a>

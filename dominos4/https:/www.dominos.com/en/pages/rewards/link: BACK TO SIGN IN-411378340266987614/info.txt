@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/en/pages/rewards/#!/rewards/
-XPATH: id("pizzaProfileLoginOverlay")/form[1]/div[3]/div[1]/div[2]/a[1]
-TRAJECTORY: [CLICK_IMPORTANT:id("js-rewards")/div[1]/div[1]/div[1]/button[1](<button data-quid="loyalty-rewards-sign-in-cta" class="btn loyalty-rewards-profile-links__btn">Sign ), CLICK_LINK:id("pizzaProfileLoginOverlay")/form[1]/div[3]/div[1]/div[1]/p[1]/a[1](<a class="buttonType5 btn--forgot-password js-toggleLogin js-resetPassword c-pizza-profile-overlay-r)]
-
-HTML: <a class="buttonType5 js-toggleLogin js-resetPassword btn--back-to-sign-in" href="#"> Back to sign in </a>

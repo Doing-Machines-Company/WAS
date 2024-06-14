@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/en/pages/customer/#!/customer/login/
-XPATH: id("Password")
-TRAJECTORY: []
-
-HTML: <input type="password" id="Password" name="Password" maxlength="40" autocomplete="current-password" class="grid__cell--3/5@desktop grid__cell--1 js-password c-customerprofile-password" data-quid="password" required="" aria-required="true">

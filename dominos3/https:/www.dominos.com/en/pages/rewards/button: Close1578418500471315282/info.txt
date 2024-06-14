@@ -1,5 +1,0 @@
-URL: https://www.dominos.com/en/pages/rewards/#!/rewards/
-XPATH: id("genericOverlay")/section[1]/header[1]/button[1]
-TRAJECTORY: [CLICK_IMPORTANT:id("js-rewards")/div[1]/div[1]/div[1]/button[1](<button data-quid="loyalty-rewards-sign-in-cta" class="btn loyalty-rewards-profile-links__btn">Sign )]
-
-HTML: <button class="card--overlay__close js-closeButton " data-dpz-track-evt-name="×" data-quid="generic-overlay-close" type="button" aria-label="Close"></button>
