@@ -76,7 +76,7 @@ class EquivalenceClass:
                 self.unique_actions[action_key] = ActionInfo(action, before_html, after_html, before_screenshot, after_screenshot, url)
 
     def has_similar_action(self, action: Action) -> bool:
-        return any(element_similarity(action.html, a.action.html) >= 0.9 for a in self.unique_actions.values())
+        return any(element_similarity(action.html, a[0].action.html) >= 0.9 for a in self.unique_actions.values())
 
     def is_new_action(self, action: Action) -> bool:
         return not self.has_similar_action(action)
@@ -227,7 +227,7 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
         'slider', 'listbox', 'tree',
         'grid', 'alert', 'alertdialog',
         'log', 'marquee', 'timer', 'tooltip', 'banner',
-        'complementary', 'contentinfo', 'form', 'navigation',
+        'complementary', 'contentinfo', 'form',
         'region', 'status', 'img', 'note', 'application',
         'cell', 'definition', 'directory', 'document',
         'feed', 'figure', 'group', 'img', 'list',
@@ -253,7 +253,14 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
         'printthis()',
         'onclick="printthis()"',
     ]
-
+    ignored_roles = [
+        'main',
+        'article',
+        'group',
+        'dialog',
+        'document',
+        'navigation'
+    ]
     xpath = ax_node["xpath"]
     html = ax_node["html"]
     role = ax_node["role"]
@@ -262,6 +269,8 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
 
     if xpath and html and xpath.strip() != "" and html.strip() != "":
         # Check if the action is a pure link in the header or footer
+        if role.strip () in ignored_roles:
+            return ([], None)
         if html in footer_html or (html in header_html and url not in 'https://www.dominos.com/en/'):
             return ([], None)
 
@@ -591,7 +600,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
     #does not remove duplicates in header or footer because they are generally
     #significant enough that we want to keep them
     def get_unique_actions(new_state):            
-        sample_size = 3 #maximum number of samples to include among similar actions
+        sample_size = 2 #maximum number of samples to include among similar actions
         unique_actions = []
         new_actions = new_state.actions
         header_html = new_state.header_html
@@ -985,7 +994,9 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
                 sample_path = Path (output_dir) / Path (normalize_url(action_info.url)) / (action_info.action.tree_line + str(hash(key)))  # root / url / curraction, make new url folder if it doesn't exist
                 sample_path.mkdir(parents = True, exist_ok = True)
                 for action_info in action_infos:
-                    subdir_path = sample_path / (action_info.action.tree_line + str(hash(key)))
+                    tree_string = action_info.action.tree_line
+                    tree_string = tree_string if len(tree_string) <= 40 else tree_string[:40]
+                    subdir_path = sample_path / (tree_string + str(hash(key)))
                     subdir_path.mkdir(parents = True, exist_ok = True)
                     before_screenshot_filename = f"action_{hash(key)}_before.png"
                     before_screenshot_path = subdir_path / before_screenshot_filename
@@ -1001,6 +1012,7 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
                     with open(Path(subdir_path) / 'info.txt', 'w') as f:
                         f.write(f"URL: {action_info.url}\n")
+                        f.write(f"TREE LINE: {action_info.action.tree_line}\n")
                         f.write(f"XPATH: {action_info.action.friendly_xpath}\n")
                         f.write(f"TRAJECTORY: {action_info.action.trajectory}\n\n")
                         f.write(f"HTML: {action_info.action.html}\n")
@@ -1056,4 +1068,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
 num_cores = os.cpu_count()
 
-explore("https://www.dominos.com/en/restaurants", headless=False, root="www.dominos.com", num_threads=1)
+explore("https://www.dominos.com", headless=False, root="www.dominos.com", num_threads=1)
