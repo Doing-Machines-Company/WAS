@@ -342,45 +342,29 @@ def remove_last_xpath_item(xpath):
     # If there is no '/', return the original string
     return xpath
 
-def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, friendly_xpath, backup_friendly_xpath=None, possible_types=None) -> (bool, Action):  # TODO handle multiple possible action types
+def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, playwright_element, found_xpath=None, possible_types=None) -> (bool, Action):  # TODO handle multiple possible action types
     for a_type in possible_types:
         try:
             if a_type in [Action.Type.CLICK_LINK, Action.Type.CLICK_IMPORTANT, Action.Type.CLICK_CHECKBOX,
                                Action.Type.CLICK_RADIO, Action.Type.CLICK_GENERAL]:
-                if friendly_xpath:
+                if playwright_element:
                     try:
                         page.evaluate(
-                            f"() => {{ let e = document.evaluate('{friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; e.click(); }}")
+                            f"() => {{ let e = document.evaluate('{found_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; e.click(); }}")
                         a.action_type = a_type  # probs not good
                         return True, a
                     except Exception as e:
                         print(f"Error clicking element via JavaScript click: {e}")
 
                     try:
-                        page.locator(f"xpath={friendly_xpath}").click(timeout=5000)
-                        a.action_type = a_type
-                        return True, a
-                    except Exception as e:
-                        print(f"Error clicking element via Playwright locator.click: {e}")
-
-                if backup_friendly_xpath:
-                    try:
-                        page.evaluate(
-                            f"() => {{ let e = document.evaluate('{backup_friendly_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; e.click(); }}")
-                        a.action_type = a_type  # probs not good
-                        return True, a
-                    except Exception as e:
-                        print(f"Error clicking element via JavaScript click: {e}")
-
-                    try:
-                        page.locator(f"xpath={backup_friendly_xpath}").click(timeout=5000)
+                        playwright_element.click(timeout=5000)
                         a.action_type = a_type
                         return True, a
                     except Exception as e:
                         print(f"Error clicking element via Playwright locator.click: {e}")
 
             elif a_type == Action.Type.SELECT_GENERAL:
-                if friendly_xpath:
+                if playwright_element or found_xpath:
                     try:
                         page.evaluate(f"""
                                 (xpath) => {{
@@ -391,39 +375,15 @@ def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, frie
                                         option.parentElement.dispatchEvent(event);
                                     }}
                                 }}
-                            """, friendly_xpath)
+                            """, found_xpath)
                         a.action_type = a_type
                         return True, a
                     except Exception as e:
                         print(f"Error selecting element via Javascript: {e}")
 
                     try:
-                        friendly_xpath = remove_last_xpath_item(friendly_xpath)  # overrides
+                        friendly_xpath = remove_last_xpath_item(found_xpath)  # overrides, may be broken after change which makes apply action use playwright objects
                         found_item = page.locator(f"xpath={friendly_xpath}")
-                        found_item.select_option(a.desired_option.strip(), timeout=5000)
-                    except Exception as e:
-                        print(f"Error selecting element via Playwright and trimmed xpath: {e}")
-
-                if backup_friendly_xpath:
-                    try:
-                        page.evaluate(f"""
-                                (xpath) => {{
-                                    const option = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-                                    if (option) {{
-                                        option.selected = true;
-                                        const event = new Event('change', {{ bubbles: true }});
-                                        option.parentElement.dispatchEvent(event);
-                                    }}
-                                }}
-                            """, backup_friendly_xpath)
-                        a.action_type = a_type
-                        return True, a
-                    except Exception as e:
-                        print(f"Error selecting element via Playwright: {e}")
-
-                    try:
-                        backup_friendly_xpath = remove_last_xpath_item(backup_friendly_xpath)  # overrides
-                        found_item = page.locator(f"xpath={backup_friendly_xpath}")
                         found_item.select_option(a.desired_option.strip(), timeout=5000)
                     except Exception as e:
                         print(f"Error selecting element via Playwright and trimmed xpath: {e}")
@@ -431,19 +391,8 @@ def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, frie
             elif a_type == Action.Type.INPUT:
                 if friendly_xpath:
                     try:
-                        input_element = page.locator(f"xpath={friendly_xpath}")
                         input_fill = use_gpt_fill_input('None', before_screenshot, a.html, True)
-                        input_element.fill(input_fill, force=True, timeout=5000)
-                        a.action_type = a_type
-                        return True, a
-                    except Exception as e:
-                        print(f"Error inputting text into element: {e}")
-
-                if backup_friendly_xpath:
-                    try:
-                        input_element = page.locator(f"xpath={backup_friendly_xpath}")
-                        input_fill = use_gpt_fill_input('None', before_screenshot, a.html, True)
-                        input_element.fill(input_fill, force=True, timeout=5000)
+                        playwright_element.fill(input_fill, force=True, timeout=5000)
                         a.action_type = a_type
                         return True, a
                     except Exception as e:
@@ -658,18 +607,21 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
         if des_xpath:  # if not empty string and not none
             return des_xpath if '(' in des_xpath.split("/")[0] else f"//{des_xpath}"
         else:
-            return ''
-
-    def get_element(des_page, des_xpath):
-        if des_xpath:
-            return des_page.evaluate(
-                f"document.evaluate('{des_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
-        else:
             return None
 
-    def scroll_if_needed(des_page, des_xpath):
-        des_page.evaluate(
-            f"document.evaluate('{des_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue.scrollIntoViewIfNeeded();")
+    def get_element(des_page, des_xpath):
+        return des_page.locator(f"xpath={des_xpath}") if des_xpath else None
+        # if des_xpath:
+        #     return des_page.evaluate(
+        #         f"document.evaluate('{des_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
+        # else:
+        #     return None
+
+
+    def scroll_into_view(playwright_element):
+        playwright_element.scroll_into_view_if_needed()
+
+
 
     def explore_actions():
         context, page, cdpSession = create_new_context_and_page(browser, cookies)
@@ -764,16 +716,26 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                             backup_xpath = get_xpath_by_outer_html(page, traj_action.html)
 
                             possible_types_traj = [traj_action.action_type]
-                            if backup_xpath:
-                                backup_friendly_xpath = backup_xpath if '(' in backup_xpath.split("/")[0] else f"//{backup_xpath}"
-                                success, _ = apply_action(page, traj_action, page.screenshot(), backup_friendly_xpath, traj_action.friendly_xpath, possible_types_traj)
-                            else:
-                                success, _ = apply_action(page, traj_action, page.screenshot(), traj_action.friendly_xpath,
-                                                            None, possible_types_traj)
-                            if not success:
-                                print("Trajectory broken, skipping")
-                                traj_success = False
-                                break
+                            # if backup_xpath:
+
+                            element = get_element(page, backup_xpath)
+                            found_xpath = backup_xpath
+                            if not element:
+                                found_xpath = backup_xpath
+                                element = get_element(page, make_xpath_friendly(backup_xpath))
+                            # backup_friendly_xpath = backup_xpath if '(' in backup_xpath.split("/")[0] else f"//{backup_xpath}"
+                            if not element:
+                                found_xpath = action.friendly_xpath
+                                element = get_element(page, action.friendly_xpath)
+                            if not element:
+                                found_xpath = action.xpath
+                                element = get_element(page, action.xpath)
+                            if element and found_xpath:
+                                success, _ = apply_action(page, traj_action, page.screenshot(), element, found_xpath, possible_types_traj)
+                                if not success:
+                                    print("Trajectory broken, skipping")
+                                    traj_success = False
+                                    break
                             wait_for_load(page, load_time_ms=3000)
                         wait_for_load(page, load_time_ms=3000)
                         print("***Finished Executing Trajectory***")
@@ -785,7 +747,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                     friendly_xpath = make_xpath_friendly(action.xpath)
                     action.set_friendly_xpath(friendly_xpath)
 
-                    new_action_found_xpath = None
+                    # new_action_found_xpath = None
 
                     potentially_better_xpath = get_xpath_by_outer_html(page, action.html)
 
@@ -795,48 +757,65 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
 
                     #  May want to deepcopy action for safety here
 
-                    if get_element(page, potentially_better_friendly_xpath):
-                        action.xpath = potentially_better_xpath
+                    # Stop scrolling into view if needed, it's unreliable.
+
+                    final_element = get_element(page, potentially_better_friendly_xpath)
+                    final_xpath = potentially_better_friendly_xpath
+
+                    if final_element:
+                        action.set_xpath(potentially_better_xpath)
                         action.set_friendly_xpath(potentially_better_friendly_xpath)
                         try:
-                            scroll_if_needed(page, potentially_better_friendly_xpath)
+                            scroll_into_view(final_element)
                             scroll_success = True
                         except Exception as e:
                             print(f'Scroll failed flag 1: {e}')
-                    if get_element(page, potentially_better_xpath):
-                        action.xpath = potentially_better_xpath
-                        action.set_friendly_xpath(potentially_better_friendly_xpath)
-                        try:
-                            scroll_if_needed(page, potentially_better_xpath)
-                            scroll_success = True
-                        except Exception as e:
-                            print(f'Scroll failed flag 2: {e}')
-                    if get_element(page, action.friendly_xpath):
-                        try:
-                            scroll_if_needed(page, action.friendly_xpath)
-                            scroll_success = True
-                        except Exception as e:
-                            print(f'Scroll failed flag 3: {e}')
-                    if get_element(page, action.xpath):
-                        try:
-                            scroll_if_needed(page, action.xpath)
-                            scroll_success = True
-                        except Exception as e:
-                            print(f'Scroll failed flag 4: {e}')
 
                     if not scroll_success:
-                        print(f"Element not found for XPath: {action.xpath}, Ax object: {action.tree_line}")
-                        continue
+                        final_element = get_element(page, potentially_better_xpath)
+                        final_xpath = potentially_better_xpath
+                        if final_element and not scroll_success:
+                            action.set_xpath(potentially_better_xpath)
+                            action.set_friendly_xpath(potentially_better_friendly_xpath)
+                            try:
+                                scroll_into_view(final_element)
+                                scroll_success = True
+                            except Exception as e:
+                                print(f'Scroll failed flag 2: {e}')
+
+                    if not scroll_success:
+                        final_element = get_element(page, action.friendly_xpath)
+                        final_xpath = action.friendly_xpath
+                        if final_element and not scroll_success:
+                            try:
+                                scroll_into_view(final_element)
+                                scroll_success = True
+                            except Exception as e:
+                                print(f'Scroll failed flag 3: {e}')
+
+                    if not scroll_success:
+                        final_element = get_element(page, action.xpath)
+                        final_xpath = action.xpath
+                        if final_element and not scroll_success:
+                            try:
+                                scroll_into_view(final_element)
+                                scroll_success = True
+                            except Exception as e:
+                                print(f'Scroll failed flag 4: {e}')
+
+                    if not scroll_success:
+                        print(f"Element not found for XPath (may not be reliable): {final_xpath}, Ax object: {action.tree_line}, outerHTML: {action.html}")
+                        continue # we may still want to try action even if scroll fails throwing playwright error to cause exception, though this is likely due to locator and it's broken
 
 
                     to_box_coords = None
                     try:
-                        to_box_item = page.locator(f"xpath={action.friendly_xpath}")
-                        if to_box_item:
-                            to_box_coords = to_box_item.bounding_box(timeout=5000)
-                        else:
-                            to_box_item = page.locator(f"xpath={action.xpath}")
-                            to_box_coords = to_box_item.bounding_box(timeout=5000)
+                        # to_box_item = page.locator(f"xpath={action.friendly_xpath}")
+                        if final_element:
+                            to_box_coords = final_element.bounding_box(timeout=5000)
+                        # else:
+                        #     to_box_item = page.locator(f"xpath={action.xpath}")
+                        #     to_box_coords = to_box_item.bounding_box(timeout=5000)
                     except Exception as e:
                         print(f'GETTING BOUNDING BOXES FAILED FOR {action}')
                         print(e)
@@ -844,8 +823,8 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                     before_screenshot = create_boundingbox(before_screenshot, to_box_coords)
                     # print(type(before_screenshot))
                     before_state = get_page_state(page, cdpSession)
-                    success, new_action = apply_action(page, action, before_screenshot, action.friendly_xpath, action.xpath, possible_types)
-                    action = new_action  # There may have been an aliasing issue here
+                    success, new_action = apply_action(page, action, before_screenshot, final_element, final_xpath, possible_types)
+                    # action = new_action  # There may have been an aliasing issue here
                     if not success:
                         print(f"This action was not successful: {action}")
                         print(f"Attempted types: {possible_types}")
