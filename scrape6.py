@@ -479,7 +479,7 @@ def create_new_context_and_page(browser, cookies):
         cdpSession = context.new_cdp_session(page)
         return context, page, cdpSession
 def login(page):
-    print('LOGGING IN')
+    # print('LOGGING IN')
     page.goto('https://www.dominos.com/en/restaurants?type=Delivery')
     wait_for_load(page)
     page.get_by_label("Street Address", exact=False).fill('5819 Centre Ave')
@@ -500,8 +500,10 @@ def setup_context(browser, cookies, logged_in = True, attempts = 3):
     if logged_in:
         for attempt in range(attempts):
             try:
+                if not success: #if we failed before, create new context and page
+                    context, page, cdpSession = create_new_context_and_page(browser, cookies)
                 login(page)
-                print('LOGIN SUCCESSFUL')
+                # print('LOGIN SUCCESSFUL')
             except Exception as e:
                 cdpSession.detach()
                 page.close()
