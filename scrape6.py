@@ -426,12 +426,12 @@ def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, play
 
 # this is the aggressive normalization
 def normalize_url(url: str) -> str:
-    parsed_url = urlparse(url)
-    scheme = parsed_url.scheme if parsed_url.scheme else 'http'
-    netloc = parsed_url.netloc
-    path = parsed_url.path.rstrip('/')  # Remove trailing slashes from the path
-    return urlunparse((scheme, netloc, path, '', '', ''))  # Ignoring the query and fragment
-
+    # parsed_url = urlparse(url)
+    # scheme = parsed_url.scheme if parsed_url.scheme else 'http'
+    # netloc = parsed_url.netloc
+    # path = parsed_url.path.rstrip('/')  # Remove trailing slashes from the path
+    # return urlunparse((scheme, netloc, path, '', '', ''))  # Ignoring the query and fragment
+    return url
 
 def get_page_state(page: PlaywrightPage, cdpSession: CDPSession) -> PageState:
 
@@ -469,7 +469,16 @@ def get_page_state(page: PlaywrightPage, cdpSession: CDPSession) -> PageState:
         footer_html=footer_html
     )
 
-def do_login(page):
+def create_new_context_and_page(browser, cookies):
+        context = browser.new_context(
+            permissions=[], #this is to prevent popups
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36')
+        if cookies is not None:
+            context.add_cookies(cookies)
+        page = context.new_page()
+        cdpSession = context.new_cdp_session(page)
+        return context, page, cdpSession
+def login(page):
     print('LOGGING IN')
     page.goto('https://www.dominos.com/en/restaurants?type=Delivery')
     wait_for_load(page)
@@ -485,7 +494,25 @@ def do_login(page):
     page.get_by_role("button", name="Carryout").click()
     page.get_by_role("button", name="Continue").click()
     wait_for_load(page)
-    print('LOGIN SUCCESSFUL')
+def setup_context(browser, cookies, logged_in = True, attempts = 3):
+    context, page, cdpSession = create_new_context_and_page(browser, cookies)
+    success = True
+    if logged_in:
+        for attempt in range(attempts):
+            try:
+                login(page)
+                print('LOGIN SUCCESSFUL')
+            except Exception as e:
+                cdpSession.detach()
+                page.close()
+                context.close()
+                page.screenshot(path='login_failure.png', full_page=True)
+                print(f"Error logging in: {e}")
+                success=False
+            else:
+                success = True
+                break
+    return context, page, cdpSession, success
 def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
     # https://playwright.dev/python/docs/navigations#navigation-events
     # https://playwright.dev/python/docs/api/class-page#page-wait-for-load-state-option-state
@@ -505,16 +532,6 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
     #
     # if cookies is not None:
     #     context.add_cookies(cookies)
-
-    def create_new_context_and_page(browser, cookies):
-        context = browser.new_context(
-            permissions=[], #this is to prevent popups
-            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36')
-        if cookies is not None:
-            context.add_cookies(cookies)
-        page = context.new_page()
-        cdpSession = context.new_cdp_session(page)
-        return context, page, cdpSession
 
     idle_flags[thread_id] = False
 
@@ -624,12 +641,9 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
 
 
     def explore_actions():
-        context, page, cdpSession = create_new_context_and_page(browser, cookies)
-        try:
-            do_login(page)  # Initial login
-        except Exception as e:
-            page.screenshot(path='login_failure.png', full_page=True)
-            print(f"Error logging in for: {url}. Error: {e}")
+        context, page, cdpSession, success = setup_context(browser, cookies)
+        if not success:
+            print("LOGIN FAILED")
             return
         try:
             page.goto(url)
@@ -894,15 +908,12 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                     page.close()
                     context.close()
 
-                    context, page, cdpSession = create_new_context_and_page(browser, cookies)
+                    context, page, cdpSession, success = setup_context(browser, cookies)
 
                     # do_login(page)  # this should be the only other do_login we need hopefully
-                    try:
-                        do_login(page)  # Initial login
-                    except Exception as e:
-                        page.screenshot(path='login_failure.png', full_page=True)
-                        print(f"Error logging in for: {url}. Error: {e}")
-                        return
+                    if not success:
+                        print("LOGIN FAILED")
+                        continue
 
                     page.goto(root_state.url)  # this threw an error once, idk why
                     time.sleep(2)
