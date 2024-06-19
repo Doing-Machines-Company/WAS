@@ -308,13 +308,13 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
             #
             # if input_element:
             #     input_type = input_element.get('type', '').lower()
-
+            #
             # if input_type == 'checkbox' and Action.Type.CLICK_CHECKBOX not in possible_action_types:
             #     possible_action_types.append(Action.Type.CLICK_CHECKBOX)
             #
             # elif input_type == 'radio' and Action.Type.CLICK_RADIO not in possible_action_types:
             #     possible_action_types.append(Action.Type.CLICK_RADIO)
-
+            #
             # else:
             possible_action_types.append(Action.Type.INPUT)
 
@@ -638,7 +638,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
 
 
     def scroll_into_view(playwright_element):
-        playwright_element.scroll_into_view_if_needed()
+        playwright_element.scroll_into_view_if_needed(timeout=10000)
 
 
 
@@ -674,7 +674,6 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
             new_actions = [(tL, a) for (tL, a) in root_state.actions if eq_class.is_new_action(a)]
             if len(new_actions) > 0:
                 scrape_flag = True
-
         if scrape_flag:
 
             #used to check whether an action has already been queued yet (if seen again, we shouldn't requeue)
@@ -759,79 +758,54 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                         continue
                     before_screenshot = page.screenshot()
 
-                    # friendly_xpath = action.xpath if '(' in action.xpath.split("/")[0] else f"//{action.xpath}"
-                    friendly_xpath = make_xpath_friendly(action.xpath)
-                    action.set_friendly_xpath(friendly_xpath)
-
-                    # new_action_found_xpath = None
-
-                    potentially_better_xpath = get_xpath_by_outer_html(page, action.html)
-
-                    potentially_better_friendly_xpath = make_xpath_friendly(potentially_better_xpath)
+                    action.set_friendly_xpath(make_xpath_friendly(action.xpath))
 
                     scroll_success = False
 
                     #  May want to deepcopy action for safety here
 
-                    # Stop scrolling into view if needed, it's unreliable.
 
-                    final_element = get_element(page, potentially_better_friendly_xpath)
-                    final_xpath = potentially_better_friendly_xpath
+                    final_element = get_element(page, action.xpath)
+                    final_xpath = action.xpath
+                    if not final_element or final_element.evaluate("element => element.outerHTML") != action.html:  # perhaps do a stripped check
+                        final_element = get_element(page, action.friendly_xpath)
+                        final_xpath = action.friendly_xpath
+                        if not final_element or final_element.evaluate("element => element.outerHTML") != action.html:
+                            # now we try getting stuff at rune time
+                            potentially_better_xpath = get_xpath_by_outer_html(page, action.html)
+                            potentially_better_friendly_xpath = make_xpath_friendly(potentially_better_xpath)
+                            final_element = get_element(page, potentially_better_friendly_xpath)
+                            final_xpath = potentially_better_friendly_xpath
+                            if not final_element:
+                                final_element = get_element(page, potentially_better_xpath)
+                                final_xpath = potentially_better_xpath
+                                if not final_element:
+                                    final_element = get_element(page, action.friendly_xpath)
+                                    final_xpath = action.friendly_xpath
+                                    if not final_element:
+                                        final_element = get_element(page, action.xpath)
+                                        final_xpath = action.xpath
 
                     if final_element:
-                        action.set_xpath(potentially_better_xpath)
-                        action.set_friendly_xpath(potentially_better_friendly_xpath)
+                        action.set_xpath(final_xpath)
                         try:
                             scroll_into_view(final_element)
                             scroll_success = True
                         except Exception as e:
-                            print(f'Scroll failed flag 1: {e}')
+                            print(f'Scroll failed: {e}')
 
-                    if not scroll_success:
-                        final_element = get_element(page, potentially_better_xpath)
-                        final_xpath = potentially_better_xpath
-                        if final_element and not scroll_success:
-                            action.set_xpath(potentially_better_xpath)
-                            action.set_friendly_xpath(potentially_better_friendly_xpath)
-                            try:
-                                scroll_into_view(final_element)
-                                scroll_success = True
-                            except Exception as e:
-                                print(f'Scroll failed flag 2: {e}')
-
-                    if not scroll_success:
-                        final_element = get_element(page, action.friendly_xpath)
-                        final_xpath = action.friendly_xpath
-                        if final_element and not scroll_success:
-                            try:
-                                scroll_into_view(final_element)
-                                scroll_success = True
-                            except Exception as e:
-                                print(f'Scroll failed flag 3: {e}')
-
-                    if not scroll_success:
-                        final_element = get_element(page, action.xpath)
-                        final_xpath = action.xpath
-                        if final_element and not scroll_success:
-                            try:
-                                scroll_into_view(final_element)
-                                scroll_success = True
-                            except Exception as e:
-                                print(f'Scroll failed flag 4: {e}')
-
-                    if not scroll_success:
-                        print(f"Element not found for XPath (may not be reliable): {final_xpath}, Ax object: {action.tree_line}, outerHTML: {action.html}")
-                        continue # we may still want to try action even if scroll fails throwing playwright error to cause exception, though this is likely due to locator and it's broken
-
+                    if not scroll_success:  # now is scroll failed for one scroll but you have an element, assume scroll will always fail, as locator should be the same
+                        print(f"Scroll failed for: {final_xpath}, Ax object: {action.tree_line}, outerHTML: {action.html}")
+                         # we may still want to try action even if scroll fails throwing playwright error to cause exception, though this is likely due to locator and it's broken
+                    if not final_element:
+                        print("Element not found, continuing")
+                        continue
 
                     to_box_coords = None
                     try:
                         # to_box_item = page.locator(f"xpath={action.friendly_xpath}")
                         if final_element:
-                            to_box_coords = final_element.bounding_box(timeout=5000)
-                        # else:
-                        #     to_box_item = page.locator(f"xpath={action.xpath}")
-                        #     to_box_coords = to_box_item.bounding_box(timeout=5000)
+                            to_box_coords = final_element.bounding_box(timeout=10000)
                     except Exception as e:
                         print(f'GETTING BOUNDING BOXES FAILED FOR {action}')
                         print(e)
