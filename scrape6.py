@@ -389,7 +389,7 @@ def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, play
                         print(f"Error selecting element via Playwright and trimmed xpath: {e}")
 
             elif a_type == Action.Type.INPUT:
-                if friendly_xpath:
+                if found_xpath:
                     try:
                         input_fill = use_gpt_fill_input('None', before_screenshot, a.html, True)
                         playwright_element.fill(input_fill, force=True, timeout=5000)
@@ -505,10 +505,10 @@ def setup_context(browser, cookies, logged_in = True, attempts = 3):
                 login(page)
                 # print('LOGIN SUCCESSFUL')
             except Exception as e:
+                page.screenshot(path='login_failure.png', full_page=True)
                 cdpSession.detach()
                 page.close()
                 context.close()
-                page.screenshot(path='login_failure.png', full_page=True)
                 print(f"Error logging in: {e}")
                 success=False
             else:

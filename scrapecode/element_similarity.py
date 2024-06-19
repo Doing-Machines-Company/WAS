@@ -110,9 +110,9 @@ def element_similarity(document_1, document_2, k=0.6):
     # Check that all action elements have the same type and visible/title text
     # print(details1)
     # print(details2)
-    if sorted(details1) != sorted(details2):
-        # print("Action elements do not match in type or visible text.")
-        return 0
+    # if sorted(details1) != sorted(details2):
+    #     # print("Action elements do not match in type or visible text.")
+    #     return 0
 
     # Proceed with the original similarity checks if the action elements match
     structural_sim = structural_similarity(document_1, document_2)
