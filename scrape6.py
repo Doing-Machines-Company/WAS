@@ -259,7 +259,10 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
         'group',
         'dialog',
         'document',
-        'navigation'
+        'navigation',
+        'status',
+        'alert',
+        'complementary'
     ]
     xpath = ax_node["xpath"]
     html = ax_node["html"]
@@ -502,6 +505,7 @@ def setup_context(browser, cookies, logged_in = True, attempts = 3):
             try:
                 if not success: #if we failed before, create new context and page
                     context, page, cdpSession = create_new_context_and_page(browser, cookies)
+                    print("Trying login again...")
                 login(page)
                 # print('LOGIN SUCCESSFUL')
             except Exception as e:
@@ -509,7 +513,7 @@ def setup_context(browser, cookies, logged_in = True, attempts = 3):
                 cdpSession.detach()
                 page.close()
                 context.close()
-                print(f"Error logging in: {e}")
+                print(f"Error logging in {attempt} times: {e}")
                 success=False
             else:
                 success = True
