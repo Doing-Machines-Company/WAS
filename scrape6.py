@@ -24,7 +24,7 @@ from scrape_llm import use_gpt_fill_input
 
 #TODO:
 #fix equivalence class representations
-#thread compliance compliance with action stack/queue
+#thread compliance with action stack/queue
 #combine locks into single context lock
 #A* (LLM-guided) scrape?
 
@@ -926,9 +926,39 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 if sample_action_infos: #the only reason sample_action_infos may be empty is if the action errored out and never got added
                     with eq_class_lock:
                         representative_html = sample_action_infos[0].action.html
-                        if representative_html not in eq_class.unique_actions:
+                        if representative_html not in eq_class.unique_actions: 
                             eq_class.unique_actions[representative_html] = sample_action_infos
 
+                            #folder saving code
+                            output_dir = 'dominos'
+                            action_info = sample_action_infos[0]
+                            tree_string = action_info.action.tree_line
+                            tree_string = tree_string if len(tree_string) <= 40 else tree_string[:40]
+                            sample_path = Path (output_dir) / Path (normalize_url(action_info.url)) / (tree_string + str(hash(action_info.action.html)))  # root / url / action, make new url folder if it doesn't exist
+                            sample_path.mkdir(parents = True, exist_ok = True)
+                            for action_info in sample_action_infos:
+                                tree_string = action_info.action.tree_line
+                                tree_string = tree_string if len(tree_string) <= 40 else tree_string[:40]
+                                subdir_path = sample_path / (tree_string + str(hash(action_info.action.html)))
+                                subdir_path.mkdir(parents = True, exist_ok = True)
+                                before_screenshot_filename = f"action_{hash(action_info.action.html)}_before.png"
+                                before_screenshot_path = subdir_path / before_screenshot_filename
+                                with open(before_screenshot_path, 'wb') as f:
+                                    f.write(action_info.before_screenshot)
+                                action_info.before_screenshot = str(before_screenshot_path)
+
+                                after_screenshot_filename = f"action_{hash(action_info.action.html)}_after.png"
+                                after_screenshot_path = subdir_path / after_screenshot_filename
+                                with open(after_screenshot_path, 'wb') as f:
+                                    f.write(action_info.after_screenshot)
+                                action_info.after_screenshot = str(after_screenshot_path)
+
+                                with open(Path(subdir_path) / 'info.txt', 'w') as f:
+                                    f.write(f"URL: {action_info.url}\n")
+                                    f.write(f"TREE LINE: {action_info.action.tree_line}\n")
+                                    f.write(f"XPATH: {action_info.action.friendly_xpath}\n")
+                                    f.write(f"TRAJECTORY: {action_info.action.trajectory}\n\n")
+                                    f.write(f"HTML: {action_info.action.html}\n")
         #  finally close here
         cdpSession.detach()
         page.close()
@@ -979,46 +1009,7 @@ def worker(thread_id: int, idle_flags: dict, url_queue: Queue, equiv_classes_loc
         browser.close()
 
 def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'dominos', root: str = "", num_threads: int = 10):
-    def save_equivalence_classes(equiv_classes: EquivalenceClassSet, output_dir: str):  #  Update the folders so it groups them by URL, replace/modify the url as paths can't take in slashes
-        # Create the output directory if it doesn't exist
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-        # Save the screenshots separately and update the file paths
-        for eq_class in equiv_classes.classes:
-            for key, action_infos in eq_class.unique_actions.items():
-                action_info = action_infos[0]
-                tree_string = action_info.action.tree_line
-                tree_string = tree_string if len(tree_string) <= 40 else tree_string[:40]
-                sample_path = Path (output_dir) / Path (normalize_url(action_info.url)) / (tree_string + str(hash(key)))  # root / url / curraction, make new url folder if it doesn't exist
-                sample_path.mkdir(parents = True, exist_ok = True)
-                for action_info in action_infos:
-                    tree_string = action_info.action.tree_line
-                    tree_string = tree_string if len(tree_string) <= 40 else tree_string[:40]
-                    subdir_path = sample_path / (tree_string + str(hash(key)))
-                    subdir_path.mkdir(parents = True, exist_ok = True)
-                    before_screenshot_filename = f"action_{hash(key)}_before.png"
-                    before_screenshot_path = subdir_path / before_screenshot_filename
-                    with open(before_screenshot_path, 'wb') as f:
-                        f.write(action_info.before_screenshot)
-                    action_info.before_screenshot = str(before_screenshot_path)
-
-                    after_screenshot_filename = f"action_{hash(key)}_after.png"
-                    after_screenshot_path = subdir_path / after_screenshot_filename
-                    with open(after_screenshot_path, 'wb') as f:
-                        f.write(action_info.after_screenshot)
-                    action_info.after_screenshot = str(after_screenshot_path)
-
-                    with open(Path(subdir_path) / 'info.txt', 'w') as f:
-                        f.write(f"URL: {action_info.url}\n")
-                        f.write(f"TREE LINE: {action_info.action.tree_line}\n")
-                        f.write(f"XPATH: {action_info.action.friendly_xpath}\n")
-                        f.write(f"TRAJECTORY: {action_info.action.trajectory}\n\n")
-                        f.write(f"HTML: {action_info.action.html}\n")
-        # Save the EquivalenceClassSet object using pickling
-        output_path = Path(output_dir) / 'scraper_state.pkl'
-        with open(output_path, 'wb') as f:
-            pickle.dump(equiv_classes, f)
-
+    
     # Initialize an EquivalenceClassSet to store and manage equivalence classes
     equiv_classes = EquivalenceClassSet()
     equiv_classes_lock = threading.Lock()
@@ -1059,8 +1050,10 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
     for t in threads:
         t.join()
 
-
-    save_equivalence_classes(equiv_classes, output_dir)
+    # Save the EquivalenceClassSet object using pickling
+    output_path = Path(output_dir) / 'scraper_state.pkl'
+    with open(output_path, 'wb') as f:
+        pickle.dump(equiv_classes, f)
     print(url_queue.qsize())
     print(seen_urls)
 
