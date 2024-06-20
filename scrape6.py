@@ -728,29 +728,59 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                         print("***Executing Trajectory***")
                         for traj_action in action.trajectory:
                             #  TODO Need to get new good xpath for action
-                            backup_xpath = get_xpath_by_outer_html(page, traj_action.html)
+
+
+                            # backup_xpath = get_xpath_by_outer_html(page, traj_action.html)
 
                             possible_types_traj = [traj_action.action_type]
                             # if backup_xpath:
 
-                            element = get_element(page, backup_xpath)
-                            found_xpath = backup_xpath
-                            if not element:
-                                found_xpath = backup_xpath
-                                element = get_element(page, make_xpath_friendly(backup_xpath))
-                            # backup_friendly_xpath = backup_xpath if '(' in backup_xpath.split("/")[0] else f"//{backup_xpath}"
-                            if not element:
-                                found_xpath = action.friendly_xpath
-                                element = get_element(page, action.friendly_xpath)
-                            if not element:
-                                found_xpath = action.xpath
-                                element = get_element(page, action.xpath)
-                            if element and found_xpath:
-                                success, _ = apply_action(page, traj_action, page.screenshot(), element, found_xpath, possible_types_traj)
+                            traj_element = get_element(page, traj_action.xpath)
+                            assert(traj_action.friendly_xpath != None)
+                            traj_xpath = traj_action.xpath
+                            if not traj_element or traj_element.evaluate(
+                                    "element => element.outerHTML") != traj_action.html:  # perhaps do a stripped check
+                                traj_element = get_element(page, traj_action.friendly_xpath)
+                                traj_xpath = traj_action.friendly_xpath
+                                if not traj_element or traj_element.evaluate(
+                                        "element => element.outerHTML") != traj_action.html:
+                                    # now we try getting stuff at rune time
+                                    potentially_better_traj_xpath = get_xpath_by_outer_html(page, traj_action.html)
+                                    potentially_better_friendly_traj_xpath = make_xpath_friendly(potentially_better_traj_xpath)
+                                    traj_element = get_element(page, potentially_better_friendly_traj_xpath)
+                                    traj_xpath = potentially_better_friendly_traj_xpath
+                                    if not traj_element:
+                                        traj_element = get_element(page, potentially_better_traj_xpath)
+                                        traj_xpath = potentially_better_traj_xpath
+                                        if not traj_element:
+                                            traj_element = get_element(page, traj_action.friendly_xpath)
+                                            traj_xpath = traj_action.friendly_xpath
+                                            if not traj_element:
+                                                traj_element = get_element(page, traj_action.xpath)
+                                                traj_xpath = traj_action.xpath
+
+                            # element = get_element(page, backup_xpath)
+                            # found_xpath = backup_xpath
+                            # if not element:
+                            #     found_xpath = backup_xpath
+                            #     element = get_element(page, make_xpath_friendly(backup_xpath))
+                            # # backup_friendly_xpath = backup_xpath if '(' in backup_xpath.split("/")[0] else f"//{backup_xpath}"
+                            # if not element:
+                            #     found_xpath = action.friendly_xpath
+                            #     element = get_element(page, action.friendly_xpath)
+                            # if not element:
+                            #     found_xpath = action.xpath
+                            #     element = get_element(page, action.xpath)
+                            if traj_element and traj_xpath:
+                                success, _ = apply_action(page, traj_action, page.screenshot(), traj_element, traj_xpath, possible_types_traj)
                                 if not success:
                                     print("Trajectory broken, skipping")
                                     traj_success = False
                                     break
+                            else:
+                                print('Could not find item in trajectory')
+                                traj_success = False
+                                break
                             wait_for_load(page, load_time_ms=3000)
                         wait_for_load(page, load_time_ms=3000)
                         print("***Finished Executing Trajectory***")
