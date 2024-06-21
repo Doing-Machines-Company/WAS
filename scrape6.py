@@ -790,7 +790,6 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                         print("***Finished Executing Trajectory***")
                     if not traj_success:
                         continue
-                    before_screenshot = page.screenshot()
 
                     action.set_friendly_xpath(make_xpath_friendly(action.xpath))
 
@@ -843,7 +842,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                     except Exception as e:
                         print(f'GETTING BOUNDING BOXES FAILED FOR {action}')
                         print(e)
-
+                    before_screenshot = page.screenshot()
                     before_screenshot = create_boundingbox(before_screenshot, to_box_coords)
                     # print(type(before_screenshot))
                     before_state = get_page_state(page, cdpSession)
