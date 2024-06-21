@@ -72,64 +72,69 @@ def jaccard_similarity(set1, set2):
 
 
 class TagExtractor(HTMLParser):
-    def __init__(self):
+    def __init__(self, include_values=False, include_tags=True):
         super().__init__()
-        self.tags = []
+        self.structure = []
+        self.include_values = include_values
+        self.include_tags = include_tags
 
     def handle_starttag(self, tag, attrs):
-        self.tags.append(tag)
+        attr_names = [attr for attr in attrs] if self.include_values else [attr[0] for attr in attrs]
+        if self.include_tags:
+            self.structure.append((tag, attr_names))
+        else:
+            self.structure.append(tag)
 
     def handle_endtag(self, tag):
-        self.tags.append(tag)
+        self.structure.append(('/' + tag, []))
 
     def handle_comment(self, data):
-        self.tags.append('comment')
+        self.structure.append(('comment', []))
 
 
-def get_tags(html_content):
+def get_structure(html_content):
     parser = TagExtractor()
     parser.feed(html_content)
-    return parser.tags
+    return parser.structure
 
 
 def structural_similarity(document_1, document_2):
-    diff = difflib.SequenceMatcher(None, get_tags(document_1), get_tags(document_2))
+    structure1 = get_structure(document_1)
+    structure2 = get_structure(document_2)
+
+    print("STRUCTURAL")
+    print(f"OF DOC 1: {structure1}")
+    print(f"OF DOC 2: {structure2}")
+    print("STRUCTURAL")
+
+    # Convert structures to strings for comparison
+    str1 = json.dumps(structure1)
+    str2 = json.dumps(structure2)
+
+    diff = difflib.SequenceMatcher(None, str1, str2)
     return diff.ratio()
 
 
 def style_similarity(document_1, document_2):
     classes_page1 = get_classes_from_html(document_1)
     classes_page2 = get_classes_from_html(document_2)
+    print("CLASSES")
+    print(f"OF DOC 1: {classes_page1}")
+    print(f"OF DOC 2: {classes_page2}")
+    print("CLASSES")
     return jaccard_similarity(classes_page1, classes_page2)
 
 
 def element_similarity(document_1, document_2, k=0.6):
-    details1 = get_element_details(document_1)
-    details2 = get_element_details(document_2)
-
-    # Check that all action elements have the same type and visible/title text
-    # print(details1)
-    # print(details2)
-    # if sorted(details1) != sorted(details2):
-    #     # print("Action elements do not match in type or visible text.")
-    #     return 0
-
-    # Proceed with the original similarity checks if the action elements match
     structural_sim = structural_similarity(document_1, document_2)
     style_sim = style_similarity(document_1, document_2)
-    # print(f"Structural Similarity: {structural_sim}")
-    # print(f"Style Similarity: {style_sim}")
 
     return min(structural_sim, style_sim)  # Structural sim seems to be more telling
 
 
-# with open('el3.json', 'r') as file:
-#     data = json.load(file)
-#     document_1 = data["my_string"]
-#
-# with open('el1.json', 'r') as file:
-#     data = json.load(file)
-#     document_2 = data["my_string"]
-#
-# similarity_score = element_similarity(document_1, document_2)
-# print(f"Similarity Score: {similarity_score}")
+string1 = "<a class=\"css-0\" data-quid=\"main-navigation-order-online\" href=\"/en/pages/order/\">Order Online</a>"
+string2 = "<a data-quid=\"location\" href=\"/en/pages/order/?locations=1#!/locations/\" class=\"css-0\">Locations</a>"
+
+
+similarity_score = element_similarity(string1, string2)
+print(f"Similarity Score: {similarity_score}")
