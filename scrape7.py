@@ -103,7 +103,8 @@ class URLState:
                 matched += 1
             elif any(element_similarity(action.html, sample_html) > .9 for sample_html in self.unique_samples.keys()):
                 matched += 1
-        print("Similarity score: ", matched / total)
+        print(self.aliases)
+        print("\tSimilarity score: ", matched / total)
         return matched / total
     
     #attempt to match a list of actions and return pairs of actions with matched actions
@@ -967,7 +968,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 # do_login(page)  # this should be the only other do_login we need hopefully
                 if not login_success:
                     print("LOGIN FAILED")
-                    continue
+                    return
 
                 page.goto(root_state.url)  # this threw an error once, idk why
                 time.sleep(2)
