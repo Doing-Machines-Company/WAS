@@ -16,7 +16,7 @@ class Action:
         GO_BACK = 10
         SELECT_GENERAL = 11
 
-    def __init__(self, action_type: 'Action.Type', xpath: str, html: str, tree_line: str = "", input_string: Optional[str] = None, trajectory: List['Action'] = [], friendly_xpath : Optional[str]= None):
+    def __init__(self, action_type: 'Action.Type', xpath: str, html: str, tree_line: str = "", input_string: Optional[str] = None, trajectory: List['Action'] = [], friendly_xpath : Optional[str]= None, action_effect : str = None):
         self.action_type = action_type
         self.html = html
         self.xpath = xpath
@@ -25,8 +25,12 @@ class Action:
         self.desired_option = None
         self.trajectory = trajectory #added trajectory to show how the action can be 'created', an empty traj indicates existence at base state of url
         self.friendly_xpath = friendly_xpath
+        self.action_effect = action_effect
     def set_input_string(self, input_string: str):
         self.input_string = input_string
+
+    def set_action_effect(self, action_effect: str):
+        self.action_effect = action_effect
 
     def set_desired_option(self, desired_option: str):
         self.desired_option = desired_option

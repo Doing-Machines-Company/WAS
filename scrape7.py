@@ -41,6 +41,7 @@ class ActionInfo:
     before_screenshot: bytes | str
     after_screenshot: bytes | str
     url: str
+    action_effect: str
 
 @dataclass
 class Chunk:
@@ -80,49 +81,54 @@ instead, the coarse relation can narrow our search space when there is no exact 
 
 #represents the union over all possible actions at an exact url
 class URLState:
-    def __init__(self, url):  
+    def __init__(self, url):
         self.aliases : set[str] = {url} #all the urls that are associated with the same action set
         self.unique_samples: dict[str, list[ActionInfo]] = {} #action set obtainable via any trajectories within this url
-    
+
     def add_alias(self, url):
         self.aliases.add(url)
-    
+
     #add sample if no duplicate and return True, otherwise return False
     def add_sample(self, sample: list[ActionInfo]):
         representative_html = sample[0].action.html
-        if representative_html not in self.unique_samples: 
+        if representative_html not in self.unique_samples:
             self.unique_samples[representative_html] = sample
             return True
         return False
     #return (for now) percentage of actions from input page_state that can be matched by this urlstate
     def similarity_score(self, page_state : PageState) -> float:
-        matched = 0.0 
+        matched = 0.0
         total = len(page_state.actions)
         for (aTl, action) in page_state.actions:
             if action.html in self.unique_samples: #attempt O(1) key lookup
                 matched += 1
             elif any(element_similarity(action.html, sample_html) > .9 for sample_html in self.unique_samples.keys()):
                 matched += 1
-        print(self.aliases)
-        print("\tSimilarity score: ", matched / total)
+        print("Similarity score: ", matched / total)
         return matched / total
-    
+
     #attempt to match a list of actions and return pairs of actions with matched actions
     def match_actions(self, action_list : list[Action]):
         paired_actions = []
         for action in action_list:
             max_score = 0
             matched_action = None
-            for sample_action in self.unique_samples:
-                score = element_similarity(action.html, sample_action[0].action.html)
-                if score == 1.0: 
-                    paired_actions.append([action, sample_action[0]])
-                    break
-                elif score > max_score:
-                    max_score = score
-                    matched_action = sample_action[0]
-            paired_actions.append([action, matched_action])
-        return paired_actions    
+            if action.html in self.unique_samples:  # hash check using dictionary, should probably include all scraped htmls instead of representative
+                matched_action = self.unique_samples[action.html][0]
+                paired_actions.append((action, matched_action))
+            else:
+                for sample_action_rep_html in self.unique_samples:
+                    score = element_similarity(action.html, sample_action_rep_html)
+                    if score == 1.0:
+                        matched_action = self.unique_samples[sample_action_rep_html][0]  # ONLY A SINGLE ACTION MATCHED
+                        # paired_actions.append((action, matched_action))
+                        break
+                    elif score > max_score and score >= 0.9:
+                        max_score = score
+                        # matched_action = sample_action[0]
+                        matched_action = self.unique_samples[sample_action_rep_html][0]
+                paired_actions.append((action, matched_action))  # WILL APPEND NONE IF NO ACTION HAS SCORE >= 0.9
+        return paired_actions
 
 #represents a set of normalized urls
 class URLStateManager:
@@ -135,19 +141,19 @@ class URLStateManager:
         url = page_state.url
         if url in self.urls:
             return self.urls[url]
-        else: 
+        else:
             max_score = 0
             matched_url_state = None
             for url_state in self.urls.values():
-                score = url_state.similarity_score(page_state) 
+                score = url_state.similarity_score(page_state)
                 if score > max_score:
                     max_score = score
                     matched_url_state = url_state
             if max_score >= .95:
                 return matched_url_state
             else:
-                return None      
-    
+                return None
+
 
 def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
     accessibility_tree = cdpSession.send(
@@ -215,6 +221,7 @@ def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
             )
             node["html"] = response["outerHTML"]
             node["xpath"] = node_xpath
+            node["action_effect"] = None
 
         except Exception as e:
             node['xpath'] = ''
@@ -608,7 +615,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
     #out of a set of actions generated from an observation, removes duplicates.
     #does not remove duplicates in header or footer because they are generally
     #significant enough that we want to keep them
-    def get_unique_actions(new_state):            
+    def get_unique_actions(new_state):
         sample_size = 2 #maximum number of samples to include among similar actions
         unique_actions = []
         new_actions = new_state.actions
@@ -899,7 +906,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 if len(page.context.pages) > 1 and page.context.pages[-1] != page:
                     new_page = page.context.pages[-1]
                     after_screenshot = new_page.screenshot(full_page=False)
-                    sample_action_infos.append(ActionInfo(action, before_state.html, new_page.content(), before_screenshot, after_screenshot, url))
+                    sample_action_infos.append(ActionInfo(action, before_state.html, new_page.content(), before_screenshot, after_screenshot, url, None))
                     with page_queue_lock:
                         with seen_urls_lock:
                             if normalize_url(new_page.url) not in seen_urls and root_state.url != page.url:
@@ -911,8 +918,8 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                     new_page.close()
                 else:
                     after_screenshot = page.screenshot(full_page=False)
-                    sample_action_infos.append(ActionInfo(action, before_state.html, page.content(), before_screenshot, after_screenshot, url))
-                            
+                    sample_action_infos.append(ActionInfo(action, before_state.html, page.content(), before_screenshot, after_screenshot, url, None))
+
 
                 #the url is being normalized a bit too aggressively to the point
                 #that pages that are clearly different are being put into the same eq
@@ -968,7 +975,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 # do_login(page)  # this should be the only other do_login we need hopefully
                 if not login_success:
                     print("LOGIN FAILED")
-                    return
+                    continue
 
                 page.goto(root_state.url)  # this threw an error once, idk why
                 time.sleep(2)
@@ -1060,7 +1067,7 @@ def worker(thread_id: int, idle_flags: dict, url_queue: Queue, equiv_classes_loc
         browser.close()
 
 def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'dominos', root: str = "", num_threads: int = 10):
-    
+
     # Initialize an EquivalenceClassSet to store and manage equivalence classes
     equiv_classes : URLStateManager = URLStateManager()
     equiv_classes_lock = threading.Lock()
@@ -1102,10 +1109,10 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
         t.join()
 
     # Save the EquivalenceClassSet object using pickling
-    
+
     print(url_queue.qsize())
     print(seen_urls)
 
-num_cores = os.cpu_count()
+# num_cores = os.cpu_count()
 
-explore("https://www.dominos.com", headless=False, root="www.dominos.com", num_threads=1)
+# explore("https://www.dominos.com", headless=False, root="www.dominos.com", num_threads=1)
