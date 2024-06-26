@@ -102,10 +102,10 @@ def structural_similarity(document_1, document_2):
     structure1 = get_structure(document_1)
     structure2 = get_structure(document_2)
 
-    print("STRUCTURAL")
-    print(f"OF DOC 1: {structure1}")
-    print(f"OF DOC 2: {structure2}")
-    print("STRUCTURAL")
+    # print("STRUCTURAL")
+    # print(f"OF DOC 1: {structure1}")
+    # print(f"OF DOC 2: {structure2}")
+    # print("STRUCTURAL")
 
     # Convert structures to strings for comparison
     str1 = json.dumps(structure1)
@@ -118,18 +118,21 @@ def structural_similarity(document_1, document_2):
 def style_similarity(document_1, document_2):
     classes_page1 = get_classes_from_html(document_1)
     classes_page2 = get_classes_from_html(document_2)
-    print("CLASSES")
-    print(f"OF DOC 1: {classes_page1}")
-    print(f"OF DOC 2: {classes_page2}")
-    print("CLASSES")
+    # print("CLASSES")
+    # print(f"OF DOC 1: {classes_page1}")
+    # print(f"OF DOC 2: {classes_page2}")
+    # print("CLASSES")
     return jaccard_similarity(classes_page1, classes_page2)
 
 
 def element_similarity(document_1, document_2, k=0.6):
     structural_sim = structural_similarity(document_1, document_2)
     style_sim = style_similarity(document_1, document_2)
-
-    return min(structural_sim, style_sim)  # Structural sim seems to be more telling
+    if style_sim < .5:
+        return 0.0
+    else:
+        return structural_sim
+    #return min(structural_sim, style_sim)  # Structural sim seems to be more telling
 
 
 string1 = "<a class=\"css-0\" data-quid=\"main-navigation-order-online\" href=\"/en/pages/order/\">Order Online</a>"
@@ -137,4 +140,4 @@ string2 = "<a data-quid=\"location\" href=\"/en/pages/order/?locations=1#!/locat
 
 
 similarity_score = element_similarity(string1, string2)
-print(f"Similarity Score: {similarity_score}")
+# print(f"Similarity Score: {similarity_score}")
