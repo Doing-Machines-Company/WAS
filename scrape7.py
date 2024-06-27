@@ -200,19 +200,20 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
     xpath = ax_node["xpath"]
     html = ax_node["html"]
     role = ax_node["role"]
+    nodeId = ax_node["nodeId"]
 
     soup = BeautifulSoup(html, 'html.parser')
 
     if xpath and html and xpath.strip() != "" and html.strip() != "":
         # Check if the action is a pure link in the header or footer
         if role.strip () in ignored_roles:
-            return IndefiniteAction([], None)
+            return IndefiniteAction([], None, nodeId)
         if html in footer_html or (html in header_html and url not in 'https://www.dominos.com/en/'):
-            return IndefiniteAction([], None)
+            return IndefiniteAction([], None, nodeId)
 
         #not sure what this does at all - Cem
         if any(attr in html.lower() for attr in non_browser_attributes):
-            return IndefiniteAction([], None)
+            return IndefiniteAction([], None, nodeId)
 
         if role.strip() == 'link':
             possible_action_types.append(Action.Type.CLICK_LINK)
@@ -265,9 +266,9 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
         # if xpath and xpath == "id(\"tab-Delivery\")":
         #     print("FOUND DELIVERY OPTION")
         #     print(possible_action_types)
-        return IndefiniteAction(possible_action_types, action)
+        return IndefiniteAction(possible_action_types, action, nodeId)
     else:
-        return IndefiniteAction([], None)
+        return IndefiniteAction([], None, nodeId)
 
 def remove_last_xpath_item(xpath):
     # Split the string from the right at the last '/'
@@ -386,6 +387,13 @@ def get_page_state(page: PlaywrightPage, cdpSession: CDPSession) -> PageState:
 
     # Extract actions from the accessibility nodes and filter out None values, only scrape header and footer on homepage
     # actions = [ax_node_to_action(node, header_html if page.url not in 'https://www.dominos.com/en/' else '', footer_html if page.url not in 'https://www.dominos.com/en/' else '') for node in cleaned.nodes_info]
+    '''
+    
+    IMPORTANT: ACTIONS FROM CLEANED AND NOT RAW AX_NODES!!!
+    SO EVERYTHING ACTUALLY IS IN VIEWABLE TREE!!!
+    
+    '''
+
     indefinite_actions = [ax_node_to_action(node, header_html, footer_html, page.url) for node in cleaned.nodes_info]
 
     new_indefinite_actions = []

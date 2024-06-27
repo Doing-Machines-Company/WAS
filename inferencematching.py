@@ -42,27 +42,43 @@ def create_new_context_and_page(browser, cookies):
     cdpSession = context.new_cdp_session(page)
     return context, page, cdpSession
 
-def match_action_effects(curr_page_state, url_state_manager) -> PageState:  # Needless amounts of unrolling and rerolling
+def match_action_effects(curr_page_state: PageState, url_state_manager: URLStateManager) -> InferencePageState | None:  # Needless amounts of unrolling and rerolling
     found = url_state_manager.get_state(curr_page_state)
     if found:
-        curr_page_actions = [item[1] for item in curr_page_state.actions]  # (typeList, action)
-        matches = found.match_actions(curr_page_actions)
-        new_action_list = list()
-        # PageState.actions: list[(list[Action.Type], Action)]
-        # print(type(matches[0][0]))  # ACTION TYPE
-        # print(type(matches[0][1]))  # ACTION INFO TYPE
-        # NEED TO ADD SCRAPED TYPE TO SCRAPED RESULT
-        for i, (action, matched_action_info) in enumerate(matches):  # DOESN'T RUN WITH NO ACTION EFFECT IN ACTION INFO
-            # TODO NEEDS MORE TESTING AFTER ACTION EFFECTS EXIST IN ACTION INFO
-            if matched_action_info:
-                action.set_action_effect(matched_action_info.action_effect)
-                action_type_in_list = [matched_action_info.action.Type]
-                new_action_list.append((action_type_in_list, action))
-            else:
-                new_action_list.append((curr_page_state.actions[i][0], action))
+        curr_page_actions = [item for item in curr_page_state.actions]  # (typeList, action)
+        new_action_list = found.match_actions(curr_page_actions)
+        '''
+        
+        @dataclass
+        class InferenceAction:
+            curr_action: Action
+            type_list: list[Action.Type] | None
+            matched_action: Action
+            
+        @dataclass
+        class PageState:
+            url: str
+            ax_nodes: list[AxNode]
+            html: str
+            actions: list[IndefiniteAction]
+            header_html: str
+            footer_html: str
+            
+        @dataclass
+        class IndefiniteAction:
+            type_list: list[Action.Type]
+            action: Action | None
 
-        curr_page_state.actions = new_action_list
-        return curr_page_state
+        @dataclass
+        class InferencePageState:
+            url: str
+            ax_nodes: list[AxNode]
+            html: str
+            matched_actions: list[InferenceAction]
+
+        '''
+        inference_page_state = InferencePageState(curr_page_state.url, curr_page_state.ax_nodes, curr_page_state.html, new_action_list)
+        return inference_page_state
 
     else:
         print("NOTHING FOUND")

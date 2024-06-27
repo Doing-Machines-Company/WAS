@@ -16,7 +16,7 @@ class AxObservation(PageObservation):
         self.url = url
         node_id_to_idx = {}
         for idx, node in enumerate(self.axtree):
-            node_id_to_idx[node["nodeId"]] = idx
+            node_id_to_idx[node["nodeId"]] = idx  # NOW WE HAVE A NEW ID SYSTEM, GOES UP EASIER FOR BOT
 
         self.nodes_info = []
         def dfs(idx: int, obs_node_id: str, depth: int) -> str:
@@ -78,6 +78,7 @@ class AxObservation(PageObservation):
         dfs(0, self.axtree[0]["nodeId"], 0)
         """further clean accesibility tree"""
         cleaned_nodes = []
+        node_id_counter = 0
         for node in self.nodes_info:
             # remove statictext if the content already appears in the previous line
             if node["role"] == "StaticText":
@@ -88,6 +89,8 @@ class AxObservation(PageObservation):
                         found = True
                 if found:
                     continue
+            node["nodeId"] = node_id_counter
+            node_id_counter += 1
             cleaned_nodes.append(node)
         self.nodes_info = cleaned_nodes
 
@@ -176,12 +179,15 @@ class ScrapeAction:
 @dataclass
 class InferenceAction:
     curr_action: Action
-    matched_action: Action
+    type_list: list[Action.Type]
+    matched_action: Action | None
+    ax_node_index: int
 
 @dataclass
 class IndefiniteAction:
     type_list: list[Action.Type]
     action: Action | None
+    ax_node_index: int
 
 @dataclass
 class PageState:
@@ -192,15 +198,14 @@ class PageState:
     header_html: str
     footer_html: str
 
-
-
-@dataclass
-class ScrapePageState:
-    pass
-
 @dataclass
 class InferencePageState:
-    pass
+    url: str
+    ax_nodes: list[AxNode]
+    html: str
+    matched_actions: list[InferenceAction]
+
+
 #removed some of the fields from pagestate, not sure if they will ultimately be needed?
 
 
@@ -233,26 +238,43 @@ class URLState:
         return matched / total
 
     #attempt to match a list of actions and return pairs of actions with matched actions
-    def match_actions(self, action_list : list[Action]):
+    def match_actions(self, action_list : list[IndefiniteAction]) -> list[InferenceAction]:
+        '''
+
+        @dataclass
+        class InferenceAction:
+            curr_action: Action
+            type_list: list[Action.Type]
+            matched_action: Action | None
+
+        @dataclass
+        class IndefiniteAction:
+            type_list: list[Action.Type]
+            action: Action | None
+
+        :param action_list:
+        :return:
+        '''
         paired_actions = []
-        for action in action_list:
+        for indefinite_action in action_list:
+            action = indefinite_action.action
             max_score = 0
             matched_action = None
             if action.html in self.unique_samples:  # hash check using dictionary, should probably include all scraped htmls instead of representative
-                matched_action = self.unique_samples[action.html][0]
-                paired_actions.append((action, matched_action))
+                matched_action = self.unique_samples[action.html][0].action
+                # resulting_action = InferenceAction(action, indefinite_action.type_list, matched_action, indefinite_action.ax_node_index)
             else:
                 for sample_action_rep_html in self.unique_samples:
                     score = element_similarity(action.html, sample_action_rep_html)
                     if score == 1.0:
-                        matched_action = self.unique_samples[sample_action_rep_html][0]  # ONLY A SINGLE ACTION MATCHED
-                        # paired_actions.append((action, matched_action))
+                        matched_action = self.unique_samples[sample_action_rep_html][0].action  # ONLY A SINGLE ACTION MATCHED
                         break
                     elif score > max_score and score >= 0.9:
                         max_score = score
-                        # matched_action = sample_action[0]
-                        matched_action = self.unique_samples[sample_action_rep_html][0]
-                paired_actions.append((action, matched_action))  # WILL APPEND NONE IF NO ACTION HAS SCORE >= 0.9
+                        matched_action = self.unique_samples[sample_action_rep_html][0].action
+
+            resulting_action = InferenceAction(action, indefinite_action.type_list, matched_action, indefinite_action.ax_node_index)
+            paired_actions.append(resulting_action)  # WILL APPEND NONE IF NO ACTION HAS SCORE >= 0.9
         return paired_actions
 
 #represents a set of normalized urls
