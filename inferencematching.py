@@ -1,6 +1,5 @@
 from scrapecode.element_similarity import element_similarity
-from drivers import AxObservation
-from action import Action
+# from action import Action
 from pathlib import Path
 import os
 from bs4 import BeautifulSoup
@@ -11,8 +10,19 @@ import copy as cp
 import pickle
 import re
 from models import PageObservation
+from classes import *
 from scrape7 import *
 from playwright.sync_api import sync_playwright
+
+
+
+def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
+    # https://playwright.dev/python/docs/navigations#navigation-events
+    # https://playwright.dev/python/docs/api/class-page#page-wait-for-load-state-option-state
+    page.wait_for_load_state('load')
+    # page.wait_for_load_state('networkidle')
+    page.wait_for_timeout(
+        load_time_ms)
 
 def load_scraper_state(file_path: str):
     with open(file_path, 'rb') as f:

@@ -2,12 +2,12 @@ import time
 from queue import Queue
 import threading
 from drivers import AxObservation
-from action import Action
+# from action import Action
 import json
 from pathlib import Path
 from playwright.sync_api import sync_playwright, Page, Dialog, TimeoutError
 import pickle
-from typing import Optional, Any
+# from typing import Optional, Any
 from time import sleep
 from dataclasses import dataclass
 from urllib.parse import urlparse, urlunparse
@@ -21,44 +21,7 @@ from PIL import Image, ImageDraw
 import cv2
 import copy as cp
 from scrape_llm import use_gpt_fill_input
-
-#TODO:
-#fix equivalence class representations
-#thread compliance with action stack/queue
-#combine locks into single context lock
-#A* (LLM-guided) scrape?
-
-
-PlaywrightPage = Any
-CDPSession = Any
-AxNode = Any  # TODO: make this a dataclass
-
-@dataclass
-class ActionInfo:
-    action: Action
-    before_html: str
-    after_html: str
-    before_screenshot: bytes | str
-    after_screenshot: bytes | str
-    url: str
-    action_effect: str
-
-@dataclass
-class Chunk:
-    description: str
-    start_identifier: list[str] | None
-    end_identifier: list[str] | None
-    ordered_candidates: list[str]
-
-@dataclass
-class PageState:
-    url: str
-    html: str
-    actions: list[(list[Action.Type], Action)]
-    header_html: str
-    footer_html: str
-#removed some of the fields from pagestate, not sure if they will ultimately be needed?
-
+from classes import *
 
 
 
@@ -79,80 +42,6 @@ no method currently exists to properly normalize urls in a way that is consisten
 instead, the coarse relation can narrow our search space when there is no exact url match to lessen usage of the computationally expensive action matches
 """
 
-#represents the union over all possible actions at an exact url
-class URLState:
-    def __init__(self, url):
-        self.aliases : set[str] = {url} #all the urls that are associated with the same action set
-        self.unique_samples: dict[str, list[ActionInfo]] = {} #action set obtainable via any trajectories within this url
-
-    def add_alias(self, url):
-        self.aliases.add(url)
-
-    #add sample if no duplicate and return True, otherwise return False
-    def add_sample(self, sample: list[ActionInfo]):
-        representative_html = sample[0].action.html
-        if representative_html not in self.unique_samples:
-            self.unique_samples[representative_html] = sample
-            return True
-        return False
-    #return (for now) percentage of actions from input page_state that can be matched by this urlstate
-    def similarity_score(self, page_state : PageState) -> float:
-        matched = 0.0
-        total = len(page_state.actions)
-        for (aTl, action) in page_state.actions:
-            if action.html in self.unique_samples: #attempt O(1) key lookup
-                matched += 1
-            elif any(element_similarity(action.html, sample_html) > .9 for sample_html in self.unique_samples.keys()):
-                matched += 1
-        print("Similarity score: ", matched / total)
-        return matched / total
-
-    #attempt to match a list of actions and return pairs of actions with matched actions
-    def match_actions(self, action_list : list[Action]):
-        paired_actions = []
-        for action in action_list:
-            max_score = 0
-            matched_action = None
-            if action.html in self.unique_samples:  # hash check using dictionary, should probably include all scraped htmls instead of representative
-                matched_action = self.unique_samples[action.html][0]
-                paired_actions.append((action, matched_action))
-            else:
-                for sample_action_rep_html in self.unique_samples:
-                    score = element_similarity(action.html, sample_action_rep_html)
-                    if score == 1.0:
-                        matched_action = self.unique_samples[sample_action_rep_html][0]  # ONLY A SINGLE ACTION MATCHED
-                        # paired_actions.append((action, matched_action))
-                        break
-                    elif score > max_score and score >= 0.9:
-                        max_score = score
-                        # matched_action = sample_action[0]
-                        matched_action = self.unique_samples[sample_action_rep_html][0]
-                paired_actions.append((action, matched_action))  # WILL APPEND NONE IF NO ACTION HAS SCORE >= 0.9
-        return paired_actions
-
-#represents a set of normalized urls
-class URLStateManager:
-    def __init__(self):
-        self.urls : dict[str, URLState] = {}
-    def add_url(self, url : str, state : URLState):
-        if url not in self.urls:
-            self.urls[url] = state
-    def get_state(self, page_state : PageState) -> URLState:
-        url = page_state.url
-        if url in self.urls:
-            return self.urls[url]
-        else:
-            max_score = 0
-            matched_url_state = None
-            for url_state in self.urls.values():
-                score = url_state.similarity_score(page_state)
-                if score > max_score:
-                    max_score = score
-                    matched_url_state = url_state
-            if max_score >= .95:
-                return matched_url_state
-            else:
-                return None
 
 
 def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
@@ -255,7 +144,7 @@ def create_boundingbox(image_bytes, bounding_box):
     return buffer.tobytes()
 
 
-def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: str) -> (list[Action.Type], Action):
+def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: str) -> IndefiniteAction:
 
     possible_action_types = []
 
@@ -317,13 +206,13 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
     if xpath and html and xpath.strip() != "" and html.strip() != "":
         # Check if the action is a pure link in the header or footer
         if role.strip () in ignored_roles:
-            return ([], None)
+            return IndefiniteAction([], None)
         if html in footer_html or (html in header_html and url not in 'https://www.dominos.com/en/'):
-            return ([], None)
+            return IndefiniteAction([], None)
 
         #not sure what this does at all - Cem
         if any(attr in html.lower() for attr in non_browser_attributes):
-            return ([], None)
+            return IndefiniteAction([], None)
 
         if role.strip() == 'link':
             possible_action_types.append(Action.Type.CLICK_LINK)
@@ -376,9 +265,9 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
         # if xpath and xpath == "id(\"tab-Delivery\")":
         #     print("FOUND DELIVERY OPTION")
         #     print(possible_action_types)
-        return (possible_action_types, action)
+        return IndefiniteAction(possible_action_types, action)
     else:
-        return ([], None)
+        return IndefiniteAction([], None)
 
 def remove_last_xpath_item(xpath):
     # Split the string from the right at the last '/'
@@ -486,9 +375,9 @@ def get_page_state(page: PlaywrightPage, cdpSession: CDPSession) -> PageState:
     wait_for_load(page)
 
     # Retrieve the accessibility tree and create an AxObservation object
-    cleaned = AxObservation(get_ax_tree(cdpSession), page.url)
+    ax_nodes = get_ax_tree(cdpSession)
+    cleaned = AxObservation(ax_nodes, page.url)  # LITERALLY THE WHOLE TREE
     #DON'T PRINT FOR NOW, IT'S CLUTTERING EVERYTHING
-    # print(cleaned)
 
     # Extract the header and footer HTML
     header_html = page.evaluate("document.getElementsByTagName('header')[0]?.outerHTML || ''")
@@ -500,9 +389,9 @@ def get_page_state(page: PlaywrightPage, cdpSession: CDPSession) -> PageState:
     indefinite_actions = [ax_node_to_action(node, header_html, footer_html, page.url) for node in cleaned.nodes_info]
 
     new_indefinite_actions = []
-    for tL, a in indefinite_actions:
-        if a is not None and tL != []:
-            new_indefinite_actions.append((tL, a))
+    for indefinite_action in indefinite_actions:
+        if indefinite_action.action is not None and indefinite_action.type_list != []:
+            new_indefinite_actions.append(indefinite_action)
     # indefinite_actions = [(tL, a) for (tL, a) in indefinite_actions if tL != []]  # TODO now a list of lists of actions
 
 
@@ -510,6 +399,7 @@ def get_page_state(page: PlaywrightPage, cdpSession: CDPSession) -> PageState:
     # Create and return a PageState object with the normalized URL, HTML content, actions, header HTML, and footer HTML
     return PageState(
         url=page.url,
+        ax_nodes=ax_nodes,
         html=page.content(),
         actions=new_indefinite_actions,
         header_html=header_html,
@@ -615,25 +505,27 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
     #out of a set of actions generated from an observation, removes duplicates.
     #does not remove duplicates in header or footer because they are generally
     #significant enough that we want to keep them
-    def get_unique_actions(new_state):
+    def get_unique_actions(new_state: PageState) -> list[list[IndefiniteAction]]:
         sample_size = 2 #maximum number of samples to include among similar actions
         unique_actions = []
         new_actions = new_state.actions
         header_html = new_state.header_html
         footer_html = new_state.footer_html
-        for (possible_types, action) in new_actions:
+        for indefinite_action in new_actions:
+            action = indefinite_action.action
             if action.html in header_html or action.html in footer_html:
-                unique_actions.append([(possible_types, action)]) #add header/footer items to own sample
+                unique_actions.append([indefinite_action]) #add header/footer items to own sample
             else:
                 unique = True
                 for samples in unique_actions:
-                    if any(element_similarity(action.html, sample.html) >= 0.9 for (tL, sample) in samples):
+                    if any(element_similarity(action.html, sample_indefinite_action.action.html) >= 0.9 for sample_indefinite_action in samples):
+                        #  Perhaps add to best match and not first one >= 0.9?
                         if len(samples) < sample_size:
-                            samples.append((possible_types,action))
+                            samples.append(indefinite_action)
                         unique = False
                         break
                 if unique:
-                    unique_actions.append([(possible_types, action)])
+                    unique_actions.append([indefinite_action])
         return unique_actions
 
     def get_xpath_by_outer_html(page, outer_html):
@@ -641,7 +533,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
         js_code = """
         (outerHTML) => {
             function getElementXPath(element) {
-                if (element.id !== '') {
+                if (element.id !== '') {=
                     return 'id("' + element.id + '")';
                 }
                 if (element === document.body) {
@@ -726,23 +618,28 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 context.close()
                 return #no longer want to scrape the page
 
-        #used to check whether an action has already been queued yet (if seen again, we shouldn't requeue)
-        seen_actions = []
+        # seen_actions = []
         #data structure to control flow of new actions
         action_queue = Queue()
 
-        unique_actions = get_unique_actions(root_state)  # should check typing
+        unique_actions = get_unique_actions(root_state)  # should check typing, list of lists of indefinite actions
 
         #at this point, seen_actions is empty, so we can just put the unique actions into the queue
         for samples in unique_actions:
             action_queue.put(samples)
         #we can just set seen_actions since it is empty
         #TO IMPROVE EFFICIENCY MAYBE JUST SET THIS TO STRICTLY UNIQUE  - CEM
-        seen_actions = unique_actions
+        #used to check whether an action has already been queued yet (if seen again, we shouldn't requeue)
+        seen_actions = unique_actions  # Now a list of IndefiniteAction(s)
         while action_queue.qsize() > 0:
             samples = action_queue.get(timeout=0.5)  # possible_types should have some sort of importance ordering
-            sample_action_infos : list[ActionInfo] = []
-            for possible_types, action in samples:
+            #  a samples is a list of indefinite actions
+            sample_action_infos : list[ScrapeAction] = []
+            for indefinite_sample in samples:
+
+                possible_types = indefinite_sample.type_list
+                action = indefinite_sample.action
+
                 if not action.xpath:
                     print(f"Skipping action without XPath: {action}")
                     continue
@@ -906,7 +803,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 if len(page.context.pages) > 1 and page.context.pages[-1] != page:
                     new_page = page.context.pages[-1]
                     after_screenshot = new_page.screenshot(full_page=False)
-                    sample_action_infos.append(ActionInfo(action, before_state.html, new_page.content(), before_screenshot, after_screenshot, url, None))
+                    sample_action_infos.append(ScrapeAction(action, before_state.html, new_page.content(), before_screenshot, after_screenshot, url))
                     with page_queue_lock:
                         with seen_urls_lock:
                             if normalize_url(new_page.url) not in seen_urls and root_state.url != page.url:
@@ -918,7 +815,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                     new_page.close()
                 else:
                     after_screenshot = page.screenshot(full_page=False)
-                    sample_action_infos.append(ActionInfo(action, before_state.html, page.content(), before_screenshot, after_screenshot, url, None))
+                    sample_action_infos.append(ScrapeAction(action, before_state.html, page.content(), before_screenshot, after_screenshot, url))
 
 
                 #the url is being normalized a bit too aggressively to the point
@@ -947,19 +844,22 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                         #                 print("\t ", seen_sample1[0][1].tree_line)
                         #take the set difference unique_actions \ seen_actions
                         #it is fine to just compare one action from each sample, since we assume transitive similarity
-                        difference = [sample for sample in new_actions if all(element_similarity(sample[0][1].html, seen_sample[0][1].html) < .9 for seen_sample in seen_actions)]
+                        # seen_actions is all samples, a list of lists of indefinite actions
+                        # a seen_sample is a list of indefinite actions
+                        difference = [sample for sample in new_actions if all(element_similarity(sample[0].action.html, seen_sample[0].action.html) < .9 for seen_sample in seen_actions)]
                         #put the difference onto the queue
                         new_trajectory = []
                         if difference:
                             new_trajectory = cp.deepcopy(action.trajectory)
                             new_trajectory.append(action)
                             print("***Detected new actions***")
-                        for sample in difference:
+                        for sample in difference:  # each sample is a list of indefinite actions
                             print("New sample")
-                            for dTl, different_action in sample:
-                                print("\tNew action: ", different_action.tree_line)
+                            # for dTl, different_action in sample:
+                            for indefinite_action in sample:
+                                print("\tNew action: ", indefinite_action.action.tree_line)
                                 #update trajectory with parent's trajectory + parent
-                                different_action.set_trajectory(new_trajectory)
+                                indefinite_action.action.set_trajectory(new_trajectory)
                             action_queue.put(sample)
                         #put the difference into the seen_actions, effectively unique_actions U seen_actions
                         seen_actions += difference
@@ -1115,4 +1015,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
 # num_cores = os.cpu_count()
 
-# explore("https://www.dominos.com", headless=False, root="www.dominos.com", num_threads=1)
+explore("https://www.dominos.com", headless=True, root="www.dominos.com", num_threads=1)
