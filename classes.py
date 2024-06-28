@@ -230,7 +230,8 @@ class URLState:
     def similarity_score(self, page_state : PageState) -> float:
         matched = 0.0
         total = len(page_state.actions)
-        for (aTl, action) in page_state.actions:
+        for indefinite_action in page_state.actions:
+            action = indefinite_action.action
             if action.html in self.unique_samples: #attempt O(1) key lookup
                 matched += 1
             elif any(element_similarity(action.html, sample_html) > .9 for sample_html in self.unique_samples.keys()):
