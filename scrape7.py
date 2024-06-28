@@ -541,7 +541,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
         js_code = """
         (outerHTML) => {
             function getElementXPath(element) {
-                if (element.id !== '') {=
+                if (element.id !== '') {
                     return 'id("' + element.id + '")';
                 }
                 if (element === document.body) {
@@ -682,13 +682,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 if action.trajectory:
                     print("***Executing Trajectory***")
                     for traj_action in action.trajectory:
-                        #  TODO Need to get new good xpath for action
-
-
-                        # backup_xpath = get_xpath_by_outer_html(page, traj_action.html)
-
                         possible_types_traj = [traj_action.action_type]
-                        # if backup_xpath:
 
                         traj_element = get_element(page, traj_action.xpath)
                         assert(traj_action.friendly_xpath != None)
