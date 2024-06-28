@@ -207,7 +207,7 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
     if xpath and html and xpath.strip() != "" and html.strip() != "":
         # Check if the action is a pure link in the header or footer
         if role.strip () in ignored_roles:
-            return IndefiniteAction([], None, nodeId)
+            return IndefiniteAction([], None, nodeId)  # may just want to return None?
         if html in footer_html or (html in header_html and url not in 'https://www.dominos.com/en/'):
             return IndefiniteAction([], None, nodeId)
 
@@ -811,7 +811,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 if len(page.context.pages) > 1 and page.context.pages[-1] != page:
                     new_page = page.context.pages[-1]
                     after_screenshot = new_page.screenshot(full_page=False)
-                    sample_action_infos.append(ScrapeAction(action, before_state.html, new_page.content(), before_screenshot, after_screenshot, url))
+                    sample_action_infos.append(ScrapeAction(action, before_state.html, new_page.content(), before_screenshot, after_screenshot, url, None))
                     with page_queue_lock:
                         with seen_urls_lock:
                             if normalize_url(new_page.url) not in seen_urls and root_state.url != page.url:
@@ -823,7 +823,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                     new_page.close()
                 else:
                     after_screenshot = page.screenshot(full_page=False)
-                    sample_action_infos.append(ScrapeAction(action, before_state.html, page.content(), before_screenshot, after_screenshot, url))
+                    sample_action_infos.append(ScrapeAction(action, before_state.html, page.content(), before_screenshot, after_screenshot, url, None))
 
 
                 #the url is being normalized a bit too aggressively to the point

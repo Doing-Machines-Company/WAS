@@ -1,0 +1,6 @@
+URL: https://www.dominos.com
+TREE LINE: link: Domino's Pizza
+XPATH: id("__next")/header[1]/div[1]/nav[1]/ul[1]/li[1]/a[1]
+TRAJECTORY: []
+
+HTML: <a data-quid="dpz-icon-home-link" class="e1jlvhcu6 css-c3g0nv" href="/en/"><svg aria-labelledby="dominos-logo5" role="img" viewBox="0 0 214.6 228.87" xmlns="http://www.w3.org/2000/svg"><title id="dominos-logo5">Domino's Pizza</title><path d="M210.79 62.11l-58.3-58.3a13 13 0 00-18.42 0L85.18 52.7 3.81 134.08a13 13 0 000 18.42l58.3 58.31a13 13 0 0018.42 0l72.94-72.95 57.32-57.32a13 13 0 000-18.42" fill="#ffffff"></path><path d="M155.4 83.11a16.87 16.87 0 115-11.94 16.87 16.87 0 01-5 11.94m51.27-16.85L148.37 8a7.2 7.2 0 00-10.18 0l-63 63 68.47 68.47 63-63a7.2 7.2 0 000-10.18" fill="#e31837"></path><path d="M84.09 131.79a16.86 16.86 0 11-4.95 11.94 16.82 16.82 0 014.95-11.94M58.42 155a16.93 16.93 0 114.93-12 16.92 16.92 0 01-4.93 12M7.93 138.2a7.2 7.2 0 000 10.18l58.3 58.31a7.2 7.2 0 0010.18 0l63-63L70.93 75.2z" fill="#006491"></path><text fill="#ffffff" font-family="MyriadPro-Semibold, MyriadPro Semibold, sans-serif" font-size="33.33" font-weight="700" transform="translate(99.13 220.53)">®</text></svg></a>

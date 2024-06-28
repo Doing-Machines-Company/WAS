@@ -53,7 +53,7 @@ def match_action_effects(curr_page_state: PageState, url_state_manager: URLState
         class InferenceAction:
             curr_action: Action
             type_list: list[Action.Type] | None
-            matched_action: Action
+            matched_scrape_action: Action
             
         @dataclass
         class PageState:

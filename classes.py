@@ -1,3 +1,4 @@
+import copy
 from enum import IntEnum
 # from drivers import AxObservation
 from models import *
@@ -175,19 +176,19 @@ class ScrapeAction:
     before_screenshot: bytes | str
     after_screenshot: bytes | str
     url: str
+    action_effect: str | None
 
-@dataclass
-class InferenceAction:
-    curr_action: Action
-    type_list: list[Action.Type]
-    matched_action: Action | None
-    ax_node_index: int
 
 @dataclass
 class IndefiniteAction:
     type_list: list[Action.Type]
     action: Action | None
     ax_node_index: int
+
+@dataclass
+class InferenceAction:
+    curr_action: IndefiniteAction
+    matched_scrape_action: ScrapeAction | None
 
 @dataclass
 class PageState:
@@ -257,23 +258,29 @@ class URLState:
         '''
         paired_actions = []
         for indefinite_action in action_list:
-            action = indefinite_action.action
+            action = indefinite_action.action  # aliasing in python is confusing
             max_score = 0
-            matched_action = None
+            matched_scrape_action = None
             if action.html in self.unique_samples:  # hash check using dictionary, should probably include all scraped htmls instead of representative
-                matched_action = self.unique_samples[action.html][0].action
+                matched_scrape_action = self.unique_samples[action.html][0]  # gets a ScrapeAction
                 # resulting_action = InferenceAction(action, indefinite_action.type_list, matched_action, indefinite_action.ax_node_index)
             else:
                 for sample_action_rep_html in self.unique_samples:
                     score = element_similarity(action.html, sample_action_rep_html)
                     if score == 1.0:
-                        matched_action = self.unique_samples[sample_action_rep_html][0].action  # ONLY A SINGLE ACTION MATCHED
+                        matched_scrape_action = self.unique_samples[sample_action_rep_html][0]  # ONLY A SINGLE ACTION MATCHED
+                        #  NOTE ABOVE IS A SCRAPEACTION, NOT AN ACTION (WHICH IS CONTAINED IN SCRAPE ACTION)
                         break
                     elif score > max_score and score >= 0.9:
                         max_score = score
-                        matched_action = self.unique_samples[sample_action_rep_html][0].action
+                        matched_scrape_action = self.unique_samples[sample_action_rep_html][0]
 
-            resulting_action = InferenceAction(action, indefinite_action.type_list, matched_action, indefinite_action.ax_node_index)
+            # if matched_scrape_action:
+            #     #  scraped action (action class that's in ScrapeAction class) should have a type
+            #     indefinite_action.action.action_type = matched_scrape_action.action.action_type  # TODO IN THE CASE SOMEHOW THERE ISN'T A PERFECT ACTION LIST MATCH, THIS IS BAD, NEED PERFECT ACTION LIST MATCH IN ELEMENT SIMILARITY
+            #     #  also, potentially more class aliasing issues
+
+            resulting_action = InferenceAction(indefinite_action, matched_scrape_action)
             paired_actions.append(resulting_action)  # WILL APPEND NONE IF NO ACTION HAS SCORE >= 0.9
         return paired_actions
 
