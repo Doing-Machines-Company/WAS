@@ -43,10 +43,10 @@ def create_new_context_and_page(browser, cookies):
     return context, page, cdpSession
 
 def match_action_effects(curr_page_state: PageState, url_state_manager: URLStateManager) -> InferencePageState | None:  # Needless amounts of unrolling and rerolling
-    found = url_state_manager.get_state(curr_page_state)
-    if found:
+    found_state = url_state_manager.get_state(curr_page_state)
+    if found_state:
         curr_page_actions = [item for item in curr_page_state.actions]  # (typeList, action)
-        new_action_list = found.match_actions(curr_page_actions)
+        new_action_list = found_state.match_actions(curr_page_actions)
         '''
         
         @dataclass
@@ -77,7 +77,7 @@ def match_action_effects(curr_page_state: PageState, url_state_manager: URLState
             matched_actions: list[InferenceAction]
 
         '''
-        inference_page_state = InferencePageState(curr_page_state.url, curr_page_state.ax_nodes, curr_page_state.html, new_action_list)
+        inference_page_state = InferencePageState(curr_page_state.url, curr_page_state.ax_nodes, curr_page_state.html, found_state, new_action_list)
         return inference_page_state
 
     else:
@@ -85,7 +85,7 @@ def match_action_effects(curr_page_state: PageState, url_state_manager: URLState
         return None
 
 
-scraper_state_file = 'scraper_state.pkl'
+scraper_state_file = 'dominos/scraper_state.pkl'
 url_state_manager = load_scraper_state(scraper_state_file)
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
@@ -97,6 +97,9 @@ with sync_playwright() as p:
     #     for key in found.unique_samples:
     #         print(type(key))
     #         # break
-    match_action_effects(curr_page_state, url_state_manager)
+    tonk = match_action_effects(curr_page_state, url_state_manager)
 
-    # print(found)
+    # input(tonk.url_state)
+
+    # input(tonk.matched_actions[-1].curr_action.action.html)
+    # input(tonk.matched_actions[-1].matched_scrape_action.action.html)

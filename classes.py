@@ -199,12 +199,6 @@ class PageState:
     header_html: str
     footer_html: str
 
-@dataclass
-class InferencePageState:
-    url: str
-    ax_nodes: list[AxNode]
-    html: str
-    matched_actions: list[InferenceAction]
 
 
 #removed some of the fields from pagestate, not sure if they will ultimately be needed?
@@ -308,3 +302,11 @@ class URLStateManager:
                 return matched_url_state
             else:
                 return None
+
+@dataclass
+class InferencePageState:
+    url: str
+    ax_nodes: list[AxNode]
+    html: str
+    url_state: URLState
+    matched_actions: list[InferenceAction]
