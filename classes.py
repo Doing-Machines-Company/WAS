@@ -230,8 +230,12 @@ class URLState:
                 matched += 1
             elif any(element_similarity(action.html, sample_html) > .9 for sample_html in self.unique_samples.keys()):
                 matched += 1
-        print("Similarity score: ", matched / total)
-        return matched / total
+        if total != 0:
+            print("Similarity score: ", matched / total)
+            return matched / total
+        else:
+            print("NOTHING HERE TO SCRAPE")
+            return 0
 
     #attempt to match a list of actions and return pairs of actions with matched actions
     def match_actions(self, action_list : list[IndefiniteAction]) -> list[InferenceAction]:

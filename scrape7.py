@@ -370,49 +370,57 @@ def normalize_url(url: str) -> str:
     # return urlunparse((scheme, netloc, path, '', '', ''))  # Ignoring the query and fragment
     return url
 
-def get_page_state(page: PlaywrightPage, cdpSession: CDPSession) -> PageState:
+def get_page_state(page: PlaywrightPage, cdpSession: CDPSession, attempts=3) -> PageState:
 
-    # Navigate to the given URL and wait for the page to load
-    wait_for_load(page)
+    result = None
 
-    # Retrieve the accessibility tree and create an AxObservation object
-    ax_nodes = get_ax_tree(cdpSession)
-    cleaned = AxObservation(ax_nodes, page.url)  # LITERALLY THE WHOLE TREE
-    #DON'T PRINT FOR NOW, IT'S CLUTTERING EVERYTHING
+    for _ in range(attempts):
+        # Navigate to the given URL and wait for the page to load
+        wait_for_load(page)
 
-    # Extract the header and footer HTML
-    header_html = page.evaluate("document.getElementsByTagName('header')[0]?.outerHTML || ''")
-    footer_html = page.evaluate("document.getElementsByTagName('footer')[0]?.outerHTML || ''")
-    #currently page specific
+        # Retrieve the accessibility tree and create an AxObservation object
+        ax_nodes = get_ax_tree(cdpSession)
+        cleaned = AxObservation(ax_nodes, page.url)  # LITERALLY THE WHOLE TREE
+        #DON'T PRINT FOR NOW, IT'S CLUTTERING EVERYTHING
 
-    # Extract actions from the accessibility nodes and filter out None values, only scrape header and footer on homepage
-    # actions = [ax_node_to_action(node, header_html if page.url not in 'https://www.dominos.com/en/' else '', footer_html if page.url not in 'https://www.dominos.com/en/' else '') for node in cleaned.nodes_info]
-    '''
-    
-    IMPORTANT: ACTIONS FROM CLEANED AND NOT RAW AX_NODES!!!
-    SO EVERYTHING ACTUALLY IS IN VIEWABLE TREE!!!
-    
-    '''
+        # Extract the header and footer HTML
+        header_html = page.evaluate("document.getElementsByTagName('header')[0]?.outerHTML || ''")
+        footer_html = page.evaluate("document.getElementsByTagName('footer')[0]?.outerHTML || ''")
+        #currently page specific
 
-    indefinite_actions = [ax_node_to_action(node, header_html, footer_html, page.url) for node in cleaned.nodes_info]
+        # Extract actions from the accessibility nodes and filter out None values, only scrape header and footer on homepage
+        # actions = [ax_node_to_action(node, header_html if page.url not in 'https://www.dominos.com/en/' else '', footer_html if page.url not in 'https://www.dominos.com/en/' else '') for node in cleaned.nodes_info]
+        '''
+        
+        IMPORTANT: ACTIONS FROM CLEANED AND NOT RAW AX_NODES!!!
+        SO EVERYTHING ACTUALLY IS IN VIEWABLE TREE!!!
+        
+        '''
 
-    new_indefinite_actions = []
-    for indefinite_action in indefinite_actions:
-        if indefinite_action.action is not None and indefinite_action.type_list != []:
-            new_indefinite_actions.append(indefinite_action)
-    # indefinite_actions = [(tL, a) for (tL, a) in indefinite_actions if tL != []]  # TODO now a list of lists of actions
+        indefinite_actions = [ax_node_to_action(node, header_html, footer_html, page.url) for node in cleaned.nodes_info]
+
+        new_indefinite_actions = []
+        for indefinite_action in indefinite_actions:
+            if indefinite_action.action is not None and indefinite_action.type_list != []:
+                new_indefinite_actions.append(indefinite_action)
+        # indefinite_actions = [(tL, a) for (tL, a) in indefinite_actions if tL != []]  # TODO now a list of lists of actions
 
 
+        # Create and return a PageState object with the normalized URL, HTML content, actions, header HTML, and footer HTML
 
-    # Create and return a PageState object with the normalized URL, HTML content, actions, header HTML, and footer HTML
-    return PageState(
-        url=page.url,
-        ax_nodes=ax_nodes,
-        html=page.content(),
-        actions=new_indefinite_actions,
-        header_html=header_html,
-        footer_html=footer_html
-    )
+        result = PageState(
+            url=page.url,
+            ax_nodes=ax_nodes,
+            html=page.content(),
+            actions=new_indefinite_actions,
+            header_html=header_html,
+            footer_html=footer_html
+        )
+
+        if len(result.actions) > 0:
+            return result
+
+    return result
 
 def create_new_context_and_page(browser, cookies):
         context = browser.new_context(
@@ -451,7 +459,7 @@ def setup_context(browser, cookies, logged_in = True, attempts = 3):
                 login(page)
                 # print('LOGIN SUCCESSFUL')
             except Exception as e:
-                page.screenshot(path='login_failure.png', full_page=True)
+                # page.screenshot(path='login_failure.png', full_page=True)
                 cdpSession.detach()
                 page.close()
                 context.close()
@@ -569,6 +577,33 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
         # Evaluate the JavaScript code in the context of the page
         xpath = page.evaluate(js_code, outer_html)
         return xpath
+
+    def take_screenshot(page, attempts=3, full=False):
+        for i in range(attempts):
+            try:
+                screenshot = page.screenshot(full_page=full)
+                return screenshot, True
+            except Exception as e:
+                print("SCREENSHOT FAILED")
+                print(e)
+        print("ALL SCREENSHOT ATTEMPTS FAILED")
+        # Create a blank image using OpenCV
+        height, width = 600, 800  # You can adjust these dimensions as needed
+        blank_image = np.zeros((height, width, 3), np.uint8)
+        blank_image[:] = (255, 255, 255)  # White background
+
+        # Add text to the image
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        text = "Screenshot Failed"
+        textsize = cv2.getTextSize(text, font, 1, 2)[0]
+        text_x = (width - textsize[0]) // 2
+        text_y = (height + textsize[1]) // 2
+        cv2.putText(blank_image, text, (text_x, text_y), font, 1, (0, 0, 0), 2)
+
+        # Convert the OpenCV image to bytes (similar to Playwright's screenshot output)
+        _, buffer = cv2.imencode('.png', blank_image)
+        print("SAVING DUMMY SCREENSHOT")
+        return buffer.tobytes(), False
 
     def make_xpath_friendly(des_xpath):
         if des_xpath:  # if not empty string and not none
@@ -721,7 +756,13 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                         #     found_xpath = action.xpath
                         #     element = get_element(page, action.xpath)
                         if traj_element and traj_xpath:
-                            success, _ = apply_action(page, traj_action, page.screenshot(), traj_element, traj_xpath, possible_types_traj)
+                            try:
+                                scroll_into_view(traj_element)
+                            except Exception as e:
+                                print("SCROLL FAILED DURING TRAJECTORY")
+                                print(e)
+                            trajectory_action_screenshot, _ = take_screenshot(page)
+                            success, _ = apply_action(page, traj_action, trajectory_action_screenshot, traj_element, traj_xpath, possible_types_traj)
                             if not success:
                                 print("Trajectory broken, skipping")
                                 traj_success = False
@@ -787,8 +828,11 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 except Exception as e:
                     print(f'GETTING BOUNDING BOXES FAILED FOR {action}')
                     print(e)
-                before_screenshot = page.screenshot()
-                before_screenshot = create_boundingbox(before_screenshot, to_box_coords)
+                before_screenshot, screenshot_success = take_screenshot(page)
+                if screenshot_success:
+                    before_screenshot = create_boundingbox(before_screenshot, to_box_coords)
+                else:
+                    print("NO SCREENSHOT AVAILABLE FOR BOUNDING BOX")
                 # print(type(before_screenshot))
                 before_state = get_page_state(page, cdpSession)
                 success, new_action = apply_action(page, action, before_screenshot, final_element, final_xpath, possible_types)
@@ -804,7 +848,8 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 wait_for_load(page, load_time_ms=3000)
                 if len(page.context.pages) > 1 and page.context.pages[-1] != page:
                     new_page = page.context.pages[-1]
-                    after_screenshot = new_page.screenshot(full_page=False)
+                    after_screenshot, _ = take_screenshot(page)
+                    # after_screenshot = new_page.screenshot(full_page=False)
                     sample_action_infos.append(ScrapeAction(action, before_state.html, new_page.content(), before_screenshot, after_screenshot, url, None))
                     with page_queue_lock:
                         with seen_urls_lock:
@@ -816,7 +861,8 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                                 print(new_page.url)
                     new_page.close()
                 else:
-                    after_screenshot = page.screenshot(full_page=False)
+                    after_screenshot, _ = take_screenshot(page)
+                    # after_screenshot = page.screenshot(full_page=False)
                     sample_action_infos.append(ScrapeAction(action, before_state.html, page.content(), before_screenshot, after_screenshot, url, None))
 
 

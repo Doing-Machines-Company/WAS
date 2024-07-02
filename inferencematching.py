@@ -85,21 +85,20 @@ def match_action_effects(curr_page_state: PageState, url_state_manager: URLState
         return None
 
 
-scraper_state_file = 'dominos/scraper_state.pkl'
-url_state_manager = load_scraper_state(scraper_state_file)
-with sync_playwright() as p:
-    browser = p.chromium.launch(headless=True)
-    context, page, cdpSession = create_new_context_and_page(browser, None)
-    page.goto('https://www.dominos.com/en/')
-    wait_for_load(page)
-    curr_page_state = get_page_state(page, cdpSession)
-    # if found:
-    #     for key in found.unique_samples:
-    #         print(type(key))
-    #         # break
-    tonk = match_action_effects(curr_page_state, url_state_manager)
-
-    # input(tonk.url_state)
-
-    # input(tonk.matched_actions[-1].curr_action.action.html)
-    # input(tonk.matched_actions[-1].matched_scrape_action.action.html)
+# scraper_state_file = 'dominos/scraper_state.pkl'
+# url_state_manager = load_scraper_state(scraper_state_file)
+# print(len(url_state_manager.urls))
+# with sync_playwright() as p:
+#     browser = p.chromium.launch(headless=True)
+#     context, page, cdpSession = create_new_context_and_page(browser, None)
+#     page.goto('https://www.dominos.com/en/')
+#     wait_for_load(page)
+#     curr_page_state = get_page_state(page, cdpSession)
+#     # if found:
+#     #     for key in found.unique_samples:
+#     #         print(type(key))
+#     #         # break
+#     start_time = time.time()
+#     tonk = match_action_effects(curr_page_state, url_state_manager)
+#     end_time = time.time()
+#     print(end_time-start_time)
