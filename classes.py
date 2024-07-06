@@ -314,3 +314,50 @@ class InferencePageState:
     html: str
     url_state: URLState
     matched_actions: list[InferenceAction]
+
+
+class InferenceAxtree:
+
+    #  we get axnodes which we roll into a pagestate, which we will roll into an InferencePageState, which we will then reroll into a InferenceAxtree
+    def __init__(self, scrape_info: InferencePageState, use_scrape = True):
+        self.scrap_info = scrape_info
+        self.action_effect = dict()
+        self.use_scrape = use_scrape
+        for matched_action in scrape_info.matched_actions:
+            curr_action = matched_action.curr_action
+            scraped_action = matched_action.matched_scrape_action
+            if scraped_action:
+                action_effect = scraped_action.action_effect
+                if action_effect is None:
+                    action_effect = "Matched"
+            else:
+                action_effect = 'Not matched'
+            self.action_effect[curr_action.ax_node_index] = action_effect
+
+
+
+    def __str__(self):
+        if not self.use_scrape:
+            tree_str = ''
+            count = 0
+            for node in self.scrap_info.ax_nodes:
+                if node['nodeId'] in self.action_effect:
+                    tree_str += f"{node['indent']}[{count} {self.action_effect[node['nodeId']]}] {node['role']} {repr(node['name'])} " + " ".join(
+                        node["properties"]) + "\n"
+                    count += 1
+                else:
+                    tree_str += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                        node["properties"]) + "\n"
+            return tree_str
+        else:
+            tree_str = ''
+            count = 0
+            for node in self.scrap_info.ax_nodes:
+                if node['nodeId'] in self.action_effect:
+                    tree_str += f"[{count}: {self.action_effect[node['nodeId']]}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                        node["properties"]) + "\n"
+                    count += 1
+                else:
+                    tree_str += f"[N] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                        node["properties"]) + "\n"
+            return tree_str

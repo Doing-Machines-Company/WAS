@@ -47,36 +47,6 @@ def match_action_effects(curr_page_state: PageState, url_state_manager: URLState
     if found_state:
         curr_page_actions = [item for item in curr_page_state.actions]  # (typeList, action)
         new_action_list = found_state.match_actions(curr_page_actions)
-        '''
-        
-        @dataclass
-        class InferenceAction:
-            curr_action: Action
-            type_list: list[Action.Type] | None
-            matched_scrape_action: Action
-            
-        @dataclass
-        class PageState:
-            url: str
-            ax_nodes: list[AxNode]
-            html: str
-            actions: list[IndefiniteAction]
-            header_html: str
-            footer_html: str
-            
-        @dataclass
-        class IndefiniteAction:
-            type_list: list[Action.Type]
-            action: Action | None
-
-        @dataclass
-        class InferencePageState:
-            url: str
-            ax_nodes: list[AxNode]
-            html: str
-            matched_actions: list[InferenceAction]
-
-        '''
         inference_page_state = InferencePageState(curr_page_state.url, curr_page_state.ax_nodes, curr_page_state.html, found_state, new_action_list)
         return inference_page_state
 
@@ -85,20 +55,15 @@ def match_action_effects(curr_page_state: PageState, url_state_manager: URLState
         return None
 
 
-# scraper_state_file = 'dominos/scraper_state.pkl'
-# url_state_manager = load_scraper_state(scraper_state_file)
-# print(len(url_state_manager.urls))
-# with sync_playwright() as p:
-#     browser = p.chromium.launch(headless=True)
-#     context, page, cdpSession = create_new_context_and_page(browser, None)
-#     page.goto('https://www.dominos.com/en/')
-#     wait_for_load(page)
-#     curr_page_state = get_page_state(page, cdpSession)
-#     # if found:
-#     #     for key in found.unique_samples:
-#     #         print(type(key))
-#     #         # break
-#     start_time = time.time()
-#     tonk = match_action_effects(curr_page_state, url_state_manager)
-#     end_time = time.time()
-#     print(end_time-start_time)
+scraper_state_file = 'dominos/scraper_state.pkl'
+url_state_manager = load_scraper_state(scraper_state_file)
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    context, page, cdpSession = create_new_context_and_page(browser, None)
+    page.goto('https://www.dominos.com/en/')
+    wait_for_load(page)
+    curr_page_state = get_page_state(page, cdpSession)
+    matched_inference_state = match_action_effects(curr_page_state, url_state_manager)
+    if matched_inference_state:
+        tree = InferenceAxtree(matched_inference_state)
+        print(tree)

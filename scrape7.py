@@ -410,7 +410,7 @@ def get_page_state(page: PlaywrightPage, cdpSession: CDPSession, attempts=3) -> 
 
         result = PageState(
             url=page.url,
-            ax_nodes=ax_nodes,
+            ax_nodes=cleaned.nodes_info,  # note now this nodes info is the cleaned version of nodes that we get out of AxObservation
             html=page.content(),
             actions=new_indefinite_actions,
             header_html=header_html,
@@ -1063,4 +1063,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
 # num_cores = os.cpu_count()
 
-explore("https://www.dominos.com", headless=True, root="www.dominos.com", num_threads=1)
+# explore("https://www.dominos.com", headless=True, root="www.dominos.com", num_threads=1)
