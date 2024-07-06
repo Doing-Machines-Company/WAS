@@ -128,16 +128,15 @@ def style_similarity(document_1, document_2):
 def element_similarity(document_1, document_2, k=0.6):
     structural_sim = structural_similarity(document_1, document_2)
     style_sim = style_similarity(document_1, document_2)
-    if style_sim < .5:
-        return 0.0
-    else:
-        return structural_sim
+    if style_sim < 0.33:
+        return 0
+    return structural_sim
     #return min(structural_sim, style_sim)  # Structural sim seems to be more telling
 
 
-string1 = "<a class=\"css-0\" data-quid=\"main-navigation-order-online\" href=\"/en/pages/order/\">Order Online</a>"
-string2 = "<a data-quid=\"location\" href=\"/en/pages/order/?locations=1#!/locations/\" class=\"css-0\">Locations</a>"
-
-
-similarity_score = element_similarity(string1, string2)
+# string1 = "<a class=\"css-0\" data-quid=\"main-navigation-order-online\" href=\"/en/pages/order/\">Order Online</a>"
+# string2 = "<a data-quid=\"location\" href=\"/en/pages/order/?locations=1#!/locations/\" class=\"css-0\">Locations</a>"
+#
+#
+# similarity_score = element_similarity(string1, string2)
 # print(f"Similarity Score: {similarity_score}")

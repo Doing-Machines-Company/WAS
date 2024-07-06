@@ -231,6 +231,7 @@ class URLState:
                 matched += 1
             elif any(element_similarity(action.html, sample_html) > .9 for sample_html in self.unique_samples.keys()):
                 matched += 1
+        print(self.aliases)
         if total != 0:
             print("Similarity score: ", matched / total)
             return matched / total
@@ -271,9 +272,13 @@ class URLState:
                         matched_scrape_action = self.unique_samples[sample_action_rep_html][0]  # ONLY A SINGLE ACTION MATCHED
                         #  NOTE ABOVE IS A SCRAPEACTION, NOT AN ACTION (WHICH IS CONTAINED IN SCRAPE ACTION)
                         break
-                    elif score > max_score and score >= 0.9:
+                    elif score > max_score:
                         max_score = score
-                        matched_scrape_action = self.unique_samples[sample_action_rep_html][0]
+                        if score >= 0.9:
+                            matched_scrape_action = self.unique_samples[sample_action_rep_html][0]
+
+                # if matched_scrape_action is None:
+                #     print(max_score)
 
 
             if matched_scrape_action:  # NEEDS TO BE BETTER
@@ -305,10 +310,12 @@ class URLStateManager:
             matched_url_state = None
             for url_state in self.urls.values():
                 score = url_state.similarity_score(page_state)
+                # if score == 1:
+                #     return url_state
                 if score > max_score:
                     max_score = score
                     matched_url_state = url_state
-            if max_score >= .95:
+            if max_score >= .70:
                 return matched_url_state
             else:
                 return None
@@ -352,7 +359,7 @@ class InferenceAxtree:
                         node["properties"]) + "\n"
                     count += 1
                 else:
-                    tree_str += f"[N] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                    tree_str += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                         node["properties"]) + "\n"
             return tree_str
         else:
@@ -364,6 +371,6 @@ class InferenceAxtree:
                         node["properties"]) + "\n"
                     count += 1
                 else:
-                    tree_str += f"[N] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                    tree_str += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                         node["properties"]) + "\n"
             return tree_str

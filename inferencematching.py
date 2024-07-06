@@ -59,11 +59,11 @@ scraper_state_file = 'dominos/scraper_state.pkl'
 url_state_manager = load_scraper_state(scraper_state_file)
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
-    context, page, cdpSession = create_new_context_and_page(browser, None)
-    page.goto('https://www.dominos.com/en/')
+    context, page, cdpSession, login_success = setup_context(browser, None)
+    page.goto('https://www.dominos.com/en/pages/order/#!/section/Food/category/Sides/')
     wait_for_load(page)
     curr_page_state = get_page_state(page, cdpSession)
     matched_inference_state = match_action_effects(curr_page_state, url_state_manager)
     if matched_inference_state:
-        tree = InferenceAxtree(matched_inference_state, use_scrape=False)
+        tree = InferenceAxtree(matched_inference_state, use_scrape=True)
         print(tree)
