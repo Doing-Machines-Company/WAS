@@ -310,8 +310,8 @@ class URLStateManager:
             matched_url_state = None
             for url_state in self.urls.values():
                 score = url_state.similarity_score(page_state)
-                # if score == 1:
-                #     return url_state
+                if score == 1:
+                    return url_state
                 if score > max_score:
                     max_score = score
                     matched_url_state = url_state
