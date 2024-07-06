@@ -348,11 +348,11 @@ class InferenceAxtree:
             count = 0
             for node in self.scrap_info.ax_nodes:
                 if node['nodeId'] in self.action_effect:
-                    tree_str += f"{node['indent']}[{count} {self.action_effect[node['nodeId']]}] {node['role']} {repr(node['name'])} " + " ".join(
+                    tree_str += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                         node["properties"]) + "\n"
                     count += 1
                 else:
-                    tree_str += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                    tree_str += f"[N] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                         node["properties"]) + "\n"
             return tree_str
         else:

@@ -65,5 +65,5 @@ with sync_playwright() as p:
     curr_page_state = get_page_state(page, cdpSession)
     matched_inference_state = match_action_effects(curr_page_state, url_state_manager)
     if matched_inference_state:
-        tree = InferenceAxtree(matched_inference_state)
+        tree = InferenceAxtree(matched_inference_state, use_scrape=False)
         print(tree)
