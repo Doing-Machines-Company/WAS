@@ -6,6 +6,7 @@ from typing import Optional, List, Any
 from dataclasses import dataclass
 from scrapecode.element_similarity import element_similarity
 import re
+from pathlib import Path
 
 PlaywrightPage = Any
 CDPSession = Any
@@ -274,10 +275,15 @@ class URLState:
                         max_score = score
                         matched_scrape_action = self.unique_samples[sample_action_rep_html][0]
 
-            # if matched_scrape_action:
-            #     #  scraped action (action class that's in ScrapeAction class) should have a type
-            #     indefinite_action.action.action_type = matched_scrape_action.action.action_type  # TODO IN THE CASE SOMEHOW THERE ISN'T A PERFECT ACTION LIST MATCH, THIS IS BAD, NEED PERFECT ACTION LIST MATCH IN ELEMENT SIMILARITY
-            #     #  also, potentially more class aliasing issues
+
+            if matched_scrape_action:  # NEEDS TO BE BETTER
+                file_path = matched_scrape_action.before_screenshot
+                file_path = Path ('/'.join(file_path.split('/')[:-1])) / Path ('info.txt')
+                with open(file_path, 'r') as file:
+                    content = file.read()
+                    matched_scrape_action.action_effect = content
+
+
 
             resulting_action = InferenceAction(indefinite_action, matched_scrape_action)
             paired_actions.append(resulting_action)  # WILL APPEND NONE IF NO ACTION HAS SCORE >= 0.9
