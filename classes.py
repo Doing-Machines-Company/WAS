@@ -80,7 +80,7 @@ class AxObservation(PageObservation):
         dfs(0, self.axtree[0]["nodeId"], 0)
         """further clean accesibility tree"""
         cleaned_nodes = []
-        node_id_counter = 0
+        # node_id_counter = 0
         for node in self.nodes_info:
             # remove statictext if the content already appears in the previous line
             if node["role"] == "StaticText":
@@ -91,8 +91,8 @@ class AxObservation(PageObservation):
                         found = True
                 if found:
                     continue
-            node["nodeId"] = node_id_counter  # RESETS NODE IDs TO BE ENUMERATED
-            node_id_counter += 1
+            # node["nodeId"] = node_id_counter  # RESETS NODE IDs TO BE ENUMERATED
+            # node_id_counter += 1
             cleaned_nodes.append(node)
         self.nodes_info = cleaned_nodes
 
@@ -334,16 +334,19 @@ class InferenceAxtree:
     #  we get axnodes which we roll into a pagestate, which we will roll into an InferencePageState, which we will then reroll into a InferenceAxtree
     def __init__(self, scrape_info: InferencePageState, special_actions = None, use_scrape = True):
         self.scrap_info = scrape_info
-        self.action_effect = dict()
+        self.action_effect_lib = dict()
         self.action_lib = dict()
         self.use_scrape = use_scrape
+        self.live_actions = []
+        self.live_action_effects = []
 
         count = 0
         self.tree_str = ''
-        self.live_actions = []
+
         for indefinite_action in special_actions:
             self.tree_str += f"[{count}] {str(indefinite_action)}\n"
             self.live_actions.append(indefinite_action)
+            self.live_action_effects.append("SPECIAL ACTION")
             count += 1
 
         for attempted_match in scrape_info.matched_actions:
@@ -355,37 +358,43 @@ class InferenceAxtree:
                     action_effect = "Matched"
             else:
                 action_effect = 'Not matched'
-            self.live_actions.append(curr_action)
-            self.action_effect[curr_action.ax_node_index] = action_effect
+            self.action_effect_lib[curr_action.ax_node_index] = action_effect
             self.action_lib[curr_action.ax_node_index] = curr_action
+
 
 
 
         if not self.use_scrape:
             for node in self.scrap_info.ax_nodes:
-                if node['nodeId'] in self.action_effect:
+                if node['nodeId'] in self.action_effect_lib:
                     self.tree_str += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                         node["properties"]) + "\n"
                     count += 1
                     self.live_actions.append(self.action_lib[node['nodeId']])
+                    self.live_action_effects.append(self.action_effect_lib[node['nodeId']])
                 else:
                     self.tree_str += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                         node["properties"]) + "\n"
         else:
             for node in self.scrap_info.ax_nodes:
-                if node['nodeId'] in self.action_effect:
-                    self.tree_str += f"[{count}: {self.action_effect[node['nodeId']]}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                if node['nodeId'] in self.action_effect_lib:
+                    self.tree_str += f"[{count}: {self.action_effect_lib[node['nodeId']]}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                         node["properties"]) + "\n"
                     count += 1
                     self.live_actions.append(self.action_lib[node['nodeId']])
+                    self.live_action_effects.append(self.action_effect_lib[node['nodeId']])
                 else:
                     self.tree_str += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                         node["properties"]) + "\n"
 
 
 
+
     def get_action_from_index(self, index: int) -> IndefiniteAction:
         return self.live_actions[index]
+
+    def get_action_effect_from_index(self, index: int) -> str:
+        return self.live_action_effects[index]
 
 
     def __str__(self):
