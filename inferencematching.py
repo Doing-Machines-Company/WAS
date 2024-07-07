@@ -54,7 +54,19 @@ def match_action_effects(curr_page_state: PageState, url_state_manager: URLState
         print("NOTHING FOUND")
         return None
 
+'''
 
+@dataclass
+class IndefiniteAction:
+    type_list: list[Action.Type]
+    action: Action | None
+    ax_node_index: int
+    
+    
+
+
+
+'''
 scraper_state_file = 'dominos/scraper_state.pkl'
 url_state_manager = load_scraper_state(scraper_state_file)
 with sync_playwright() as p:
@@ -65,5 +77,10 @@ with sync_playwright() as p:
     curr_page_state = get_page_state(page, cdpSession)
     matched_inference_state = match_action_effects(curr_page_state, url_state_manager)
     if matched_inference_state:
-        tree = InferenceAxtree(matched_inference_state, use_scrape=True)
+        stop_action = Action(Action.Type.STOP, None, None)
+        stop_indefinite = IndefiniteAction([Action.Type.STOP], stop_action, None)
+        special_actions = [stop_indefinite]
+        tree = InferenceAxtree(matched_inference_state, special_actions=special_actions, use_scrape=True)
         print(tree)
+        print(tree.get_action_from_index(-1))
+        print(tree.get_action_from_index(0))
