@@ -23,7 +23,7 @@ import copy as cp
 from scrape_llm import use_gpt_fill_input
 from classes import *
 import urllib.parse
-
+import shutil
 
 
 """
@@ -435,11 +435,11 @@ def login(page):
     # print('LOGGING IN')
     page.goto('https://www.dominos.com/en/restaurants?type=Delivery')
     wait_for_load(page)
-    page.get_by_label("Street Address", exact=False).fill('934 Keeamoku Street')
-    page.get_by_label("Suite/Apt #", exact=False).fill('')
-    page.get_by_label("ZIP Code", exact=False).fill('96814')
-    page.get_by_label("City", exact=False).fill('Honolulu')
-    page.get_by_label("State", exact=False).select_option('HI')  # THIS
+    page.get_by_label("Street Address", exact=False).fill('5819 Centre Ave')
+    page.get_by_label("Suite/Apt #", exact=False).fill('Apt 448')
+    page.get_by_label("ZIP Code", exact=False).fill('15206')
+    page.get_by_label("City", exact=False).fill('Pittsburgh')
+    page.get_by_label("State", exact=False).select_option('PA')  # THIS
     page.get_by_role("button", name="Continue for Delivery").click()
     wait_for_load(page)
     page.get_by_role("button", name="Delivery To").click()
@@ -978,8 +978,13 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
     explore_actions()
     output_dir = 'dominos'
     output_path = Path(output_dir) / 'scraper_state.pkl'
+    checkpoint_path = Path(output_dir) / 'checkpoint.pkl'
+    urls = list(url_queue.queue)
     with open(output_path, 'wb') as f:
-        pickle.dump(equiv_classes, f)
+        pickle.dump(equiv_classes, f) #url_queue and current url needed for resume purposes
+    with open(checkpoint_path, 'wb') as f:
+        pickle.dump((action_number, urls, seen_urls), f)
+    print("Saved checkpoint")
     if url_queue.empty() and url_queue.qsize() <= 0:
         idle_flags[thread_id] = True
 
@@ -1018,23 +1023,45 @@ def worker(thread_id: int, idle_flags: dict, url_queue: Queue, equiv_classes_loc
         print(f"worker Thread-{thread_id} fucking off")
         browser.close()
 
-def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'dominos', root: str = "", num_threads: int = 10):
-
+def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'dominos', root: str = "", num_threads: int = 10, resume = False):
+    global action_number
     # Initialize an EquivalenceClassSet to store and manage equivalence classes
-    equiv_classes : URLStateManager = URLStateManager()
+    scraper_state_path = output_dir + '/' + 'scraper_state.pkl'
+    checkpoint_path = output_dir + '/' + 'checkpoint.pkl'
+    if resume and os.path.exists(scraper_state_path) and os.path.exists(checkpoint_path):
+        with open(scraper_state_path, 'rb') as f:
+            equiv_classes= pickle.load(f)
+        with open(checkpoint_path, 'rb') as f:
+            resumed_action_number, urls, seen_urls = pickle.load(f)
+        action_number = resumed_action_number
+        url_queue = Queue()
+        for url in urls:
+            url_queue.put(url)
+        #remove partially filled urlstate 
+        cleaned_url = re.sub(r'^(https?://)?(www\.)?', '', urls[0])
+        cleaned_url = cleaned_url.rstrip('/')
+        old_urlstate_path = output_dir + '/' + urllib.parse.quote(cleaned_url, safe='')
+        if os.path.exists(old_urlstate_path):
+            shutil.rmtree(old_urlstate_path)
+            print("Removed partially explored urlstate")
+        print("Resuming exploration from ", urls[0])
+    else:
+        if resume:
+            print("Couldn't find checkpoint and state files for resume. Starting from scratch")
+        equiv_classes : URLStateManager = URLStateManager()
+
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+        seen_urls = set()
+
+        url_queue = Queue()
+        url_queue.put(starting_url)
+
     equiv_classes_lock = threading.Lock()
     eq_class_lock = threading.Lock()
+    stop_event = threading.Event()
     page_queue_lock = threading.Lock()
     seen_urls_lock = threading.Lock()
-
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-    seen_urls = set()
-
-    url_queue = Queue()
-    url_queue.put(starting_url)
-
-    stop_event = threading.Event()
 
     threads = []
     idle_flags = dict()
@@ -1067,4 +1094,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
 # num_cores = os.cpu_count()
 
-explore("https://www.dominos.com", headless=True, root="www.dominos.com", num_threads=1)
+explore("https://www.dominos.com", headless=True, root="www.dominos.com", num_threads=1, resume = True)
