@@ -22,7 +22,7 @@ import cv2
 import copy as cp
 from scrape_llm import use_gpt_fill_input
 from classes import *
-
+import urllib.parse
 
 
 
@@ -41,7 +41,7 @@ no method currently exists to properly normalize urls in a way that is consisten
 
 instead, the coarse relation can narrow our search space when there is no exact url match to lessen usage of the computationally expensive action matches
 """
-
+action_number = 1
 
 
 def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
@@ -463,7 +463,7 @@ def setup_context(browser, cookies, logged_in = True, attempts = 3):
                 cdpSession.detach()
                 page.close()
                 context.close()
-                print(f"Error logging in {attempt} times: {e}")
+                print(f"Error logging in {attempt+1} times: {e}")
                 success=False
             else:
                 success = True
@@ -928,6 +928,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                 page.goto(root_state.url)  # this threw an error once, idk why
                 time.sleep(2)
             if sample_action_infos: #the only reason sample_action_infos may be empty is if the action errored out and never got added
+                global action_number
                 with eq_class_lock:
                     if url_state.add_sample(sample_action_infos): #proceed if this is a new action
                         #folder saving code
@@ -935,12 +936,14 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                         action_info = sample_action_infos[0]
                         tree_string = action_info.action.tree_line
                         tree_string = tree_string if len(tree_string) <= 40 else tree_string[:40]
-                        sample_path = Path (output_dir) / Path (normalize_url(action_info.url)) / (tree_string + str(hash(action_info.action.html)))  # root / url / action, make new url folder if it doesn't exist
+                        cleaned_url = re.sub(r'^(https?://)?(www\.)?', '', action_info.url)
+                        cleaned_url = cleaned_url.rstrip('/')
+                        sample_path = Path (output_dir) / Path(urllib.parse.quote(cleaned_url, safe='')) / Path(str(action_number) + ' ' + tree_string) # root / url / action, make new url folder if it doesn't exist
                         sample_path.mkdir(parents = True, exist_ok = True)
-                        for action_info in sample_action_infos:
+                        for num, action_info in enumerate(sample_action_infos):
                             tree_string = action_info.action.tree_line
                             tree_string = tree_string if len(tree_string) <= 40 else tree_string[:40]
-                            subdir_path = sample_path / (tree_string + str(hash(action_info.action.html)))
+                            subdir_path = sample_path / Path(str(num))
                             subdir_path.mkdir(parents = True, exist_ok = True)
                             before_screenshot_filename = f"action_{hash(action_info.action.html)}_before.png"
                             before_screenshot_path = subdir_path / before_screenshot_filename
@@ -960,6 +963,7 @@ def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: th
                                 f.write(f"XPATH: {action_info.action.friendly_xpath}\n")
                                 f.write(f"TRAJECTORY: {action_info.action.trajectory}\n\n")
                                 f.write(f"HTML: {action_info.action.html}\n")
+                action_number +=1
         #  finally close here, make sure session is still attached
         if login_success:
             cdpSession.detach()
@@ -1063,4 +1067,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
 # num_cores = os.cpu_count()
 
-# explore("https://www.dominos.com", headless=True, root="www.dominos.com", num_threads=1)
+explore("https://www.dominos.com", headless=True, root="www.dominos.com", num_threads=1)
