@@ -22,8 +22,8 @@ import cv2
 import copy as cp
 from scrape_llm import use_gpt_fill_input
 from classes import *
-import urllib.parse
-import shutil
+
+
 
 
 """
@@ -41,7 +41,7 @@ no method currently exists to properly normalize urls in a way that is consisten
 
 instead, the coarse relation can narrow our search space when there is no exact url match to lessen usage of the computationally expensive action matches
 """
-action_number = 1
+
 
 
 def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
@@ -435,11 +435,11 @@ def login(page):
     # print('LOGGING IN')
     page.goto('https://www.dominos.com/en/restaurants?type=Delivery')
     wait_for_load(page)
-    page.get_by_label("Street Address", exact=False).fill('5819 Centre Ave')
-    page.get_by_label("Suite/Apt #", exact=False).fill('Apt 448')
-    page.get_by_label("ZIP Code", exact=False).fill('15206')
-    page.get_by_label("City", exact=False).fill('Pittsburgh')
-    page.get_by_label("State", exact=False).select_option('PA')  # THIS
+    page.get_by_label("Street Address", exact=False).fill('934 Keeamoku Street')
+    page.get_by_label("Suite/Apt #", exact=False).fill('')
+    page.get_by_label("ZIP Code", exact=False).fill('96814')
+    page.get_by_label("City", exact=False).fill('Honolulu')
+    page.get_by_label("State", exact=False).select_option('HI')  # THIS
     page.get_by_role("button", name="Continue for Delivery").click()
     wait_for_load(page)
     page.get_by_role("button", name="Delivery To").click()
@@ -463,7 +463,7 @@ def setup_context(browser, cookies, logged_in = True, attempts = 3):
                 cdpSession.detach()
                 page.close()
                 context.close()
-                print(f"Error logging in {attempt+1} times: {e}")
+                print(f"Error logging in {attempt} times: {e}")
                 success=False
             else:
                 success = True
@@ -474,179 +474,9 @@ def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
     # https://playwright.dev/python/docs/api/class-page#page-wait-for-load-state-option-state
     page.wait_for_load_state('load')
     # page.wait_for_load_state('networkidle')
-    page.wait_for_timeout(load_time_ms)  # this is very finicky, if you set it to a lower time, you risk getting the actions from the previous page. TODO: fix this race
-    #out of a set of actions generated from an observation, removes duplicates.
-    #does not remove duplicates in header or footer because they are generally
-    #significant enough that we want to keep them
-def get_unique_actions(new_state: PageState) -> list[list[IndefiniteAction]]:
-    sample_size = 2 #maximum number of samples to include among similar actions
-    unique_actions = []
-    new_actions = new_state.actions
-    header_html = new_state.header_html
-    footer_html = new_state.footer_html
-    for indefinite_action in new_actions:
-        action = indefinite_action.action
-        if action.html in header_html or action.html in footer_html:
-            unique_actions.append([indefinite_action]) #add header/footer items to own sample
-        else:
-            unique = True
-            for samples in unique_actions:
-                if any(element_similarity(action.html, sample_indefinite_action.action.html) >= 0.9 for sample_indefinite_action in samples):
-                    #  Perhaps add to best match and not first one >= 0.9?
-                    if len(samples) < sample_size:
-                        samples.append(indefinite_action)
-                    unique = False
-                    break
-            if unique:
-                unique_actions.append([indefinite_action])
-    return unique_actions
-
-def get_xpath_by_outer_html(page, outer_html):
-    # JavaScript function to find the element by outerHTML and generate its XPath
-    js_code = """
-    (outerHTML) => {
-        function getElementXPath(element) {
-            if (element.id !== '') {
-                return 'id("' + element.id + '")';
-            }
-            if (element === document.body) {
-                return element.tagName.toLowerCase();
-            }
-            var ix = 0;
-            var siblings = element.parentNode.childNodes;
-            for (var i = 0; i < siblings.length; i++) {
-                var sibling = siblings[i];
-                if (sibling === element) {
-                    return getElementXPath(element.parentNode) + '/' + element.tagName.toLowerCase() + '[' + (ix + 1) + ']';
-                }
-                if (sibling.nodeType === 1 && sibling.tagName === element.tagName) {
-                    ix++;
-                }
-            }
-        }
-        var element = Array.from(document.querySelectorAll('*')).find(el => el.outerHTML === outerHTML);
-        if (element) {
-            return getElementXPath(element);
-        }
-        return null;
-    }
-    """
-    # Evaluate the JavaScript code in the context of the page
-    xpath = page.evaluate(js_code, outer_html)
-    return xpath
-
-def take_screenshot(page, attempts=3, full=False):
-    for i in range(attempts):
-        try:
-            screenshot = page.screenshot(full_page=full)
-            return screenshot, True
-        except Exception as e:
-            print("SCREENSHOT FAILED")
-            print(e)
-    print("ALL SCREENSHOT ATTEMPTS FAILED")
-    # Create a blank image using OpenCV
-    height, width = 600, 800  # You can adjust these dimensions as needed
-    blank_image = np.zeros((height, width, 3), np.uint8)
-    blank_image[:] = (255, 255, 255)  # White background
-
-    # Add text to the image
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    text = "Screenshot Failed"
-    textsize = cv2.getTextSize(text, font, 1, 2)[0]
-    text_x = (width - textsize[0]) // 2
-    text_y = (height + textsize[1]) // 2
-    cv2.putText(blank_image, text, (text_x, text_y), font, 1, (0, 0, 0), 2)
-
-    # Convert the OpenCV image to bytes (similar to Playwright's screenshot output)
-    _, buffer = cv2.imencode('.png', blank_image)
-    print("SAVING DUMMY SCREENSHOT")
-    return buffer.tobytes(), False
-
-def make_xpath_friendly(des_xpath):
-    if des_xpath:  # if not empty string and not none
-        return des_xpath if '(' in des_xpath.split("/")[0] else f"//{des_xpath}"
-    else:
-        return None
-
-def get_element(des_page, des_xpath):
-    return des_page.locator(f"xpath={des_xpath}") if des_xpath else None
-    # if des_xpath:
-    #     return des_page.evaluate(
-    #         f"document.evaluate('{des_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
-    # else:
-    #     return None
-
-
-def scroll_into_view(playwright_element):
-    playwright_element.scroll_into_view_if_needed(timeout=10000)
-
-#applies trajectory and returns bool successful
-def apply_trajectory(page: PlaywrightPage, trajectory : List[Action]) -> bool:
-    traj_success = True
-    if trajectory:
-        print("***Executing Trajectory***")
-        for traj_action in trajectory:
-            possible_types_traj = [traj_action.action_type]
-
-            traj_element = get_element(page, traj_action.xpath)
-            assert(traj_action.friendly_xpath != None)
-            traj_xpath = traj_action.xpath
-            if not traj_element or traj_element.evaluate(
-                    "element => element.outerHTML") != traj_action.html:  # perhaps do a stripped check
-                traj_element = get_element(page, traj_action.friendly_xpath)
-                traj_xpath = traj_action.friendly_xpath
-                if not traj_element or traj_element.evaluate(
-                        "element => element.outerHTML") != traj_action.html:
-                    # now we try getting stuff at rune time
-                    potentially_better_traj_xpath = get_xpath_by_outer_html(page, traj_action.html)
-                    potentially_better_friendly_traj_xpath = make_xpath_friendly(potentially_better_traj_xpath)
-                    traj_element = get_element(page, potentially_better_friendly_traj_xpath)
-                    traj_xpath = potentially_better_friendly_traj_xpath
-                    if not traj_element:
-                        traj_element = get_element(page, potentially_better_traj_xpath)
-                        traj_xpath = potentially_better_traj_xpath
-                        if not traj_element:
-                            traj_element = get_element(page, traj_action.friendly_xpath)
-                            traj_xpath = traj_action.friendly_xpath
-                            if not traj_element:
-                                traj_element = get_element(page, traj_action.xpath)
-                                traj_xpath = traj_action.xpath
-
-            # element = get_element(page, backup_xpath)
-            # found_xpath = backup_xpath
-            # if not element:
-            #     found_xpath = backup_xpath
-            #     element = get_element(page, make_xpath_friendly(backup_xpath))
-            # # backup_friendly_xpath = backup_xpath if '(' in backup_xpath.split("/")[0] else f"//{backup_xpath}"
-            # if not element:
-            #     found_xpath = action.friendly_xpath
-            #     element = get_element(page, action.friendly_xpath)
-            # if not element:
-            #     found_xpath = action.xpath
-            #     element = get_element(page, action.xpath)
-            if traj_element and traj_xpath:
-                try:
-                    scroll_into_view(traj_element)
-                except Exception as e:
-                    print("SCROLL FAILED DURING TRAJECTORY")
-                    print(e)
-                trajectory_action_screenshot, _ = take_screenshot(page)
-                success, _ = apply_action(page, traj_action, trajectory_action_screenshot, traj_element, traj_xpath, possible_types_traj)
-                if not success:
-                    print("Trajectory broken, skipping")
-                    traj_success = False
-                    break
-            else:
-                print('Could not find item in trajectory')
-                traj_success = False
-                break
-            wait_for_load(page, load_time_ms=3000)
-        wait_for_load(page, load_time_ms=3000)
-        print("***Finished Executing Trajectory***")
-    return traj_success
-
-
-def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_lock: threading.Lock,
+    page.wait_for_timeout(
+        load_time_ms)  # this is very finicky, if you set it to a lower time, you risk getting the actions from the previous page. TODO: fix this race
+def explore_page(url: str, equiv_classes_lock: threading.Lock, eq_class_lock: threading.Lock,
                  page_queue_lock: threading.Lock,
                  seen_urls_lock: threading.Lock, equiv_classes: URLStateManager, url_queue: Queue, seen_urls: set[str],
                  browser, cookies, root: str, thread_id: int, idle_flags: dict):
@@ -661,7 +491,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
 
     idle_flags[thread_id] = False
 
-    url, url_traj = url_info
+
     with seen_urls_lock:
         if normalize_url(url) in seen_urls:
             return
@@ -687,25 +517,125 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
     #version of the website
 
 
+
+    #out of a set of actions generated from an observation, removes duplicates.
+    #does not remove duplicates in header or footer because they are generally
+    #significant enough that we want to keep them
+    def get_unique_actions(new_state: PageState) -> list[list[IndefiniteAction]]:
+        sample_size = 2 #maximum number of samples to include among similar actions
+        unique_actions = []
+        new_actions = new_state.actions
+        header_html = new_state.header_html
+        footer_html = new_state.footer_html
+        for indefinite_action in new_actions:
+            action = indefinite_action.action
+            if action.html in header_html or action.html in footer_html:
+                unique_actions.append([indefinite_action]) #add header/footer items to own sample
+            else:
+                unique = True
+                for samples in unique_actions:
+                    if any(element_similarity(action.html, sample_indefinite_action.action.html) >= 0.9 for sample_indefinite_action in samples):
+                        #  Perhaps add to best match and not first one >= 0.9?
+                        if len(samples) < sample_size:
+                            samples.append(indefinite_action)
+                        unique = False
+                        break
+                if unique:
+                    unique_actions.append([indefinite_action])
+        return unique_actions
+
+    def get_xpath_by_outer_html(page, outer_html):
+        # JavaScript function to find the element by outerHTML and generate its XPath
+        js_code = """
+        (outerHTML) => {
+            function getElementXPath(element) {
+                if (element.id !== '') {
+                    return 'id("' + element.id + '")';
+                }
+                if (element === document.body) {
+                    return element.tagName.toLowerCase();
+                }
+                var ix = 0;
+                var siblings = element.parentNode.childNodes;
+                for (var i = 0; i < siblings.length; i++) {
+                    var sibling = siblings[i];
+                    if (sibling === element) {
+                        return getElementXPath(element.parentNode) + '/' + element.tagName.toLowerCase() + '[' + (ix + 1) + ']';
+                    }
+                    if (sibling.nodeType === 1 && sibling.tagName === element.tagName) {
+                        ix++;
+                    }
+                }
+            }
+            var element = Array.from(document.querySelectorAll('*')).find(el => el.outerHTML === outerHTML);
+            if (element) {
+                return getElementXPath(element);
+            }
+            return null;
+        }
+        """
+        # Evaluate the JavaScript code in the context of the page
+        xpath = page.evaluate(js_code, outer_html)
+        return xpath
+
+    def take_screenshot(page, attempts=3, full=False):
+        for i in range(attempts):
+            try:
+                screenshot = page.screenshot(full_page=full)
+                return screenshot, True
+            except Exception as e:
+                print("SCREENSHOT FAILED")
+                print(e)
+        print("ALL SCREENSHOT ATTEMPTS FAILED")
+        # Create a blank image using OpenCV
+        height, width = 600, 800  # You can adjust these dimensions as needed
+        blank_image = np.zeros((height, width, 3), np.uint8)
+        blank_image[:] = (255, 255, 255)  # White background
+
+        # Add text to the image
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        text = "Screenshot Failed"
+        textsize = cv2.getTextSize(text, font, 1, 2)[0]
+        text_x = (width - textsize[0]) // 2
+        text_y = (height + textsize[1]) // 2
+        cv2.putText(blank_image, text, (text_x, text_y), font, 1, (0, 0, 0), 2)
+
+        # Convert the OpenCV image to bytes (similar to Playwright's screenshot output)
+        _, buffer = cv2.imencode('.png', blank_image)
+        print("SAVING DUMMY SCREENSHOT")
+        return buffer.tobytes(), False
+
+    def make_xpath_friendly(des_xpath):
+        if des_xpath:  # if not empty string and not none
+            return des_xpath if '(' in des_xpath.split("/")[0] else f"//{des_xpath}"
+        else:
+            return None
+
+    def get_element(des_page, des_xpath):
+        return des_page.locator(f"xpath={des_xpath}") if des_xpath else None
+        # if des_xpath:
+        #     return des_page.evaluate(
+        #         f"document.evaluate('{des_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
+        # else:
+        #     return None
+
+
+    def scroll_into_view(playwright_element):
+        playwright_element.scroll_into_view_if_needed(timeout=10000)
+
+
+
     def explore_actions():
         context, page, cdpSession, login_success = setup_context(browser, cookies)
         if not login_success:
             print("LOGIN FAILED")
             return
-        #if this url has trajectory dependence, we must execute it
-        if url_traj:
-            print("***Executing url trajectory***")
-            traj_success = apply_trajectory(page, url_traj)
-            if not traj_success:
-                print("Failed to execute url trajectory for " + url + "for the first time")
-                return
-        else:
-            try:
-                page.goto(url)
-                wait_for_load(page, load_time_ms=3000)
-            except Exception as e:
-                print(f"Error navigating to page: {url}. Error: {e}")
-                return
+        try:
+            page.goto(url)
+            wait_for_load(page, load_time_ms=3000)
+        except Exception as e:
+            print(f"Error navigating to page: {url}. Error: {e}")
+            return
 
         print("*" * 80)
         print("Exploring ", url)
@@ -783,7 +713,67 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                 print("Page url: ", page.url)
                 print("Ax object", action.tree_line)
                 print("Trajectory: ", action.display_trajectory())
-                traj_success = apply_trajectory(page, action.trajectory)
+                traj_success = True
+                if action.trajectory:
+                    print("***Executing Trajectory***")
+                    for traj_action in action.trajectory:
+                        possible_types_traj = [traj_action.action_type]
+
+                        traj_element = get_element(page, traj_action.xpath)
+                        assert(traj_action.friendly_xpath != None)
+                        traj_xpath = traj_action.xpath
+                        if not traj_element or traj_element.evaluate(
+                                "element => element.outerHTML") != traj_action.html:  # perhaps do a stripped check
+                            traj_element = get_element(page, traj_action.friendly_xpath)
+                            traj_xpath = traj_action.friendly_xpath
+                            if not traj_element or traj_element.evaluate(
+                                    "element => element.outerHTML") != traj_action.html:
+                                # now we try getting stuff at rune time
+                                potentially_better_traj_xpath = get_xpath_by_outer_html(page, traj_action.html)
+                                potentially_better_friendly_traj_xpath = make_xpath_friendly(potentially_better_traj_xpath)
+                                traj_element = get_element(page, potentially_better_friendly_traj_xpath)
+                                traj_xpath = potentially_better_friendly_traj_xpath
+                                if not traj_element:
+                                    traj_element = get_element(page, potentially_better_traj_xpath)
+                                    traj_xpath = potentially_better_traj_xpath
+                                    if not traj_element:
+                                        traj_element = get_element(page, traj_action.friendly_xpath)
+                                        traj_xpath = traj_action.friendly_xpath
+                                        if not traj_element:
+                                            traj_element = get_element(page, traj_action.xpath)
+                                            traj_xpath = traj_action.xpath
+
+                        # element = get_element(page, backup_xpath)
+                        # found_xpath = backup_xpath
+                        # if not element:
+                        #     found_xpath = backup_xpath
+                        #     element = get_element(page, make_xpath_friendly(backup_xpath))
+                        # # backup_friendly_xpath = backup_xpath if '(' in backup_xpath.split("/")[0] else f"//{backup_xpath}"
+                        # if not element:
+                        #     found_xpath = action.friendly_xpath
+                        #     element = get_element(page, action.friendly_xpath)
+                        # if not element:
+                        #     found_xpath = action.xpath
+                        #     element = get_element(page, action.xpath)
+                        if traj_element and traj_xpath:
+                            try:
+                                scroll_into_view(traj_element)
+                            except Exception as e:
+                                print("SCROLL FAILED DURING TRAJECTORY")
+                                print(e)
+                            trajectory_action_screenshot, _ = take_screenshot(page)
+                            success, _ = apply_action(page, traj_action, trajectory_action_screenshot, traj_element, traj_xpath, possible_types_traj)
+                            if not success:
+                                print("Trajectory broken, skipping")
+                                traj_success = False
+                                break
+                        else:
+                            print('Could not find item in trajectory')
+                            traj_success = False
+                            break
+                        wait_for_load(page, load_time_ms=3000)
+                    wait_for_load(page, load_time_ms=3000)
+                    print("***Finished Executing Trajectory***")
                 if not traj_success:
                     continue
 
@@ -865,7 +855,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                         with seen_urls_lock:
                             if normalize_url(new_page.url) not in seen_urls and root_state.url != page.url:
                                 # REMEMBER TO ADD BACK THIS LINE IMMEDIATELY
-                                url_queue.put((new_page.url, []))  # FOR NOW WE ASSUME NO TRAJ DEPENDENCE FOR THESE
+                                url_queue.put(new_page.url)  # Adds stuff to be scraped
                                 #  Make sure everything is discovered, unknown unknowns
 
                                 print(new_page.url)
@@ -884,31 +874,8 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                     with page_queue_lock:
                         with seen_urls_lock:
                             if normalize_url(page.url) not in seen_urls:
-                                #need to check if the new url has trajectory dependence, or can be directly navigated to
-                                url_context, url_page, url_cdpSession, url_login_success = setup_context(browser, cookies)
-                                if not url_login_success:
-                                    url_trajectory = []
-                                else:
-                                    try:
-                                        url_page.goto(page.url)
-                                        wait_for_load(url_page, load_time_ms=3000)
-                                        #may need a pagestate check as opposed to a url check, but this is easier for now
-                                        if url_page.url != page.url: #if this is true, this urlstate has trajectory dependence
-                                            print("Detected trajectory dependence for ", page.url)
-                                            url_trajectory = cp.deepcopy(action.trajectory)
-                                            url_trajectory = url_trajectory.append(action)
-                                        else:
-                                            url_trajectory = []
-                                    except Exception as e:
-                                        print(f"Error navigating to page: {new_page.url}. Error: {e}")
-                                        url_trajectory = []
-                                    finally:
-                                        url_cdpSession.detach()
-                                        url_page.close()
-                                        url_context.close()
-
-                                url_queue.put((page.url, url_trajectory))
-                                print(page.url, url_trajectory)
+                                url_queue.put(page.url)
+                                print(page.url)
                 else:
                     #since we stayed on the same page we want to see if applying
                     #this action generated new content on the page
@@ -950,31 +917,17 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                 cdpSession.detach()
                 page.close()
                 context.close()
-            ###########################################################
-            #this is the login procedure for the NEXT iteration of the for loop
+
                 context, page, cdpSession, login_success = setup_context(browser, cookies)
 
                 # do_login(page)  # this should be the only other do_login we need hopefully
                 if not login_success:
                     print("LOGIN FAILED")
-                    return
-                if url_traj:
-                    print("***Executing url trajectory***")
-                    traj_success = apply_trajectory(page, url_traj)
-                    if not traj_success:
-                        print("Failed to execute url trajectory for " + url + "for the first time")
-                        return
-                else:
-                    try:
-                        page.goto(url)
-                        wait_for_load(page, load_time_ms=3000)
-                    except Exception as e:
-                        print(f"Error navigating to page: {url}. Error: {e}")
-                        return
-                time.sleep(2) #keep just in case lol
-            ###########################################################
+                    continue
+
+                page.goto(root_state.url)  # this threw an error once, idk why
+                time.sleep(2)
             if sample_action_infos: #the only reason sample_action_infos may be empty is if the action errored out and never got added
-                global action_number
                 with eq_class_lock:
                     if url_state.add_sample(sample_action_infos): #proceed if this is a new action
                         #folder saving code
@@ -982,14 +935,12 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                         action_info = sample_action_infos[0]
                         tree_string = action_info.action.tree_line
                         tree_string = tree_string if len(tree_string) <= 40 else tree_string[:40]
-                        cleaned_url = re.sub(r'^(https?://)?(www\.)?', '', action_info.url)
-                        cleaned_url = cleaned_url.rstrip('/')
-                        sample_path = Path (output_dir) / Path(urllib.parse.quote(cleaned_url, safe='')) / Path(str(action_number) + ' ' + tree_string) # root / url / action, make new url folder if it doesn't exist
+                        sample_path = Path (output_dir) / Path (normalize_url(action_info.url)) / (tree_string + str(hash(action_info.action.html)))  # root / url / action, make new url folder if it doesn't exist
                         sample_path.mkdir(parents = True, exist_ok = True)
-                        for num, action_info in enumerate(sample_action_infos):
+                        for action_info in sample_action_infos:
                             tree_string = action_info.action.tree_line
                             tree_string = tree_string if len(tree_string) <= 40 else tree_string[:40]
-                            subdir_path = sample_path / Path(str(num))
+                            subdir_path = sample_path / (tree_string + str(hash(action_info.action.html)))
                             subdir_path.mkdir(parents = True, exist_ok = True)
                             before_screenshot_filename = f"action_{hash(action_info.action.html)}_before.png"
                             before_screenshot_path = subdir_path / before_screenshot_filename
@@ -1009,7 +960,6 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                                 f.write(f"XPATH: {action_info.action.friendly_xpath}\n")
                                 f.write(f"TRAJECTORY: {action_info.action.trajectory}\n\n")
                                 f.write(f"HTML: {action_info.action.html}\n")
-                action_number +=1
         #  finally close here, make sure session is still attached
         if login_success:
             cdpSession.detach()
@@ -1024,13 +974,8 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
     explore_actions()
     output_dir = 'dominos'
     output_path = Path(output_dir) / 'scraper_state.pkl'
-    checkpoint_path = Path(output_dir) / 'checkpoint.pkl'
-    urls = list(url_queue.queue)
     with open(output_path, 'wb') as f:
-        pickle.dump(equiv_classes, f) #url_queue and current url needed for resume purposes
-    with open(checkpoint_path, 'wb') as f:
-        pickle.dump((action_number, urls, seen_urls), f)
-    print("Saved checkpoint")
+        pickle.dump(equiv_classes, f)
     if url_queue.empty() and url_queue.qsize() <= 0:
         idle_flags[thread_id] = True
 
@@ -1069,45 +1014,23 @@ def worker(thread_id: int, idle_flags: dict, url_queue: Queue, equiv_classes_loc
         print(f"worker Thread-{thread_id} fucking off")
         browser.close()
 
-def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'dominos', root: str = "", num_threads: int = 10, resume = False):
-    global action_number
+def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'dominos', root: str = "", num_threads: int = 10):
+
     # Initialize an EquivalenceClassSet to store and manage equivalence classes
-    scraper_state_path = output_dir + '/' + 'scraper_state.pkl'
-    checkpoint_path = output_dir + '/' + 'checkpoint.pkl'
-    if resume and os.path.exists(scraper_state_path) and os.path.exists(checkpoint_path):
-        with open(scraper_state_path, 'rb') as f:
-            equiv_classes= pickle.load(f)
-        with open(checkpoint_path, 'rb') as f:
-            resumed_action_number, urls, seen_urls = pickle.load(f)
-        action_number = resumed_action_number
-        url_queue = Queue()
-        for url in urls:
-            url_queue.put(url)
-        #remove partially filled urlstate 
-        cleaned_url = re.sub(r'^(https?://)?(www\.)?', '', urls[0])
-        cleaned_url = cleaned_url.rstrip('/')
-        old_urlstate_path = output_dir + '/' + urllib.parse.quote(cleaned_url, safe='')
-        if os.path.exists(old_urlstate_path):
-            shutil.rmtree(old_urlstate_path)
-            print("Removed partially explored urlstate")
-        print("Resuming exploration from ", urls[0])
-    else:
-        if resume:
-            print("Couldn't find checkpoint and state files for resume. Starting from scratch")
-        equiv_classes : URLStateManager = URLStateManager()
-
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-        seen_urls = set()
-
-        url_queue = Queue()
-        url_queue.put((starting_url, []))
-
+    equiv_classes : URLStateManager = URLStateManager()
     equiv_classes_lock = threading.Lock()
     eq_class_lock = threading.Lock()
-    stop_event = threading.Event()
     page_queue_lock = threading.Lock()
     seen_urls_lock = threading.Lock()
+
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+    seen_urls = set()
+
+    url_queue = Queue()
+    url_queue.put(starting_url)
+
+    stop_event = threading.Event()
 
     threads = []
     idle_flags = dict()
@@ -1140,4 +1063,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
 # num_cores = os.cpu_count()
 
-# explore("https://www.dominos.com", headless=True, root="www.dominos.com", num_threads=1, resume = True)
+# explore("https://www.dominos.com", headless=True, root="www.dominos.com", num_threads=1)
