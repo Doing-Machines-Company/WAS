@@ -72,24 +72,33 @@ def jaccard_similarity(set1, set2):
 
 
 class TagExtractor(HTMLParser):
-    def __init__(self, include_values=False, include_tags=True):
+    def __init__(self, include_values=False, include_attrs=True, include_tags=True):
         super().__init__()
         self.structure = []
         self.include_values = include_values
+        self.include_attrs = include_attrs
         self.include_tags = include_tags
 
     def handle_starttag(self, tag, attrs):
         attr_names = [attr for attr in attrs] if self.include_values else [attr[0] for attr in attrs]
-        if self.include_tags:
-            self.structure.append((tag, attr_names))
+        if self.include_attrs:
+            if self.include_tags:
+                self.structure.append((tag, attr_names))
+            else:
+                self.structure.append(attr_names)
         else:
-            self.structure.append(tag)
+            if self.include_tags:
+                self.structure.append(tag)
+            else:
+                pass  # Don't append anything if neither tags nor attrs are included
 
     def handle_endtag(self, tag):
-        self.structure.append(('/' + tag, []))
+        if self.include_tags:
+            self.structure.append(('/' + tag, []))
 
     def handle_comment(self, data):
-        self.structure.append(('comment', []))
+        if self.include_tags:
+            self.structure.append(('comment', []))
 
 
 def get_structure(html_content):
@@ -97,15 +106,30 @@ def get_structure(html_content):
     parser.feed(html_content)
     return parser.structure
 
+def get_element_type(html):
+    soup = BeautifulSoup(html, 'html.parser')
+    root_element = soup.find()
+    return root_element.name if root_element else ''
 
 def structural_similarity(document_1, document_2):
+
+    type1 = get_element_type(document_1)
+    type2 = get_element_type(document_2)
+
+    if type1 != type2:
+        return 0
+
     structure1 = get_structure(document_1)
     structure2 = get_structure(document_2)
 
-    # print("STRUCTURAL")
-    # print(f"OF DOC 1: {structure1}")
-    # print(f"OF DOC 2: {structure2}")
-    # print("STRUCTURAL")
+    print("STRUCTURAL")
+    print(f"OF DOC 1: {structure1}")
+    print(f"OF DOC 2: {structure2}")
+    print("STRUCTURAL")
+
+    # if len(structure1) != 0 and len(structure2) != 0 and structure1[-1] != structure2[-1]:
+    #     return 0
+
 
     # Convert structures to strings for comparison
     str1 = json.dumps(structure1)
