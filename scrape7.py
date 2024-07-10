@@ -661,7 +661,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
 
     idle_flags[thread_id] = False
 
-    url, url_traj = url_info
+    url, url_traj, source_url = url_info
     with seen_urls_lock:
         if normalize_url(url) in seen_urls:
             return
@@ -684,7 +684,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
 
     #we use trajectory to track the sequence of actions needed to trigger the
     #creation of any actions that do not readily exist on the base/unmodified
-    #version of the website
+    #version of the page
 
 
     def explore_actions():
@@ -695,6 +695,12 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
         #if this url has trajectory dependence, we must execute it
         if url_traj:
             print("***Executing url trajectory***")
+            try:
+                page.goto(source_url)
+                wait_for_load(page, load_time_ms=3000)
+            except Exception as e:
+                print(f"Error navigating to page during url trajectory: {source_url}. Error: {e}")
+                return
             traj_success = apply_trajectory(page, url_traj)
             if not traj_success:
                 print("Failed to execute url trajectory for " + url + "for the first time")
@@ -865,7 +871,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                         with seen_urls_lock:
                             if normalize_url(new_page.url) not in seen_urls and root_state.url != page.url:
                                 # REMEMBER TO ADD BACK THIS LINE IMMEDIATELY
-                                url_queue.put((new_page.url, []))  # FOR NOW WE ASSUME NO TRAJ DEPENDENCE FOR THESE
+                                url_queue.put((new_page.url, [], None))  # FOR NOW WE ASSUME NO TRAJ DEPENDENCE FOR THESE
                                 #  Make sure everything is discovered, unknown unknowns
 
                                 print(new_page.url)
@@ -886,29 +892,28 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                             if normalize_url(page.url) not in seen_urls:
                                 #need to check if the new url has trajectory dependence, or can be directly navigated to
                                 url_context, url_page, url_cdpSession, url_login_success = setup_context(browser, cookies)
-                                if not url_login_success:
-                                    url_trajectory = []
-                                else:
+                                new_url_trajectory, new_source_url = [], None
+                                if url_login_success:
                                     try:
                                         url_page.goto(page.url)
                                         wait_for_load(url_page, load_time_ms=3000)
                                         #may need a pagestate check as opposed to a url check, but this is easier for now
                                         if url_page.url != page.url: #if this is true, this urlstate has trajectory dependence
                                             print("Detected trajectory dependence for ", page.url)
-                                            url_trajectory = cp.deepcopy(action.trajectory)
-                                            url_trajectory = url_trajectory.append(action)
-                                        else:
-                                            url_trajectory = []
+                                            url_trajectory = cp.deepcopy(action.trajectory) #record trajectory to reach url
+                                            url_trajectory.append(action) #append most recent action
+                                            current_url_trajectory = cp.deepcopy(url_traj) #take trajectory of current url 
+                                            new_url_trajectory = current_url_trajectory + url_trajectory 
+                                            new_source_url = root_state.url if source_url is None else source_url #want to start from the beginning of traj dependence
                                     except Exception as e:
-                                        print(f"Error navigating to page: {new_page.url}. Error: {e}")
-                                        url_trajectory = []
+                                        print(f"Error navigating to page: {url_page.url}. Error: {e}")
                                     finally:
                                         url_cdpSession.detach()
                                         url_page.close()
                                         url_context.close()
 
-                                url_queue.put((page.url, url_trajectory))
-                                print(page.url, url_trajectory)
+                                url_queue.put((page.url, new_url_trajectory, new_source_url))
+                                print(page.url, new_url_trajectory, new_source_url)
                 else:
                     #since we stayed on the same page we want to see if applying
                     #this action generated new content on the page
@@ -960,6 +965,12 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                     return
                 if url_traj:
                     print("***Executing url trajectory***")
+                    try:
+                        page.goto(source_url)
+                        wait_for_load(page, load_time_ms=3000)
+                    except Exception as e:
+                        print(f"Error navigating to page during url trajectory: {source_url}. Error: {e}")
+                        return
                     traj_success = apply_trajectory(page, url_traj)
                     if not traj_success:
                         print("Failed to execute url trajectory for " + url + "for the first time")
@@ -1047,15 +1058,15 @@ def worker(thread_id: int, idle_flags: dict, url_queue: Queue, equiv_classes_loc
         #     context.add_cookies(cookies)
 
         while not stop_event.is_set():
-            url = None
+            url_info = None
             try:
-                url = url_queue.get(timeout=0.5)  # Reduced timeout value
+                url_info = url_queue.get(timeout=0.5)  # Reduced timeout value
             except Exception as e:
                 idle_flags[thread_id] = True
                 continue
 
-            if url is not None:
-                explore_page(url, equiv_classes_lock, eq_class_lock, page_queue_lock, seen_urls_lock, equiv_classes,
+            if url_info is not None:
+                explore_page(url_info, equiv_classes_lock, eq_class_lock, page_queue_lock, seen_urls_lock, equiv_classes,
                              url_queue, seen_urls, browser, cookies, root, thread_id, idle_flags)
                 time.sleep(2)
                 url_queue.task_done()
@@ -1081,16 +1092,16 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
             resumed_action_number, urls, seen_urls = pickle.load(f)
         action_number = resumed_action_number
         url_queue = Queue()
-        for url in urls:
-            url_queue.put(url)
+        for url_info in urls:
+            url_queue.put(url_info)
         #remove partially filled urlstate 
-        cleaned_url = re.sub(r'^(https?://)?(www\.)?', '', urls[0])
+        cleaned_url = re.sub(r'^(https?://)?(www\.)?', '', urls[0][0])
         cleaned_url = cleaned_url.rstrip('/')
         old_urlstate_path = output_dir + '/' + urllib.parse.quote(cleaned_url, safe='')
         if os.path.exists(old_urlstate_path):
             shutil.rmtree(old_urlstate_path)
             print("Removed partially explored urlstate")
-        print("Resuming exploration from ", urls[0])
+        print("Resuming exploration from ", urls[0][0])
     else:
         if resume:
             print("Couldn't find checkpoint and state files for resume. Starting from scratch")
@@ -1101,7 +1112,7 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
         seen_urls = set()
 
         url_queue = Queue()
-        url_queue.put((starting_url, []))
+        url_queue.put((starting_url, [], None))
 
     equiv_classes_lock = threading.Lock()
     eq_class_lock = threading.Lock()
@@ -1140,4 +1151,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
 # num_cores = os.cpu_count()
 
-# explore("https://www.dominos.com", headless=True, root="www.dominos.com", num_threads=1, resume = True)
+explore("https://www.dominos.com", headless=True, root="www.dominos.com", num_threads=1, resume = True)
