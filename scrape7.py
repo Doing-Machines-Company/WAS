@@ -590,25 +590,26 @@ def apply_trajectory(page: PlaywrightPage, trajectory : List[Action]) -> bool:
 
             traj_element = get_element(page, traj_action.xpath)
             assert(traj_action.friendly_xpath != None)
+
             traj_xpath = traj_action.xpath
-            if not traj_element or traj_element.evaluate(
-                    "element => element.outerHTML") != traj_action.html:  # perhaps do a stripped check
+            if not traj_element or traj_element.count() < 1 or traj_element.evaluate(
+                    "element => element.outerHTML") != traj_action.html:                # perhaps do a stripped check
                 traj_element = get_element(page, traj_action.friendly_xpath)
                 traj_xpath = traj_action.friendly_xpath
-                if not traj_element or traj_element.evaluate(
+                if not traj_element or traj_element.count() < 1 or traj_element.evaluate(
                         "element => element.outerHTML") != traj_action.html:
                     # now we try getting stuff at rune time
                     potentially_better_traj_xpath = get_xpath_by_outer_html(page, traj_action.html)
                     potentially_better_friendly_traj_xpath = make_xpath_friendly(potentially_better_traj_xpath)
                     traj_element = get_element(page, potentially_better_friendly_traj_xpath)
                     traj_xpath = potentially_better_friendly_traj_xpath
-                    if not traj_element:
+                    if not traj_element or traj_element.count() < 1:
                         traj_element = get_element(page, potentially_better_traj_xpath)
                         traj_xpath = potentially_better_traj_xpath
-                        if not traj_element:
+                        if not traj_element or traj_element.count() < 1:
                             traj_element = get_element(page, traj_action.friendly_xpath)
                             traj_xpath = traj_action.friendly_xpath
-                            if not traj_element:
+                            if not traj_element or traj_element.count() < 1:
                                 traj_element = get_element(page, traj_action.xpath)
                                 traj_xpath = traj_action.xpath
 
@@ -624,7 +625,8 @@ def apply_trajectory(page: PlaywrightPage, trajectory : List[Action]) -> bool:
             # if not element:
             #     found_xpath = action.xpath
             #     element = get_element(page, action.xpath)
-            if traj_element and traj_xpath:
+            if traj_element and traj_element.count() > 0 and traj_xpath:
+                traj_action.set_xpath(traj_xpath)
                 try:
                     scroll_into_view(traj_element)
                 except Exception as e:
@@ -633,10 +635,12 @@ def apply_trajectory(page: PlaywrightPage, trajectory : List[Action]) -> bool:
                 trajectory_action_screenshot, _ = take_screenshot(page)
                 success, _ = apply_action(page, traj_action, trajectory_action_screenshot, traj_element, traj_xpath, possible_types_traj)
                 if not success:
+                    print(f"This action was broken: {traj_action}")
                     print("Trajectory broken, skipping")
                     traj_success = False
                     break
             else:
+                print(f"This action was not found: {traj_action}")
                 print('Could not find item in trajectory')
                 traj_success = False
                 break
@@ -701,7 +705,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
             except Exception as e:
                 print(f"Error navigating to page during url trajectory: {source_url}. Error: {e}")
                 return
-            traj_success = apply_trajectory(page, url_traj)
+            traj_success = apply_trajectory(page, cp.deepcopy(url_traj))
             if not traj_success:
                 print("Failed to execute url trajectory for " + url + "for the first time")
                 return
@@ -780,15 +784,16 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                 I want to scroll to what I'm interacting with before I interact, for action effect reasons.
                 
                 '''
-                page.reload()
+                # page.reload()
                 time.sleep(2)
                 #need sleep here for going between different contexts for some reason
 
-                print("-" * 80)
+
                 # print("Action: ", action.html)
                 print("Page url: ", page.url)
                 print("Ax object", action.tree_line)
                 print("Trajectory: ", action.display_trajectory())
+                print("***Applying Action Trajectory***")
                 traj_success = apply_trajectory(page, action.trajectory)
                 if not traj_success:
                     continue
@@ -811,36 +816,39 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                         potentially_better_friendly_xpath = make_xpath_friendly(potentially_better_xpath)
                         final_element = get_element(page, potentially_better_friendly_xpath)
                         final_xpath = potentially_better_friendly_xpath
-                        if not final_element:
+                        if not final_element or final_element.count() < 1:
                             final_element = get_element(page, potentially_better_xpath)
                             final_xpath = potentially_better_xpath
-                            if not final_element:
+                            if not final_element or final_element.count() < 1:
                                 final_element = get_element(page, action.friendly_xpath)
                                 final_xpath = action.friendly_xpath
-                                if not final_element:
+                                if not final_element or final_element.count() < 1:
                                     final_element = get_element(page, action.xpath)
                                     final_xpath = action.xpath
 
-                if final_element and final_element.count() > 0:
-                    action.set_xpath(final_xpath)
-                    try:
-                        scroll_into_view(final_element)
-                        scroll_success = True
-                    except Exception as e:
-                        print(f'Scroll failed: {e}')
+                if not final_element or final_element.count() < 1 or not final_xpath:
+                    print(f"This element was not found for final {action}")
+                    print("Element not found, continuing")
+                    continue
+
+                # if final_element and final_element.count() > 0 and final_xpath:
+                action.set_xpath(final_xpath)
+                try:
+                    scroll_into_view(final_element)
+                    scroll_success = True
+                except Exception as e:
+                    print(f'Scroll failed: {e}')
 
                 if not scroll_success:  # now is scroll failed for one scroll but you have an element, assume scroll will always fail, as locator should be the same
                     print(f"Scroll failed for: {final_xpath}, Ax object: {action.tree_line}, outerHTML: {action.html}")
                         # we may still want to try action even if scroll fails throwing playwright error to cause exception, though this is likely due to locator and it's broken
-                if not final_element or final_element.count() < 1:
-                    print("Element not found, continuing")
-                    continue
+
 
                 to_box_coords = None
                 try:
                     # to_box_item = page.locator(f"xpath={action.friendly_xpath}")
-                    if final_element:
-                        to_box_coords = final_element.bounding_box(timeout=10000)
+                    # if final_element and final_element.count() > 0:  # should be redundant given continue above
+                    to_box_coords = final_element.bounding_box(timeout=10000)
                 except Exception as e:
                     print(f'GETTING BOUNDING BOXES FAILED FOR {action}')
                     print(e)
@@ -851,6 +859,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                     print("NO SCREENSHOT AVAILABLE FOR BOUNDING BOX")
                 # print(type(before_screenshot))
                 before_state = get_page_state(page, cdpSession)
+
                 success, new_action = apply_action(page, action, before_screenshot, final_element, final_xpath, possible_types)
                 # action = new_action  # There may have been an aliasing issue here
                 if not success:
@@ -871,7 +880,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                         with seen_urls_lock:
                             if normalize_url(new_page.url) not in seen_urls and root_state.url != page.url:
                                 # REMEMBER TO ADD BACK THIS LINE IMMEDIATELY
-                                url_queue.put((new_page.url, [], None))  # FOR NOW WE ASSUME NO TRAJ DEPENDENCE FOR THESE
+                                url_queue.put((new_page.url, [], source_url))  # FOR NOW WE ASSUME NO TRAJ DEPENDENCE FOR THESE
                                 #  Make sure everything is discovered, unknown unknowns
 
                                 print(new_page.url)
@@ -892,7 +901,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                             if normalize_url(page.url) not in seen_urls:
                                 #need to check if the new url has trajectory dependence, or can be directly navigated to
                                 url_context, url_page, url_cdpSession, url_login_success = setup_context(browser, cookies)
-                                new_url_trajectory, new_source_url = [], None
+                                new_url_trajectory, new_source_url = [], source_url  # changed from None to source_url
                                 if url_login_success:
                                     try:
                                         url_page.goto(page.url)
@@ -902,7 +911,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                                             print("Detected trajectory dependence for ", page.url)
                                             url_trajectory = cp.deepcopy(action.trajectory) #record trajectory to reach url
                                             url_trajectory.append(action) #append most recent action
-                                            current_url_trajectory = cp.deepcopy(url_traj) #take trajectory of current url 
+                                            current_url_trajectory = cp.deepcopy(url_traj) #take trajectory of current url
                                             new_url_trajectory = current_url_trajectory + url_trajectory 
                                             new_source_url = root_state.url if source_url is None else source_url #want to start from the beginning of traj dependence
                                     except Exception as e:
@@ -912,7 +921,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                                         url_page.close()
                                         url_context.close()
 
-                                url_queue.put((page.url, new_url_trajectory, new_source_url))
+                                url_queue.put((page.url, new_url_trajectory, new_source_url))  # TODO, IS THIS LOGICALLY CORRECT?
                                 print(page.url, new_url_trajectory, new_source_url)
                 else:
                     #since we stayed on the same page we want to see if applying
@@ -957,6 +966,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                 context.close()
             ###########################################################
             #this is the login procedure for the NEXT iteration of the for loop
+                print("-" * 80)
                 context, page, cdpSession, login_success = setup_context(browser, cookies)
 
                 # do_login(page)  # this should be the only other do_login we need hopefully
@@ -971,12 +981,13 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                     except Exception as e:
                         print(f"Error navigating to page during url trajectory: {source_url}. Error: {e}")
                         return
-                    traj_success = apply_trajectory(page, url_traj)
+                    traj_success = apply_trajectory(page, cp.deepcopy(url_traj))
                     if not traj_success:
                         print("Failed to execute url trajectory for " + url + "for the first time")
                         return
                 else:
                     try:
+                        # url, url_traj, source_url = url_info
                         page.goto(url)
                         wait_for_load(page, load_time_ms=3000)
                     except Exception as e:
@@ -1151,4 +1162,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
 # num_cores = os.cpu_count()
 
-explore("https://www.dominos.com", headless=True, root="www.dominos.com", num_threads=1, resume = True)
+explore("https://www.dominos.com/en/pages/order/#!/section/Food/category/AllEntrees/", headless=False, root="www.dominos.com", num_threads=1, resume = True)
