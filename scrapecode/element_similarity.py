@@ -122,10 +122,10 @@ def structural_similarity(document_1, document_2):
     structure1 = get_structure(document_1)
     structure2 = get_structure(document_2)
 
-    print("STRUCTURAL")
-    print(f"OF DOC 1: {structure1}")
-    print(f"OF DOC 2: {structure2}")
-    print("STRUCTURAL")
+    # print("STRUCTURAL")
+    # print(f"OF DOC 1: {structure1}")
+    # print(f"OF DOC 2: {structure2}")
+    # print("STRUCTURAL")
 
     # if len(structure1) != 0 and len(structure2) != 0 and structure1[-1] != structure2[-1]:
     #     return 0

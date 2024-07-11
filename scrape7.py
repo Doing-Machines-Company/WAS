@@ -422,6 +422,11 @@ def get_page_state(page: PlaywrightPage, cdpSession: CDPSession, attempts=3) -> 
 
     return result
 
+def close_resources(cdp_session, page, context):
+    cdp_session.detach()
+    page.close()
+    context.close()
+
 def create_new_context_and_page(browser, cookies):
         context = browser.new_context(
             permissions=[], #this is to prevent popups
@@ -460,9 +465,10 @@ def setup_context(browser, cookies, logged_in = True, attempts = 3):
                 # print('LOGIN SUCCESSFUL')
             except Exception as e:
                 # page.screenshot(path='login_failure.png', full_page=True)
-                cdpSession.detach()
-                page.close()
-                context.close()
+                close_resources(cdpSession, page, context)
+                # cdpSession.detach()
+                # page.close()
+                # context.close()
                 print(f"Error logging in {attempt+1} times: {e}")
                 success=False
             else:
@@ -695,6 +701,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
         context, page, cdpSession, login_success = setup_context(browser, cookies)
         if not login_success:
             print("LOGIN FAILED")
+            # close_resources(cdpSession, page, context)
             return
         #if this url has trajectory dependence, we must execute it
         if url_traj:
@@ -704,10 +711,12 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                 wait_for_load(page, load_time_ms=3000)
             except Exception as e:
                 print(f"Error navigating to page during url trajectory: {source_url}. Error: {e}")
+                close_resources(cdpSession, page, context)
                 return
             traj_success = apply_trajectory(page, cp.deepcopy(url_traj))
             if not traj_success:
                 print("Failed to execute url trajectory for " + url + "for the first time")
+                close_resources(cdpSession, page, context)
                 return
         else:
             try:
@@ -715,6 +724,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                 wait_for_load(page, load_time_ms=3000)
             except Exception as e:
                 print(f"Error navigating to page: {url}. Error: {e}")
+                close_resources(cdpSession, page, context)
                 return
 
         print("*" * 80)
@@ -724,6 +734,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
             root_state = get_page_state(page, cdpSession)
         except Exception as e:
             print(f"Error getting page state: {url}. Error: {e}")
+            close_resources(cdpSession, page, context)
             return
         # REMEMBER TO HANDLE EQUIVALENCE CLASS CODE - CEM !!!!
         #remember to add a lock
@@ -736,9 +747,10 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                 url_state.add_alias(url) #add this url as an alias to the matched state
                 equiv_classes.add_url(url, url_state) #also add a direct link
                 print(url, " is an alias for ", url_state.aliases)
-                cdpSession.detach() #don't forget to close session!
-                page.close()
-                context.close()
+                # cdpSession.detach() #don't forget to close session!
+                # page.close()
+                # context.close()
+                close_resources(cdpSession, page, context)
                 return #no longer want to scrape the page
 
         # seen_actions = []
@@ -753,9 +765,10 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
             action_queue.put(samples)
         
         #detach session and close page before while loop
-        cdpSession.detach()
-        page.close()
-        context.close()
+        # cdpSession.detach()
+        # page.close()
+        # context.close()
+        close_resources(cdpSession, page, context)
 
         #we can just set seen_actions since it is empty
         #TO IMPROVE EFFICIENCY MAYBE JUST SET THIS TO STRICTLY UNIQUE  - CEM
@@ -774,6 +787,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                 # do_login(page)  # this should be the only other do_login we need hopefully
                 if not login_success:
                     print("LOGIN FAILED")
+                    close_resources(cdpSession, page, context)
                     continue
                 if url_traj:
                     print("***Executing url trajectory***")
@@ -782,10 +796,12 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                         wait_for_load(page, load_time_ms=3000)
                     except Exception as e:
                         print(f"Error navigating to page during url trajectory: {source_url}. Error: {e}")
+                        close_resources(cdpSession, page, context)
                         continue
                     traj_success = apply_trajectory(page, cp.deepcopy(url_traj))
                     if not traj_success:
                         print("Failed to execute url trajectory for " + url + "for the first time")
+                        close_resources(cdpSession, page, context)
                         continue
                 else:
                     try:
@@ -794,6 +810,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                         wait_for_load(page, load_time_ms=3000)
                     except Exception as e:
                         print(f"Error navigating to page: {url}. Error: {e}")
+                        close_resources(cdpSession, page, context)
                         continue
                 time.sleep(2) #keep just in case lol
                 ###########################################################
@@ -802,6 +819,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
 
                 if not action.xpath:
                     print(f"Skipping action without XPath: {action}")
+                    close_resources(cdpSession, page, context)
                     continue
 
                 page.evaluate("""
@@ -821,6 +839,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                 print("***Applying Action Trajectory***")
                 traj_success = apply_trajectory(page, action.trajectory)
                 if not traj_success:
+                    close_resources(cdpSession, page, context)
                     continue
 
                 action.set_friendly_xpath(make_xpath_friendly(action.xpath))
@@ -854,6 +873,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                 if not final_element or final_element.count() < 1 or not final_xpath:
                     print(f"This element was not found for final {action}")
                     print("Element not found, continuing")
+                    close_resources(cdpSession, page, context)
                     continue
 
                 # if final_element and final_element.count() > 0 and final_xpath:
@@ -890,9 +910,10 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                 if not success:
                     print(f"This action was not successful: {action}")
                     print(f"Attempted types: {possible_types}")
+                    close_resources(cdpSession, page, context)
                     continue  # hopefully no issues with this
 
-                    # print("THIS ACTION SUCCESSFUL")
+                print("THIS ACTION SUCCESSFUL")
                 # print(action)
 
                 wait_for_load(page, load_time_ms=3000)
@@ -942,9 +963,10 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                                     except Exception as e:
                                         print(f"Error navigating to page: {url_page.url}. Error: {e}")
                                     finally:
-                                        url_cdpSession.detach()
-                                        url_page.close()
-                                        url_context.close()
+                                        # url_cdpSession.detach()
+                                        # url_page.close()
+                                        # url_context.close()
+                                        close_resources(url_cdpSession, url_page, url_context)
 
                                 url_queue.put((page.url, new_url_trajectory, new_source_url))  # TODO, IS THIS LOGICALLY CORRECT?
                                 print(page.url, new_url_trajectory, new_source_url)
@@ -985,11 +1007,13 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                         seen_actions += difference
                     except Exception as e:
                         print(f"Error getting page state after applying {action.tree_line} at {url}. Error: {e}")
+                        close_resources(cdpSession, page, context)
                         continue
-                cdpSession.detach()
-                page.close()
-                context.close()
-            
+                # cdpSession.detach()
+                # page.close()
+                # context.close()
+                close_resources(cdpSession, page, context)
+
             if sample_action_infos: #the only reason sample_action_infos may be empty is if the action errored out and never got added
                 global action_number
                 with eq_class_lock:
