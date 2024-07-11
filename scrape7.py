@@ -746,10 +746,17 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
         action_queue = Queue()
 
         unique_actions = get_unique_actions(root_state)  # should check typing, list of lists of indefinite actions
-
+        
+        
         #at this point, seen_actions is empty, so we can just put the unique actions into the queue
         for samples in unique_actions:
             action_queue.put(samples)
+        
+        #detach session and close page before while loop
+        cdpSession.detach()
+        page.close()
+        context.close()
+
         #we can just set seen_actions since it is empty
         #TO IMPROVE EFFICIENCY MAYBE JUST SET THIS TO STRICTLY UNIQUE  - CEM
         #used to check whether an action has already been queued yet (if seen again, we shouldn't requeue)
@@ -759,7 +766,37 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
             #  a samples is a list of indefinite actions
             sample_action_infos : list[ScrapeAction] = []
             for indefinite_sample in samples:
+                
+                ###########################################################
+                print("-" * 80)
+                context, page, cdpSession, login_success = setup_context(browser, cookies)
 
+                # do_login(page)  # this should be the only other do_login we need hopefully
+                if not login_success:
+                    print("LOGIN FAILED")
+                    continue
+                if url_traj:
+                    print("***Executing url trajectory***")
+                    try:
+                        page.goto(source_url)
+                        wait_for_load(page, load_time_ms=3000)
+                    except Exception as e:
+                        print(f"Error navigating to page during url trajectory: {source_url}. Error: {e}")
+                        continue
+                    traj_success = apply_trajectory(page, cp.deepcopy(url_traj))
+                    if not traj_success:
+                        print("Failed to execute url trajectory for " + url + "for the first time")
+                        continue
+                else:
+                    try:
+                        # url, url_traj, source_url = url_info
+                        page.goto(url)
+                        wait_for_load(page, load_time_ms=3000)
+                    except Exception as e:
+                        print(f"Error navigating to page: {url}. Error: {e}")
+                        continue
+                time.sleep(2) #keep just in case lol
+                ###########################################################
                 possible_types = indefinite_sample.type_list
                 action = indefinite_sample.action
 
@@ -773,18 +810,6 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                     };
                 """)
 
-
-                '''
-                
-                Error clicking element via javascript click: TypeError: Cannot read properties of null (reading 'scrollIntoViewIfNeeded')
-                at eval (eval at evaluate (:226:30), <anonymous>:1:181)
-                at UtilityScript.evaluate (<anonymous>:233:19)
-                at UtilityScript.<anonymous> (<anonymous>:1:44)
-                
-                I want to scroll to what I'm interacting with before I interact, for action effect reasons.
-                
-                '''
-                # page.reload()
                 time.sleep(2)
                 #need sleep here for going between different contexts for some reason
 
@@ -960,41 +985,11 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                         seen_actions += difference
                     except Exception as e:
                         print(f"Error getting page state after applying {action.tree_line} at {url}. Error: {e}")
-                        return
+                        continue
                 cdpSession.detach()
                 page.close()
                 context.close()
-            ###########################################################
-            #this is the login procedure for the NEXT iteration of the for loop
-                print("-" * 80)
-                context, page, cdpSession, login_success = setup_context(browser, cookies)
-
-                # do_login(page)  # this should be the only other do_login we need hopefully
-                if not login_success:
-                    print("LOGIN FAILED")
-                    return
-                if url_traj:
-                    print("***Executing url trajectory***")
-                    try:
-                        page.goto(source_url)
-                        wait_for_load(page, load_time_ms=3000)
-                    except Exception as e:
-                        print(f"Error navigating to page during url trajectory: {source_url}. Error: {e}")
-                        return
-                    traj_success = apply_trajectory(page, cp.deepcopy(url_traj))
-                    if not traj_success:
-                        print("Failed to execute url trajectory for " + url + "for the first time")
-                        return
-                else:
-                    try:
-                        # url, url_traj, source_url = url_info
-                        page.goto(url)
-                        wait_for_load(page, load_time_ms=3000)
-                    except Exception as e:
-                        print(f"Error navigating to page: {url}. Error: {e}")
-                        return
-                time.sleep(2) #keep just in case lol
-            ###########################################################
+            
             if sample_action_infos: #the only reason sample_action_infos may be empty is if the action errored out and never got added
                 global action_number
                 with eq_class_lock:
@@ -1032,13 +1027,6 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                                 f.write(f"TRAJECTORY: {action_info.action.trajectory}\n\n")
                                 f.write(f"HTML: {action_info.action.html}\n")
                 action_number +=1
-        #  finally close here, make sure session is still attached
-        if login_success:
-            cdpSession.detach()
-            page.close()
-            context.close()
-        #remove this, only here for testing
-
 
         #NEED TO ACTUALLY UPDATE THE ACTIONS, THEY ARE ONLY ADDED AT THE BEGINNING - Cem
 
