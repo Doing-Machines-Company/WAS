@@ -440,11 +440,16 @@ def login(page):
     # print('LOGGING IN')
     page.goto('https://www.dominos.com/en/restaurants?type=Delivery')
     wait_for_load(page)
-    page.get_by_label("Street Address", exact=False).fill('5819 Centre Ave')
-    page.get_by_label("Suite/Apt #", exact=False).fill('Apt 448')
-    page.get_by_label("ZIP Code", exact=False).fill('15206')
-    page.get_by_label("City", exact=False).fill('Pittsburgh')
-    page.get_by_label("State", exact=False).select_option('PA')  # THIS
+    page.get_by_label("Street Address", exact=False).fill('934 Keeamoku Street')
+    page.get_by_label("Suite/Apt #", exact=False).fill('')
+    page.get_by_label("ZIP Code", exact=False).fill('96814')
+    page.get_by_label("City", exact=False).fill('Honolulu')
+    page.get_by_label("State", exact=False).select_option('HI')
+    # page.get_by_label("Street Address", exact=False).fill('5819 Centre Ave')
+    # page.get_by_label("Suite/Apt #", exact=False).fill('Apt 448')
+    # page.get_by_label("ZIP Code", exact=False).fill('15206')
+    # page.get_by_label("City", exact=False).fill('Pittsburgh')
+    # page.get_by_label("State", exact=False).select_option('PA')  # THIS
     page.get_by_role("button", name="Continue for Delivery").click()
     wait_for_load(page)
     page.get_by_role("button", name="Delivery To").click()
@@ -600,22 +605,27 @@ def apply_trajectory(page: PlaywrightPage, trajectory : List[Action]) -> bool:
             traj_xpath = traj_action.xpath
             if not traj_element or traj_element.count() < 1 or traj_element.evaluate(
                     "element => element.outerHTML") != traj_action.html:                # perhaps do a stripped check
+                print('First attempt in url traj failed')
                 traj_element = get_element(page, traj_action.friendly_xpath)
                 traj_xpath = traj_action.friendly_xpath
                 if not traj_element or traj_element.count() < 1 or traj_element.evaluate(
                         "element => element.outerHTML") != traj_action.html:
+                    print('Second attempt in url traj failed')
                     # now we try getting stuff at rune time
                     potentially_better_traj_xpath = get_xpath_by_outer_html(page, traj_action.html)
                     potentially_better_friendly_traj_xpath = make_xpath_friendly(potentially_better_traj_xpath)
                     traj_element = get_element(page, potentially_better_friendly_traj_xpath)
                     traj_xpath = potentially_better_friendly_traj_xpath
                     if not traj_element or traj_element.count() < 1:
+                        print('Third attempt in url traj failed')
                         traj_element = get_element(page, potentially_better_traj_xpath)
                         traj_xpath = potentially_better_traj_xpath
                         if not traj_element or traj_element.count() < 1:
+                            print('Fourth attempt in url traj failed')
                             traj_element = get_element(page, traj_action.friendly_xpath)
                             traj_xpath = traj_action.friendly_xpath
                             if not traj_element or traj_element.count() < 1:
+                                print('Fifth attempt in url traj failed')
                                 traj_element = get_element(page, traj_action.xpath)
                                 traj_xpath = traj_action.xpath
 
@@ -632,7 +642,6 @@ def apply_trajectory(page: PlaywrightPage, trajectory : List[Action]) -> bool:
             #     found_xpath = action.xpath
             #     element = get_element(page, action.xpath)
             if traj_element and traj_element.count() > 0 and traj_xpath:
-                traj_action.set_xpath(traj_xpath)
                 try:
                     scroll_into_view(traj_element)
                 except Exception as e:
@@ -645,9 +654,15 @@ def apply_trajectory(page: PlaywrightPage, trajectory : List[Action]) -> bool:
                     print("Trajectory broken, skipping")
                     traj_success = False
                     break
+                else:
+                    traj_action.set_xpath(traj_xpath)
             else:
                 print(f"This action was not found: {traj_action}")
                 print('Could not find item in trajectory')
+                print(traj_action.html)
+                print(traj_action.xpath)
+                print(traj_action.friendly_xpath)
+                print(traj_xpath)
                 traj_success = False
                 break
             wait_for_load(page, load_time_ms=3000)
@@ -812,7 +827,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                         print(f"Error navigating to page: {url}. Error: {e}")
                         close_resources(cdpSession, page, context)
                         continue
-                time.sleep(2) #keep just in case lol
+                time.sleep(4) #keep just in case lol
                 ###########################################################
                 possible_types = indefinite_sample.type_list
                 action = indefinite_sample.action
@@ -828,7 +843,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                     };
                 """)
 
-                time.sleep(2)
+                time.sleep(4)
                 #need sleep here for going between different contexts for some reason
 
 
@@ -852,27 +867,34 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                 final_element = get_element(page, action.xpath)
                 final_xpath = action.xpath
                 if not final_element or final_element.count() < 1 or final_element.evaluate("element => element.outerHTML") != action.html:  # perhaps do a stripped check
+                    print('First final element find failed')
                     final_element = get_element(page, action.friendly_xpath)
                     final_xpath = action.friendly_xpath
                     if not final_element or final_element.count() < 1 or final_element.evaluate("element => element.outerHTML") != action.html:
                         # now we try getting stuff at rune time
+                        print('Second final element find failed')
                         potentially_better_xpath = get_xpath_by_outer_html(page, action.html)
                         potentially_better_friendly_xpath = make_xpath_friendly(potentially_better_xpath)
                         final_element = get_element(page, potentially_better_friendly_xpath)
                         final_xpath = potentially_better_friendly_xpath
                         if not final_element or final_element.count() < 1:
+                            print('Third final element find failed')
                             final_element = get_element(page, potentially_better_xpath)
                             final_xpath = potentially_better_xpath
                             if not final_element or final_element.count() < 1:
+                                print('Fourth final element find failed')
                                 final_element = get_element(page, action.friendly_xpath)
                                 final_xpath = action.friendly_xpath
                                 if not final_element or final_element.count() < 1:
+                                    print('Fifth final element find failed')
                                     final_element = get_element(page, action.xpath)
                                     final_xpath = action.xpath
 
                 if not final_element or final_element.count() < 1 or not final_xpath:
                     print(f"This element was not found for final {action}")
                     print("Element not found, continuing")
+                    print(action.html)
+                    print(final_xpath)
                     close_resources(cdpSession, page, context)
                     continue
 
@@ -1059,12 +1081,25 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
     output_dir = 'dominos'
     output_path = Path(output_dir) / 'scraper_state.pkl'
     checkpoint_path = Path(output_dir) / 'checkpoint.pkl'
+
     urls = list(url_queue.queue)
+
     with open(output_path, 'wb') as f:
         pickle.dump(equiv_classes, f) #url_queue and current url needed for resume purposes
     with open(checkpoint_path, 'wb') as f:
         pickle.dump((action_number, urls, seen_urls), f)
+
     print("Saved checkpoint")
+
+    special_output_path = Path('special_dominos') / 'special_scraper_state.pkl'
+    special_checkpoint_path = Path('special_dominos') / 'special_checkpoint.pkl'
+
+    if urls != [] and 'www.dominos.com/en/pages/order/#!/checkout' in urls[0][0]:
+        print("Saved special checkpoint")
+        with open(special_output_path, 'wb') as f:
+            pickle.dump(equiv_classes, f)  # url_queue and current url needed for resume purposes
+        with open(special_checkpoint_path, 'wb') as f:
+            pickle.dump((action_number, urls, seen_urls), f)
     if url_queue.empty() and url_queue.qsize() <= 0:
         idle_flags[thread_id] = True
 
@@ -1091,14 +1126,14 @@ def worker(thread_id: int, idle_flags: dict, url_queue: Queue, equiv_classes_loc
             if url_info is not None:
                 explore_page(url_info, equiv_classes_lock, eq_class_lock, page_queue_lock, seen_urls_lock, equiv_classes,
                              url_queue, seen_urls, browser, cookies, root, thread_id, idle_flags)
-                time.sleep(2)
+                time.sleep(4)
                 url_queue.task_done()
             else:
                 idle_flags[thread_id] = True
             if stop_event.is_set():
                 break
 
-            time.sleep(1)
+            time.sleep(4)
 
         print(f"worker Thread-{thread_id} fucking off")
         browser.close()
@@ -1158,11 +1193,11 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
     while True:
         if url_queue.empty() and all(idle_flags[i] for i in idle_flags) and url_queue.qsize() <= 0:
-            time.sleep(1)
+            time.sleep(4)
             stop_event.set()
             break
         else:
-            time.sleep(1)
+            time.sleep(4)
 
     for t in threads:
         t.join()
@@ -1174,4 +1209,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
 # num_cores = os.cpu_count()
 
-explore("https://www.dominos.com/en/pages/order/#!/section/Food/category/AllEntrees/", headless=False, root="www.dominos.com", num_threads=1, resume = True)
+explore("https://www.dominos.com/", headless=True, root="www.dominos.com", num_threads=1, resume = True)

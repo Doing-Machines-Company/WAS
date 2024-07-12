@@ -160,7 +160,7 @@ class Action:
         return trajectory
 
     def __repr__(self) -> str:
-        return str(f"{self.action_type.name if self.action_type else ''}{'(' + self.input_string + ')' if self.input_string else ''}:{self.xpath if self.xpath else ''}({self.html[:100] if self.html else ''})")
+        return str(f"{self.action_type.name if self.action_type else ''}{'(' + self.input_string + ')' if self.input_string else ''}:{self.xpath if self.xpath else ''}({self.html if self.html else ''})")
 
 
 #TODO:
