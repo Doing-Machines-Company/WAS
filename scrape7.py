@@ -987,7 +987,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                 print("THIS ACTION SUCCESSFUL")
                 # print(action)
 
-                wait_for_load(page, load_time_ms=7000)
+                wait_for_load(page, load_time_ms=8000)
                 if len(page.context.pages) > 1 and page.context.pages[-1] != page:
                     new_page = page.context.pages[-1]
                     after_screenshot, screenshot_success = take_screenshot(page)
@@ -1051,7 +1051,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                     #since we stayed on the same page we want to see if applying
                     #this action generated new content on the page
                     try:
-                        time.sleep(2)
+                        time.sleep(8)
                         new_state = get_page_state(page, cdpSession)
                         new_actions = get_unique_actions(new_state)
                         # for sample1 in new_actions:
@@ -1266,4 +1266,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
 # num_cores = os.cpu_count()
 
-explore("https://www.dominos.com/", headless=False, root="www.dominos.com", num_threads=1, resume = True)
+explore("https://www.dominos.com/", headless=True, root="www.dominos.com", num_threads=1, resume = True)
