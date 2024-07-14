@@ -621,7 +621,7 @@ def apply_trajectory(page: PlaywrightPage, trajectory : List[Action]) -> bool:
     if trajectory:
         print("***Executing Trajectory***")
         for traj_action in trajectory:
-            time.sleep(10)
+            time.sleep(8)
             print('This item now:')
             print(traj_action.tree_line)
             print(traj_action)
@@ -770,7 +770,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
         print("*" * 80)
         print("Want to explore ", url)
         print("Starting from ", source_url)
-        time.sleep(10)
+        time.sleep(8)
 
         try:
             root_state = get_page_state(page, cdpSession)
@@ -901,7 +901,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
 
                 scroll_success = False
 
-                time.sleep(10)
+                time.sleep(8)
 
                 #  May want to deepcopy action for safety here
 
@@ -976,6 +976,11 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                     # input('Final action failed')
                     close_resources(cdpSession, page, context)
                     continue  # hopefully no issues with this
+
+                # input('what the fuck')
+
+                wait_for_load(page)
+
                 if final_element and final_element.count() > 0 and final_xpath:
                     action.set_xpath(final_xpath)
 
@@ -1261,4 +1266,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
 # num_cores = os.cpu_count()
 
-explore("https://www.dominos.com/", headless=True, root="www.dominos.com", num_threads=1, resume = True)
+explore("https://www.dominos.com/", headless=False, root="www.dominos.com", num_threads=1, resume = True)
