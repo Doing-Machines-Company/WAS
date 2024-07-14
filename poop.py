@@ -1,185 +1,148 @@
-# from llama_index.llms import OpenAILike
-# from langchain.llms import Together
-import time
+from playwright.sync_api import sync_playwright
+from scrape7 import *
 
-# with open('poopoo.txt', 'r') as file:
-#     prompt = file.read()
-# llm = OpenAILike(
-#     model="mistralai/Mixtral-8x7B-Instruct-v0.1",
-#     api_base="https://api.together.xyz/v1",
-#     api_key="c2cdc8649db190ab135ab85fb3df9487d6facd2696c652d2de470e92baefbb6f",
-#     is_chat_model=True,
-#     is_function_calling_model=True,
-#     temperature=0.0,
-# )
-# start = time.time()
-# response = llm.complete(prompt)
-# end = time.time()
-# print(response)
-# print("took", end - start)
+# Example usage
+def wait_for_load(page, load_time_ms: int = 850):
+    # https://playwright.dev/python/docs/navigations#navigation-events
+    # https://playwright.dev/python/docs/api/class-page#page-wait-for-load-state-option-state
+    page.wait_for_load_state('load')
+    # page.wait_for_load_state('networkidle')
+    page.wait_for_timeout(load_time_ms)  #
 
+def login(page):
+    # print('LOGGING IN')
+    page.goto('https://www.dominos.com/en/restaurants?type=Delivery')
+    wait_for_load(page)
+    # page.get_by_label("Street Address", exact=False).fill('934 Keeamoku Street')
+    # page.get_by_label("Suite/Apt #", exact=False).fill('')
+    # page.get_by_label("ZIP Code", exact=False).fill('96814')
+    # page.get_by_label("City", exact=False).fill('Honolulu')
+    # page.get_by_label("State", exact=False).select_option('HI')
+    page.get_by_label("Street Address", exact=False).fill('5819 Centre Ave')
+    page.get_by_label("Suite/Apt #", exact=False).fill('Apt 448')
+    page.get_by_label("ZIP Code", exact=False).fill('15206')
+    page.get_by_label("City", exact=False).fill('Pittsburgh')
+    page.get_by_label("State", exact=False).select_option('PA')  # THIS
+    page.get_by_role("button", name="Continue for Delivery").click()
+    wait_for_load(page)
+    page.get_by_role("button", name="Delivery To").click()
+    page.get_by_role("button", name="Change").click()
+    page.get_by_role("button", name="Carryout").click()
+    page.get_by_role("button", name="Continue").click()
+    wait_for_load(page)
+    # page.get_by_role("button", name="Add").first.click()
+    # page.get_by_role("button", name="Close").first.click()
+    wait_for_load(page)
 
+def get_element(des_page, des_xpath):
+    return des_page.locator(f"xpath={des_xpath}") if des_xpath else None
 
-# llm = Together(
-#     model="mistralai/Mixtral-8x7B-Instruct-v0.1",
-#     temperature=0.0,
-#     max_tokens=500,
-#     top_k=1,
-#     together_api_key="c2cdc8649db190ab135ab85fb3df9487d6facd2696c652d2de470e92baefbb6f"
-# )
-
-# input_ = prompt 
-# start = time.time()
-# print(llm(input_))
-# end = time.time()
-# print("took", end - start)
-
-# import requests
-
-# url = "https://api.together.xyz/inference"
-
-# payload = {
-#     "model": "mistralai/Mixtral-8x7B-Instruct-v0.1",
-#     "prompt": "<s>[INST]" + prompt + "[/INST]",
-#     "max_tokens": 512,
-#     "stop": ["</s>", "[/INST]"],
-#     "temperature": 0,
-#     "top_p": 0,
-#     "top_k": 50,
-#     "repetition_penalty": 1,
-#     "n": 1
-# }
-# headers = {
-#     "accept": "application/json",
-#     "content-type": "application/json",
-#     "Authorization": "Bearer c2cdc8649db190ab135ab85fb3df9487d6facd2696c652d2de470e92baefbb6f"
-# }
-# start = time.time()
-# response = requests.post(url, json=payload, headers=headers)
-# end = time.time()
-# print(response.text)
-# print("took", end - start)
-# import google.generativeai as genai
-# GOOGLE_API_KEY = 'AIzaSyBu8ecdjq4gzAGbT5Tk-bQm38S0WZikyDs'
-# genai.configure(api_key=GOOGLE_API_KEY)
-# model = genai.GenerativeModel('gemini-pro')
-# # Generate the response
-# with open('poopoo.txt', 'r') as file:
-# #     prompt = file.read()
-# response = model.generate_content(prompt)
-
-# from llava.model.builder import load_pretrained_model
-# from llava.mm_utils import get_model_name_from_path
-# from llava.eval.run_llava import eval_model
-
-# model_path = "liuhaotian/llava-v1.6-34b"
-
-# tokenizer, model, image_processor, context_len = load_pretrained_model(
-#     model_path=model_path,
-#     model_base=None,
-#     model_name=get_model_name_from_path(model_path)
-# )
-
-# import os
-
-# # from groq import Groq
-with open('poopoo.txt', 'r') as file:
-    sys_prompt = file.read()
-with open('poopoo1.txt', 'r') as file2:
-    prompt = file2.read()
-
-# client = Groq(
-#     api_key=os.environ.get("GROQ_API_KEY"),
-# )
-# start = time.time()
-# chat_completion = client.chat.completions.create(
-#     messages=[
-#         {
-#             "role": "user",
-#             "content": sys_prompt + prompt,
-#         }
-#     ],
-#     model="mixtral-8x7b-32768",
-# )
-# #print(chat_completion.choices[0].message.content)\
-# print("Took ", str(time.time() - start), 's')
-# print(chat_completion.choices[0].message.content)
-# import anthropic
-
-
-# client = anthropic.Anthropic(
-#     # defaults to os.environ.get("ANTHROPIC_API_KEY")
-#     api_key="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",
-# )
-# start = time.time()
-# message = client.messages.create(
-#     model="claude-3-haiku-20240307",
-#     max_tokens=4000,
-#     temperature=0,
-#     system=sys_prompt,
-#     messages=[
-#         {
-#             "role": "user",
-#             "content": [
-#                 {
-#                     "type": "text",
-#                     "text": prompt
-#                 }
-#             ]
-#         }
-#     ]
-# )
-# print(message.content)
-# print("Took: ", time.time() - start, " s")
-
-
-import webql
-
-session = webql.start_session("https://www.amazon.com/s?k=ice+cream&crid=36NTDZRSFAENL&sprefix=ice+cream%2Caps%2C85&ref=nb_sb_noss_1")
-
-QUERY = """
-{
-    results {
-        products[0] {
-            product_name
-            num_reviews
-            price
-            rating
-            shipping_fee
+def get_xpath_by_outer_html(page, outer_html):
+    # JavaScript function to find the element by outerHTML and generate its XPath
+    js_code = """
+    (outerHTML) => {
+        function getElementXPath(element) {
+            if (element.id !== '') {
+                return 'id("' + element.id + '")';
+            }
+            if (element === document.body) {
+                return element.tagName.toLowerCase();
+            }
+            var ix = 0;
+            var siblings = element.parentNode.childNodes;
+            for (var i = 0; i < siblings.length; i++) {
+                var sibling = siblings[i];
+                if (sibling === element) {
+                    return getElementXPath(element.parentNode) + '/' + element.tagName.toLowerCase() + '[' + (ix + 1) + ']';
+                }
+                if (sibling.nodeType === 1 && sibling.tagName === element.tagName) {
+                    ix++;
+                }
+            }
         }
+        var element = Array.from(document.querySelectorAll('*')).find(el => el.outerHTML === outerHTML);
+        if (element) {
+            return getElementXPath(element);
+        }
+        return null;
     }
-}
-"""
+    """
+    # Evaluate the JavaScript code in the context of the page
+    xpath = page.evaluate(js_code, outer_html)
+    return xpath
 
-response = session.query(QUERY)
+def make_xpath_friendly(des_xpath):
+    if des_xpath:  # if not empty string and not none
+        return des_xpath if '(' in des_xpath.split("/")[0] else f"//{des_xpath}"
+    else:
+        return None
 
-print(response.results.products)
+def click_element_by_outer_html(des_page, outer_html):
+    js_code = """
+    (outerHTML) => {
+        const element = Array.from(document.querySelectorAll('*')).find(el => el.outerHTML === outerHTML);
+        if (element) {
+            element.click();
+            return true;
+        }
+        return false;
+    }
+    """
+    result = des_page.evaluate(js_code, outer_html)
+    if not result:
+        raise Exception("Element with the specified outerHTML not found")
 
 
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=False)
+    context = browser.new_context()
+    page = context.new_page()
+    cdp_session = page.context.new_cdp_session(page)
+    login(page)
+    input('wait')
 
-# session.stop()
+    a1 = Action(Action.Type.CLICK_RADIO, xpath='id("Service_Method_Carryout")', html='<input type="radio" name="Service_Method" id="Service_Method_Carryout" value="Carryout" class="js-serviceMethod" data-quid="side-column-carryout" checked="">')
+    a1.set_friendly_xpath(make_xpath_friendly(a1.xpath))
+    a2 = Action(Action.Type.CLICK_LINK, xpath='id("js-checkoutColumns")/div[1]/div[1]/div[2]/div[1]/table[1]/tbody[1]/tr[1]/td[1]/a[1]', html='<a class="order-summary__item-product-image" href="#!/order/variant/1/"> <img src="https://cache.dominos.com/olo/6_136_0/assets/build/market/US/_en/images/img/products/thumbnails/S_PIZZA.jpg" alt="Large (14&quot;) New York Style Pizza"> </a>')
+    a2.set_friendly_xpath(make_xpath_friendly(a2.xpath))
+    traj = [a1, a2]
+    apply_trajectory(page, traj)
 
-# from openai import OpenAI
-# import time
-# client = OpenAI(api_key="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")
-# start = time.time()
-# response = client.chat.completions.create(
-#   model="gpt-4-turbo-2024-04-09",
-#   messages=[
-#     {
-#       "role": "system",
-#       "content": "You are an autonomous intelligent agent that is tasked with navigating a website. You will be given a user objective that you will help the user get one step closer by selecting one of the options from the accessibility tree. Each action is bracketed [], and corresponds to a single, atomic action that you must choose to help accomplish the user objective. You will be told where you are currently, and what the objective is, and from this, you must return the number that most likely corresponds to the correct action. \n\n ***IMPORTANT: DON'T EXPLAIN YOUR THINKING. ONLY RETURN THE NUMBER [#]. I REPEAT, ONLY RETURN THE NUMBER***"
-#     },
-#     {
-#       "role": "user",
-#       "content": prompt
-#     },
-#   ],
-#   temperature=0,
-#   max_tokens=4095,
-#   top_p=1,
-#   frequency_penalty=0,
-#   presence_penalty=0
-# )
-# print(response)
-# print("Took", time.time() - start, " seconds")
+    input('look')
+
+
+    # page.evaluate(
+    #     f"() => {{ let e = document.evaluate('id(\"Service_Method_Carryout\")', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; e.click(); }}")
+    # # ax_nodes = get_ax_tree(cdp_session, page)
+    # # cleaned = AxObservation(ax_nodes, page.url)
+    # # # print(ax_nodes)
+    # input('wait more')
+    # print(page.content())
+    # input('wait more u fuck')
+    #
+    # checkout_xpath = get_xpath_by_outer_html(page, '<a class="order-summary__item-product-image" href="#!/order/variant/1/"> <img src="https://cache.dominos.com/olo/6_136_0/assets/build/market/US/_en/images/img/products/thumbnails/S_PIZZA.jpg" alt="Large (14&quot;) New York Style Pizza"> </a>')
+    # input(checkout_xpath)
+    # # click_element_by_outer_html(page, '<input aria-label="Light Robust Inspired Tomato Sauce" type="radio" data-dpz-track-evt-name="Robust Inspired Tomato Sauce Weight: Light Selected" id="Robust Inspired Tomato Sauce-0.5" name="Robust Inspired Tomato Sauce" class="is-visually-hidden segmented-radio__input" value="0.5">')
+    # # input('waittt')
+    # # page.evaluate(
+    # #     f"() => {{ let e = document.evaluate('{checkout_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; e.click(); }}")
+    #
+    # checkout_xpath = make_xpath_friendly(checkout_xpath)
+    # print(checkout_xpath)
+    # # print(element.count())
+    # # element.first.click()
+    # page.evaluate(
+    #     f"() => {{ let e = document.evaluate('{checkout_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; e.click(); }}")
+    #
+    # input('tonk')
+
+    input('wait again')
+    # cdp_session.detach()
+    # print(cdp_session.is_detached)
+
+    # Perform your operations here
+
+    # When you're done, call the function to clean up resources
+    # manage_resources(cdp_session, page, context)
+
+    browser.close()
