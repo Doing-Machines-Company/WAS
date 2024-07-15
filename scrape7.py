@@ -464,16 +464,16 @@ def login(page):
     # print('LOGGING IN')
     page.goto('https://www.dominos.com/en/restaurants?type=Delivery')
     wait_for_load(page)
-    page.get_by_label("Street Address", exact=False).fill('934 Keeamoku Street')
-    page.get_by_label("Suite/Apt #", exact=False).fill('')
-    page.get_by_label("ZIP Code", exact=False).fill('96814')
-    page.get_by_label("City", exact=False).fill('Honolulu')
-    page.get_by_label("State", exact=False).select_option('HI')
-    # page.get_by_label("Street Address", exact=False).fill('5819 Centre Ave')
-    # page.get_by_label("Suite/Apt #", exact=False).fill('Apt 448')
-    # page.get_by_label("ZIP Code", exact=False).fill('15206')
-    # page.get_by_label("City", exact=False).fill('Pittsburgh')
-    # page.get_by_label("State", exact=False).select_option('PA')  # THIS
+    # page.get_by_label("Street Address", exact=False).fill('934 Keeamoku Street')
+    # page.get_by_label("Suite/Apt #", exact=False).fill('')
+    # page.get_by_label("ZIP Code", exact=False).fill('96814')
+    # page.get_by_label("City", exact=False).fill('Honolulu')
+    # page.get_by_label("State", exact=False).select_option('HI')
+    page.get_by_label("Street Address", exact=False).fill('5819 Centre Ave')
+    page.get_by_label("Suite/Apt #", exact=False).fill('Apt 448')
+    page.get_by_label("ZIP Code", exact=False).fill('15206')
+    page.get_by_label("City", exact=False).fill('Pittsburgh')
+    page.get_by_label("State", exact=False).select_option('PA')  # THIS
     page.get_by_role("button", name="Continue for Delivery").click()
     wait_for_load(page)
     page.get_by_role("button", name="Delivery To").click()
@@ -633,27 +633,27 @@ def apply_trajectory(page: PlaywrightPage, trajectory : List[Action]) -> bool:
             traj_xpath = traj_action.xpath
             if not traj_element or traj_element.count() < 1 or traj_element.evaluate(
                     "element => element.outerHTML") != traj_action.html:                # perhaps do a stripped check
-                print('First attempt in url traj failed')
+                print('First attempt in traj failed')
                 traj_element = get_element(page, traj_action.friendly_xpath)
                 traj_xpath = traj_action.friendly_xpath
                 if not traj_element or traj_element.count() < 1 or traj_element.evaluate(
                         "element => element.outerHTML") != traj_action.html:
-                    print('Second attempt in url traj failed')
+                    print('Second attempt in traj failed')
                     # now we try getting stuff at rune time
                     potentially_better_traj_xpath = get_xpath_by_outer_html(page, traj_action.html)
                     potentially_better_friendly_traj_xpath = make_xpath_friendly(potentially_better_traj_xpath)
                     traj_element = get_element(page, potentially_better_friendly_traj_xpath)
                     traj_xpath = potentially_better_friendly_traj_xpath
                     if not traj_element or traj_element.count() < 1:
-                        print('Third attempt in url traj failed')
+                        print('Third attempt in traj failed')
                         traj_element = get_element(page, potentially_better_traj_xpath)
                         traj_xpath = potentially_better_traj_xpath
                         if not traj_element or traj_element.count() < 1:
-                            print('Fourth attempt in url traj failed')
+                            print('Fourth attempt in traj failed')
                             traj_element = get_element(page, traj_action.friendly_xpath)
                             traj_xpath = traj_action.friendly_xpath
                             if not traj_element or traj_element.count() < 1:
-                                print('Fifth attempt in url traj failed')
+                                print('Fifth attempt in traj failed')
                                 traj_element = get_element(page, traj_action.xpath)
                                 traj_xpath = traj_action.xpath
 
@@ -678,6 +678,8 @@ def apply_trajectory(page: PlaywrightPage, trajectory : List[Action]) -> bool:
                 print("Trajectory broken, skipping")
                 traj_success = False
                 break
+
+            wait_for_load(page, load_time_ms=2000)
 
             if traj_element and traj_element.count() > 0 and traj_xpath:
                 traj_action.set_xpath(traj_xpath)
@@ -943,6 +945,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                     try:
                         scroll_into_view(final_element)
                         scroll_success = True
+                        before_screenshot, screenshot_success = take_screenshot(page)
                     except Exception as e:
                         print(f'Scroll failed: {e}')
 
@@ -979,7 +982,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
 
                 # input('what the fuck')
 
-                wait_for_load(page)
+                wait_for_load(page, load_time_ms=2000)
 
                 if final_element and final_element.count() > 0 and final_xpath:
                     action.set_xpath(final_xpath)
