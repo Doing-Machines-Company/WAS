@@ -657,17 +657,31 @@ def apply_trajectory(page: PlaywrightPage, trajectory : List[Action]) -> bool:
                                 traj_element = get_element(page, traj_action.xpath)
                                 traj_xpath = traj_action.xpath
 
+            trajectory_action_screenshot, screenshot_success = take_screenshot(page)
+
             if traj_element and traj_element.count() > 0 and traj_xpath:
                 try:
                     scroll_into_view(traj_element)
+                    trajectory_action_screenshot, screenshot_success = take_screenshot(page)
                 except Exception as e:
                     print("SCROLL FAILED DURING TRAJECTORY")
                     print(e)
+
+                if screenshot_success:
+                    to_box_coords = None
+                    try:
+                        # to_box_item = page.locator(f"xpath={action.friendly_xpath}")
+                        # if final_element and final_element.count() > 0:  # should be redundant given continue above
+                        to_box_coords = traj_element.bounding_box(timeout=10000)
+                    except Exception as e:
+                        print(f'GETTING BOUNDING BOXES FAILED FOR IN TRAJ {traj_action}')
+                        print(e)
+
+                    trajectory_action_screenshot = create_boundingbox(trajectory_action_screenshot, to_box_coords)
             else:
                 print(f"This action was not found: {traj_action}")
                 print('Could not find item in trajectory')
 
-            trajectory_action_screenshot, screenshot_success = take_screenshot(page)
             if not screenshot_success:  # TODO BOUNDING BOX FOR THE SCREENSHOT IF SUCCESS
                 input('traj action screenshot failed')
 
@@ -962,8 +976,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                         except Exception as e:
                             print(f'GETTING BOUNDING BOXES FAILED FOR {action}')
                             print(e)
-                        if screenshot_success:
-                            before_screenshot = create_boundingbox(before_screenshot, to_box_coords)
+                        before_screenshot = create_boundingbox(before_screenshot, to_box_coords)
                 else:
                     print("NO PLAYWRIGHT LOCATOR FOR ACTION")
 
