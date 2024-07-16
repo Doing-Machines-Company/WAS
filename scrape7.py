@@ -464,16 +464,16 @@ def login(page):
     # print('LOGGING IN')
     page.goto('https://www.dominos.com/en/restaurants?type=Delivery')
     wait_for_load(page)
-    # page.get_by_label("Street Address", exact=False).fill('934 Keeamoku Street')
-    # page.get_by_label("Suite/Apt #", exact=False).fill('')
-    # page.get_by_label("ZIP Code", exact=False).fill('96814')
-    # page.get_by_label("City", exact=False).fill('Honolulu')
-    # page.get_by_label("State", exact=False).select_option('HI')
-    page.get_by_label("Street Address", exact=False).fill('5819 Centre Ave')
-    page.get_by_label("Suite/Apt #", exact=False).fill('Apt 448')
-    page.get_by_label("ZIP Code", exact=False).fill('15206')
-    page.get_by_label("City", exact=False).fill('Pittsburgh')
-    page.get_by_label("State", exact=False).select_option('PA')  # THIS
+    page.get_by_label("Street Address", exact=False).fill('934 Keeamoku Street')
+    page.get_by_label("Suite/Apt #", exact=False).fill('')
+    page.get_by_label("ZIP Code", exact=False).fill('96814')
+    page.get_by_label("City", exact=False).fill('Honolulu')
+    page.get_by_label("State", exact=False).select_option('HI')
+    # page.get_by_label("Street Address", exact=False).fill('5819 Centre Ave')
+    # page.get_by_label("Suite/Apt #", exact=False).fill('Apt 448')
+    # page.get_by_label("ZIP Code", exact=False).fill('15206')
+    # page.get_by_label("City", exact=False).fill('Pittsburgh')
+    # page.get_by_label("State", exact=False).select_option('PA')  # THIS
     page.get_by_role("button", name="Continue for Delivery").click()
     wait_for_load(page)
     page.get_by_role("button", name="Delivery To").click()
@@ -683,7 +683,7 @@ def apply_trajectory(page: PlaywrightPage, trajectory : List[Action]) -> bool:
                 print('Could not find item in trajectory')
 
             if not screenshot_success:  # TODO BOUNDING BOX FOR THE SCREENSHOT IF SUCCESS
-                input('traj action screenshot failed')
+                print('traj action screenshot failed')
 
             success = apply_action(page, traj_action, trajectory_action_screenshot, traj_element, traj_xpath,
                                       possible_types_traj)
