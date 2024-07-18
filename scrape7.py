@@ -1282,4 +1282,4 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
 
 # num_cores = os.cpu_count()
 
-explore("https://www.dominos.com/", headless=True, root="www.dominos.com", num_threads=1, resume = True)
+# explore("https://www.dominos.com/", headless=True, root="www.dominos.com", num_threads=1, resume = True)

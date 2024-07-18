@@ -231,12 +231,12 @@ class URLState:
                 matched += 1
             elif any(element_similarity(action.html, sample_html) > .9 for sample_html in self.unique_samples.keys()):
                 matched += 1
-        print(self.aliases)
+        # print(self.aliases)
         if total != 0:
-            print("Similarity score: ", matched / total)
+            # print("Similarity score: ", matched / total)
             return matched / total
         else:
-            print("NOTHING HERE TO SCRAPE")
+            # print("NOTHING HERE TO SCRAPE")
             return 0
 
     #attempt to match a list of actions and return pairs of actions with matched actions
@@ -282,8 +282,9 @@ class URLState:
 
 
             if matched_scrape_action:  # NEEDS TO BE BETTER
+                indefinite_action.action.action_type = matched_scrape_action.action.action_type
                 file_path = matched_scrape_action.before_screenshot
-                file_path = Path ('/'.join(file_path.split('/')[:-1])) / Path ('info.txt')
+                file_path = Path ('/'.join(file_path.split('/')[:-1])) / Path ('effect.txt')
                 with open(file_path, 'r') as file:
                     content = file.read()
                     matched_scrape_action.action_effect = content
@@ -378,8 +379,8 @@ class InferenceAxtree:
         else:
             for node in self.scrap_info.ax_nodes:
                 if node['nodeId'] in self.action_effect_lib:
-                    self.tree_str += f"[{count}: {self.action_effect_lib[node['nodeId']]}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
-                        node["properties"]) + "\n"
+                    self.tree_str += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                        node["properties"]) + " {" + self.action_effect_lib[node['nodeId']] + "}" + "\n"
                     count += 1
                     self.live_actions.append(self.action_lib[node['nodeId']])
                     self.live_action_effects.append(self.action_effect_lib[node['nodeId']])
