@@ -400,3 +400,9 @@ class InferenceAxtree:
 
     def __str__(self):
         return self.tree_str
+
+@dataclass
+class LinearMemory:
+    action_effect: str
+    location_details: str
+    object_details: str
