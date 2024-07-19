@@ -46,7 +46,7 @@ def create_new_context_and_page(browser, cookies):
 def match_action_effects(curr_page_state: PageState, url_state_manager: URLStateManager) -> InferencePageState | None:  # Needless amounts of unrolling and rerolling
     found_state = url_state_manager.get_state(curr_page_state)
     if found_state:
-        curr_page_actions = [item for item in curr_page_state.actions]  # (typeList, action)
+        curr_page_actions = [action for action in curr_page_state.actions]  # (typeList, action)
         new_action_list = found_state.match_actions(curr_page_actions)
         inference_page_state = InferencePageState(curr_page_state.url, curr_page_state.ax_nodes, curr_page_state.html, found_state, new_action_list)
         return inference_page_state
@@ -87,7 +87,7 @@ with sync_playwright() as p:
             # stop_indefinite = IndefiniteAction([Action.Type.STOP], stop_action, None)
             # special_actions = [stop_indefinite]
             tree = InferenceAxtree(matched_inference_state, special_actions=[], use_scrape=True)
-            print(tree)
+            print(tree.get_debug_tree())
             answer = call_agent(task, tree, task_mem)
             print(f"THIS ONE: {answer}")
             if answer is None:

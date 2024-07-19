@@ -178,6 +178,7 @@ class ScrapeAction:
     after_screenshot: bytes | str
     url: str
     action_effect: str | None
+    number: str
 
 
 @dataclass
@@ -284,10 +285,13 @@ class URLState:
             if matched_scrape_action:  # NEEDS TO BE BETTER
                 indefinite_action.action.action_type = matched_scrape_action.action.action_type
                 file_path = matched_scrape_action.before_screenshot
-                file_path = Path ('/'.join(file_path.split('/')[:-1])) / Path ('effect.txt')
+                file_list = file_path.split('/')
+                file_path = Path ('/'.join(file_list[:-1])) / Path ('effect.txt')
+                numbering = str(file_list[-3]).split(' ')[0]  # TODO, STORE THIS DURING SCRAPE TIME
                 with open(file_path, 'r') as file:
                     content = file.read()
                     matched_scrape_action.action_effect = content
+                    matched_scrape_action.number = int(numbering)  # This dependent of folder structuring
 
 
 
@@ -337,12 +341,14 @@ class InferenceAxtree:
         self.scrap_info = scrape_info
         self.action_effect_lib = dict()
         self.action_lib = dict()
+        self.action_number_lib = dict()
         self.use_scrape = use_scrape
         self.live_actions = []
         self.live_action_effects = []
 
         count = 0
         self.tree_str = ''
+        self.debug_tree = ''
 
         for indefinite_action in special_actions:
             self.tree_str += f"[{count}] {str(indefinite_action)}\n"
@@ -357,9 +363,12 @@ class InferenceAxtree:
                 action_effect = scraped_action.action_effect
                 if action_effect is None:
                     action_effect = "Matched"
+                numbering = scraped_action.number
             else:
+                numbering = '-1'
                 action_effect = 'Not matched'
             self.action_effect_lib[curr_action.ax_node_index] = action_effect
+            self.action_number_lib[curr_action.ax_node_index] = numbering
             self.action_lib[curr_action.ax_node_index] = curr_action
 
 
@@ -381,6 +390,8 @@ class InferenceAxtree:
                 if node['nodeId'] in self.action_effect_lib:
                     self.tree_str += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                         node["properties"]) + " {" + self.action_effect_lib[node['nodeId']] + "}" + "\n"
+                    self.debug_tree += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                        node["properties"]) + f" **MATCHED TO {self.action_number_lib[node['nodeId']]}**" + "\n"
                     count += 1
                     self.live_actions.append(self.action_lib[node['nodeId']])
                     self.live_action_effects.append(self.action_effect_lib[node['nodeId']])
@@ -393,6 +404,9 @@ class InferenceAxtree:
 
     def get_action_from_index(self, index: int) -> IndefiniteAction:
         return self.live_actions[index]
+
+    def get_debug_tree(self):
+        return self.debug_tree
 
     def get_action_effect_from_index(self, index: int) -> str:
         return self.live_action_effects[index]
