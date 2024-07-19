@@ -7,7 +7,8 @@ client = anthropic.Anthropic(
     api_key =  os.environ.get("ANTHROPIC_API_KEY")
 )
 
-def call_agent(task, ax_tree):
+def call_agent(task, ax_tree, memory):
+    memory = str(memory)
     message = client.messages.create(
         model="claude-3-5-sonnet-20240620",
         max_tokens=1000,
@@ -18,18 +19,29 @@ def call_agent(task, ax_tree):
                 "content": [
                     {
                         "type": "text",
-                        "text": f"You are an AI web agent tasked with navigating websites and performing actions based on given instructions. Your goal is to analyze the provided accessibility tree of a website and choose the most appropriate action to complete a given task.\n\nHere's the task you need to complete:\n<task>\n{task}\n</task>\n\nYou will be provided with a labeled accessibility tree of a website. Each actionable item in the tree starts with a number in square brackets, like this: [0]. Some actions may have additional information about their function in curly brackets at the end, like this: [0] Some action " + "{This action does this}" + f"\n\nHere's the accessibility tree of the current page:\n<accessibility_tree>\n{ax_tree}\n</accessibility_tree>\n\nTo complete this task, follow these steps:\n\n1. Analyze the page:\n   - Carefully read through the accessibility tree.\n   - Identify the main elements and actions available on the page.\n   - Summarize what the page does in a brief paragraph.\n\n2. Understand the task:\n   - Review the given task and identify what needs to be accomplished.\n   - Determine which actions on the page are relevant to completing the task.\n\n3. Plan your next action:\n   - Based on your analysis of the page and the task, decide on the most appropriate next action.\n   - Reason step-by-step to explain why you've chosen this action.\n\n4. Choose the action:\n   - Select the number corresponding to your chosen action from the accessibility tree.\n   - Use the python function choose(action: int) to indicate your selection.\n\nYour response should be structured as follows:\n\n<page_analysis>\n[Provide a brief summary of what the page does based on the accessibility tree]\n</page_analysis>\n\n<task_analysis>\n[Explain your understanding of the task and what needs to be done]\n</task_analysis>\n\n<action_reasoning>\n[Provide step-by-step reasoning for your chosen action]\n</action_reasoning>\n\n<action_selection>\n[Use the choose() function to select your action]\n</action_selection>\n\nRemember to base your decision solely on the information provided in the accessibility tree and the given task. Do not assume or infer any additional functionality that is not explicitly stated. If you cannot complete the task with the available actions, explain why and choose the most relevant action if possible.\n\nBegin your analysis and action selection now."
+                        "text": f"You are a web agent tasked with navigating a website to complete a specific task. You will be provided with an accessibility tree, a task to complete, and a memory of actions you've taken so far. Your goal is to analyze the current web page, reason about your task and past actions, and choose the most appropriate next action to complete your task.\n\nHere's the accessibility tree of the current web page:\n<accessibility_tree>\nf{ax_tree}\n</accessibility_tree>\n\nYour task is:\n<task>\nf{task}\n</task>\n\nHere's the memory of actions you've taken so far:\n<action_memory>\nf{memory}\n</action_memory>\n\nFollow these steps to complete your task:\n\n1. Analyze the web page:\n   - Examine the accessibility tree carefully.\n   - Understand the purpose and functionality of the current web page.\n   - Note any relevant elements or actions available on the page.\n\n2. Reason about your task and past actions:\n   - Review your assigned task and consider what steps are necessary to complete it.\n   - Examine your action memory to understand what you've already done.\n   - Determine what needs to be done next to progress towards your goal.\n\n3. Choose the next action:\n   - Based on your analysis and reasoning, identify the most appropriate action from the accessibility tree.\n   - Consider how this action will help you progress towards completing your task.\n   - Ensure the chosen action aligns with your current position in the task sequence.\n\n4. Provide your decision:\n   - Use the following Python function format to indicate your chosen action:\n     choose(action_number: int, current_web_page_purpose: str, object_action_acts_on: str)\n   - action_number: The number of the action you've chosen from the accessibility tree.\n   - current_web_page_purpose: A brief description of the current web page's purpose.\n   - object_action_acts_on: The specific object or element the action will affect.\n\nRemember:\n- Every action in the accessibility tree is labeled with a number at the start of the line.\n- Some actions have " + "{}" + " brackets at the end of the line describing what that action does. Assume these descriptions are accurate.\n- The action memory is a list of tuples in the format: (Where the action was taken, the effect of that action, the object that action was taken on).\n- More recent actions in the memory are closer to the right of the list.\n\nFollow the steps carefully and reason step-by-step, then give your final answer inside a Python function as described above. "
                     }
                 ]
             }
         ]
     )
 
+
+
     answer = message.content
-    match = re.search(r"choose\((\d+)\)", answer[0].text)
+    # match = re.search(r"choose\((\d+)\)", answer[0].text)
+
+    pattern = r'choose\((\d+),\s*"([^"]+)",\s*"([^"]+)"\)'
+
+    # string = 'choose(0, "match this", "also match this")'
     print(answer[0].text)
 
+    match = re.search(pattern, answer[0].text)
+
     if match:
-        return int(match.group(1))
-    else:
-        return -1
+        number = int(match.group(1))
+        string1 = match.group(2)
+        string2 = match.group(3)
+        return number, string1, string2
+
+    return None

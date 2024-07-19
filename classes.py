@@ -406,3 +406,6 @@ class LinearMemory:
     action_effect: str
     location_details: str
     object_details: str
+    def __repr__(self):
+        return f"Selected action to {self.action_effect} on the object {self.object_details} on the page {self.location_details}"
+        # return f"{self.action_effect} + {self.location_details} + {self.object_details}"

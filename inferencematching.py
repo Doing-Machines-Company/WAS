@@ -71,100 +71,120 @@ class IndefiniteAction:
 scraper_state_file = 'dominos/scraper_state.pkl'
 url_state_manager = load_scraper_state(scraper_state_file)
 task = 'buy me a pizza'
+keep_running = True
+task_mem = []
+
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=False)
     context, page, cdpSession, login_success = setup_context(browser, None)
-    page.goto('https://www.dominos.com/en/pages/order/#!/section/Food/category/Sides/')
+    page.goto('https://www.dominos.com/')
     wait_for_load(page)
-    curr_page_state = get_page_state(page, cdpSession)
-    # input('wait and look')
-    matched_inference_state = match_action_effects(curr_page_state, url_state_manager)
-    if matched_inference_state:
-        stop_action = Action(Action.Type.STOP, None, None)
-        # stop_indefinite = IndefiniteAction([Action.Type.STOP], stop_action, None)
-        # special_actions = [stop_indefinite]
-        tree = InferenceAxtree(matched_inference_state, special_actions=[], use_scrape=True)
-        print(tree)
-        answer = call_agent(task, tree)
-        print(f"THIS ONE: {answer}")
+    while keep_running:
+        curr_page_state = get_page_state(page, cdpSession)
+        matched_inference_state = match_action_effects(curr_page_state, url_state_manager)
+        if matched_inference_state:
+            stop_action = Action(Action.Type.STOP, None, None)
+            # stop_indefinite = IndefiniteAction([Action.Type.STOP], stop_action, None)
+            # special_actions = [stop_indefinite]
+            tree = InferenceAxtree(matched_inference_state, special_actions=[], use_scrape=True)
+            print(tree)
+            answer = call_agent(task, tree, task_mem)
+            print(f"THIS ONE: {answer}")
+            if answer is None:
+                raise Exception
+            chosen_action_index = answer[0]
+            page_purpose = answer[1]
+            acted_object = answer[2]
+            new_memory = LinearMemory(tree.get_action_effect_from_index(chosen_action_index), page_purpose, acted_object)
+            task_mem.append(new_memory)
+            input(str(task_mem))
 
-        chosen_indefinite = tree.get_action_from_index(answer)  # TODO MAKE SURE YOU GET ACTION TYPE FROM SCRAPE TIME
-        chosen_action = chosen_indefinite.action
-        type_list = chosen_indefinite.type_list
-        if chosen_action.action_type is not None:
-            type_list = [chosen_action.action_type] + type_list  # may add same thing twice, quick implementation for testing
-        print(type_list)
-        print(chosen_action.action_type)
-        print(chosen_action.xpath)
-        print(chosen_action.html)
-        
-        chosen_element = get_element(page, chosen_action.xpath)
-        # assert(traj_action.friendly_xpath != None)
+            chosen_indefinite = tree.get_action_from_index(chosen_action_index)  # TODO MAKE SURE YOU GET ACTION TYPE FROM SCRAPE TIME
+            chosen_action = chosen_indefinite.action
+            if chosen_action.action_type is not None:
+                type_list = [chosen_action.action_type]
+                for item in chosen_indefinite.type_list:
+                    if item not in type_list:
+                        type_list.append(item)
+            else:
+                type_list = chosen_indefinite.type_list
+            print(type_list)
+            print(chosen_action.action_type)
+            print(chosen_action.xpath)
+            print(chosen_action.html)
 
-        chosen_xpath = chosen_action.xpath
-        if not chosen_element or chosen_element.count() < 1 or chosen_element.evaluate(
-                "element => element.outerHTML") != chosen_action.html:  # perhaps do a stripped check
-            print('First attempt in traj failed')
-            chosen_element = get_element(page, chosen_action.friendly_xpath)
-            chosen_xpath = chosen_action.friendly_xpath
+            chosen_element = get_element(page, chosen_action.xpath)
+            # assert(traj_action.friendly_xpath != None)
+
+            chosen_xpath = chosen_action.xpath
             if not chosen_element or chosen_element.count() < 1 or chosen_element.evaluate(
-                    "element => element.outerHTML") != chosen_action.html:
-                print('Second attempt in traj failed')
-                # now we try getting stuff at rune time
-                potentially_better_chosen_xpath = get_xpath_by_outer_html(page, chosen_action.html)
-                potentially_better_friendly_chosen_xpath = make_xpath_friendly(potentially_better_chosen_xpath)
-                chosen_element = get_element(page, potentially_better_friendly_chosen_xpath)
-                chosen_xpath = potentially_better_friendly_chosen_xpath
-                if not chosen_element or chosen_element.count() < 1:
-                    print('Third attempt in traj failed')
-                    chosen_element = get_element(page, potentially_better_chosen_xpath)
-                    chosen_xpath = potentially_better_chosen_xpath
+                    "element => element.outerHTML") != chosen_action.html:  # perhaps do a stripped check
+                print('First attempt in traj failed')
+                chosen_element = get_element(page, chosen_action.friendly_xpath)
+                chosen_xpath = chosen_action.friendly_xpath
+                if not chosen_element or chosen_element.count() < 1 or chosen_element.evaluate(
+                        "element => element.outerHTML") != chosen_action.html:
+                    print('Second attempt in traj failed')
+                    # now we try getting stuff at rune time
+                    potentially_better_chosen_xpath = get_xpath_by_outer_html(page, chosen_action.html)
+                    potentially_better_friendly_chosen_xpath = make_xpath_friendly(potentially_better_chosen_xpath)
+                    chosen_element = get_element(page, potentially_better_friendly_chosen_xpath)
+                    chosen_xpath = potentially_better_friendly_chosen_xpath
                     if not chosen_element or chosen_element.count() < 1:
-                        print('Fourth attempt in traj failed')
-                        chosen_element = get_element(page, chosen_action.friendly_xpath)
-                        chosen_xpath = chosen_action.friendly_xpath
+                        print('Third attempt in traj failed')
+                        chosen_element = get_element(page, potentially_better_chosen_xpath)
+                        chosen_xpath = potentially_better_chosen_xpath
                         if not chosen_element or chosen_element.count() < 1:
-                            print('Fifth attempt in traj failed')
-                            chosen_element = get_element(page, chosen_action.xpath)
-                            chosen_xpath = chosen_action.xpath
+                            print('Fourth attempt in traj failed')
+                            chosen_element = get_element(page, chosen_action.friendly_xpath)
+                            chosen_xpath = chosen_action.friendly_xpath
+                            if not chosen_element or chosen_element.count() < 1:
+                                print('Fifth attempt in traj failed')
+                                chosen_element = get_element(page, chosen_action.xpath)
+                                chosen_xpath = chosen_action.xpath
 
-        chosen_action_screenshot, screenshot_success = take_screenshot(page)
+            chosen_action_screenshot, screenshot_success = take_screenshot(page)
 
-        if chosen_element and chosen_element.count() > 0 and chosen_xpath:
-            try:
-                scroll_into_view(chosen_element)
-                chosen_action_screenshot, screenshot_success = take_screenshot(page)
-            except Exception as e:
-                print("SCROLL FAILED DURING TRAJECTORY")
-                print(e)
-
-            if screenshot_success:
-                to_box_coords = None
+            if chosen_element and chosen_element.count() > 0 and chosen_xpath:
                 try:
-                    # to_box_item = page.locator(f"xpath={action.friendly_xpath}")
-                    # if final_element and final_element.count() > 0:  # should be redundant given continue above
-                    to_box_coords = chosen_element.bounding_box(timeout=10000)
+                    scroll_into_view(chosen_element)
+                    chosen_action_screenshot, screenshot_success = take_screenshot(page)
                 except Exception as e:
-                    print(f'GETTING BOUNDING BOXES FAILED FOR IN TRAJ {chosen_action}')
+                    print("SCROLL FAILED DURING TRAJECTORY")
                     print(e)
 
-                trajectory_action_screenshot = create_boundingbox(chosen_action_screenshot, to_box_coords)
-        else:
-            print(f"This action was not found: {chosen_action}")
-            print('Could not find item in trajectory')
+                if screenshot_success:
+                    to_box_coords = None
+                    try:
+                        # to_box_item = page.locator(f"xpath={action.friendly_xpath}")
+                        # if final_element and final_element.count() > 0:  # should be redundant given continue above
+                        to_box_coords = chosen_element.bounding_box(timeout=10000)
+                    except Exception as e:
+                        print(f'GETTING BOUNDING BOXES FAILED FOR IN TRAJ {chosen_action}')
+                        print(e)
 
-        if not screenshot_success:  # TODO BOUNDING BOX FOR THE SCREENSHOT IF SUCCESS
-            print('action screenshot failed')
+                    trajectory_action_screenshot = create_boundingbox(chosen_action_screenshot, to_box_coords)
+            else:
+                print(f"This action was not found: {chosen_action}")
+                print('Could not find item in trajectory')
 
-        input("ABOUT TO DO ACTION")
+            if not screenshot_success:  # TODO BOUNDING BOX FOR THE SCREENSHOT IF SUCCESS
+                print('action screenshot failed')
 
-        success = apply_action(page, chosen_action, trajectory_action_screenshot, chosen_element, chosen_xpath,
-                               type_list)
+            input("ABOUT TO DO ACTION")
 
-        input("DID ACTION")
+            success = apply_action(page, chosen_action, trajectory_action_screenshot, chosen_element, chosen_xpath,
+                                   type_list)
 
-        if not success:
-            print(f"This action was broken: {chosen_action}")
-            traj_success = False
-        # def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, playwright_element, found_xpath=None, possible_types=None)
-        # apply_action(page, chosen_action, page.screenshot(), None, None, None)
+            input("DID ACTION")
+
+            if not success:
+                print(f"This action was broken: {chosen_action}")
+                traj_success = False
+                keep_running = False
+
+            tonk = input('want to keep running?')
+            if tonk != '':
+                keep_running = False
+            # def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, playwright_element, found_xpath=None, possible_types=None)
+            # apply_action(page, chosen_action, page.screenshot(), None, None, None)
