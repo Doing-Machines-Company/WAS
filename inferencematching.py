@@ -31,6 +31,7 @@ def load_scraper_state(file_path: str):
 
 def match_tree_to_scrape(page, equiv_class_set):
     curr_page_html = page.content()
+    curr_page_html = page.content()
     equiv_class_set.get_class(page.url, curr_page_html)
 
 def create_new_context_and_page(browser, cookies):
@@ -183,8 +184,8 @@ with sync_playwright() as p:
                 traj_success = False
                 keep_running = False
 
-            tonk = input('want to keep running?')
-            if tonk != '':
+            do_keep_running = input('want to keep running?')
+            if do_keep_running != '':
                 keep_running = False
             # def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, playwright_element, found_xpath=None, possible_types=None)
             # apply_action(page, chosen_action, page.screenshot(), None, None, None)

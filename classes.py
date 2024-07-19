@@ -362,11 +362,11 @@ class InferenceAxtree:
             if scraped_action:
                 action_effect = scraped_action.action_effect
                 if action_effect is None:
-                    action_effect = "Matched"
+                    action_effect = ""
                 numbering = scraped_action.number
             else:
                 numbering = '-1'
-                action_effect = 'Not matched'
+                action_effect = ""
             self.action_effect_lib[curr_action.ax_node_index] = action_effect
             self.action_number_lib[curr_action.ax_node_index] = numbering
             self.action_lib[curr_action.ax_node_index] = curr_action
@@ -391,7 +391,7 @@ class InferenceAxtree:
                     self.tree_str += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                         node["properties"]) + " {" + self.action_effect_lib[node['nodeId']] + "}" + "\n"
                     self.debug_tree += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
-                        node["properties"]) + f" **MATCHED TO {self.action_number_lib[node['nodeId']]}**" + "\n"
+                        node["properties"]) + " {" + self.action_effect_lib[node['nodeId']] + "}" + f" **MATCHED TO {self.action_number_lib[node['nodeId']]}**" + "\n"
                     count += 1
                     self.live_actions.append(self.action_lib[node['nodeId']])
                     self.live_action_effects.append(self.action_effect_lib[node['nodeId']])
