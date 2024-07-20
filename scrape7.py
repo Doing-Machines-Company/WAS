@@ -293,7 +293,7 @@ def click_element_by_outer_html(des_page, outer_html):  # TODO, CLAUDE MORE OF T
     result = des_page.evaluate(js_code, outer_html)
     return result
 
-def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, playwright_element, found_xpath=None, possible_types=None) -> bool:  # TODO handle multiple possible action types
+def apply_action(page: PlaywrightPage, a: Action, before_screenshot: Union[bytes, None], playwright_element, found_xpath=None, possible_types=None) -> bool:  # TODO handle multiple possible action types
     for a_type in possible_types:
         try:
             if a_type in [Action.Type.CLICK_LINK, Action.Type.CLICK_IMPORTANT, Action.Type.CLICK_CHECKBOX,
@@ -377,6 +377,9 @@ def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, play
                 #     print(f"Error going back: {e}")
                 page.goto(a.input_string)
                 page.wait_for_load_state('networkidle')
+
+            elif a_type == Action.Type.STOP:
+                raise ValueError("Shouldn't be able to apply STOP, catch this before as apply_action can't STOP loop")
 
         except Exception as e:
             print(f"Unhandled exception for action type {a_type}: {e}")
