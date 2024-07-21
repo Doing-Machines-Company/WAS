@@ -30,7 +30,6 @@ def load_scraper_state(file_path: str):
 
 def match_tree_to_scrape(page, equiv_class_set):
     curr_page_html = page.content()
-    curr_page_html = page.content()
     equiv_class_set.get_class(page.url, curr_page_html)
 
 def match_action_effects(curr_page_state: PageState, url_state_manager: URLStateManager) -> InferencePageState | None:  # Needless amounts of unrolling and rerolling
