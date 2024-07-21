@@ -14,7 +14,9 @@ from inferenceagent import *
 import time
 from scrape7 import setup_context
 from utils import *
-
+from llama_index.core.schema import TextNode
+from llama_index.core import VectorStoreIndex
+from typing import List
 @dataclass
 class LinearMemory:
     action_effect: str
@@ -59,12 +61,25 @@ class IndefiniteAction:
 '''
 scraper_state_file = 'dominos/scraper_state.pkl'
 url_state_manager = load_scraper_state(scraper_state_file)
-task = 'buy me a pizza'
+task = 'buy me a thin crust pizza'
 keep_running = True
 task_mem = []
+print("Creating...")
+start = time.time()
+with open('./data/facts.txt', 'r') as f:
+    document = f.read()
+nodes = [TextNode(text = chunk, id_ = i) for (i, chunk) in enumerate(document.split('***'))]
+index = VectorStoreIndex(nodes)
+retriever = index.as_retriever()
+print("took", time.time() - start)
+start = time.time()
+context = "\n".join([node.get_content() for node in retriever.retrieve(task)])
+print("Retrieving took...", time.time() -start)
+print(context)
+
 
 with sync_playwright() as p:
-    browser = p.chromium.launch(headless=True)
+    browser = p.chromium.launch(headless=False)
     context, page, cdpSession, login_success = setup_context(browser, None)
     page.goto('https://www.dominos.com/')
     wait_for_load(page)
@@ -86,7 +101,7 @@ with sync_playwright() as p:
             tree = InferenceAxtree(matched_inference_state, special_actions=special_actions, use_scrape=True)
             print(tree.get_debug_tree())
             start = time.time()
-            answer = call_agent(task, tree, task_mem)
+            answer = call_agent(task, tree, task_mem, context)
             print("Inference took: ", time.time() - start)
             print(f"THIS ONE: {answer}")
             if answer is None:

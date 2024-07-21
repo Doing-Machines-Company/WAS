@@ -1,5 +1,5 @@
 from enum import IntEnum
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Union
 from dataclasses import dataclass
 
 import os 
@@ -24,6 +24,7 @@ class Action:
         GET_NEXT_SUBTASK_IMPOSSIBLE = 9
         GO_BACK = 10
         SELECT_GENERAL = 11
+        STOP = 12
 
     def __init__(self, action_type: 'Action.Type', xpath: str, html: str, tree_line: str = "", input_string: Optional[str] = None, trajectory: List['Action'] = [], friendly_xpath : Optional[str]= None):
         self.action_type = action_type
@@ -34,6 +35,8 @@ class Action:
         self.desired_option = None
         self.trajectory = trajectory #added trajectory to show how the action can be 'created', an empty traj indicates existence at base state of url
         self.friendly_xpath = friendly_xpath
+        self.special_effect = None # only should be used for special actions we add on like STOP
+
         # self.action_effect = action_effect
     def set_input_string(self, input_string: str):
         self.input_string = input_string
@@ -44,6 +47,9 @@ class Action:
     def set_desired_option(self, desired_option: str):
         self.desired_option = desired_option
 
+    def set_special_effect(self, special_effect: str):
+        self.special_effect = special_effect
+    
     def set_xpath(self, xpath: str):
         self.xpath = xpath
 
@@ -64,7 +70,7 @@ class Action:
         return trajectory
 
     def __repr__(self) -> str:
-        return str(f"{self.action_type.name if self.action_type else ''}{'(' + self.input_string + ')' if self.input_string else ''}:{self.xpath if self.xpath else ''}({self.html if self.html else ''})")
+        return str(f"{self.action_type.name if self.action_type else ''}{'(' + self.input_string + ')' if self.input_string else ''}:{self.xpath if self.xpath else ''}{'(' + self.html + ')' if self.html else ''}")
 
 @dataclass
 class ScrapeAction:
@@ -75,8 +81,7 @@ class ScrapeAction:
     after_screenshot: bytes | str
     url: str
     action_effect: str | None
-    # number: str 
-    #removed number for now
+    number: str 
 
 @dataclass
 class IndefiniteAction:
