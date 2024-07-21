@@ -1,6 +1,0 @@
-URL: https://www.dominos.com
-TREE LINE: link: JOIN NOW
-XPATH: id("login-modal")/div[1]/form[1]/header[1]/a[1]
-TRAJECTORY: [CLICK_IMPORTANT:id("__next")/header[1]/div[1]/nav[1]/ul[2]/li[1]/div[1]/button[1](<button type="button" aria-expanded="false" aria-controls="login-modal" aria-haspopup="dialog" data-)]
-
-HTML: <a data-quid="signin_link" href="/en/pages/rewards/#!/create-profile/?enrollnow=true&amp;EnrollmentSourceTag=SignIn_popup" class="css-li1w1i">Join Now</a>

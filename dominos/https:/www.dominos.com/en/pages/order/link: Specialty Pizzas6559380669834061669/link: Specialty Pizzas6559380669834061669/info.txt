@@ -1,6 +1,0 @@
-URL: https://www.dominos.com/en/pages/order/#!/section/Food/category/AllEntrees/
-TREE LINE: link: Specialty Pizzas
-XPATH: id("entree-Pizza")
-TRAJECTORY: []
-
-HTML: <a class="grid__cell--1/3@desktop grid__cell--1/2 grid__card qa-Specialty grid" id="entree-Pizza" href="#!/section/Food/category/Pizza/" data-wt-panelname="specialtypizza" data-quid="entree-specialtypizza">  <div class="media__image "> <img src="https://cache.dominos.com/olo/6_135_0/assets/build/market/US/_en/images/img/entree-page/gridLayout/specialty.png" alt=""> </div> <div class="media__body c-order-entrees-specialtypizza"> <h2 class="media__title" data-quid="entree-title-specialtypizza"> Specialty Pizzas </h2> </div> </a>

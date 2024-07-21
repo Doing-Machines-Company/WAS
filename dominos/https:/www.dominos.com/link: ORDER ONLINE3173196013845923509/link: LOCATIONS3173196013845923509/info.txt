@@ -1,6 +1,0 @@
-URL: https://www.dominos.com
-TREE LINE: link: LOCATIONS
-XPATH: id("__next")/main[1]/nav[1]/ul[1]/li[1]/a[1]
-TRAJECTORY: []
-
-HTML: <a data-quid="location" href="/en/pages/order/?locations=1#!/locations/" class="css-0">Locations</a>

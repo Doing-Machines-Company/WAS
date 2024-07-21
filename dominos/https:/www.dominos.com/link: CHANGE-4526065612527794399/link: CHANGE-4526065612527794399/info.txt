@@ -1,6 +1,0 @@
-URL: https://www.dominos.com
-TREE LINE: link: CHANGE
-XPATH: id("__next")/main[1]/section[1]/div[1]/div[1]/a[1]
-TRAJECTORY: []
-
-HTML: <a class="settings-link css-0" aria-describedby="order-settings-heading" href="/en/pages/order/#!/locations/results/?type=all&amp;c=PITTSBURGH%2C%20PA%2015206-3832&amp;s=5819%20CENTRE%20AVE&amp;locationName=/">Change</a>

@@ -1,6 +1,0 @@
-URL: https://www.dominos.com/en/pages/order/#!/section/Food/category/AllEntrees/
-TREE LINE: link: Desserts
-XPATH: id("entreesPage")/div[2]/div[8]/a[5]
-TRAJECTORY: []
-
-HTML: <a class="grid__cell--1/3@desktop grid__cell--1/2 grid__card qa-Dessert grid" id="" href="#!/section/Food/category/Dessert/" data-wt-panelname="desserts" data-quid="entree-desserts">  <div class="media__image "> <img src="https://cache.dominos.com/olo/6_135_0/assets/build/market/US/_en/images/img/entree-page/gridLayout/dessert.png" alt=""> </div> <div class="media__body c-order-entrees-desserts"> <h2 class="media__title" data-quid="entree-title-desserts"> Desserts </h2> </div> </a>

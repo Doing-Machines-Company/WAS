@@ -1,6 +1,0 @@
-URL: https://www.dominos.com
-TREE LINE: link: ORDER NOW  CARRYOUT DEAL
-XPATH: id("__next")/main[1]/div[1]/div[2]/div[1]/div[4]/div[2]/a[1]
-TRAJECTORY: []
-
-HTML: <a data-quid="carryout-deal-button" class="css-13kbtau" href="/en/pages/order/?couponCode_0=9220&amp;partnerCode=DOMINOS&amp;so=hp&amp;panelname=CarryoutSpecialSide&amp;type=Carryout">Order Now<span style="border: 0px; clip: rect(0px, 0px, 0px, 0px); height: 1px; margin: -1px; overflow: hidden; padding: 0px; position: absolute; white-space: nowrap; width: 1px;">&nbsp;Carryout Deal</span></a>

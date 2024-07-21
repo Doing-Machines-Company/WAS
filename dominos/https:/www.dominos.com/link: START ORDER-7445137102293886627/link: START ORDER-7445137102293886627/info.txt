@@ -1,6 +1,0 @@
-URL: https://www.dominos.com
-TREE LINE: link: START ORDER
-XPATH: id("mini-cart-modal")/div[2]/div[1]/div[1]/div[1]/a[1]
-TRAJECTORY: [CLICK_IMPORTANT:id("__next")/header[1]/div[1]/nav[1]/ul[2]/li[3]/button[1](<button type="button" aria-expanded="false" aria-controls="mini-cart-modal" aria-haspopup="dialog" d)]
-
-HTML: <a data-quid="mini-cart-button" href="/en/pages/order/#/section/Food/category/AllEntrees/" class="css-14js2j3">Start Order</a>

@@ -1,6 +1,0 @@
-URL: https://www.dominos.com/en/pages/order/#!/section/Food/category/AllEntrees/
-TREE LINE: link: Chicken
-XPATH: id("entree-Wings")
-TRAJECTORY: []
-
-HTML: <a class="grid__cell--1/3@desktop grid__cell--1/2 grid__card qa-Chick grid" id="entree-Wings" href="#!/section/Food/category/Wings/" data-wt-panelname="chicken" data-quid="entree-chicken">  <div class="media__image "> <img src="https://cache.dominos.com/olo/6_135_0/assets/build/market/US/_en/images/img/entree-page/gridLayout/chicken.png" alt=""> </div> <div class="media__body c-order-entrees-chicken"> <h2 class="media__title" data-quid="entree-title-chicken"> Chicken </h2> </div> </a>

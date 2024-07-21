@@ -1,6 +1,0 @@
-URL: https://www.dominos.com
-TREE LINE: link: Mix & Match offer details
-XPATH: id("__next")/main[1]/div[1]/div[1]/div[1]/div[4]/div[1]/div[1]/div[1]/p[1]/a[1]
-TRAJECTORY: []
-
-HTML: <a class="css-cbf8kx" href="#mix-match-offer-disclaimer">Mix &amp; Match offer details</a>

@@ -1,4 +1,4 @@
-from scrapecode.element_similarity import element_similarity
+from utils.element_utils.element_similarity import element_similarity
 # from action import Action
 from pathlib import Path
 import os

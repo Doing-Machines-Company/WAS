@@ -1,6 +1,0 @@
-URL: https://www.dominos.com/pinpoint-delivery/
-TREE LINE: link: Get it on Google Play
-XPATH: id("play-store-cta")
-TRAJECTORY: []
-
-HTML: <a href="https://play.google.com/store/apps/details?id=com.dominospizza&amp;hl=en_US&amp;gl=US&amp;pli=1" target="_blank" class="block rounded-md border-2 border-white border-opacity-0 transition duration-300 ease-out hover:border-opacity-100" id="play-store-cta" data-v-3169af6c=""><img class="m-0 block h-auto w-full max-w-[6.25rem] sm:max-w-[7.4rem] lg:max-w-[9.25rem]" src="/pinpoint-delivery/_nuxt/google-play-button.6725881b.svg" alt="Get it on Google Play" data-v-3169af6c=""></a>

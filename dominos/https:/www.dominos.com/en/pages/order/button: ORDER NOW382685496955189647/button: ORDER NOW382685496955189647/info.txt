@@ -1,6 +1,0 @@
-URL: https://www.dominos.com/en/pages/order/#!/section/Food/category/AllEntrees/
-TREE LINE: button: ORDER NOW
-XPATH: id("entreesPage")/div[2]/div[2]/div[1]/div[1]/button[1]
-TRAJECTORY: []
-
-HTML: <button type="button" aria-describedby="mix-and-match-heading" data-dpz-track-evt-name="Featured Coupon (Mix &amp; Match)" data-quid="mix-and-match-order-now" data-focusid="mix-and-match-order-now" class="btn promo_btn mix-and-match-tile__order-now">Order Now</button>

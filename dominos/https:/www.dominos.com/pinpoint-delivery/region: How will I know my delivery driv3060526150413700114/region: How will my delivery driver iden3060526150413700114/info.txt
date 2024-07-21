@@ -1,6 +1,0 @@
-URL: https://www.dominos.com/pinpoint-delivery/
-TREE LINE: region: How will my delivery driver identify me?
-XPATH: id("item8")
-TRAJECTORY: []
-
-HTML: <div class="answer text-gray-darker max-w-[50.625rem] px-3 font-onedot-condensed text-15 leading-snug lg:px-5 lg:text-24" id="item8" role="region" aria-labelledby="panel8id" itemscope="" itemprop="acceptedAnswer" itemtype="https://schema.org/Answer" data-v-83d78729=""><div class="pb-3 lg:-mt-1 lg:pb-5" data-v-83d78729=""><!--[--><div itemprop="text"><p></p><ul class="list-disc list-inside space-y-3"><li>As part of the Domino’s Pinpoint Delivery® ordering experience, customers will need to provide a personal description of themselves to help the driver identify them (e.g., I’m wearing red shorts, a white tank top, etc.). This description is necessary to help your driver locate you at the pickup spot.</li><li>To help the driver find you at the pickup spot, you can also activate a spotlight on the tracker page. The signal will display a full screen Domino’s logo on your phone which you can hold up to signal your driver.</li></ul><p></p></div><!--]--></div></div>

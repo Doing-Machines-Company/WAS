@@ -1,30 +1,21 @@
 import time
 from queue import Queue
 import threading
-from drivers import AxObservation
-# from action import Action
 import json
 from pathlib import Path
 from playwright.sync_api import sync_playwright, Page, Dialog, TimeoutError
 import pickle
 # from typing import Optional, Any
-from time import sleep
-from dataclasses import dataclass
 from urllib.parse import urlparse, urlunparse
-from scrapecode.page_similarity import page_similarity
-from scrapecode.element_similarity import element_similarity
+from utils.element_utils.element_similarity import element_similarity
 import re
 import os
-from bs4 import BeautifulSoup
-import numpy as np
-from PIL import Image, ImageDraw
-import cv2
 import copy as cp
 from scrape_llm import use_gpt_fill_input
-from classes import *
 import urllib.parse
 import shutil
-
+from models import *
+from utils import *
 
 """
 there are two relations -- 1. coarse relation 2. fine relation
@@ -44,345 +35,6 @@ instead, the coarse relation can narrow our search space when there is no exact 
 action_number = 1
 
 
-def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
-    accessibility_tree = cdpSession.send(
-        "Accessibility.getFullAXTree", {}
-    )["nodes"]
-    seen_ids = set()
-    _accessibility_tree = []
-    for node in accessibility_tree:
-        if node["nodeId"] not in seen_ids:
-            _accessibility_tree.append(node)
-            seen_ids.add(node["nodeId"])
-    accessibility_tree = _accessibility_tree
-    for node in accessibility_tree:
-        if "backendDOMNodeId" not in node:
-            continue
-        backend_node_id = str(node["backendDOMNodeId"])
-        try:
-            remote_object = cdpSession.send(
-                "DOM.resolveNode", {"backendNodeId": int(backend_node_id)}
-            )
-            remote_object_id = remote_object["object"][
-                "objectId"]  # MAY BE ABLE TO FIND ELEMENT GIVEN REMOTE OBJECT ID, NO NEED FOR XPATHS
-            xpath_script = '''
-                    function() {
-                        function getXPath(element) {
-                            if (!element || !element.parentNode) {
-                                return null;
-                            }
-                            if (element.id) {
-                                return 'id("' + element.id + '")';
-                            }
-                            if (element === document.body) {
-                                return element.tagName.toLowerCase();
-                            }
-                            var ix = 0;
-                            var siblings = element.parentNode.childNodes;
-                            for (var i = 0; i < siblings.length; i++) {
-                                var sibling = siblings[i];
-                                if (sibling === element) {
-                                    return getXPath(element.parentNode) + '/' + element.tagName.toLowerCase() + '[' + (ix + 1) + ']';
-                                }
-                                if (sibling.nodeType === 1 && sibling.tagName === element.tagName) {
-                                    ix++;
-                                }
-                            }
-                        }
-                        return getXPath(this);
-                    }
-                    '''
-
-            xpath_response = cdpSession.send(
-                "Runtime.callFunctionOn",
-                {
-                    "objectId": remote_object_id,
-                    "functionDeclaration": xpath_script,
-                    "returnByValue": True
-                }
-            )
-            node_xpath = xpath_response["result"]["value"]
-            response = cdpSession.send(
-                "DOM.getOuterHTML",
-                {
-                    "objectId": remote_object_id,
-                },
-            )
-            node["html"] = response["outerHTML"]
-            node["xpath"] = node_xpath
-            node["action_effect"] = None
-
-        except Exception as e:
-            node['xpath'] = ''
-            if 'html' not in node:
-                node['html'] = ''
-            continue
-
-    return accessibility_tree
-
-
-def create_boundingbox(image_bytes, bounding_box):
-    if not bounding_box:
-        print("NO BOUNDING BOX")
-        return image_bytes
-    # else:
-    #     print(f"BOUNDING BOX: {bounding_box}")
-    nparr = np.frombuffer(image_bytes, np.uint8)
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-    x, y, width, height = bounding_box['x'], bounding_box['y'], bounding_box['width'], bounding_box['height']
-    top_left = (int(x), int(y))
-    bottom_right = (int(x + width), int(y + height))
-    color = (0, 255, 0)
-    thickness = 2
-
-    cv2.rectangle(img, top_left, bottom_right, color, thickness)
-
-    # cv2.imwrite('testtest.png', img)
-
-    _, buffer = cv2.imencode('.png', img)
-    return buffer.tobytes()
-
-
-def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: str) -> IndefiniteAction:
-
-    possible_action_types = []
-
-    important_clickables = [
-        'button',
-    ]
-
-    general_clickables = [  # dialog clickable?
-        'treeitem', 'switch', 'option', 'menuitemcheckbox',
-        'menuitemradio',
-        'slider', 'listbox', 'tree',
-        'grid', 'alert', 'alertdialog',
-        'log', 'marquee', 'timer', 'tooltip', 'banner',
-        'complementary', 'contentinfo', 'form',
-        'region', 'status', 'img', 'note', 'application',
-        'cell', 'definition', 'directory', 'document',
-        'feed', 'figure', 'group', 'img', 'list',
-        'listitem',
-        'option', 'tab']
-
-    selects = [  # need menuitemcheckbox and menuitemradio? - JC
-        'menuitem'
-    ]
-
-    input_roles = [
-        'textbox',
-        'checkbox', 'radio',
-        'textarea'
-    ]
-
-    non_browser_attributes = [
-        'mailto:',
-        'tel:',
-        'print()',
-        'window.print()',
-        'onclick="window.print()"',
-        'printthis()',
-        'onclick="printthis()"',
-    ]
-    ignored_roles = [
-        'main',
-        'article',
-        'group',
-        'dialog',
-        'document',
-        'navigation',
-        'status',
-        'alert',
-        'complementary',
-        'alertdialog',
-        'grid'
-    ]
-    xpath = ax_node["xpath"]
-    html = ax_node["html"]
-    role = ax_node["role"]
-    nodeId = ax_node["nodeId"]
-
-    soup = BeautifulSoup(html, 'html.parser')
-
-    if xpath and html and xpath.strip() != "" and html.strip() != "":
-        # Check if the action is a pure link in the header or footer
-        if role.strip () in ignored_roles:
-            return IndefiniteAction([], None, nodeId)  # may just want to return None?
-        if html in footer_html or (html in header_html and url not in 'https://www.dominos.com/en/'):
-            return IndefiniteAction([], None, nodeId)
-
-        #not sure what this does at all - Cem
-        if any(attr in html.lower() for attr in non_browser_attributes):
-            return IndefiniteAction([], None, nodeId)
-
-        if role.strip() == 'link':
-            possible_action_types.append(Action.Type.CLICK_LINK)
-
-        elif role.strip() in important_clickables:
-            possible_action_types.append(Action.Type.CLICK_IMPORTANT)
-
-        elif role.strip() == 'radio':
-            # action = Action(Action.Type.CLICK_RADIO, xpath, html)
-            # action.set_tree_line(f"{role}: {ax_node['name']}")
-            possible_action_types.append(Action.Type.CLICK_RADIO)
-
-        elif role.strip() == 'checkbox':
-            possible_action_types.append(Action.Type.CLICK_CHECKBOX)
-
-        elif role.strip() in general_clickables:
-            # action = Action(Action.Type.CLICK_GENERAL, xpath, html)
-            # action.set_tree_line(f"{role}: {ax_node['name']}")
-            possible_action_types.append(Action.Type.CLICK_GENERAL)
-
-        elif role.strip() in selects:
-            possible_action_types.append(Action.Type.SELECT_GENERAL)
-
-        elif role.strip() in input_roles or soup.find(('input', 'textarea')):
-
-            # input_type = None
-            #
-            # input_element = soup.find('input')
-            #
-            # if input_element:
-            #     input_type = input_element.get('type', '').lower()
-            #
-            # if input_type == 'checkbox' and Action.Type.CLICK_CHECKBOX not in possible_action_types:
-            #     possible_action_types.append(Action.Type.CLICK_CHECKBOX)
-            #
-            # elif input_type == 'radio' and Action.Type.CLICK_RADIO not in possible_action_types:
-            #     possible_action_types.append(Action.Type.CLICK_RADIO)
-            #
-            # else:
-            possible_action_types.append(Action.Type.INPUT)
-
-
-        elif soup.has_attr('contenteditable') and soup['contenteditable'].lower() == 'true':
-            possible_action_types.append(Action.Type.INPUT)
-
-    if possible_action_types != []:
-        action = Action(None, xpath, html)
-        action.set_tree_line(f"{role}: {ax_node['name']}")
-        action.set_desired_option(ax_node['name'])
-        # if xpath and xpath == "id(\"tab-Delivery\")":
-        #     print("FOUND DELIVERY OPTION")
-        #     print(possible_action_types)
-        return IndefiniteAction(possible_action_types, action, nodeId)
-    else:
-        return IndefiniteAction([], None, nodeId)
-
-def remove_last_xpath_item(xpath):
-    # Split the string from the right at the last '/'
-    parts = xpath.rsplit('/', 1)
-    # If there is a '/' in the string, join the parts excluding the last part
-    if len(parts) > 1:
-        return parts[0]
-    # If there is no '/', return the original string
-    return xpath
-
-def click_element_by_outer_html(des_page, outer_html):  # TODO, CLAUDE MORE OF THIS FOR OTHER INTERACTION TYPES
-    js_code = """
-    (outerHTML) => {
-        const element = Array.from(document.querySelectorAll('*')).find(el => el.outerHTML === outerHTML);
-        if (element) {
-            element.click();
-            return true;
-        }
-        return false;
-    }
-    """
-    result = des_page.evaluate(js_code, outer_html)
-    return result
-
-def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, playwright_element, found_xpath=None, possible_types=None) -> bool:  # TODO handle multiple possible action types
-    for a_type in possible_types:
-        try:
-            if a_type in [Action.Type.CLICK_LINK, Action.Type.CLICK_IMPORTANT, Action.Type.CLICK_CHECKBOX,
-                               Action.Type.CLICK_RADIO, Action.Type.CLICK_GENERAL]:
-                if playwright_element.count() > 0:
-                    try:
-                        page.evaluate(
-                            f"() => {{ let e = document.evaluate('{found_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue; e.click(); }}")
-                        a.action_type = a_type  # probs not good
-                        return True
-                    except Exception as e:
-                        print(f"Error clicking element via JavaScript click: {e}")
-
-                    try:
-                        playwright_element.click(timeout=5000)
-                        a.action_type = a_type
-                        return True
-                    except Exception as e:
-                        print(f"Error clicking element via Playwright locator.click: {e}")
-                try:
-                    outer_html_click_success = click_element_by_outer_html(page, a.html)
-                    if outer_html_click_success:
-                        a.action_type = a_type
-                        return True
-                except Exception as e:
-                    print(f"Error clicking element via OuterHTML {e}")
-
-            elif a_type == Action.Type.SELECT_GENERAL:
-                if playwright_element.count() > 0 or found_xpath:
-                    try:
-                        page.evaluate(f"""
-                                (xpath) => {{
-                                    const option = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-                                    if (option) {{
-                                        option.selected = true;
-                                        const event = new Event('change', {{ bubbles: true }});
-                                        option.parentElement.dispatchEvent(event);
-                                    }}
-                                }}
-                            """, found_xpath)
-                        a.action_type = a_type
-                        return True
-                    except Exception as e:
-                        print(f"Error selecting element via Javascript: {e}")
-
-                    try:
-                        friendly_xpath = remove_last_xpath_item(found_xpath)  # overrides, may be broken after change which makes apply action use playwright objects
-                        found_item = page.locator(f"xpath={friendly_xpath}")
-                        found_item.select_option(a.desired_option.strip(), timeout=5000)
-                    except Exception as e:
-                        print(f"Error selecting element via Playwright and trimmed xpath: {e}")
-
-            elif a_type == Action.Type.INPUT:
-                if playwright_element.count() > 0:
-                    try:
-                        input_fill = use_gpt_fill_input('None', before_screenshot, a.html, True)
-                        playwright_element.fill(input_fill, force=True, timeout=5000)
-                        a.action_type = a_type
-                        return True
-                    except Exception as e:
-                        print(f"Error inputting text into element: {e}")
-                else:
-                    print("Can't input into nothing")
-
-            elif a_type == Action.Type.GOTO_URL:
-                try:
-                    page.goto(a.input_string, timeout=5000)
-                    # page.wait_for_load_state('networkidle', timeout=5000)
-                    a.action_type = a_type
-                    return True
-                except Exception as e:
-                    print(f"Error navigating to URL: {e}")
-
-            elif a_type == Action.Type.GO_BACK:
-                pass
-                # try:
-                #     page.go_back(), timeout=5000
-                #     page.wait_for_load_state('networkidle', timeout=5000)
-                #     return True, action_type
-                # except Exception as e:
-                #     print(f"Error going back: {e}")
-                page.goto(a.input_string)
-                page.wait_for_load_state('networkidle')
-
-        except Exception as e:
-            print(f"Unhandled exception for action type {a_type}: {e}")
-
-    return False
-
 
 # this is the aggressive normalization
 def normalize_url(url: str) -> str:
@@ -393,57 +45,7 @@ def normalize_url(url: str) -> str:
     # return urlunparse((scheme, netloc, path, '', '', ''))  # Ignoring the query and fragment
     return url
 
-def get_page_state(page: PlaywrightPage, cdpSession: CDPSession, attempts=3) -> PageState:
 
-    result = None
-
-    for _ in range(attempts):
-        # Navigate to the given URL and wait for the page to load
-        wait_for_load(page)
-
-        # Retrieve the accessibility tree and create an AxObservation object
-        ax_nodes = get_ax_tree(cdpSession)
-        cleaned = AxObservation(ax_nodes, page.url)  # LITERALLY THE WHOLE TREE
-        #DON'T PRINT FOR NOW, IT'S CLUTTERING EVERYTHING
-
-        # Extract the header and footer HTML
-        header_html = page.evaluate("document.getElementsByTagName('header')[0]?.outerHTML || ''")
-        footer_html = page.evaluate("document.getElementsByTagName('footer')[0]?.outerHTML || ''")
-        #currently page specific
-
-        # Extract actions from the accessibility nodes and filter out None values, only scrape header and footer on homepage
-        # actions = [ax_node_to_action(node, header_html if page.url not in 'https://www.dominos.com/en/' else '', footer_html if page.url not in 'https://www.dominos.com/en/' else '') for node in cleaned.nodes_info]
-        '''
-        
-        IMPORTANT: ACTIONS FROM CLEANED AND NOT RAW AX_NODES!!!
-        SO EVERYTHING ACTUALLY IS IN VIEWABLE TREE!!!
-        
-        '''
-
-        indefinite_actions = [ax_node_to_action(node, header_html, footer_html, page.url) for node in cleaned.nodes_info]
-
-        new_indefinite_actions = []
-        for indefinite_action in indefinite_actions:
-            if indefinite_action.action is not None and indefinite_action.type_list != []:
-                new_indefinite_actions.append(indefinite_action)
-        # indefinite_actions = [(tL, a) for (tL, a) in indefinite_actions if tL != []]  # TODO now a list of lists of actions
-
-
-        # Create and return a PageState object with the normalized URL, HTML content, actions, header HTML, and footer HTML
-
-        result = PageState(
-            url=page.url,
-            ax_nodes=cleaned.nodes_info,  # note now this nodes info is the cleaned version of nodes that we get out of AxObservation
-            html=page.content(),
-            actions=new_indefinite_actions,
-            header_html=header_html,
-            footer_html=footer_html
-        )
-
-        if len(result.actions) > 0:
-            return result
-
-    return result
 
 def close_resources(cdp_session, page, context):
     cdp_session.detach()
@@ -504,15 +106,10 @@ def setup_context(browser, cookies, logged_in = True, attempts = 3):
                 success = True
                 break
     return context, page, cdpSession, success
-def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
-    # https://playwright.dev/python/docs/navigations#navigation-events
-    # https://playwright.dev/python/docs/api/class-page#page-wait-for-load-state-option-state
-    page.wait_for_load_state('load')
-    # page.wait_for_load_state('networkidle')
-    page.wait_for_timeout(load_time_ms)  # this is very finicky, if you set it to a lower time, you risk getting the actions from the previous page. TODO: fix this race
-    #out of a set of actions generated from an observation, removes duplicates.
-    #does not remove duplicates in header or footer because they are generally
-    #significant enough that we want to keep them
+
+#out of a set of actions generated from an observation, removes duplicates.
+#does not remove duplicates in header or footer because they are generally
+#significant enough that we want to keep them
 def get_unique_actions(new_state: PageState) -> list[list[IndefiniteAction]]:
     sample_size = 2 #maximum number of samples to include among similar actions
     unique_actions = []
@@ -536,84 +133,6 @@ def get_unique_actions(new_state: PageState) -> list[list[IndefiniteAction]]:
                 unique_actions.append([indefinite_action])
     return unique_actions
 
-def get_xpath_by_outer_html(page, outer_html):
-    # JavaScript function to find the element by outerHTML and generate its XPath
-    js_code = """
-    (outerHTML) => {
-        function getElementXPath(element) {
-            if (element.id !== '') {
-                return 'id("' + element.id + '")';
-            }
-            if (element === document.body) {
-                return element.tagName.toLowerCase();
-            }
-            var ix = 0;
-            var siblings = element.parentNode.childNodes;
-            for (var i = 0; i < siblings.length; i++) {
-                var sibling = siblings[i];
-                if (sibling === element) {
-                    return getElementXPath(element.parentNode) + '/' + element.tagName.toLowerCase() + '[' + (ix + 1) + ']';
-                }
-                if (sibling.nodeType === 1 && sibling.tagName === element.tagName) {
-                    ix++;
-                }
-            }
-        }
-        var element = Array.from(document.querySelectorAll('*')).find(el => el.outerHTML === outerHTML);
-        if (element) {
-            return getElementXPath(element);
-        }
-        return null;
-    }
-    """
-    # Evaluate the JavaScript code in the context of the page
-    xpath = page.evaluate(js_code, outer_html)
-    return xpath
-
-def take_screenshot(page, attempts=3, full=False):
-    for i in range(attempts):
-        try:
-            screenshot = page.screenshot(full_page=full)
-            return screenshot, True
-        except Exception as e:
-            print("SCREENSHOT FAILED")
-            print(e)
-    print("ALL SCREENSHOT ATTEMPTS FAILED")
-    # Create a blank image using OpenCV
-    height, width = 600, 800  # You can adjust these dimensions as needed
-    blank_image = np.zeros((height, width, 3), np.uint8)
-    blank_image[:] = (255, 255, 255)  # White background
-
-    # Add text to the image
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    text = "Screenshot Failed"
-    textsize = cv2.getTextSize(text, font, 1, 2)[0]
-    text_x = (width - textsize[0]) // 2
-    text_y = (height + textsize[1]) // 2
-    cv2.putText(blank_image, text, (text_x, text_y), font, 1, (0, 0, 0), 2)
-
-    # Convert the OpenCV image to bytes (similar to Playwright's screenshot output)
-    _, buffer = cv2.imencode('.png', blank_image)
-    print("SAVING DUMMY SCREENSHOT")
-    return buffer.tobytes(), False
-
-def make_xpath_friendly(des_xpath):
-    if des_xpath:  # if not empty string and not none
-        return des_xpath if '(' in des_xpath.split("/")[0] else f"//{des_xpath}"
-    else:
-        return None
-
-def get_element(des_page, des_xpath):
-    return des_page.locator(f"xpath={des_xpath}") if des_xpath else None
-    # if des_xpath:
-    #     return des_page.evaluate(
-    #         f"document.evaluate('{des_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
-    # else:
-    #     return None
-
-
-def scroll_into_view(playwright_element):
-    playwright_element.scroll_into_view_if_needed(timeout=10000)
 
 #applies trajectory and returns bool successful
 def apply_trajectory(page: PlaywrightPage, trajectory : List[Action]) -> bool:
@@ -707,6 +226,8 @@ def apply_trajectory(page: PlaywrightPage, trajectory : List[Action]) -> bool:
                 print(item)
         print("***Finished Executing Trajectory***")
     return traj_success
+
+
 
 
 def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_lock: threading.Lock,
@@ -1113,7 +634,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
                 with eq_class_lock:
                     if url_state.add_sample(sample_action_infos): #proceed if this is a new action
                         #folder saving code
-                        output_dir = 'dominos'
+                        output_dir = 'dominos_dep'
                         action_info = sample_action_infos[0]
                         tree_string = action_info.action.tree_line
                         tree_string = tree_string if len(tree_string) <= 40 else tree_string[:40]
@@ -1150,7 +671,7 @@ def explore_page(url_info: tuple, equiv_classes_lock: threading.Lock, eq_class_l
 
 
     explore_actions()
-    output_dir = 'dominos'
+    output_dir = 'dominos_dep'
     output_path = Path(output_dir) / 'scraper_state.pkl'
     checkpoint_path = Path(output_dir) / 'checkpoint.pkl'
 
@@ -1211,7 +732,7 @@ def worker(thread_id: int, idle_flags: dict, url_queue: Queue, equiv_classes_loc
         print(f"worker Thread-{thread_id} fucking off")
         browser.close()
 
-def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'dominos', root: str = "", num_threads: int = 10, resume = False):
+def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'dominos_dep', root: str = "", num_threads: int = 10, resume = False):
     global action_number
     # Initialize an EquivalenceClassSet to store and manage equivalence classes
     scraper_state_path = output_dir + '/' + 'scraper_state.pkl'
@@ -1281,5 +802,5 @@ def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = 
     print(seen_urls)
 
 # num_cores = os.cpu_count()
-
-# explore("https://www.dominos.com/", headless=True, root="www.dominos.com", num_threads=1, resume = True)
+if __name__ == "main":
+    explore("https://www.dominos.com/", headless=False, root="www.dominos.com", num_threads=1, resume = True)

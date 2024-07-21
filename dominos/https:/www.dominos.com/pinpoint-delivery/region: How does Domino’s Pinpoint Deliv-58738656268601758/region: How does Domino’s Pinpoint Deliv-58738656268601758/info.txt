@@ -1,6 +1,0 @@
-URL: https://www.dominos.com/pinpoint-delivery/
-TREE LINE: region: How does Domino’s Pinpoint Delivery® work? How do I place an order?
-XPATH: id("item2")
-TRAJECTORY: []
-
-HTML: <div class="answer text-gray-darker max-w-[50.625rem] px-3 font-onedot-condensed text-15 leading-snug lg:px-5 lg:text-24" id="item2" role="region" aria-labelledby="panel2id" itemscope="" itemprop="acceptedAnswer" itemtype="https://schema.org/Answer" data-v-83d78729=""><div class="pb-3 lg:-mt-1 lg:pb-5" data-v-83d78729=""><!--[--><div itemprop="text"><p>Domino’s Pinpoint Delivery is easy to use! Simply follow these steps to place an order: </p><ol class="list-decimal list-inside mt-4"><li>Open the Domino’s app</li><li>Select Domino’s Pinpoint Delivery®</li><li>Allow Domino’s to use your location to help identify the nearest store</li><li>Tap the map and drop a pizza pin in the location where you wish to receive your order</li><li>Review your pickup spot and confirm it or drag the map to set a new location</li><li>Place your order</li><li>Track your order</li><li>Meet your driver at their vehicle at the pickup spot</li></ol><p></p></div><!--]--></div></div>

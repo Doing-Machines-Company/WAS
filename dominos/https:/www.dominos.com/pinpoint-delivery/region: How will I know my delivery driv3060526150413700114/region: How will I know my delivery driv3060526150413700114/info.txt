@@ -1,6 +1,0 @@
-URL: https://www.dominos.com/pinpoint-delivery/
-TREE LINE: region: How will I know my delivery driver has arrived?
-XPATH: id("item7")
-TRAJECTORY: []
-
-HTML: <div class="answer text-gray-darker max-w-[50.625rem] px-3 font-onedot-condensed text-15 leading-snug lg:px-5 lg:text-24" id="item7" role="region" aria-labelledby="panel7id" itemscope="" itemprop="acceptedAnswer" itemtype="https://schema.org/Answer" data-v-83d78729=""><div class="pb-3 lg:-mt-1 lg:pb-5" data-v-83d78729=""><!--[--><div itemprop="text"><p></p><ul class="list-disc list-inside space-y-3"><li>Once a Domino’s Pinpoint Delivery® order is placed, you will receive an estimated delivery time as well as instructions on how to meet your driver at the pickup spot. If you’re not at the pickup spot already, you’ll be able to navigate to it using the Domino’s app which will link out to Google or Apple Maps. Once you’ve arrived at the pickup spot, keep an eye on the map to see when your driver is getting close.</li><li>You can track your driver’s GPS location, as well as receive ETA updates via text notifications. When your driver arrives at the pickup location, you’ll have four minutes to meet them and retrieve your order.</li></ul><p></p></div><!--]--></div></div>
