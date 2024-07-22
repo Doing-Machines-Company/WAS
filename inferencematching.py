@@ -113,6 +113,7 @@ with sync_playwright() as p:
             new_memory = LinearMemory(tree.get_action_effect_from_index(chosen_action_index), page_purpose, acted_object)
             task_mem.append(new_memory)
             if wait:
+                print("TASK MEM")
                 input(str(task_mem))
 
             chosen_indefinite = tree.get_action_from_index(chosen_action_index)  # TODO MAKE SURE YOU GET ACTION TYPE FROM SCRAPE TIME

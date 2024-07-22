@@ -40,8 +40,8 @@ def call_agent(task, ax_tree, memory, context):
     answer = message.content
     # match = re.search(r"choose\((\d+)\)", answer[0].text)
 
-    pattern = r'choose\((\d+),\s*"([^"]+)",\s*"([^"]+)"\)'
-
+    # pattern = r'choose\((\d+),\s*"([^"]+)",\s*"([^"]+)"\)'
+    pattern = r'choose\((\d+),\s*"((?:\\.|[^\\"])*)",\s*"((?:\\.|[^\\"])*)"'
     # string = 'choose(0, "match this", "also match this")'
     print(answer[0].text)
 
