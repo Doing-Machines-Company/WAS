@@ -1,7 +1,7 @@
 from scrape4 import *
 from bs4 import BeautifulSoup
 from look_at_scrape import load_scraper_state
-from scrapecode.element_similarity import element_similarity
+from utils.element_utils.element_similarity import element_similarity
 
 eq_class_set = load_scraper_state('scrape_trials/scraper_state.pkl')
 def analyze_equivalence_class(eq_class: EquivalenceClass):

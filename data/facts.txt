@@ -1,4 +1,5 @@
 Specialty pizzas: ExtravaganZZa, MeatZZa, Philly Cheese Steak, Pacific Veggie, Honolulu Hawaiian, Deluxe, Cali Chicken Bacon Ranch, Buffalo Chicken, Ultimate Pepperoni, Spinach & Feta, Wisconsin 6 Cheese, Memphis BBQ Chicken
+Specialty pizzas can only be found through the dedicated button for them. The preset for these pizzas cannot be found through the regular pizza builder/crust constructions.
 ***
 Chicken items: Boneless Chicken, Specialty Chicken – Crispy Bacon & Tomato, Specialty Chicken – Classic Hot Buffalo, Specialty Chicken – Spicy Jalapeno - Pineapple, Specialty Chicken – Sweet BBQ Bacon, Hot Buffalo Wings, Honey BBQ Wings, Plain Wings, Garlic Parmesan Wings, Sweet Mango Habanero Wings
 ***
@@ -24,6 +25,8 @@ Salad Dressing (in extras): Caesar Dressing, Ranch Dressing, Balsamic
 ***
 Extras: Cheesy Marinara Dip, Five Cheese Dip, Hot Buffalo Dip, Sweet Mango Habanero Dip, Honey BBQ Dip, Ranch Dip, Blue Cheese Dip, Garlic Dip, Icing Dip, Marinara Dip, Caesar Dressing, Ranch Dressing, Balsamic, Donate to St. Jude Children's Hospital
 ***
-Crust types: Hand Tossed (All sizes), Gluten Free (Only size Small), Handmade Pan (Only size Medium), Crunchy Thin Crust (Only sizes Medium, Large), New York Style (Only sizes Medium, Large, X-Large)
+Crust types: Hand Tossed, Gluten Free, Handmade Pan, Crunchy Thin Crust, New York Style
+Gluten Free crust type is only available in small size. Handmade pan crust type is only available in medium size. Crunchy thin crust type is only available in medium and large sizes. New york crust type is only available in medium, large, and x-large.
+If the correct size is not selected, then the crust will not be displayed. Each pizza size has it's own crust-options.
 ***
 Special instruction attributes for pizzas: Bake (Well Done, Normal Bake), Seasoning (Garlic-Seasoned Crust, No Garlic-Seasoned Crust), Cut (Pie Cut, Square Cut, Uncut)

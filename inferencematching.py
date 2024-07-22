@@ -23,7 +23,7 @@ class LinearMemory:
     location_details: str
     object_details: str
     def __repr__(self):
-        return f"Selected action to {self.action_effect} on the object {self.object_details} on the page {self.location_details}"
+        return f"({self.action_effect}, {self.object_details}, {self.location_details})"
         # return f"{self.action_effect} + {self.location_details} + {self.object_details}"
 
 def load_scraper_state(file_path: str):
@@ -61,7 +61,7 @@ class IndefiniteAction:
 '''
 scraper_state_file = 'dominos/scraper_state.pkl'
 url_state_manager = load_scraper_state(scraper_state_file)
-task = 'buy me a thin crust pizza'
+task = 'buy me a thin-crust ExtravaganZZa pizza of any size'
 keep_running = True
 task_mem = []
 print("Creating...")
@@ -73,11 +73,11 @@ index = VectorStoreIndex(nodes)
 retriever = index.as_retriever()
 print("took", time.time() - start)
 start = time.time()
-context = "\n".join([node.get_content() for node in retriever.retrieve(task)])
+context_info = "\n".join([node.get_content() for node in retriever.retrieve(task)])
 print("Retrieving took...", time.time() -start)
-print(context)
+print(context_info)
 
-
+wait = True
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=False)
     context, page, cdpSession, login_success = setup_context(browser, None)
@@ -99,9 +99,10 @@ with sync_playwright() as p:
             stop_indefinite = IndefiniteAction([Action.Type.STOP], stop_action, None)
             special_actions = [stop_indefinite]
             tree = InferenceAxtree(matched_inference_state, special_actions=special_actions, use_scrape=True)
-            print(tree.get_debug_tree())
+            if wait:
+                print(tree.get_debug_tree())
             start = time.time()
-            answer = call_agent(task, tree, task_mem, context)
+            answer = call_agent(task, tree, task_mem, context_info)
             print("Inference took: ", time.time() - start)
             print(f"THIS ONE: {answer}")
             if answer is None:
@@ -111,7 +112,8 @@ with sync_playwright() as p:
             acted_object = answer[2]
             new_memory = LinearMemory(tree.get_action_effect_from_index(chosen_action_index), page_purpose, acted_object)
             task_mem.append(new_memory)
-            input(str(task_mem))
+            if wait:
+                input(str(task_mem))
 
             chosen_indefinite = tree.get_action_from_index(chosen_action_index)  # TODO MAKE SURE YOU GET ACTION TYPE FROM SCRAPE TIME
             chosen_action = chosen_indefinite.action
@@ -189,8 +191,8 @@ with sync_playwright() as p:
                     print('action screenshot failed')
             else:
                 type_list = chosen_indefinite.type_list
-
-            input("ABOUT TO DO ACTION")
+            if wait:
+                input("ABOUT TO DO ACTION")
 
             if chosen_action.action_type == Action.Type.STOP:
                 keep_running = False
@@ -199,15 +201,15 @@ with sync_playwright() as p:
 
             success = apply_action(page, chosen_action, trajectory_action_screenshot, chosen_element, chosen_xpath,
                                        type_list)
-
-            input("DID ACTION")
+            if wait:
+                input("DID ACTION")
 
             if not success:
                 print(f"This action was broken: {chosen_action}")
                 keep_running = False
-
-            do_keep_running = input('want to keep running?')
-            if do_keep_running != '':
-                keep_running = False
+            if wait:
+                do_keep_running = input('want to keep running?')
+                if do_keep_running != '':
+                    keep_running = False
             # def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, playwright_element, found_xpath=None, possible_types=None)
             # apply_action(page, chosen_action, page.screenshot(), None, None, None)

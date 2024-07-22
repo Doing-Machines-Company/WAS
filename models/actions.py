@@ -24,7 +24,6 @@ class Action:
         GET_NEXT_SUBTASK_IMPOSSIBLE = 9
         GO_BACK = 10
         SELECT_GENERAL = 11
-        STOP = 12
 
     def __init__(self, action_type: 'Action.Type', xpath: str, html: str, tree_line: str = "", input_string: Optional[str] = None, trajectory: List['Action'] = [], friendly_xpath : Optional[str]= None):
         self.action_type = action_type

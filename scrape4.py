@@ -11,7 +11,7 @@ from time import sleep
 from dataclasses import dataclass
 from urllib.parse import urlparse, urlunparse
 from scrapecode.page_similarity import page_similarity
-from scrapecode.element_similarity import element_similarity
+from utils.element_utils.element_similarity import element_similarity
 from bs4 import BeautifulSoup
 import re
 
