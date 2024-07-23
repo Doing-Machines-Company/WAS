@@ -127,6 +127,7 @@ class InferenceAxtree:
 
         for indefinite_action in special_actions:
             self.tree_str += f"[{count}] {str(indefinite_action)}\n"
+            self.debug_tree += f"[{count}] {str(indefinite_action)} (SPECIAL ACTION) \n"
             self.live_actions.append(indefinite_action)
             self.live_action_effects.append("SPECIAL ACTION")
             count += 1
@@ -154,11 +155,15 @@ class InferenceAxtree:
                 if node['nodeId'] in self.action_effect_lib:
                     self.tree_str += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                         node["properties"]) + "\n"
+                    self.debug_tree += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                        node["properties"]) + "\n"
                     count += 1
                     self.live_actions.append(self.action_lib[node['nodeId']])
                     self.live_action_effects.append(self.action_effect_lib[node['nodeId']])
                 else:
                     self.tree_str += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                        node["properties"]) + "\n"
+                    self.debug_tree += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                         node["properties"]) + "\n"
         else:
             for node in self.scrap_info.ax_nodes:
@@ -171,6 +176,8 @@ class InferenceAxtree:
                     self.live_actions.append(self.action_lib[node['nodeId']])
                     self.live_action_effects.append(self.action_effect_lib[node['nodeId']])
                 else:
+                    self.debug_tree += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                        node["properties"]) + "\n"
                     self.tree_str += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                         node["properties"]) + "\n"
 
