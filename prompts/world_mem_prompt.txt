@@ -46,5 +46,6 @@ Remember:
 - Ensure new_world_memory contains all task relevant information from action_memory and world_memory.
 - More recent actions in the action_memory are closer to the right of the list.
 - Only include information you know is definitely true, don't assume anything.
+- Include if an action failed and why it failed.
 
 Follow the steps carefully and reason step-by-step, then give your final answer inside a Python function as described above.
