@@ -92,7 +92,9 @@ def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
     return accessibility_tree
 
 
-def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: str) -> IndefiniteAction:
+def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: str) -> IndefiniteAction | None:
+
+    # NOTE: NO LONGER FILTER OUT HEADER AND FOOTER ACTIONS HERE
 
     possible_action_types = []
 
@@ -155,37 +157,40 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
     if xpath and html and xpath.strip() != "" and html.strip() != "":
         # Check if the action is a pure link in the header or footer
         if role.strip () in ignored_roles:
-            return IndefiniteAction([], None, nodeId)  # may just want to return None?
-        if html in footer_html or (html in header_html and url not in 'https://www.dominos.com/en/'):
-            return IndefiniteAction([], None, nodeId)
+            # return IndefiniteAction([], None, nodeId, IndefiniteAction.Location.UNDEFINED)  # may just want to return None?
+            return None
+
+        # if html in footer_html or (html in header_html and url not in 'https://www.dominos.com/en/'):
+        #     return IndefiniteAction([], None, nodeId)
 
         #not sure what this does at all - Cem
         if any(attr in html.lower() for attr in non_browser_attributes):
-            return IndefiniteAction([], None, nodeId)
+            # return IndefiniteAction([], None, nodeId, IndefiniteAction.Location.UNDEFINED)
+            return None
 
         if role.strip() == 'link':
             possible_action_types.append(Action.Type.CLICK_LINK)
 
-        elif role.strip() in important_clickables:
+        if role.strip() in important_clickables:
             possible_action_types.append(Action.Type.CLICK_IMPORTANT)
 
-        elif role.strip() == 'radio':
+        if role.strip() == 'radio':
             # action = Action(Action.Type.CLICK_RADIO, xpath, html)
             # action.set_tree_line(f"{role}: {ax_node['name']}")
             possible_action_types.append(Action.Type.CLICK_RADIO)
 
-        elif role.strip() == 'checkbox':
+        if role.strip() == 'checkbox':
             possible_action_types.append(Action.Type.CLICK_CHECKBOX)
 
-        elif role.strip() in general_clickables:
+        if role.strip() in general_clickables:
             # action = Action(Action.Type.CLICK_GENERAL, xpath, html)
             # action.set_tree_line(f"{role}: {ax_node['name']}")
             possible_action_types.append(Action.Type.CLICK_GENERAL)
 
-        elif role.strip() in selects:
+        if role.strip() in selects:
             possible_action_types.append(Action.Type.SELECT_GENERAL)
 
-        elif role.strip() in input_roles or soup.find(('input', 'textarea')):
+        if role.strip() in input_roles or soup.find(('input', 'textarea')):
 
             # input_type = None
             #
@@ -207,13 +212,21 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
         elif soup.has_attr('contenteditable') and soup['contenteditable'].lower() == 'true':
             possible_action_types.append(Action.Type.INPUT)
 
+    # input('tonkkk')
     if possible_action_types != []:
+        # input(possible_action_types)
         action = Action(None, xpath, html)
         action.set_tree_line(f"{role}: {ax_node['name']}")
         action.set_desired_option(ax_node['name'])
         # if xpath and xpath == "id(\"tab-Delivery\")":
         #     print("FOUND DELIVERY OPTION")
         #     print(possible_action_types)
-        return IndefiniteAction(possible_action_types, action, nodeId)
+        if action and (action.html in header_html):
+            return IndefiniteAction(possible_action_types, action, nodeId, IndefiniteAction.Location.HEADER)
+        elif action and (action.html in footer_html):
+            # return IndefiniteAction(possible_action_types, action, nodeId, IndefiniteAction.Location.FOOTER)
+            return None
+        else:
+            return IndefiniteAction(possible_action_types, action, nodeId, IndefiniteAction.Location.BODY)
     else:
-        return IndefiniteAction([], None, nodeId)
+        return None

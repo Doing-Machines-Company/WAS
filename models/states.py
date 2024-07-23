@@ -46,8 +46,22 @@ class URLState:
     #return (for now) percentage of actions from input page_state that can be matched by this urlstate
     def similarity_score(self, page_state : PageState) -> float:
         matched = 0.0
-        total = len(page_state.actions)
-        for indefinite_action in page_state.actions:
+        # print("SIM SCORE INFO")
+        # print(len(page_state.actions))
+        # print(len([a for a in page_state.actions if a.location == IndefiniteAction.Location.BODY]))
+        # input("TAKE A FUCKING LOOK")
+
+        # WE DON'T CONSIDER THE HEADER IN MATCHING OTHER THAN FOR THE HOMEPAGE
+        if page_state.url in 'https://www.dominos.com/en/':
+            indefinite_actions = page_state.actions
+        else:
+            indefinite_actions = [a for a in page_state.actions if a.location == IndefiniteAction.Location.BODY]
+
+        total = len(indefinite_actions)
+
+        # if html in footer_html or (html in header_html and url not in 'https://www.dominos.com/en/'):
+        #     return IndefiniteAction([], None, nodeId)
+        for indefinite_action in indefinite_actions:
             action = indefinite_action.action
             if action.html in self.unique_samples: #attempt O(1) key lookup
                 matched += 1
@@ -104,7 +118,7 @@ class URLState:
 
 
             if matched_scrape_action:  # NEEDS TO BE BETTER
-                indefinite_action.action.action_type = matched_scrape_action.action.action_type
+                # indefinite_action.action.action_type = matched_scrape_action.action.action_type
                 file_path = matched_scrape_action.before_screenshot
                 file_list = file_path.split('/')
                 file_path = Path ('/'.join(file_list[:-1])) / Path ('effect.txt')

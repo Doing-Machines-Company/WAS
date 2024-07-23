@@ -134,7 +134,7 @@ with sync_playwright() as p:
 
             stop_action = Action(Action.Type.STOP, None, None)
             stop_action.set_special_effect('Stop trying to perform user task and finish')
-            stop_indefinite = IndefiniteAction([Action.Type.STOP], stop_action, None)
+            stop_indefinite = IndefiniteAction([Action.Type.STOP], stop_action, None, IndefiniteAction.Location.SPECIAL)
             # special_actions = [stop_indefinite]
             special_actions = []
             curr_inf_tree = InferenceAxtree(matched_inference_state, special_actions=special_actions, use_scrape=True)
@@ -235,7 +235,10 @@ with sync_playwright() as p:
                     print('action screenshot failed')
             else:
                 type_list = chosen_indefinite.type_list
+
+            # NOTE: chosen_action type is no longer assigned in match_actions in url_state_manager
             if wait:
+                # print(chosen_action)
                 input("ABOUT TO DO ACTION")
 
             if chosen_action.action_type == Action.Type.STOP:

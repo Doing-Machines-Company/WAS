@@ -12,18 +12,18 @@ sys.path.append(PROJECT_ROOT)
 
 class Action:
     class Type(IntEnum):
-        STOP = 0
-        CLICK_IMPORTANT = 1
-        INPUT = 2
-        CLICK_LINK = 3
-        GOTO_URL = 4
-        CLICK_GENERAL = 5
-        CLICK_RADIO = 6
-        CLICK_CHECKBOX = 7
-        GET_NEXT_SUBTASK_FINISHED = 8
-        GET_NEXT_SUBTASK_IMPOSSIBLE = 9
-        GO_BACK = 10
-        SELECT_GENERAL = 11
+        STOP = 1
+        CLICK_IMPORTANT = 2
+        INPUT = 3
+        CLICK_LINK = 4
+        GOTO_URL = 5
+        CLICK_GENERAL = 6
+        CLICK_RADIO = 7
+        CLICK_CHECKBOX = 8
+        GET_NEXT_SUBTASK_FINISHED = 9
+        GET_NEXT_SUBTASK_IMPOSSIBLE = 10
+        GO_BACK = 11
+        SELECT_GENERAL = 12
 
     def __init__(self, action_type: 'Action.Type', xpath: str, html: str, tree_line: str = "", input_string: Optional[str] = None, trajectory: List['Action'] = [], friendly_xpath : Optional[str]= None):
         self.action_type = action_type
@@ -84,9 +84,16 @@ class ScrapeAction:
 
 @dataclass
 class IndefiniteAction:
+    class Location(IntEnum):
+        BODY = 1
+        HEADER = 2
+        FOOTER = 3
+        UNDEFINED = 4
+        SPECIAL = 5
     type_list: list[Action.Type]
     action: Action | None
     ax_node_index: int
+    location: 'IndefiniteAction.Location'
 
 @dataclass
 class InferenceAction:

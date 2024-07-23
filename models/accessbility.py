@@ -112,6 +112,7 @@ class AxObservation(PageObservation):
 class InferenceAxtree:
 
     #  we get axnodes which we roll into a pagestate, which we will roll into an InferencePageState, which we will then reroll into a InferenceAxtree
+    #  TODO give header and footer actions
     def __init__(self, scrape_info: InferencePageState, special_actions = None, use_scrape = True):
         self.scrap_info = scrape_info
         self.action_effect_lib = dict()
@@ -138,11 +139,14 @@ class InferenceAxtree:
             if scraped_action:
                 action_effect = scraped_action.action_effect
                 if action_effect is None:
-                    action_effect = curr_action.action.tree_line
+                    # TODO: does this ever happen???
+                    # action_effect = curr_action.action.tree_line
+                    action_effect = ''  # matched in found url state but it somehow doesn't have an action effect
                 numbering = scraped_action.number
             else:
                 numbering = '-1'
-                action_effect = curr_action.action.tree_line
+                # action_effect = curr_action.action.tree_line
+                action_effect = ''  # not matched in found url state we don't give an action effect
             self.action_effect_lib[curr_action.ax_node_index] = action_effect
             self.action_number_lib[curr_action.ax_node_index] = numbering
             self.action_lib[curr_action.ax_node_index] = curr_action
