@@ -87,17 +87,7 @@ Toppings: Cheese, Premium Chicken, Shredded Parmesan Asiago, Sliced Provolone
 Topping Amount: None, Light, Normal
 ***
 Salad extras:
-Caesar
-A savory dressing with a combination of garlic, anchovy and subtle notes of cheese. Dressing brand may vary by location.
-
-Italian
-A classic dressing flavored with red bell pepper, a touch of garlic and spices. Dressing brand may vary by location.
-
-Balsamic
-A light dressing with a blend of balsamic vinegar, oil and garlic. Dressing brand may vary by location.
-
-Ranch Dressing
-A flavorful creamy dressing with touches of buttermilk and garlic. Dressing brand may vary by location.
+Caesar, Italian, Balsamic, Ranch Dressing
 ***
 Chicken Alfredo Pasta customization options:
 Serving Options: Dish, BreadBowl
@@ -133,3 +123,25 @@ Sauces: Alfredo Sauce, Hearty Marinara Sauce
 Sauce Amount: Normal
 Toppings: Pepperoni, Italian Sausage, Beef, Philly Steak, Ham, Bacon, Premium Chicken, Anchovies, Cheese, Cheddar Cheese Blend, Feta Cheese, Shredded Parmesan, Shredded Provolone Cheese, Garlic, Green Peppers, Jalapeno Peppers, Mushrooms, Pineapple, Onions, Black Olives, Spinach, Diced Tomatoes, Banana Peppers
 Topping Amount: None, Normal
+***
+Drinks customization options:
+Amount: 20oz, 2l
+Note: Water only has 20oz option
+***
+Philly Cheese Steak Loaded Tots customization options:
+Toppings: Cheddar Cheese Blend, Alfredo Sauce, Philly Steak, Green Peppers, Onions
+Topping Amount: None, Normal
+***
+Cheddar Bacon Loaded Tots customization options:
+Toppings: Bacon, Cheddar Cheese Blend, Garlic Parmesan Sauce
+Topping Amount: None, Normal
+***
+Melty 3-Cheese Loaded Tots customization options:
+Toppings: Cheddar Cheese Blend, Shredded Provolone Cheese, Alfredo Sauce
+Topping Amount: None, Normal
+***
+All Chicken Wings (boned) customization options:
+Amount: 8-piece, 16-piece, 32-piece
+***
+Boneless Chicken customization options:
+Amount: 8-piece, 16-piece, 32-piece
