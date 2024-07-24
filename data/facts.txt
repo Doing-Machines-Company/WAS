@@ -30,3 +30,106 @@ Gluten Free crust type is only available in small size. Handmade pan crust type 
 If the correct size is not selected, then the crust will not be displayed. Each pizza size has it's own crust-options.
 ***
 Special instruction attributes for pizzas: Bake (Well Done, Normal Bake), Seasoning (Garlic-Seasoned Crust, No Garlic-Seasoned Crust), Cut (Pie Cut, Square Cut, Uncut)
+***
+All Pizzas customization options:
+Size: Small (10"), Medium (12"), Large (14"), X-Large (16")
+Possible Crusts (dependent on size): Hand Tossed, Gluten Free, Handmade Pan, Crunchy Thin Crust, New York Style
+Cheese: Amount (None, Light, Normal, Extra), Placement (Left, Whole, Right)
+Sauce: Robust Inspired Tomato Sauce, Hearty Marinara Sauce, Honey BBQ Sauce, Garlic Parmesan Sauce, Alfredo Sauce, Ranch, No Sauce
+Sauce Amount: Light, Normal, Extra
+Meats: Ham, Beef, Salami, Premium Chicken, Bacon, Philly Steak, Anchovies, Pepperoni, Italian Sausage
+Non-meats: Hot Buffalo Sauce, Pineapple, Shredded Provolone Cheese, Cheddar Cheese Blend, Green Peppers, Garlic, Jalapeno Peppers, Onions, Banana Peppers, Diced Tomatoes, Black Olives, Mushrooms, Spinach, Feta Cheese, Shredded Parmesan Asiago
+Topping Amount: None, Light, Normal, Extra
+Topping Placement: Left, Whole, Right
+Dipping Sauces: Garlic Dipping Cup, Ranch Dipping Cup, Marinara Dipping Cup
+Special Instructions: Bake (Normal Bake, Well Done), Seasoning (Garlic-Seasoned Crust, No Garlic-Seasoned Crust), Cut (Pie Cut, Square Cut)
+***
+Buffalo Chicken Sandwich customization options:
+Sauces: Blue Cheese Sauce, Hot Buffalo Sauce
+Sauce Amount: None, Light, Normal
+Toppings: Cheese, Premium Chicken, Cheddar Cheese Blend, Sliced Provolone, Onions
+Topping Amount: None, Light, Normal
+***
+Chicken Habanero Sandwich customization options:
+Sauces: Mango Habanero Sauce
+Sauce Amount: None, Light, Normal
+Toppings: Cheese, Premium Chicken, Cheddar Cheese Blend, Sliced Provolone, Jalapeno Peppers, Pineapple
+Topping Amount: None, Light, Normal
+***
+Mediterranean Veggie Sandwich customization options:
+Sauces: None listed
+Sauce Amount: Not applicable
+Toppings: American Cheese, Feta Cheese, Sliced Provolone, Banana Peppers, Onions, Spinach, Diced Tomatoes
+Topping Amount: None, Light, Normal
+***
+Philly Cheese Steak Sandwich customization options:
+Sauces: None listed
+Sauce Amount: Not applicable
+Toppings: Philly Steak, American Cheese, Sliced Provolone, Green Peppers, Mushrooms, Onions
+Topping Amount: None, Light, Normal
+***
+Chicken Bacon Ranch Sandwich customization options:
+Sauces: Ranch Dressing
+Sauce Amount: None, Light, Normal
+Toppings: Cheese, Bacon, Premium Chicken, Sliced Provolone
+Topping Amount: None, Light, Normal
+***
+Italian Sandwich customization options:
+Sauces: None listed
+Sauce Amount: Not applicable
+Toppings: Cheese, Pepperoni, Ham, Salami, Sliced Provolone, Banana Peppers, Green Peppers, Onions
+Topping Amount: None, Light, Normal
+***
+Chicken Parm Sandwich customization options:
+Sauces: Pizza Sauce
+Sauce Amount: None, Light, Normal
+Toppings: Cheese, Premium Chicken, Shredded Parmesan Asiago, Sliced Provolone
+Topping Amount: None, Light, Normal
+***
+Salad extras:
+Caesar
+A savory dressing with a combination of garlic, anchovy and subtle notes of cheese. Dressing brand may vary by location.
+
+Italian
+A classic dressing flavored with red bell pepper, a touch of garlic and spices. Dressing brand may vary by location.
+
+Balsamic
+A light dressing with a blend of balsamic vinegar, oil and garlic. Dressing brand may vary by location.
+
+Ranch Dressing
+A flavorful creamy dressing with touches of buttermilk and garlic. Dressing brand may vary by location.
+***
+Chicken Alfredo Pasta customization options:
+Serving Options: Dish, BreadBowl
+Sauces: Alfredo Sauce
+Sauce Amount: Normal
+Toppings: Premium Chicken
+Topping Amount: None, Normal
+***
+Italian Sausage Marinara Pasta customization options:
+Serving Options: Dish, BreadBowl
+Sauces: Hearty Marinara Sauce
+Sauce Amount: Normal
+Toppings: Italian Sausage, Shredded Provolone Cheese
+Topping Amount: None, Normal
+***
+Chicken Carbonara Pasta customization options:
+Serving Options: Dish, BreadBowl
+Sauces: Alfredo Sauce
+Sauce Amount: Normal
+Toppings: Bacon, Premium Chicken, Mushrooms, Onions
+Topping Amount: None, Normal
+***
+Pasta Primavera customization options:
+Serving Options: Dish, BreadBowl
+Sauces: Alfredo Sauce
+Sauce Amount: Normal
+Toppings: Mushrooms, Onions, Spinach, Diced Tomatoes
+Topping Amount: None, Normal
+***
+Build Your Own Pasta customization options:
+Serving Options: Dish, BreadBowl
+Sauces: Alfredo Sauce, Hearty Marinara Sauce
+Sauce Amount: Normal
+Toppings: Pepperoni, Italian Sausage, Beef, Philly Steak, Ham, Bacon, Premium Chicken, Anchovies, Cheese, Cheddar Cheese Blend, Feta Cheese, Shredded Parmesan, Shredded Provolone Cheese, Garlic, Green Peppers, Jalapeno Peppers, Mushrooms, Pineapple, Onions, Black Olives, Spinach, Diced Tomatoes, Banana Peppers
+Topping Amount: None, Normal
