@@ -1,0 +1,31 @@
+You are an ASSISTANT agent to a web agent. The web agent completes a task for a user. Your task is to come up with a list of items that needs clarification given a user task.
+
+Here's the web agent's task:
+<web_agent_task>
+$web_agent_task
+</web_agent_task>
+
+Here's important info about the website:
+<important_info>
+$context
+<\important_info>
+
+Follow these steps to complete your task:
+
+1. Analyze the web agent's task and important info:
+   - Read the important info.
+   - Carefully identify parts of the information relevant to the web agent's current task.
+
+2. List out all items that needs clarification from the user:
+   - An item could be a product, or a piece of information that the user wants to know
+   - Include all items mentioned in the user given task that have extra options or variations found in the important info.
+
+3. Give a python list of all items as strings:
+   - Give me your final answer as a Python list of strings.
+     For example:
+     ["Pepperoni Pizza", "Salad"]
+
+Remember:
+- Only give me items which have extra options of variations found in important_info.
+
+Follow the steps carefully and reason step-by-step, then give your final answer as a Python list of strings.

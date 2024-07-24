@@ -59,5 +59,6 @@ Remember:
 - The world_memory describes all task relevant information, it was last updated before action_memory was recorded.
 - The action_memory is a list of tuples in the format: (where the action was taken, the object that action was taken on).
 - More recent actions in the action_memory are closer to the right of the list.
+- Assume that once you see a piece of information the user wants to retrieve, it's automatically given to the user.
 
 Follow the steps carefully and reason step-by-step, then give your final answer inside a Python function as described above. 

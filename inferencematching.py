@@ -64,6 +64,7 @@ class IndefiniteAction:
 scraper_state_file = 'dominos/scraper_state.pkl'
 url_state_manager = load_scraper_state(scraper_state_file)
 task = 'i want 2 veggie sandwiches and 1 salad'
+
 keep_running = True
 action_mem = []
 world_mem = ""
@@ -79,6 +80,13 @@ start = time.time()
 context_info = "\n".join([node.get_content() for node in retriever.retrieve(task)])
 # print("Retrieving took...", time.time() -start)
 # print(context_info)
+clarifications = []
+interesting_items: list[str] = call_task_separator(task, context_info)
+print(interesting_items)
+input("LOOK AT INTERESTING")
+
+for item in interesting_items:
+    clarifications.append(call_task_clarifier(task, item, context_info))
 
 def is_different_page(base_state, new_state):  # TODO, put this in some util after finalization
     # TODO JACCARD SIM THESE
