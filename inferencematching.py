@@ -82,11 +82,10 @@ context_info = "\n".join([node.get_content() for node in retriever.retrieve(task
 # print(context_info)
 clarifications = []
 interesting_items: list[str] = call_task_separator(task, context_info)
-print(interesting_items)
-input("LOOK AT INTERESTING")
 
 for item in interesting_items:
-    clarifications.append(call_task_clarifier(task, item, context_info))
+    user_answer = input(call_task_clarifier(task, item, context_info)+'\nANSWER: ')
+    clarifications.append((item, user_answer))
 
 def is_different_page(base_state, new_state):  # TODO, put this in some util after finalization
     # TODO JACCARD SIM THESE
@@ -165,7 +164,7 @@ with sync_playwright() as p:
                 world_mem = call_memory_agent(task, action_mem, world_mem)
                 action_mem = []
 
-            chosen_action_index = call_action_agent(task, curr_inf_tree, world_mem, action_mem, context_info)
+            chosen_action_index = call_action_agent(task, clarifications, curr_inf_tree, world_mem, action_mem, context_info)
             # print("Inference took: ", time.time() - start)
             # print(f"THIS ONE: {answer}")
             if chosen_action_index is None:

@@ -7,13 +7,14 @@ client = anthropic.Anthropic(
     api_key =  os.environ.get("ANTHROPIC_API_KEY")
 )
 
-def call_action_agent(task, ax_tree, world_memory, action_memory, context):
+def call_action_agent(task, task_details, ax_tree, world_memory, action_memory, context):
     action_memory = str(action_memory)
     with open('prompts/new_prompt.txt', 'r') as f:
         prompt = f.read()
     replacements = {
         'ax_tree' : ax_tree,
         'task' : task,
+        'task_details': task_details,
         'world_memory': world_memory,
         'action_memory' : action_memory,
         'context' : context
