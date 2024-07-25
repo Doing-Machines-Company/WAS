@@ -161,7 +161,7 @@ with sync_playwright() as p:
             if at_new_state:
                 at_new_state = False  # resets
                 base_state = curr_page_state
-                world_mem = call_memory_agent(task, action_mem, world_mem)
+                world_mem = call_memory_agent(task, clarifications, action_mem, world_mem)
                 action_mem = []
 
             chosen_action_index = call_action_agent(task, clarifications, curr_inf_tree, world_mem, action_mem, context_info)

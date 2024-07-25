@@ -61,12 +61,13 @@ def call_action_agent(task, task_details, ax_tree, world_memory, action_memory, 
     return None
 
 
-def call_memory_agent(web_agent_task, action_memory, world_memory):
+def call_memory_agent(web_agent_task, task_details, action_memory, world_memory):
     action_memory = str(action_memory)
-    with open('prompts/world_mem_prompt.txt', 'r') as f:
+    with open('prompts/world_mem_prompt_new.txt', 'r') as f:
         prompt = f.read()
     replacements = {
         'web_agent_task': web_agent_task,
+        'task_details': task_details,
         'world_memory': world_memory,
         'action_memory': action_memory,
     }
