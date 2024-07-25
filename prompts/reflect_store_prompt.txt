@@ -46,6 +46,6 @@ Remember:
 - The new_accessibility_tree is the web page AFTER the action.
 - The action_number corresponds to an action in the old_accessibility_tree.
 - If the action failed or reached a dead-end on the website, include that as a part of the action_effect.
-- If the action attempted or did to move away from a failure or dead-end on the website, also include that as a part of the action_effect.
+- If the action attempted or did to move away from a failure or dead-end on the website, also include that as a part of the action_effect. If the move was successful, also include where it moved to in the action_effect.
 
 Follow the steps carefully and reason step-by-step, then give your final answer inside a Python function as described above.
