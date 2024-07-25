@@ -111,11 +111,12 @@ def call_memory_agent(web_agent_task, task_details, action_memory, world_memory)
     return world_memory
 
 
-def call_reflect_agent(action_number, old_ax_tree, new_ax_tree):
+def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tree):
     with open('prompts/reflect_store_prompt.txt', 'r') as f:
         prompt = f.read()
     replacements = {
         'action_number': action_number,
+        'reason_for_action': reason_for_action,
         'old_accessibility_tree': old_ax_tree,
         'new_accessibility_tree': new_ax_tree,
     }

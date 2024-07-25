@@ -10,6 +10,11 @@ Here's the number of the action that was just performed on the old_accessibility
 $action_number
 </action_number>
 
+Here's the reason the web agent chose to perform that action:
+<reason_for_action>
+$reason_for_action
+</reason_for_action>
+
 Here's the new accessibility tree of the website AFTER the action was performed:
 <new_accessibility_tree>
 $new_accessibility_tree
@@ -17,10 +22,10 @@ $new_accessibility_tree
 
 Follow these steps to complete your task:
 
-1. Analyze the old accessibility tree and action number:
+1. Analyze the old accessibility tree, action number, and why the web agent chose to perform that action:
    - Every action in the accessibility tree is labeled with a number at the start of the line.
    - The action number matches an action to this number on the old accessibility tree.
-   - Reason about this action, and it's intended purpose.
+   - Reason about this action, it's intended purpose, and whether it succeeded or failed.
 
 2. Reason about the action and two accessibility trees:
    - Examine the old accessibility tree and new accessibility tree. Reason about their difference carefully
@@ -41,5 +46,6 @@ Remember:
 - The new_accessibility_tree is the web page AFTER the action.
 - The action_number corresponds to an action in the old_accessibility_tree.
 - If the action failed or reached a dead-end on the website, include that as a part of the action_effect.
+- If the action attempted or did to move away from a failure or dead-end on the website, also include that as a part of the action_effect.
 
 Follow the steps carefully and reason step-by-step, then give your final answer inside a Python function as described above.

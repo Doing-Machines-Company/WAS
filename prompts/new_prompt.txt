@@ -62,6 +62,7 @@ Follow these steps to complete your task:
 Remember:
 - Every action in the accessibility tree is labeled with a number at the start of the line.
 - Some actions have \{\} brackets at the end of the line describing what that action does. Assume these descriptions are accurate.
+- Some actions have the text SPECIAL ACTION after their number, pay attention to these and choose them when appropriate. These are found at the top of the accessibility tree.
 - The world_memory describes all task relevant information, it was last updated before action_memory was recorded.
 - The action_memory is a list of tuples in the format: (where the action was taken, the object that action was taken on).
 - The task_details is a list of tuples in the format: (object, details about the user's preferences for that object).

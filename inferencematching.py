@@ -140,7 +140,7 @@ with sync_playwright() as p:
 
 
             stop_action = Action(Action.Type.STOP, None, None)
-            stop_action.set_special_effect('button: Stop trying to perform user task, use if task is impossible or finished. {Terminate and user takes control}')
+            stop_action.set_special_effect('Stop trying to perform user task, use if task is impossible or finished. {Stops and give user control}')
             stop_indefinite = IndefiniteAction([Action.Type.STOP], stop_action, None, IndefiniteAction.Location.SPECIAL)
             special_actions = [stop_indefinite]
             # special_actions = []
@@ -148,7 +148,7 @@ with sync_playwright() as p:
             start = time.time()
 
             if str(old_inf_tree) != '':
-                mem_response = call_reflect_agent(chosen_action_index, str(old_inf_tree), str(curr_inf_tree))
+                mem_response = call_reflect_agent(chosen_action_index, reason_for_action, str(old_inf_tree), str(curr_inf_tree))
                 if mem_response is None:
                     raise Exception
                 old_web_page_purpose, object_and_effect = mem_response[0], mem_response[1]
