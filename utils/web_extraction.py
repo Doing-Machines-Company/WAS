@@ -171,26 +171,26 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
         if role.strip() == 'link':
             possible_action_types.append(Action.Type.CLICK_LINK)
 
-        if role.strip() in important_clickables:
+        elif role.strip() in important_clickables:
             possible_action_types.append(Action.Type.CLICK_IMPORTANT)
 
-        if role.strip() == 'radio':
+        elif role.strip() == 'radio':
             # action = Action(Action.Type.CLICK_RADIO, xpath, html)
             # action.set_tree_line(f"{role}: {ax_node['name']}")
             possible_action_types.append(Action.Type.CLICK_RADIO)
 
-        if role.strip() == 'checkbox':
+        elif role.strip() == 'checkbox':
             possible_action_types.append(Action.Type.CLICK_CHECKBOX)
 
-        if role.strip() in general_clickables:
+        elif role.strip() in general_clickables:
             # action = Action(Action.Type.CLICK_GENERAL, xpath, html)
             # action.set_tree_line(f"{role}: {ax_node['name']}")
             possible_action_types.append(Action.Type.CLICK_GENERAL)
 
-        if role.strip() in selects:
+        elif role.strip() in selects:
             possible_action_types.append(Action.Type.SELECT_GENERAL)
 
-        if role.strip() in input_roles or soup.find(('input', 'textarea')):
+        elif role.strip() in input_roles or soup.find(('input', 'textarea')):
 
             # input_type = None
             #
