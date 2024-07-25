@@ -63,7 +63,7 @@ class IndefiniteAction:
 '''
 scraper_state_file = 'dominos/scraper_state.pkl'
 url_state_manager = load_scraper_state(scraper_state_file)
-task = 'i want 2 veggie sandwiches and 1 salad'
+task = 'i want x-large gluten free hawaiian'
 
 keep_running = True
 action_mem = []
@@ -140,10 +140,10 @@ with sync_playwright() as p:
 
 
             stop_action = Action(Action.Type.STOP, None, None)
-            stop_action.set_special_effect('Stop trying to perform user task and finish')
+            stop_action.set_special_effect('button: Stop trying to perform user task, use if task is impossible or finished. {Terminate and user takes control}')
             stop_indefinite = IndefiniteAction([Action.Type.STOP], stop_action, None, IndefiniteAction.Location.SPECIAL)
-            # special_actions = [stop_indefinite]
-            special_actions = []
+            special_actions = [stop_indefinite]
+            # special_actions = []
             curr_inf_tree = InferenceAxtree(matched_inference_state, special_actions=special_actions, use_scrape=True)
             start = time.time()
 
@@ -164,11 +164,13 @@ with sync_playwright() as p:
                 world_mem = call_memory_agent(task, clarifications, action_mem, world_mem)
                 action_mem = []
 
-            chosen_action_index = call_action_agent(task, clarifications, curr_inf_tree, world_mem, action_mem, context_info)
+            action_out = call_action_agent(task, clarifications, curr_inf_tree, world_mem, action_mem, context_info)
             # print("Inference took: ", time.time() - start)
             # print(f"THIS ONE: {answer}")
-            if chosen_action_index is None:
+            if action_out is None:
                 raise Exception
+
+            chosen_action_index, reason_for_action = action_out
 
             chosen_indefinite = curr_inf_tree.get_action_from_index(chosen_action_index)  # TODO MAKE SURE YOU GET ACTION TYPE FROM SCRAPE TIME
             chosen_action = chosen_indefinite.action

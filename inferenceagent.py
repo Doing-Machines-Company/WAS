@@ -45,7 +45,8 @@ def call_action_agent(task, task_details, ax_tree, world_memory, action_memory, 
 
     # pattern = r'choose\((\d+),\s*"([^"]+)",\s*"([^"]+)"\)'
     # pattern = r'choose\((\d+),\s*"((?:\\.|[^\\"])*)",\s*"((?:\\.|[^\\"])*)"'
-    pattern = r'choose\((\d+)\)'
+    # pattern = r'choose\((\d+)\)'
+    pattern = r'choose\(\s*(\d+),\s*"([^"]*(?:\\.[^"]*)*)"\)'
 
     # string = 'choose(0, "match this", "also match this")'
 
@@ -55,8 +56,7 @@ def call_action_agent(task, task_details, ax_tree, world_memory, action_memory, 
     match = re.search(pattern, answer[0].text)
 
     if match:
-        number = int(match.group(1))
-        return number
+        return (int(match.group(1)), match.group(2))
 
     return None
 
@@ -142,7 +142,8 @@ def call_reflect_agent(action_number, old_ax_tree, new_ax_tree):
     answer = message.content
     # match = re.search(r"choose\((\d+)\)", answer[0].text)
 
-    pattern = r'choose\(\s*"([^"]+)",\s*"([^"]+)"\)'
+    # pattern = r'choose\(\s*"([^"]+)",\s*"([^"]+)"\)'
+    pattern = r'choose\(\s*"([^\"]*(?:\\.[^\"]*)*)",\s*"([^\"]*(?:\\.[^\"]*)*)"'
     # pattern = r'"""([\s\S]*?)"""'
     # string = 'choose(0, "match this", "also match this")'
 

@@ -53,10 +53,11 @@ Follow these steps to complete your task:
 
 4. Provide your decision:
    - Use the following Python function format to indicate your chosen action:
-     choose(action_number: int)
+     choose(action_number: int, action_reason: str)
    - action_number: The number of the action you've chosen from the accessibility tree.
+   - action_reason: One brief sentence reason of why you chose that action (e.g., to navigate, because needed option isn't available, current page is a dead end for task.etc)
    - For example:
-     choose(42)
+     choose(42, "Current page for Specialty Pizzas doesn't contain Magic Pizza")
 
 Remember:
 - Every action in the accessibility tree is labeled with a number at the start of the line.

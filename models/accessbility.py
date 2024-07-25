@@ -127,8 +127,8 @@ class InferenceAxtree:
         self.debug_tree = ''
 
         for indefinite_action in special_actions:
-            self.tree_str += f"[{count}] {str(indefinite_action)}\n"
-            self.debug_tree += f"[{count}] {str(indefinite_action)} (SPECIAL ACTION) \n"
+            self.tree_str += f"[{count}] {str(indefinite_action.action.special_effect)}\n"
+            self.debug_tree += f"[{count}] {str(indefinite_action.action.special_effect)} (SPECIAL ACTION) \n"
             self.live_actions.append(indefinite_action)
             self.live_action_effects.append("SPECIAL ACTION")
             count += 1
