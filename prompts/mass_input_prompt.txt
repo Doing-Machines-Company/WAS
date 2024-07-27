@@ -51,6 +51,6 @@ Remember:
 - You should follow the specifications inside task_details when relevant.
 - You should only enter into text areas which are needed to satisfy the agent's intent.
 - The task_details may tell you what should go into certain text areas.
-- If you don't know what should go into a text area, but the text areas needs to be filled, use the empty string ("").
+- If you don't know what should go into a text area, but the text areas needs to be filled, use the empty string (""). Use the empty string ("") as the placeholder.
 
 Follow the steps carefully and reason step-by-step, then give your final answer as multiple Python function calls as described above.

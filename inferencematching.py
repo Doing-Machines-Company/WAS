@@ -208,7 +208,6 @@ with sync_playwright() as p:
         chosen_xpath = None
         start = time.time()
         # print("Fetching page resources: ", time.time() - start)
-        start = time.time()
         curr_page_state = get_page_state(page, cdpSession)
         matched_inference_state = match_action_effects(curr_page_state, url_state_manager)
         # print("Matching actions: ", time.time() - start)
@@ -280,14 +279,24 @@ with sync_playwright() as p:
 
                 if chosen_action.action_type == Action.Type.STOP:
                     keep_running = False
-                    print("STOPPING")
+                    input("STOPPING")
                     break
+
                 elif chosen_action.action_type == Action.Type.INPUT_GIVEN_INTENT:
                     # def call_input_agent(user_task, agent_intent, task_details, input_ax_tree, context):
                     desired = call_input_agent(task, reason_for_action, clarifications, curr_inf_tree.get_input_tree(), context)
                     # desired is [(int(i), s) for i, s in matches]
-                    # chosen_action.
-                    # TODO set input loop using apply_action here, should probably put entire fat if loop into one function
+                    for (chosen_action_index, input_string) in desired:
+                        chosen_indefinite = curr_inf_tree.get_action_from_index(
+                            chosen_action_index)  # TODO MAKE SURE YOU GET ACTION TYPE FROM SCRAPE TIME
+                        chosen_action = chosen_indefinite.action
+
+                        chosen_element, chosen_xpath, type_list = get_chosen_element(page, chosen_indefinite)
+
+                        chosen_action.set_input_string(input_string)
+
+                        success = do_action_flow(page, chosen_action, chosen_element, chosen_xpath, type_list)
+                        # chosen_action.
 
                 if wait:
                     input("DID ACTION")

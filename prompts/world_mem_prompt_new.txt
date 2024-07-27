@@ -1,11 +1,11 @@
-You are an ASSISTANT agent to a web agent. Your task is to keep track of what task-essential subtasks have been completed for the web agent.
+You are an ASSISTANT agent to a web agent. Your task is to keep track of what task-essential subtasks have been completed for the web agent. The web agent is completing a task given to it by a user.
 
 Here's the web agent's task:
 <web_agent_task>
 $web_agent_task
 </web_agent_task>
 
-Here are additional specifications regarding the agent's task:
+Here are additional specifications the user gave to the web agent for its task:
 <task_details>
 $task_details
 </task_details>
@@ -24,7 +24,7 @@ Follow these steps to complete your task:
 
 1. Analyze the world_memory, web_agent_task and task_details:
    - The world_memory is a summary of everything the agent has seen and done that is relevant to task-essential subtasks to the agent's task, examine it carefully.
-       - 'Task-essential' means that the information in the summary explicitly matches information in the agent's task or task_details.
+       - 'Task-essential' means that the information explicitly matches information in the agent's task, or explicitly matches details in task_details.
        - The world_memory keeps track of:
            - The completion of task-essential subtasks that have already been done.
            - Dead-ends and details of failures in attempts to navigate to or complete task-essential subtasks.
@@ -32,16 +32,16 @@ Follow these steps to complete your task:
 
 2. Reason about the action_memory and world_memory:
    - The action_memory is a list of all the actions that were performed AFTER the world_memory was last updated.
-   - Reason about the action_memory to determine it's over-arching effect
+   - Reason about the action_memory to determine it's over-arching effect.
    - Determine what it tells you that is relevant to the web agent's task.
        - Determine if it completes a task-essential subtask, navigates to complete a task-essential subtask, or otherwise.
 
-3. Combine the action_memory and world_memory to form the new world memory.
-
-4. Reason about which parts of the combination of the action_memory and world_memory can be condensed vs included:
+3. Combine action_memory and world_memory, condensing extraneous details:
    - The completion of task essential operations should always be included, including information about it's extra options and specifications.
        - Condense all navigation information for completed task essential operations.
    - Information about failures or dead-ends in the website, and the reason for these failures and dead-ends, should also be included.
+   - Information about failing to complete task-essential subtasks is task-essential information.
+   - Only include information either already in world_memory, or that you know is true from action_memory.
 
 5. Give me the new world memory:
    - Enclose your entire response within triple quotation marks (""").
@@ -58,6 +58,7 @@ Remember:
 - Ensure the new world memory contains all task essential information, all attempt failures (and the reasons for those failures), and dead-ends on the website.
 - Ensure the new world memory condenses all navigation information about completed task essential operations.
 - More recent actions in the action_memory are closer to the right of the list.
+- Task-essential information includes the success and failure of attempting to fulfill user specifications in task_details.
 - Only include information you know is definitely true, don't assume anything.
 - The new world memory only serves to record what has been done.
 
