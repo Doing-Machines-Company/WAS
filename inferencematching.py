@@ -111,7 +111,47 @@ def is_different_page(base_state, new_state):  # TODO, put this in some util aft
     return True
 
 
+def get_chosen_element(page, chosen_indefinite):
+    assert(chosen_indefinite.location != IndefiniteAction.Location.SPECIAL)
+    chosen_action = chosen_indefinite.action
+    if chosen_action.action_type is not None:
+        type_list = [chosen_action.action_type]
+        for item in chosen_indefinite.type_list:
+            if item not in type_list:
+                type_list.append(item)
+    else:
+        type_list = chosen_indefinite.type_list
 
+    chosen_element = get_element(page, chosen_action.xpath)
+    # assert(traj_action.friendly_xpath != None)
+
+    chosen_xpath = chosen_action.xpath
+    if not chosen_element or chosen_element.count() < 1 or chosen_element.evaluate(
+            "element => element.outerHTML") != chosen_action.html:  # perhaps do a stripped check
+        print('First attempt in traj failed')
+        chosen_element = get_element(page, chosen_action.friendly_xpath)
+        chosen_xpath = chosen_action.friendly_xpath
+        if not chosen_element or chosen_element.count() < 1 or chosen_element.evaluate(
+                "element => element.outerHTML") != chosen_action.html:
+            print('Second attempt in traj failed')
+            # now we try getting stuff at rune time
+            potentially_better_chosen_xpath = get_xpath_by_outer_html(page, chosen_action.html)
+            potentially_better_friendly_chosen_xpath = make_xpath_friendly(potentially_better_chosen_xpath)
+            chosen_element = get_element(page, potentially_better_friendly_chosen_xpath)
+            chosen_xpath = potentially_better_friendly_chosen_xpath
+            if not chosen_element or chosen_element.count() < 1:
+                print('Third attempt in traj failed')
+                chosen_element = get_element(page, potentially_better_chosen_xpath)
+                chosen_xpath = potentially_better_chosen_xpath
+                if not chosen_element or chosen_element.count() < 1:
+                    print('Fourth attempt in traj failed')
+                    chosen_element = get_element(page, chosen_action.friendly_xpath)
+                    chosen_xpath = chosen_action.friendly_xpath
+                    if not chosen_element or chosen_element.count() < 1:
+                        print('Fifth attempt in traj failed')
+                        chosen_element = get_element(page, chosen_action.xpath)
+                        chosen_xpath = chosen_action.xpath
+    return chosen_element, chosen_xpath, type_list
 
 wait = True
 with sync_playwright() as p:
@@ -180,46 +220,10 @@ with sync_playwright() as p:
 
             if chosen_indefinite.location != IndefiniteAction.Location.SPECIAL:
             # if chosen_indefinite not in special_actions:
-                if chosen_action.action_type is not None:
-                    type_list = [chosen_action.action_type]
-                    for item in chosen_indefinite.type_list:
-                        if item not in type_list:
-                            type_list.append(item)
-                else:
-                    type_list = chosen_indefinite.type_list
 
+                chosen_element, chosen_xpath, type_list = get_chosen_element(page, chosen_indefinite)
 
-                chosen_element = get_element(page, chosen_action.xpath)
-                # assert(traj_action.friendly_xpath != None)
-
-                chosen_xpath = chosen_action.xpath
-                if not chosen_element or chosen_element.count() < 1 or chosen_element.evaluate(
-                        "element => element.outerHTML") != chosen_action.html:  # perhaps do a stripped check
-                    print('First attempt in traj failed')
-                    chosen_element = get_element(page, chosen_action.friendly_xpath)
-                    chosen_xpath = chosen_action.friendly_xpath
-                    if not chosen_element or chosen_element.count() < 1 or chosen_element.evaluate(
-                            "element => element.outerHTML") != chosen_action.html:
-                        print('Second attempt in traj failed')
-                        # now we try getting stuff at rune time
-                        potentially_better_chosen_xpath = get_xpath_by_outer_html(page, chosen_action.html)
-                        potentially_better_friendly_chosen_xpath = make_xpath_friendly(potentially_better_chosen_xpath)
-                        chosen_element = get_element(page, potentially_better_friendly_chosen_xpath)
-                        chosen_xpath = potentially_better_friendly_chosen_xpath
-                        if not chosen_element or chosen_element.count() < 1:
-                            print('Third attempt in traj failed')
-                            chosen_element = get_element(page, potentially_better_chosen_xpath)
-                            chosen_xpath = potentially_better_chosen_xpath
-                            if not chosen_element or chosen_element.count() < 1:
-                                print('Fourth attempt in traj failed')
-                                chosen_element = get_element(page, chosen_action.friendly_xpath)
-                                chosen_xpath = chosen_action.friendly_xpath
-                                if not chosen_element or chosen_element.count() < 1:
-                                    print('Fifth attempt in traj failed')
-                                    chosen_element = get_element(page, chosen_action.xpath)
-                                    chosen_xpath = chosen_action.xpath
-
-                chosen_action_screenshot, screenshot_success = take_screenshot(page)
+                chosen_action_screenshot, screenshot_success = take_screenshot(page)  # we take a screenshot in case there's nothing to scroll to
 
                 if chosen_element and chosen_element.count() > 0 and chosen_xpath:
                     try:
