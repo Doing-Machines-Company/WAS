@@ -24,6 +24,7 @@ class Action:
         GET_NEXT_SUBTASK_IMPOSSIBLE = 10
         GO_BACK = 11
         SELECT_GENERAL = 12
+        INPUT_GIVEN_INTENT = 13
 
     def __init__(self, action_type: 'Action.Type', xpath: str, html: str, tree_line: str = "", input_string: Optional[str] = None, trajectory: List['Action'] = [], friendly_xpath : Optional[str]= None):
         self.action_type = action_type

@@ -63,7 +63,7 @@ class IndefiniteAction:
 '''
 scraper_state_file = 'dominos/scraper_state.pkl'
 url_state_manager = load_scraper_state(scraper_state_file)
-task = 'i want x-large gluten free hawaiian'
+task = 'buy me one hawaiian pizza'
 
 keep_running = True
 action_mem = []
@@ -142,6 +142,9 @@ with sync_playwright() as p:
             stop_action = Action(Action.Type.STOP, None, None)
             stop_action.set_special_effect('Stop trying to perform user task, use if task is impossible or finished. {Stops and give user control}')
             stop_indefinite = IndefiniteAction([Action.Type.STOP], stop_action, None, IndefiniteAction.Location.SPECIAL)
+
+
+
             special_actions = [stop_indefinite]
             # special_actions = []
             curr_inf_tree = InferenceAxtree(matched_inference_state, special_actions=special_actions, use_scrape=True)
@@ -175,7 +178,8 @@ with sync_playwright() as p:
             chosen_indefinite = curr_inf_tree.get_action_from_index(chosen_action_index)  # TODO MAKE SURE YOU GET ACTION TYPE FROM SCRAPE TIME
             chosen_action = chosen_indefinite.action
 
-            if chosen_indefinite not in special_actions:
+            if chosen_indefinite.location != IndefiniteAction.Location.SPECIAL:
+            # if chosen_indefinite not in special_actions:
                 if chosen_action.action_type is not None:
                     type_list = [chosen_action.action_type]
                     for item in chosen_indefinite.type_list:
@@ -242,27 +246,39 @@ with sync_playwright() as p:
 
                 if not screenshot_success:  # TODO BOUNDING BOX FOR THE SCREENSHOT IF SUCCESS
                     print('action screenshot failed')
+
+                if wait:
+                    input("ABOUT TO DO ACTION")
+
+                success = apply_action(page, chosen_action, trajectory_action_screenshot, chosen_element, chosen_xpath,
+                                       type_list)
+                if wait:
+                    input("DID ACTION")
+
+                if not success:
+                    print(f"This action was broken: {chosen_action}")
+                    keep_running = False
+
+
             else:
                 type_list = chosen_indefinite.type_list
 
-            # NOTE: chosen_action type is no longer assigned in match_actions in url_state_manager
-            if wait:
-                # print(chosen_action)
-                input("ABOUT TO DO ACTION")
+                if wait:
+                    # print(chosen_action)
+                    input("ABOUT TO DO ACTION")
 
-            if chosen_action.action_type == Action.Type.STOP:
-                keep_running = False
-                print("STOPPING")
-                break
+                if chosen_action.action_type == Action.Type.STOP:
+                    keep_running = False
+                    print("STOPPING")
+                    break
+                elif chosen_action.action_type == Action.Type.INPUT_GIVEN_INTENT:
+                    # def call_input_agent(user_task, agent_intent, task_details, input_ax_tree, context):
+                    desired = call_input_agent(task, reason_for_action, clarifications, curr_inf_tree.get_input_tree(), context)
+                    # TODO set input loop using apply_action here, should probably put entire fat if loop into one function
 
-            success = apply_action(page, chosen_action, trajectory_action_screenshot, chosen_element, chosen_xpath,
-                                       type_list)
-            if wait:
-                input("DID ACTION")
+                if wait:
+                    input("DID ACTION")
 
-            if not success:
-                print(f"This action was broken: {chosen_action}")
-                keep_running = False
             if wait:
                 do_keep_running = input('want to keep running?')
                 if do_keep_running != '':

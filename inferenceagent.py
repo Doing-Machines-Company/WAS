@@ -262,3 +262,46 @@ def call_task_clarifier(user_task, item_of_interest, context):
         return match.group(1).strip()
 
     return ""
+
+
+def call_input_agent(user_task, agent_intent, task_details, input_ax_tree, context):
+    with open('prompts/mass_input_prompt.txt', 'r') as f:
+        prompt = f.read()
+    replacements = {
+        'user_task': user_task,
+        'agent_intent': agent_intent,
+        'task_details': task_details,
+        'input_ax_tree': input_ax_tree,
+        'context': context
+    }
+    prompt = string.Template(prompt)
+    prompt = prompt.substitute(replacements)
+    print(prompt)
+    message = client.messages.create(
+        model="claude-3-5-sonnet-20240620",
+        max_tokens=1000,
+        temperature=0,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": prompt
+                    }
+                ]
+            }
+        ]
+    )
+
+    answer = message.content
+
+
+    print(answer[0].text)
+    input(f"All input call given intent {agent_intent}")
+
+    pattern = r'type\((\d+),\s*[\'"](.+?)[\'"]\)'
+    matches = re.findall(pattern, answer[0].text)
+
+
+    return [(int(i), s) for i, s in matches]
