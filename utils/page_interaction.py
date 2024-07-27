@@ -131,8 +131,7 @@ def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes, play
             elif a_type == Action.Type.INPUT:
                 if playwright_element.count() > 0:
                     try:
-                        input_fill = use_gpt_fill_input('None', before_screenshot, a.html, True)
-                        playwright_element.fill(input_fill, force=True, timeout=5000)
+                        playwright_element.fill(a.input_string, force=True, timeout=5000)
                         a.action_type = a_type
                         return True
                     except Exception as e:

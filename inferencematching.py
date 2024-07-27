@@ -153,6 +153,44 @@ def get_chosen_element(page, chosen_indefinite):
                         chosen_xpath = chosen_action.xpath
     return chosen_element, chosen_xpath, type_list
 
+def do_action_flow(page, chosen_action, chosen_element, chosen_xpath, type_list):
+    chosen_action_screenshot, screenshot_success = take_screenshot(
+        page)  # we take a screenshot in case there's nothing to scroll to
+
+    if chosen_element and chosen_element.count() > 0 and chosen_xpath:
+        try:
+            scroll_into_view(chosen_element)
+            chosen_action_screenshot, screenshot_success = take_screenshot(page)
+        except Exception as e:
+            print("SCROLL FAILED DURING TRAJECTORY")
+            print(e)
+
+        if screenshot_success:
+            to_box_coords = None
+            try:
+                # to_box_item = page.locator(f"xpath={action.friendly_xpath}")
+                # if final_element and final_element.count() > 0:  # should be redundant given continue above
+                to_box_coords = chosen_element.bounding_box(timeout=10000)
+            except Exception as e:
+                print(f'GETTING BOUNDING BOXES FAILED FOR IN TRAJ {chosen_action}')
+                print(e)
+
+            chosen_action_screenshot = create_boundingbox(chosen_action_screenshot, to_box_coords)
+    else:
+        print(f"This action was not found: {chosen_action}")
+        print('Could not find item in trajectory')
+
+    if not screenshot_success:  # TODO BOUNDING BOX FOR THE SCREENSHOT IF SUCCESS
+        print('action screenshot failed')
+
+    if wait:
+        input("ABOUT TO DO ACTION")
+
+    success = apply_action(page, chosen_action, chosen_action_screenshot, chosen_element, chosen_xpath,
+                           type_list)
+
+    return success
+
 wait = True
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=False)
@@ -223,39 +261,8 @@ with sync_playwright() as p:
 
                 chosen_element, chosen_xpath, type_list = get_chosen_element(page, chosen_indefinite)
 
-                chosen_action_screenshot, screenshot_success = take_screenshot(page)  # we take a screenshot in case there's nothing to scroll to
+                success = do_action_flow(page, chosen_action, chosen_element, chosen_xpath, type_list)
 
-                if chosen_element and chosen_element.count() > 0 and chosen_xpath:
-                    try:
-                        scroll_into_view(chosen_element)
-                        chosen_action_screenshot, screenshot_success = take_screenshot(page)
-                    except Exception as e:
-                        print("SCROLL FAILED DURING TRAJECTORY")
-                        print(e)
-
-                    if screenshot_success:
-                        to_box_coords = None
-                        try:
-                            # to_box_item = page.locator(f"xpath={action.friendly_xpath}")
-                            # if final_element and final_element.count() > 0:  # should be redundant given continue above
-                            to_box_coords = chosen_element.bounding_box(timeout=10000)
-                        except Exception as e:
-                            print(f'GETTING BOUNDING BOXES FAILED FOR IN TRAJ {chosen_action}')
-                            print(e)
-
-                        trajectory_action_screenshot = create_boundingbox(chosen_action_screenshot, to_box_coords)
-                else:
-                    print(f"This action was not found: {chosen_action}")
-                    print('Could not find item in trajectory')
-
-                if not screenshot_success:  # TODO BOUNDING BOX FOR THE SCREENSHOT IF SUCCESS
-                    print('action screenshot failed')
-
-                if wait:
-                    input("ABOUT TO DO ACTION")
-
-                success = apply_action(page, chosen_action, trajectory_action_screenshot, chosen_element, chosen_xpath,
-                                       type_list)
                 if wait:
                     input("DID ACTION")
 
@@ -278,6 +285,8 @@ with sync_playwright() as p:
                 elif chosen_action.action_type == Action.Type.INPUT_GIVEN_INTENT:
                     # def call_input_agent(user_task, agent_intent, task_details, input_ax_tree, context):
                     desired = call_input_agent(task, reason_for_action, clarifications, curr_inf_tree.get_input_tree(), context)
+                    # desired is [(int(i), s) for i, s in matches]
+                    # chosen_action.
                     # TODO set input loop using apply_action here, should probably put entire fat if loop into one function
 
                 if wait:
