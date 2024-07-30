@@ -80,13 +80,17 @@ start = time.time()
 context_info = "\n".join([node.get_content() for node in retriever.retrieve(task)])
 # print("Retrieving took...", time.time() -start)
 # print(context_info)
-clarifications = []
-interesting_items: list[str] = call_task_separator(task, context_info)
+# interesting_items: list[str] = call_task_separator(task, context_info)
+questions: list[str] = call_unified_task_clarifier(task, context_info)
+question_answers = []
 
-for item in interesting_items:
-    user_answer = input(call_task_clarifier(task, item, context_info)+'\nANSWER: ')
-    clarifications.append((item, user_answer))
+for question in questions:
+    user_answer = input('QUESTION: ' + question + '\n')
+    question_answers.append((question, user_answer))
 
+clarifications = call_unified_question_cleaner(task, question_answers)
+
+input('tonk')
 def is_different_page(base_state, new_state):  # TODO, put this in some util after finalization
     # TODO JACCARD SIM THESE
     if len(base_state.actions) == 0 or len(new_state.actions) == 0:

@@ -305,3 +305,94 @@ def call_input_agent(user_task, agent_intent, task_details, input_ax_tree, conte
 
 
     return [(int(i), s) for i, s in matches]
+
+
+def call_unified_task_clarifier(user_task, context):
+    with open('prompts/unified_task_clarifier.txt', 'r') as f:
+        prompt = f.read()
+    replacements = {
+        'user_task': user_task,
+        'context': context
+    }
+    prompt = string.Template(prompt)
+    prompt = prompt.substitute(replacements)
+    print(prompt)
+    message = client.messages.create(
+        model="claude-3-5-sonnet-20240620",
+        max_tokens=1000,
+        temperature=0,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": prompt
+                    }
+                ]
+            }
+        ]
+    )
+
+    answer = message.content
+
+
+    print(answer[0].text)
+    input(f"Unified task clarifier call")
+
+    pattern = r'"""([\s\S]*?)"""'
+    matches = re.findall(pattern, answer[0].text)
+
+    return [question.strip() for question in matches if question.strip() !='']
+
+
+def call_unified_question_cleaner(user_task, user_qa):
+    with open('prompts/unified_question_cleaner.txt', 'r') as f:
+        prompt = f.read()
+
+    formatted_user_qa = ''
+
+    for question, answer in user_qa:
+        formatted_user_qa += 'Question: \n'
+        formatted_user_qa += question.strip() + '\n'
+        formatted_user_qa += 'Answer: \n'
+        formatted_user_qa += answer.strip() + '\n'
+
+    replacements = {
+        'formatted_user_qa': formatted_user_qa,
+        'user_task': user_task
+    }
+    prompt = string.Template(prompt)
+    prompt = prompt.substitute(replacements)
+    print(prompt)
+    message = client.messages.create(
+        model="claude-3-5-sonnet-20240620",
+        max_tokens=1000,
+        temperature=0,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": prompt
+                    }
+                ]
+            }
+        ]
+    )
+
+    answer = message.content
+    # match = re.search(r"choose\((\d+)\)", answer[0].text)
+
+    # pattern = r'choose\(\s*"([^"]+)",\s*"([^"]+)"\)'
+    pattern = r'choose\(\s*"([^\"]*(?:\\.[^\"]*)*)",\s*"([^\"]*(?:\\.[^\"]*)*)"'
+    # pattern = r'"""([\s\S]*?)"""'
+    # string = 'choose(0, "match this", "also match this")'
+
+    print(answer[0].text)
+    input("Memory store call")
+
+    matches = re.findall(pattern, answer[0].text)
+
+    return matches
