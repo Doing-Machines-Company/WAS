@@ -2,6 +2,7 @@ import anthropic
 import re
 import os
 import string
+from utils.inference_data import *
 # Set up the Anthropic API client
 client = anthropic.Anthropic(
     api_key =  os.environ.get("ANTHROPIC_API_KEY")
@@ -156,7 +157,7 @@ def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tre
     if match:
         return match.group(1), match.group(2)
 
-    print("NEW MEM EXTRACTION FAILED")
+    print("REFLECTION FAILED")
 
     return None
 
@@ -264,15 +265,23 @@ def call_task_clarifier(user_task, item_of_interest, context):
     return ""
 
 
-def call_input_agent(user_task, agent_intent, task_details, input_ax_tree, context):
+def call_input_agent(user_task, agent_intent, task_details, input_ax_tree, context, hidden_inputs: list[HiddenInput]):
     with open('prompts/mass_input_prompt.txt', 'r') as f:
         prompt = f.read()
+
+    formatted_hidden_items = ''
+    for item in hidden_inputs:
+        formatted_hidden_items += item.key.strip() + ': ' + item.description.strip() + '\n'
+
+    formatted_hidden_items = formatted_hidden_items.strip()
+
     replacements = {
         'user_task': user_task,
         'agent_intent': agent_intent,
         'task_details': task_details,
         'input_ax_tree': input_ax_tree,
-        'context': context
+        'context': context,
+        'hidden_items': formatted_hidden_items
     }
     prompt = string.Template(prompt)
     prompt = prompt.substitute(replacements)
@@ -300,7 +309,9 @@ def call_input_agent(user_task, agent_intent, task_details, input_ax_tree, conte
     print(answer[0].text)
     input(f"All input call given intent {agent_intent}")
 
-    pattern = r'type\((\d+),\s*[\'"](.+?)[\'"]\)'
+    # pattern = r'choose\((\d+),\s*[\'"](.+?)[\'"]\)' doesn't match to empty string
+    pattern = r'choose\((\d+),\s*[\'"](.*)[\'"]\)'
+
     matches = re.findall(pattern, answer[0].text)
 
 
@@ -391,7 +402,7 @@ def call_unified_question_cleaner(user_task, user_qa):
     # string = 'choose(0, "match this", "also match this")'
 
     print(answer[0].text)
-    input("Memory store call")
+    input("Question cleaner call")
 
     matches = re.findall(pattern, answer[0].text)
 

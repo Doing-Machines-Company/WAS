@@ -38,6 +38,7 @@ Follow these steps to complete your task:
    - action_effect: The specific object or element the action will affect and what the effect is.
    - For example:
      choose("Customization menu for Magical Sandwich", "Increase quantity of Magical Sandwich to 2")
+     choose("View and buy drinks", "Added water (8oz) to cart")
 
 Remember:
 - Every action in the accessibility trees is labeled with a number at the start of the line.

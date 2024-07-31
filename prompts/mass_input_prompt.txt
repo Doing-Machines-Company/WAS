@@ -20,6 +20,11 @@ Important info about the website:
 $context
 <\important_info>
 
+Inputs that are hidden, associated with keys that will be replaced with the inputs described by the information:
+<hidden_items>
+$hidden_items
+<\hidden_items>
+
 Here's what the agent wants done by inputting onto this web page, this intent is specific for this web page:
 <agent_intent>
 $agent_intent
@@ -34,15 +39,27 @@ Follow these steps to complete your task:
 2. Reason about the agent's task, task details, important info, and agent intent:
    - Review the agent's task, task details, and the agent's intent for entering text into this page, then consider which text areas require entry.
    - Determine what needs to be input into those text areas in order to satisfy the agent's intent.
+   - Determine if any of these inputs needs to use the hidden_items.
+       - hidden_items are in the form of a_key: key_description
+           - a_key is the text you return if you want to input a string associated with its key_description.
+           - For example:
+             first_name: The first name of the user
+               - So if you include first_name in your answer, it is automatically swapped with the first name of the user.
+               - So if the first_name was "James", returning "hello, I am first_name" would actually input "hello, I am James"
 
-4. Provide your decision:
+3. Provide your decision:
    - Use the following Python function format to indicate your chosen action:
      choose(text_area_number: int, desired_input: str)
    - text_area_number: The number of the text area you've chosen from the accessibility tree.
    - desired_input: What you wish to input into that text area
    - For example:
      choose(42, "Pizza")
-     choose(90, "John Doe")
+     choose(90, "Hello, I am first_name last_name.")
+     choose(45, "credit_card_number")
+       - Note that in this case, the associated hidden_items may look like:
+         first_name: The first name of the user
+         last_name: The last name of the user
+         credit_card_number: The number of the credit card the user wants to pay with
    - Call choose as many times as necessary to fulfill the agent's intent.
 
 Remember:
@@ -51,6 +68,7 @@ Remember:
 - You should follow the specifications inside task_details when relevant.
 - You should only enter into text areas which are needed to satisfy the agent's intent.
 - The task_details may tell you what should go into certain text areas.
-- If you don't know what should go into a text area, but the text areas needs to be filled, use the empty string (""). Use the empty string ("") as the placeholder.
+- If you don't know what should go into a text area, but the text areas needs to be filled, use the empty string (""). The empty string ("") is the only valid placeholder.
+- Use the hidden_items where necessary. Remember that the keys are replaced with the desired string when the text is actually input into the website.
 
 Follow the steps carefully and reason step-by-step, then give your final answer as multiple Python function calls as described above.
