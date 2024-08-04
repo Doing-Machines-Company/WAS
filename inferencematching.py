@@ -33,7 +33,7 @@ action_mem = []
 world_mem = ""
 print("Creating...")
 start = time.time()
-with open('./data/facts.txt', 'r') as f:
+with open('./data/factsNEW.txt', 'r') as f:
     document = f.read()
 nodes = [TextNode(text = chunk, id_ = i) for (i, chunk) in enumerate(document.split('***'))]
 index = VectorStoreIndex(nodes)
