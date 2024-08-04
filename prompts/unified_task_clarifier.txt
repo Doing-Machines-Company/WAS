@@ -43,8 +43,7 @@ Remember:
 - You must include all information that is relevant to a question, in the question. To keep questions brief, make them specific.
 - If a set of options has a default choice, DO NOT ask about those options.
 - For options without a default choice, you must ask about these and give the user all options that are available for the question that you are asking them.
-- Ask one question for each item of interest.
+- Ask ONE question for each item of interest.
 - ONLY use triple quotation marks (""") for returning your final answers.
-- DO NOT use triple quotation marks (""") for intermediate thoughts.
 
 Follow the steps carefully and reason step-by-step, then give me your final set of questions.

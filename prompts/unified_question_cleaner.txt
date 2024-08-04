@@ -36,7 +36,8 @@ Follow these steps to complete your task:
 
 Remember:
 - Do not assume anything about the user's preferences. Only give me what you know to be true.
-- Only include additional user preferences that the user explicitly specifies. Default is unneeded.
+- Only include additional user preferences that the user explicitly specifies.
 - You objects and preference should be specific and detailed.
+- Don't return default. Default is unneeded.
 
 Follow the steps carefully and reason step-by-step, then give me final answer as calls to choose.
