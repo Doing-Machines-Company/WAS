@@ -26,7 +26,7 @@ from typing import List
 
 scraper_state_file = 'dominos/scraper_state.pkl'
 url_state_manager = load_scraper_state(scraper_state_file)
-task = 'buy me pizza, and a coke'
+task = 'buy me meatzza, and a coke'
 
 keep_running = True
 action_mem = []
