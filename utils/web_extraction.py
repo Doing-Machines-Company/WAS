@@ -223,9 +223,9 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
         #     print(possible_action_types)
         if action and (action.html in header_html):
             return IndefiniteAction(possible_action_types, action, nodeId, IndefiniteAction.Location.HEADER)
-        elif action and (action.html in footer_html):
-            # return IndefiniteAction(possible_action_types, action, nodeId, IndefiniteAction.Location.FOOTER)
-            return None
+        elif action and (action.html in footer_html):  # is this jank??? e.g., are there actions in the footer and body that just all get classed as footer?
+            return IndefiniteAction(possible_action_types, action, nodeId, IndefiniteAction.Location.FOOTER)
+            # return None
         else:
             return IndefiniteAction(possible_action_types, action, nodeId, IndefiniteAction.Location.BODY)
     else:

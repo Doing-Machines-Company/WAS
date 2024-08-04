@@ -98,35 +98,36 @@ class URLState:
             action = indefinite_action.action  # aliasing in python is confusing
             max_score = 0
             matched_scrape_action = None
-            if action.html in self.unique_samples:  # hash check using dictionary, should probably include all scraped htmls instead of representative
-                matched_scrape_action = self.unique_samples[action.html][0]  # gets a ScrapeAction
-                # resulting_action = InferenceAction(action, indefinite_action.type_list, matched_action, indefinite_action.ax_node_index)
-            else:
-                for sample_action_rep_html in self.unique_samples:
-                    score = element_similarity(action.html, sample_action_rep_html)
-                    if score == 1.0:
-                        matched_scrape_action = self.unique_samples[sample_action_rep_html][0]  # ONLY A SINGLE ACTION MATCHED
-                        #  NOTE ABOVE IS A SCRAPEACTION, NOT AN ACTION (WHICH IS CONTAINED IN SCRAPE ACTION)
-                        break
-                    elif score > max_score:
-                        max_score = score
-                        if score >= 0.9:
-                            matched_scrape_action = self.unique_samples[sample_action_rep_html][0]
+            if indefinite_action.location != IndefiniteAction.Location.FOOTER:  # TODO, we don't try to match for Footer because we never scrape it
+                if action.html in self.unique_samples:  # hash check using dictionary, should probably include all scraped htmls instead of representative
+                    matched_scrape_action = self.unique_samples[action.html][0]  # gets a ScrapeAction
+                    # resulting_action = InferenceAction(action, indefinite_action.type_list, matched_action, indefinite_action.ax_node_index)
+                else:
+                    for sample_action_rep_html in self.unique_samples:
+                        score = element_similarity(action.html, sample_action_rep_html)
+                        if score == 1.0:
+                            matched_scrape_action = self.unique_samples[sample_action_rep_html][0]  # ONLY A SINGLE ACTION MATCHED
+                            #  NOTE ABOVE IS A SCRAPEACTION, NOT AN ACTION (WHICH IS CONTAINED IN SCRAPE ACTION)
+                            break
+                        elif score > max_score:
+                            max_score = score
+                            if score >= 0.9:
+                                matched_scrape_action = self.unique_samples[sample_action_rep_html][0]
 
-                # if matched_scrape_action is None:
-                #     print(max_score)
+                    # if matched_scrape_action is None:
+                    #     print(max_score)
 
 
-            if matched_scrape_action:  # NEEDS TO BE BETTER
-                # indefinite_action.action.action_type = matched_scrape_action.action.action_type
-                file_path = matched_scrape_action.before_screenshot
-                file_list = file_path.split('/')
-                file_path = Path ('/'.join(file_list[:-1])) / Path ('effect.txt')
-                numbering = str(file_list[-3]).split(' ')[0]  # TODO, STORE THIS DURING SCRAPE TIME
-                with open(file_path, 'r') as file:
-                    content = file.read()
-                    matched_scrape_action.action_effect = content
-                    matched_scrape_action.number = int(numbering)  # This dependent of folder structuring
+                if matched_scrape_action:  # NEEDS TO BE BETTER
+                    # indefinite_action.action.action_type = matched_scrape_action.action.action_type
+                    file_path = matched_scrape_action.before_screenshot
+                    file_list = file_path.split('/')
+                    file_path = Path ('/'.join(file_list[:-1])) / Path ('effect.txt')
+                    numbering = str(file_list[-3]).split(' ')[0]  # TODO, STORE THIS DURING SCRAPE TIME
+                    with open(file_path, 'r') as file:
+                        content = file.read()
+                        matched_scrape_action.action_effect = content
+                        matched_scrape_action.number = int(numbering)  # This dependent of folder structuring
 
 
 
@@ -168,3 +169,5 @@ class InferencePageState:
     html: str
     url_state: URLState
     matched_actions: list[InferenceAction]
+    header_html: str
+    footer_html: str

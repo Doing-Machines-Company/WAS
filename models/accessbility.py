@@ -170,7 +170,11 @@ class InferenceAxtree:
         # NOTE: ASSUMES SPECIAL ACTION OF INPUT ALL ALWAYS EXISTS
         if not self.use_scrape:
             for node in self.scrap_info.ax_nodes:
+                # if node['html'] in scrape_info.footer_html:
+                #     break
                 if node['nodeId'] in self.action_effect_lib:
+                    if self.action_lib[node['nodeId']].location == IndefiniteAction.Location.FOOTER:
+                        break
                     if Action.Type.INPUT in self.action_lib[node['nodeId']].type_list:
                         self.tree_str += f"[{count}; INPUT_TEXT] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + "\n"
@@ -198,7 +202,11 @@ class InferenceAxtree:
                         node["properties"]) + "\n"
         else:
             for node in self.scrap_info.ax_nodes:
+                # if node['html'] in scrape_info.footer_html:
+                #     break
                 if node['nodeId'] in self.action_effect_lib:
+                    if self.action_lib[node['nodeId']].location == IndefiniteAction.Location.FOOTER:
+                        break
                     if Action.Type.INPUT in self.action_lib[node['nodeId']].type_list:
                         self.tree_str += f"[{count}; INPUT_TEXT] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + " {" + self.action_effect_lib[node['nodeId']] + "}" + "\n"
