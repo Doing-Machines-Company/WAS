@@ -50,95 +50,89 @@ Special Instructions: Bake (Normal Bake, Well Done), Seasoning (Garlic-Seasoned 
 ***
 Buffalo Chicken Sandwich options:
 Sauces: Blue Cheese Sauce, Hot Buffalo Sauce
-Sauce Amount: None, Light, Normal
+Sauce Amount: None, Light, Normal (default)
 Toppings (default, can only change amount): Cheese, Premium Chicken, Cheddar Cheese Blend, Sliced Provolone, Onions
-Topping Amount: None, Light, Normal
+Topping Amount: None, Light, Normal (default)
 ***
 Chicken Habanero Sandwich options:
 Sauces: Mango Habanero Sauce
-Sauce Amount: None, Light, Normal
+Sauce Amount: None, Light, Normal (default)
 Toppings (default, can only change amount): Cheese, Premium Chicken, Cheddar Cheese Blend, Sliced Provolone, Jalapeno Peppers, Pineapple
-Topping Amount: None, Light, Normal
+Topping Amount: None, Light, Normal (default)
 ***
 Mediterranean Veggie Sandwich options:
-Sauces: None listed
-Sauce Amount: Not applicable
 Toppings (default, can only change amount): American Cheese, Feta Cheese, Sliced Provolone, Banana Peppers, Onions, Spinach, Diced Tomatoes
-Topping Amount: None, Light, Normal
+Topping Amount: None, Light, Normal (default)
 ***
 Philly Cheese Steak Sandwich options:
-Sauces: None listed
-Sauce Amount: Not applicable
 Toppings (default, can only change amount): Philly Steak, American Cheese, Sliced Provolone, Green Peppers, Mushrooms, Onions
-Topping Amount: None, Light, Normal
+Topping Amount: None, Light, Normal (default)
 ***
 Chicken Bacon Ranch Sandwich options:
 Sauces: Ranch Dressing
-Sauce Amount: None, Light, Normal
+Sauce Amount: None, Light, Normal (default)
 Toppings (default, can only change amount): Cheese, Bacon, Premium Chicken, Sliced Provolone
-Topping Amount: None, Light, Normal
+Topping Amount: None, Light, Normal (default)
 ***
 Italian Sandwich options:
-Sauces: None listed
-Sauce Amount: Not applicable
 Toppings (default, can only change amount): Cheese, Pepperoni, Ham, Salami, Sliced Provolone, Banana Peppers, Green Peppers, Onions
-Topping Amount: None, Light, Normal
+Topping Amount: None, Light, Normal (default)
 ***
 Chicken Parm Sandwich options:
 Sauces: Pizza Sauce
-Sauce Amount: None, Light, Normal
+Sauce Amount: None, Light, Normal (default)
 Toppings (default, can only change amount): Cheese, Premium Chicken, Shredded Parmesan Asiago, Sliced Provolone
-Topping Amount: None, Light, Normal
+Topping Amount: None, Light, Normal (default)
 ***
 Salad extras:
 Caesar, Italian, Balsamic, Ranch Dressing
 ***
 Chicken Alfredo Pasta options:
-Serving Options: Dish, BreadBowl
+Serving Options: Dish (default), BreadBowl
 Sauces: Alfredo Sauce
-Sauce Amount: Normal
+Sauce Amount: Normal (default)
 Toppings (default, can only change amount): Premium Chicken
-Topping Amount: None, Normal
+Topping Amount: None, Normal (default)
 ***
 Italian Sausage Marinara Pasta options:
-Serving Options: Dish, BreadBowl
+Serving Options: Dish (default), BreadBowl
 Sauces: Hearty Marinara Sauce
-Sauce Amount: Normal
+Sauce Amount: Normal (default)
 Toppings (default, can only change amount): Italian Sausage, Shredded Provolone Cheese
-Topping Amount: None, Normal
+Topping Amount: None, Normal (default)
 ***
 Chicken Carbonara Pasta options:
-Serving Options: Dish, BreadBowl
+Serving Options: Dish (default), BreadBowl
 Sauces: Alfredo Sauce
-Sauce Amount: Normal
+Sauce Amount: Normal (default)
 Toppings (default, can only change amount): Bacon, Premium Chicken, Mushrooms, Onions
-Topping Amount: None, Normal
+Topping Amount: None, Normal (default)
 ***
 Pasta Primavera options:
-Serving Options: Dish, BreadBowl
+Serving Options: Dish (default), BreadBowl
 Sauces: Alfredo Sauce
-Sauce Amount: Normal
+Sauce Amount: Normal (default)
 Toppings (default, can only change amount): Mushrooms, Onions, Spinach, Diced Tomatoes
-Topping Amount: None, Normal
+Topping Amount: None, Normal (default)
 ***
 Build Your Own Pasta customization options:
 Serving Options: Dish, BreadBowl
-Sauces: Alfredo Sauce, Hearty Marinara Sauce
-Sauce Amount: Normal
+Sauces: Alfredo Sauce or Hearty Marinara Sauce
+Sauce Amount: Only normal
 Toppings: Pepperoni, Italian Sausage, Beef, Philly Steak, Ham, Bacon, Premium Chicken, Anchovies, Cheese, Cheddar Cheese Blend, Feta Cheese, Shredded Parmesan, Shredded Provolone Cheese, Garlic, Green Peppers, Jalapeno Peppers, Mushrooms, Pineapple, Onions, Black Olives, Spinach, Diced Tomatoes, Banana Peppers
-Topping Amount: None, Normal
+Topping Amount: None, Normal (default)
 ***
 Philly Cheese Steak Loaded Tots options:
 Toppings (default, can only change amount): Cheddar Cheese Blend, Alfredo Sauce, Philly Steak, Green Peppers, Onions
-Topping Amount: None, Normal
+Topping Amount: None, Normal (default)
 ***
 Cheddar Bacon Loaded Tots options:
 Toppings (default, can only change amount): Bacon, Cheddar Cheese Blend, Garlic Parmesan Sauce
-Topping Amount: None, Normal
+Topping Amount: None, Normal (default)
 ***
 Melty 3-Cheese Loaded Tots options:
 Toppings (default, can change amount): Cheddar Cheese Blend, Shredded Provolone Cheese, Alfredo Sauce
-Topping Amount: None, Normal
+Topping Amount: None, Normal (default)
 ***
 All Chicken Wings (boned) customization options:
 Amount: 8-piece, 16-piece, 32-piece
