@@ -6,7 +6,7 @@ Give a list of all distinct items:
      task: "I want a large and small Pepperoni Pizza, and a Garden Salad delivered to my home address"
      response: `large and small Pepperoni Pizza, Garden Salad, home delivery`
 
-
+Make sure not to assume or imply items/ideas that don't exist in the task.
 Follow the steps carefully and reason step-by-step, then give your final answer wrapped in ``.
 
 Here's the web agent's task:
