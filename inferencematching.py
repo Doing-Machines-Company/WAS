@@ -111,7 +111,7 @@ with sync_playwright() as p:
                 world_mem = call_memory_agent(task, clarifications, action_mem, world_mem)  # perhaps can be even cleaner, less navigation
                 action_mem = []
 
-            action_out = call_action_agent(task, clarifications, curr_inf_tree, world_mem, action_mem, context=context_info)
+            action_out = call_action_agent(task, clarifications, curr_inf_tree, world_mem, action_mem, context_info)
             # print("Inference took: ", time.time() - start)
             # print(f"THIS ONE: {answer}")
             if action_out is None:

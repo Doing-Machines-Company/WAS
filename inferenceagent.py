@@ -219,7 +219,7 @@ def call_unified_task_clarifier(user_task, context, provider="anthropic"):
     prompt = string.Template(prompt)
     prompt = prompt.substitute(replacements)
     # print(prompt)
-    answer = call_llm(prompt, provider = 'groq', model='llama-3.1-8b-instant')
+    answer = call_llm(prompt, provider = 'groq', model='llama-3.1-70b-versatile')
     
     print(answer)
     input(f"Unified task clarifier call")
