@@ -161,16 +161,14 @@ def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tre
 
     return None
 
-def call_task_separator(web_agent_task, context):
+def call_task_separator(web_agent_task):
     with open('prompts/task_separator_prompt.txt', 'r') as f:
         prompt = f.read()
     replacements = {
         'web_agent_task': web_agent_task,
-        'context': context
     }
     prompt = string.Template(prompt)
     prompt = prompt.substitute(replacements)
-    print(prompt)
     message = client.messages.create(
         model="claude-3-5-sonnet-20240620",
         max_tokens=1000,
@@ -193,25 +191,27 @@ def call_task_separator(web_agent_task, context):
 
     # pattern = r'choose\((\d+),\s*"([^"]+)",\s*"([^"]+)"\)'
     # string = 'choose(0, "match this", "also match this")'
-
     answer = answer[0].text.strip()
+    match = re.search(r'`(.*?)`', answer)
+    if match:
+        return match.group(1).split(',')
+    else:
+        return []
 
-    def extract_list_from_string(s):
-        # Define the regex pattern to match a list of strings
-        pattern = r'\["(.*?)"\]'
+    # def extract_list_from_string(s):
+    #     # Define the regex pattern to match a list of strings
+    #     pattern = r'\["(.*?)"\]'
 
-        # Use re.findall to find all matches of the pattern in the string
-        match = re.search(pattern, s)
+    #     # Use re.findall to find all matches of the pattern in the string
+    #     match = re.search(pattern, s)
 
-        if match:
-            # Extract the list of strings from the match
-            list_of_strings = [x.strip() for x in match.group(1).split('", "')]
-            return list_of_strings
-        else:
-            return []
-
-    return extract_list_from_string(answer)
-
+    #     if match:
+    #         # Extract the list of strings from the match
+    #         list_of_strings = [x.strip() for x in match.group(1).split('", "')]
+    #         return list_of_strings
+    #     else:
+    #         return []
+    
     # items_of_interest = re.findall(r"'([^']*)'", answer)
 
     # print(answer)
@@ -221,7 +221,7 @@ def call_task_separator(web_agent_task, context):
     # return items_of_interest
 
 
-def call_task_clarifier(user_task, item_of_interest, context):
+def call_task_clarifier(user_task, item_context_pairs):
     with open('prompts/task_parser_prompt.txt', 'r') as f:
         prompt = f.read()
     replacements = {
@@ -327,7 +327,7 @@ def call_unified_task_clarifier(user_task, context):
     }
     prompt = string.Template(prompt)
     prompt = prompt.substitute(replacements)
-    print(prompt)
+    # print(prompt)
     message = client.messages.create(
         model="claude-3-5-sonnet-20240620",
         max_tokens=1000,

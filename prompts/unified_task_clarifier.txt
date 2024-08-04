@@ -5,21 +5,18 @@ Here's the user specified task:
 $user_task
 </user_task>
 
-Here's important info about the website:
-<important_info>
+Here are the items or ideas separated into distinct groups based on meaning, each with their own retrieved context as they pertain to the website:
+<item context pairs>
 $context
-<\important_info>
+<item context pairs>
 
 Follow these steps to complete your task:
 
-1. Analyze the item of interest and important info:
-   - Read the important info.
-   - Carefully identify items of interest:
-       -  Items of interest are parts of the important info that are mentioned explicitly in the task.
+1. Analyze the item of interest and its corresponding context
 
 2. Formulate the questions for the user for all items of interest:
    - The purpose of the questions is to get information from the user regarding the items of interest.
-   - We need information that the user didn't specify in their task.
+   - We need information that the user didn't specify in their task, if there is any left to specify.
    - For every item of interest:
        - We need questions about all types of options (and their possible choices) presented in the important info that is unspecified by the user.
        - We need questions to ask for clarifications requested by the important info and unspecified by the user task.
