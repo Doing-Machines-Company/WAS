@@ -94,7 +94,7 @@ def call_memory_agent(web_agent_task, task_details, action_memory, world_memory,
     prompt = prompt.substitute(replacements)
     print(prompt)
     
-    answer = call_llm(prompt, provider)
+    answer = call_llm(prompt, provider = 'groq', model='llama-3.1-70b-versatile')
     
     print(answer)
     input("World mem call")
@@ -121,7 +121,7 @@ def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tre
     prompt = prompt.substitute(replacements)
     print(prompt)
     
-    answer = call_llm(prompt, provider)
+    answer = call_llm(prompt, provider = 'groq', model='llama-3.1-70b-versatile')
     
     print(answer)
     input("Memory store call")
