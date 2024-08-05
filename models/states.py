@@ -135,16 +135,16 @@ class URLState:
                     #     print(max_score)
 
 
-                    if matched_scrape_action:  # NEEDS TO BE BETTER
-                        # indefinite_action.action.action_type = matched_scrape_action.action.action_type
-                        file_path = matched_scrape_action.before_screenshot
-                        file_list = file_path.split('/')
-                        file_path = Path ('/'.join(file_list[:-1])) / Path ('effect.txt')
-                        numbering = str(file_list[-3]).split(' ')[0]  # TODO, STORE THIS DURING SCRAPE TIME
-                        with open(file_path, 'r') as file:
-                            content = file.read()
-                            matched_scrape_action.action_effect = content
-                            matched_scrape_action.number = int(numbering)  # This dependent of folder structuring
+                if matched_scrape_action:  # NEEDS TO BE BETTER
+                    # indefinite_action.action.action_type = matched_scrape_action.action.action_type
+                    file_path = matched_scrape_action.before_screenshot
+                    file_list = file_path.split('/')
+                    file_path = Path ('/'.join(file_list[:-1])) / Path ('effect.txt')
+                    numbering = str(file_list[-3]).split(' ')[0]  # TODO, STORE THIS DURING SCRAPE TIME
+                    with open(file_path, 'r') as file:
+                        content = file.read()
+                        matched_scrape_action.action_effect = content
+                        matched_scrape_action.number = int(numbering)  # This dependent of folder structuring
 
 
 
