@@ -33,7 +33,7 @@ def match_action_effects(curr_page_state: PageState, url_state_manager: URLState
     if found_state:
         curr_page_actions = [action for action in curr_page_state.actions]  # (typeList, action)
         new_action_list = found_state.match_actions(curr_page_actions)
-        inference_page_state = InferencePageState(curr_page_state.url, curr_page_state.ax_nodes, curr_page_state.html, found_state, new_action_list)
+        inference_page_state = InferencePageState(curr_page_state.url, curr_page_state.ax_nodes, curr_page_state.html, found_state, new_action_list, curr_page_state.header_html, curr_page_state.footer_html)
         return inference_page_state
 
     else:

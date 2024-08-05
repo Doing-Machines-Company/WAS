@@ -98,29 +98,17 @@ class URLState:
             action = indefinite_action.action  # aliasing in python is confusing
             max_score = 0
             matched_scrape_action = None
-            if action.html in self.unique_samples:  # hash check using dictionary, should probably include all scraped htmls instead of representative
-                matched_scrape_sample = self.unique_samples[action.html]  # gets a ScrapeAction
-                for scrape_action in matched_scrape_sample:
-                    if scrape_action.action.html == action.html:
-                        matched_scrape_action = scrape_action 
-                # resulting_action = InferenceAction(action, indefinite_action.type_list, matched_action, indefinite_action.ax_node_index)
-            else:
-                for sample_action_rep_html in self.unique_samples:
-                    score = element_similarity(action.html, sample_action_rep_html)
-                    if score == 1.0:
-                        matched_scrape_sample = self.unique_samples[sample_action_rep_html]
-                        min_lev = sys.maxsize
-                        min_index = -1 
-                        for (i, scrape_action) in enumerate(matched_scrape_sample):
-                            curr_lev = Levenshtein.distance(scrape_action.action.html, action.html)
-                            if curr_lev < min_lev:
-                                min_lev = curr_lev
-                                min_index = i
-                        matched_scrape_action = matched_scrape_sample[min_index]
-                        break
-                    elif score > max_score:
-                        max_score = score
-                        if score >= 0.9:
+            if indefinite_action.location != IndefiniteAction.Location.FOOTER:  # TODO, we don't try to match for Footer because we never scrape it
+                if action.html in self.unique_samples:  # hash check using dictionary, should probably include all scraped htmls instead of representative
+                    matched_scrape_sample = self.unique_samples[action.html]  # gets a ScrapeAction
+                    for scrape_action in matched_scrape_sample:
+                        if scrape_action.action.html == action.html:
+                            matched_scrape_action = scrape_action 
+                    # resulting_action = InferenceAction(action, indefinite_action.type_list, matched_action, indefinite_action.ax_node_index)
+                else:
+                    for sample_action_rep_html in self.unique_samples:
+                        score = element_similarity(action.html, sample_action_rep_html)
+                        if score == 1.0:
                             matched_scrape_sample = self.unique_samples[sample_action_rep_html]
                             min_lev = sys.maxsize
                             min_index = -1 
@@ -130,20 +118,33 @@ class URLState:
                                     min_lev = curr_lev
                                     min_index = i
                             matched_scrape_action = matched_scrape_sample[min_index]
-                # if matched_scrape_action is None:
-                #     print(max_score)
+                            break
+                        elif score > max_score:
+                            max_score = score
+                            if score >= 0.9:
+                                matched_scrape_sample = self.unique_samples[sample_action_rep_html]
+                                min_lev = sys.maxsize
+                                min_index = -1 
+                                for (i, scrape_action) in enumerate(matched_scrape_sample):
+                                    curr_lev = Levenshtein.distance(scrape_action.action.html, action.html)
+                                    if curr_lev < min_lev:
+                                        min_lev = curr_lev
+                                        min_index = i
+                                matched_scrape_action = matched_scrape_sample[min_index]
+                    # if matched_scrape_action is None:
+                    #     print(max_score)
 
 
-            if matched_scrape_action:  # NEEDS TO BE BETTER
-                # indefinite_action.action.action_type = matched_scrape_action.action.action_type
-                file_path = matched_scrape_action.before_screenshot
-                file_list = file_path.split('/')
-                file_path = Path ('/'.join(file_list[:-1])) / Path ('effect.txt')
-                numbering = str(file_list[-3]).split(' ')[0]  # TODO, STORE THIS DURING SCRAPE TIME
-                with open(file_path, 'r') as file:
-                    content = file.read()
-                    matched_scrape_action.action_effect = content
-                    matched_scrape_action.number = int(numbering)  # This dependent of folder structuring
+                    if matched_scrape_action:  # NEEDS TO BE BETTER
+                        # indefinite_action.action.action_type = matched_scrape_action.action.action_type
+                        file_path = matched_scrape_action.before_screenshot
+                        file_list = file_path.split('/')
+                        file_path = Path ('/'.join(file_list[:-1])) / Path ('effect.txt')
+                        numbering = str(file_list[-3]).split(' ')[0]  # TODO, STORE THIS DURING SCRAPE TIME
+                        with open(file_path, 'r') as file:
+                            content = file.read()
+                            matched_scrape_action.action_effect = content
+                            matched_scrape_action.number = int(numbering)  # This dependent of folder structuring
 
 
 
@@ -185,3 +186,5 @@ class InferencePageState:
     html: str
     url_state: URLState
     matched_actions: list[InferenceAction]
+    header_html: str
+    footer_html: str
