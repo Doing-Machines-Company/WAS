@@ -13,7 +13,7 @@ from utils.element_utils.element_similarity import element_similarity
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional, List, Any
-
+import Levenshtein
 
 PlaywrightPage = Any
 CDPSession = Any
@@ -99,20 +99,37 @@ class URLState:
             max_score = 0
             matched_scrape_action = None
             if action.html in self.unique_samples:  # hash check using dictionary, should probably include all scraped htmls instead of representative
-                matched_scrape_action = self.unique_samples[action.html][0]  # gets a ScrapeAction
+                matched_scrape_sample = self.unique_samples[action.html]  # gets a ScrapeAction
+                for scrape_action in matched_scrape_sample:
+                    if scrape_action.action.html == action.html:
+                        matched_scrape_action = scrape_action 
                 # resulting_action = InferenceAction(action, indefinite_action.type_list, matched_action, indefinite_action.ax_node_index)
             else:
                 for sample_action_rep_html in self.unique_samples:
                     score = element_similarity(action.html, sample_action_rep_html)
                     if score == 1.0:
-                        matched_scrape_action = self.unique_samples[sample_action_rep_html][0]  # ONLY A SINGLE ACTION MATCHED
-                        #  NOTE ABOVE IS A SCRAPEACTION, NOT AN ACTION (WHICH IS CONTAINED IN SCRAPE ACTION)
+                        matched_scrape_sample = self.unique_samples[sample_action_rep_html]
+                        min_lev = sys.maxsize
+                        min_index = -1 
+                        for (i, scrape_action) in enumerate(matched_scrape_sample):
+                            curr_lev = Levenshtein.distance(scrape_action.action.html, action.html)
+                            if curr_lev < min_lev:
+                                min_lev = curr_lev
+                                min_index = i
+                        matched_scrape_action = matched_scrape_sample[min_index]
                         break
                     elif score > max_score:
                         max_score = score
                         if score >= 0.9:
-                            matched_scrape_action = self.unique_samples[sample_action_rep_html][0]
-
+                            matched_scrape_sample = self.unique_samples[sample_action_rep_html]
+                            min_lev = sys.maxsize
+                            min_index = -1 
+                            for (i, scrape_action) in enumerate(matched_scrape_sample):
+                                curr_lev = Levenshtein.distance(scrape_action.action.html, action.html)
+                                if curr_lev < min_lev:
+                                    min_lev = curr_lev
+                                    min_index = i
+                            matched_scrape_action = matched_scrape_sample[min_index]
                 # if matched_scrape_action is None:
                 #     print(max_score)
 
