@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Chat Interface</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+        }
+        #app {
+            display: flex;
+            height: 100vh;
+        }
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            background-color: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+        .message {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .user-message {
+            background-color: #e1f5fe;
+            align-self: flex-end;
+        }
+        .agent-message {
+            background-color: #f0f4c3;
+        }
+        .input-container {
+            display: flex;
+            margin-top: 20px;
+        }
+        input {
+            flex: 1;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #4caf50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            margin-left: 10px;
+            cursor: pointer;
+        }
+        .browser-container {
+            flex: 1;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #browser-view {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="chat-container">
+            <div class="messages">
+                <div v-for="message in messages" :class="['message', message.type + '-message']">
+                    {% raw %}{{ message.text }}{% endraw %}
+                </div>
+            </div>
+            <div class="input-container" v-if="waitingForUserInput">
+                <input v-model="inputMessage" @keyup.enter="sendResponse" placeholder="Type your response...">
+                <button @click="sendResponse">Send</button>
+            </div>
+        </div>
+        <div class="browser-container">
+            <img id="browser-view" :src="browserScreenshot" alt="Browser View">
+        </div>
+    </div>
+
+    <script>
+        new Vue({
+            el: '#app',
+            data: {
+                messages: [],
+                inputMessage: '',
+                socket: null,
+                browserScreenshot: '',
+                waitingForUserInput: false
+            },
+            created() {
+                this.socket = io();
+                this.socket.on('agent_question', (data) => {
+                    this.messages.push({ type: 'agent', text: data.question });
+                    this.waitingForUserInput = true;
+                });
+                this.socket.on('browser_update', (data) => {
+                    this.browserScreenshot = 'data:image/jpeg;base64,' + data.screenshot;
+                });
+            },
+            methods: {
+                sendResponse() {
+                    if (this.inputMessage.trim() !== '') {
+                        this.messages.push({ type: 'user', text: this.inputMessage });
+                        this.socket.emit('user_response', { response: this.inputMessage });
+                        this.inputMessage = '';
+                        this.waitingForUserInput = false;
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
