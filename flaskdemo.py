@@ -1,0 +1,46 @@
+from flask import Flask, render_template
+from flask_socketio import SocketIO, emit
+from UIAgent import Agent
+from threading import Thread, Lock
+
+app = Flask(__name__)
+socketio = SocketIO(app)
+
+agent = Agent()
+agent_initialized = False
+agent_lock = Lock()
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@socketio.on('connect')
+def handle_connect():
+    global agent_initialized
+    with agent_lock:
+        if not agent_initialized:
+            Thread(target=run_agent).start()
+            agent_initialized = True
+    emit('connection_response', {'status': 'connected'})
+
+def run_agent():
+    agent.run()  # This should start the agent's main loop, including asking the initial question
+
+def agent_loop():
+    while True:
+        if not agent.output_queue.empty():
+            output_type, data = agent.output_queue.get()
+            if output_type == 'screenshot':
+                socketio.emit('browser_update', {'screenshot': data})
+            elif output_type == 'question':
+                socketio.emit('agent_question', {'question': data})
+        socketio.sleep(0.1)
+
+@socketio.on('user_response')
+def handle_user_response(data):
+    response = data['response']
+    agent.input_queue.put(response)
+
+if __name__ == '__main__':
+    socketio.start_background_task(agent_loop)
+    socketio.run(app, debug=True)
