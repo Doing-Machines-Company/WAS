@@ -4,6 +4,7 @@ import os
 import string
 from utils.inference_data import *
 from groq import Groq
+from together import Together
 
 # Set up the Anthropic API client
 anthropic_client = anthropic.Anthropic(
@@ -12,6 +13,7 @@ anthropic_client = anthropic.Anthropic(
 
 # Set up the Groq API client
 groq_client = Groq()
+together_client = Together(api_key=os.environ.get('TOGETHER_API_KEY'))
 
 def call_llm(prompt, provider="anthropic", model="claude-3-5-sonnet-20240620", max_tokens=1000):
     if provider == "anthropic":
@@ -48,8 +50,21 @@ def call_llm(prompt, provider="anthropic", model="claude-3-5-sonnet-20240620", m
             stop=None,
         )
         return completion.choices[0].message.content
+    elif provider == "together":
+        response = together_client.chat.completions.create(
+            model="meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=max_tokens,
+            temperature=0,
+            top_p=1,
+            top_k=50,
+            repetition_penalty=1,
+            stop=["<|eot_id|>"],
+            stream=False
+        )
+        return response.choices[0].message.content
     else:
-        raise ValueError("Invalid provider. Choose 'anthropic' or 'groq'.")
+        raise ValueError("Invalid provider. Choose 'anthropic', 'groq', or 'together'. ")
 
 def call_action_agent(task, task_details, ax_tree, world_memory, action_memory, context, provider="anthropic"):
     action_memory = str(action_memory)
@@ -94,7 +109,7 @@ def call_memory_agent(web_agent_task, task_details, action_memory, world_memory,
     prompt = prompt.substitute(replacements)
     print(prompt)
     
-    answer = call_llm(prompt, provider = 'groq', model='llama-3.1-70b-versatile')
+    answer = call_llm(prompt, provider = 'together', model='llama-3.1-70b-versatile')
     
     print(answer)
     input("World mem call")
@@ -121,7 +136,7 @@ def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tre
     prompt = prompt.substitute(replacements)
     print(prompt)
     
-    answer = call_llm(prompt, provider = 'groq', model='llama-3.1-70b-versatile')
+    answer = call_llm(prompt, provider = 'together', model='llama-3.1-70b-versatile')
     
     print(answer)
     input("Memory store call")
@@ -144,7 +159,7 @@ def call_task_separator(web_agent_task, provider="anthropic"):
     prompt = string.Template(prompt)
     prompt = prompt.substitute(replacements)
     
-    answer = call_llm(prompt, provider='groq', model = 'llama-3.1-8b-instant')
+    answer = call_llm(prompt, provider='together', model = 'llama-3.1-8b-instant')
     answer = answer.strip()
     match = re.search(r'`(.*?)`', answer)
     if match:
@@ -164,7 +179,7 @@ def call_task_clarifier(user_task, item_context_pairs, provider="anthropic"):
     prompt = prompt.substitute(replacements)
     print(prompt)
     
-    answer = call_llm(prompt, provider)
+    answer = call_llm(prompt, provider='together')
     
     print(answer)
     input("Task clarifier call")
@@ -199,7 +214,7 @@ def call_input_agent(user_task, agent_intent, task_details, input_ax_tree, conte
     prompt = prompt.substitute(replacements)
     print(prompt)
     
-    answer = call_llm(prompt, provider)
+    answer = call_llm(prompt, provider='together')
     
     print(answer)
     input(f"All input call given intent {agent_intent}")
@@ -219,7 +234,7 @@ def call_unified_task_clarifier(user_task, context, provider="anthropic"):
     prompt = string.Template(prompt)
     prompt = prompt.substitute(replacements)
     # print(prompt)
-    answer = call_llm(prompt, provider = 'groq', model='llama-3.1-70b-versatile')
+    answer = call_llm(prompt, provider = 'together', model='llama-3.1-70b-versatile')
     
     print(answer)
     input(f"Unified task clarifier call")
@@ -249,7 +264,7 @@ def call_unified_question_cleaner(user_task, user_qa, provider="anthropic"):
     prompt = prompt.substitute(replacements)
     print(prompt)
     
-    answer = call_llm(prompt, provider='groq', model='llama-3.1-8b-instant')
+    answer = call_llm(prompt, provider='together', model='llama-3.1-8b-instant')
     
     print(answer)
     input("Question cleaner call")
