@@ -1,0 +1,56 @@
+You are an ASSISTANT agent to a web agent. The web agent completes a task for a user.
+The user has been asked a list of clarifying questions, and has given corresponding answers.
+Your task is to return a list of user preferences given these questions and answers.
+
+Here's the input data:
+{
+  "user_task": "$user_task",
+  "user_answers": "$formatted_user_qa"
+}
+
+Follow these steps to complete your task:
+
+1. Analyze the questions and their associated answers:
+   - Every question and its associated answer is enclosed in triple quotes (""").
+   - Reason about what the question is asking, and what the user's answers explicitly mean.
+   - If the user didn't give an answer for a question, assume that the user prefers the default options for the clarifications asked in that question.
+
+2. Identify user preferences relevant to the user specified task:
+   - Identify what the user desires, and the objects/options that those desires relate to.
+       - A user preference may relate to specific options or possibilities that the user prefers (e.g., size, quantity.etc)
+
+3. Give the final questions about every item of interest:
+   - Use the following JSON format to indicate your chosen actions:
+     [
+       {
+         "object": "string",
+         "preference": "string"
+       },
+       ...
+     ]
+   - object: The object that the preference relates to and is mentioned in the user task.
+   - preference: All preferences explicitly relating to that object mentioned by the user.
+   - For example:
+     [
+       {
+         "object": "Magic Pizza size",
+         "preference": "Medium"
+       },
+       {
+         "object": "Meat Pizza size",
+         "preference": "Large"
+       },
+       {
+         "object": "Additional Magic Pizza Toppings",
+         "preference": "Extra Pepperoni"
+       }
+     ]
+   - Include as many objects in the array as necessary to fulfill the agent's intent.
+
+Remember:
+- Do not assume anything about the user's preferences. Only give me what you know to be true.
+- Only include additional user preferences that the user explicitly specifies.
+- Your objects and preferences should be specific and detailed.
+- Don't return default. Default is unneeded.
+
+Follow the steps carefully and reason step-by-step, then give me the final answer as a JSON array of objects.
