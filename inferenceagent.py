@@ -159,11 +159,12 @@ def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tre
     print(answer)
     input("Memory store call")
 
-    json_match = re.search(r'\{.*\}', answer, re.DOTALL)
-    if not json_match:
-        print("Reflect Restore Error: No JSON object found in the LLM output")
+    json_pattern = r'\{[^{}]*\}'
 
-    json_str = json_match.group(0)
+    # Find all matches
+    json_str = re.findall(json_pattern, answer)[-1]
+    if not json_str:
+        print("Reflect Restore Error: No JSON object found in the LLM output")
 
     # Step 3: Parse the JSON string
     try:
@@ -188,7 +189,7 @@ def call_task_separator(web_agent_task, provider="anthropic"):
     
     answer = call_llm(prompt, provider='together', model = 'llama-3.1-8b-instant')
     answer = answer.strip()
-
+    print(answer)
     # Step 1: Use regex to find the JSON object
     json_pattern = r'\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}'
     match = re.search(json_pattern, answer)
@@ -196,17 +197,12 @@ def call_task_separator(web_agent_task, provider="anthropic"):
     if match:
         # Step 2: Extract the JSON string
         json_str = match.group(0)
-
         try:
             # Step 3: Parse the extracted JSON string
             parsed_json = json.loads(json_str)
-
             # Step 4: Extract the required information
-            choices = parsed_json.get('choices', [])
-            pairs = [(choice['text_area_number'], choice['desired_input']) for choice in choices]
-
-            # Print the resulting list of tuples
-            print(pairs)
+            items = parsed_json.get('items', [])
+            return items
         except json.JSONDecodeError:
             print("Task Separator: Failed to parse JSON. The extracted string might not be valid JSON.")
     else:

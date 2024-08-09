@@ -48,19 +48,26 @@ Follow these steps to complete your task:
                - So if the first_name was "James", returning "hello, I am first_name" would actually input "hello, I am James"
 
 3. Provide your decision:
-   - Use the following Python function format to indicate your chosen action:
-     choose(text_area_number: int, desired_input: str)
-   - text_area_number: The number of the text area you've chosen from the accessibility tree.
-   - desired_input: What you wish to input into that text area
-   - For example:
-     choose(42, "Pizza")
-     choose(90, "Hello, I am first_name last_name.")
-     choose(45, "credit_card_number")
-       - Note that in this case, the associated hidden_items may look like:
-         first_name: The first name of the user
-         last_name: The last name of the user
-         credit_card_number: The number of the credit card the user wants to pay with
-   - Call choose as many times as necessary to fulfill the agent's intent.
+
+Use the following JSON format to indicate your chosen action:
+{
+"text_area_number": int,
+"desired_input": "str"
+}
+text_area_number: The number of the text area you've chosen from the accessibility tree.
+desired_input: What you wish to input into that text area
+For example:
+{"text_area_number": 42, "desired_input": "Pizza"}
+{"text_area_number": 90, "desired_input": "Hello, I am first_name last_name."}
+{"text_area_number": 45, "desired_input": "credit_card_number"}
+
+Note that in this case, the associated hidden_items may look like:
+first_name: The first name of the user
+last_name: The last name of the user
+credit_card_number: The number of the credit card the user wants to pay with
+
+
+Provide as many JSON objects as necessary to fulfill the agent's intent.
 
 Remember:
 - Each possible input area in the accessibility tree starts with a number.
