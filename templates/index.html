@@ -7,48 +7,113 @@
     <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
+        @import url('https://fonts.googleapis.com/css2?family=Futura:wght@400;700&display=swap');
+
+        body, html {
             margin: 0;
             padding: 0;
-            background-color: #f0f0f0;
+            height: 100%;
+            overflow: hidden;
         }
         #app {
             display: flex;
-            height: 100vh;
+            flex-direction: column;
+            height: 100%;
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
         }
-        .chat-container {
+        .browser-container {
             flex: 1;
             display: flex;
-            flex-direction: column;
-            padding: 20px;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            position: relative;
+            padding: 10px;
+        }
+        .screenshot-wrapper {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: calc(100% - 20px);
+            height: calc(100% - 20px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #browser-view {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            border: none;
+        }
+        .placeholder-text {
+            font-family: 'Futura', sans-serif;
+            font-size: 24px;
+            color: #0B648F;
+            text-align: center;
+        }
+        #start-button {
+            font-family: 'Futura', sans-serif;
+            font-size: 24px;
+            font-weight: bold;
+            padding: 15px 30px;
+            background-color: #E21737;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .chat-container {
+            height: 300px;
             background-color: white;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            z-index: 1;
         }
         .messages {
             flex: 1;
             overflow-y: auto;
-            padding: 10px;
+            padding: 10px 20px;
+            display: flex;
+            flex-direction: column;
         }
         .message {
-            margin-bottom: 10px;
-            padding: 10px;
+            margin-bottom: 8px;
             border-radius: 5px;
+            max-width: 70%;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+            padding: 6px 10px;
+        }
+        .message-content {
+            padding: 2px 0;
         }
         .user-message {
-            background-color: #e1f5fe;
+            background-color: #E21737;
+            color: white;
             align-self: flex-end;
+            text-align: right;
         }
         .agent-message {
-            background-color: #f0f4c3;
+            background-color: #0B648F;
+            color: white;
+            align-self: flex-start;
+            text-align: left;
         }
         .only-out-message {
-            background-color: #e8f5e9;
+            background-color: #3D9AD1;
+            color: white;
             font-style: italic;
+            align-self: center;
+            text-align: center;
+            max-width: 90%;
         }
         .input-container {
             display: flex;
-            margin-top: 20px;
+            padding: 10px;
         }
         input {
             flex: 1;
@@ -60,42 +125,34 @@
         button {
             padding: 10px 20px;
             font-size: 16px;
-            background-color: #4caf50;
+            background-color: #E21737;
             color: white;
             border: none;
             border-radius: 5px;
             margin-left: 10px;
             cursor: pointer;
         }
-        .browser-container {
-            flex: 1;
-            padding: 20px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        #browser-view {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-        }
     </style>
 </head>
 <body>
     <div id="app">
+        <div class="browser-container">
+            <div class="screenshot-wrapper" v-if="agentStarted">
+                <img v-if="hasScreenshot" id="browser-view" :src="browserScreenshot" alt="Starting...">
+                <div v-else class="placeholder-text">Starting...</div>
+            </div>
+            <button id="start-button" v-if="!agentStarted" @click="startAgent">Start</button>
+        </div>
         <div class="chat-container">
             <div class="messages">
                 <div v-for="message in messages" :class="['message', message.type + '-message']">
-                    {% raw %}{{ message.text }}{% endraw %}
+                    <div class="message-content">{% raw %}{{ message.text }}{% endraw %}</div>
                 </div>
             </div>
             <div class="input-container" v-if="waitingForUserInput">
                 <input v-model="inputMessage" @keyup.enter="sendResponse" placeholder="Type your response...">
                 <button @click="sendResponse">Send</button>
             </div>
-        </div>
-        <div class="browser-container">
-            <img id="browser-view" :src="browserScreenshot" alt="Browser View">
         </div>
     </div>
 
@@ -107,7 +164,9 @@
                 inputMessage: '',
                 socket: null,
                 browserScreenshot: '',
-                waitingForUserInput: false
+                waitingForUserInput: false,
+                agentStarted: false,
+                hasScreenshot: false
             },
             created() {
                 this.socket = io();
@@ -117,12 +176,19 @@
                 });
                 this.socket.on('browser_update', (data) => {
                     this.browserScreenshot = 'data:image/jpeg;base64,' + data.screenshot;
+                    this.hasScreenshot = true;
                 });
                 this.socket.on('agent_only_out', (data) => {
                     this.messages.push({ type: 'only-out', text: data.message });
                 });
+                this.socket.on('agent_started', (data) => {
+                    this.agentStarted = true;
+                });
             },
             methods: {
+                startAgent() {
+                    this.socket.emit('start_agent');
+                },
                 sendResponse() {
                     if (this.inputMessage.trim() !== '') {
                         this.messages.push({ type: 'user', text: this.inputMessage });
