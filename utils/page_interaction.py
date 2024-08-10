@@ -14,13 +14,25 @@ def wait_for_load(page: PlaywrightPage, load_time_ms: int = 850):
     page.wait_for_load_state('load')
     # page.wait_for_load_state('networkidle')
     page.wait_for_timeout(load_time_ms)  # this is very finicky, if you set it to a lower time, you risk getting the actions from the previous page. TODO: fix this race
-def get_page_state(page: PlaywrightPage, cdpSession: CDPSession, attempts=3) -> PageState:
+def get_page_state(page: PlaywrightPage, cdpSession: CDPSession, attempts=3, delete_footer=True) -> PageState:
     result = None
 
     for _ in range(attempts):
         # Navigate to the given URL and wait for the page to load
         start = time.time()
         wait_for_load(page)
+
+        if delete_footer:
+            remove_footer_js = """
+            () => {
+              const footer = document.querySelector('footer');
+              if (footer) {
+                footer.remove();
+              }
+            }
+            """
+            page.evaluate(remove_footer_js)
+
         print("Load took", time.time() - start)
         # Retrieve the accessibility tree and create an AxObservation object
         start = time.time()
