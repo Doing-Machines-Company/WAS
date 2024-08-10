@@ -198,7 +198,7 @@ def element_similarity(document_1, document_2, k=0.6, button_text_match=False):
     return structural_sim
     #return min(structural_sim, style_sim)  # Structural sim seems to be more telling
 
-# 
+#
 # string1 = '<a class="btn media__btn js-orderNow" href="#!/order/variant/new?code=14SCEXTRAV&amp;qty=1&amp;toppings=X:1/1;1|C:1/1;1|H:1/1;1|B:1/1;1|P:1/1;1|S:1/1;1|O:1/1;1|R:1/1;1|M:1/1;1|Cp:1/1;1|G:1/1;1" data-dpz-track-evt-name="Order CTA | ExtravaganZZa" data-dpz-track-ga4-event-name="select_item" data-dpz-track-ga4-product="S_ZZ" data-dpz-segment-track-event-name="Product Clicked" data-dpz-segment-track-product="S_ZZ" data-quid="S_ZZ"> Add to Order<span class="is-visually-hidden">: ExtravaganZZa</span> </a>'
 # string2 = '<a class="btn btn--outline media__btn js-customize" href="#!/product/S_ZZ/builder/" data-dpz-track-evt-name="Customize CTA | ExtravaganZZa" data-dpz-track-ga4-event-name="select_item" data-dpz-track-ga4-product="S_ZZ" data-dpz-segment-track-event-name="Product Clicked" data-dpz-segment-track-product="S_ZZ" data-quid="S_ZZ-customize"> Customize<span class="is-visually-hidden">: ExtravaganZZa</span> </a>'
 #

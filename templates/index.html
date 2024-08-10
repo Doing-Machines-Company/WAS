@@ -42,6 +42,10 @@
         .agent-message {
             background-color: #f0f4c3;
         }
+        .only-out-message {
+            background-color: #e8f5e9;
+            font-style: italic;
+        }
         .input-container {
             display: flex;
             margin-top: 20px;
@@ -113,6 +117,9 @@
                 });
                 this.socket.on('browser_update', (data) => {
                     this.browserScreenshot = 'data:image/jpeg;base64,' + data.screenshot;
+                });
+                this.socket.on('agent_only_out', (data) => {
+                    this.messages.push({ type: 'only-out', text: data.message });
                 });
             },
             methods: {

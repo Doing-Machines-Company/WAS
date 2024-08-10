@@ -34,6 +34,8 @@ def agent_loop():
                 socketio.emit('browser_update', {'screenshot': data})
             elif output_type == 'question':
                 socketio.emit('agent_question', {'question': data})
+            elif output_type == 'only_out':
+                socketio.emit('agent_only_out', {'message': data})
         socketio.sleep(0.1)
 
 @socketio.on('user_response')
