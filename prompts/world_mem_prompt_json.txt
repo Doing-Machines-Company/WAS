@@ -16,7 +16,7 @@ Follow these steps to complete your task:
        - The world_memory keeps track of:
            - The completion of task-essential subtasks that have already been done.
            - Dead-ends and details of failures in attempts to navigate to or complete task-essential subtasks.
-           - Navigation information only of the current task-essential subtask the agent is attempting to complete
+           - General navigation information ONLY for navigating to complete the next task-essential subtask that needs to be completed.
 
 2. Reason about the action_memory and world_memory:
    - The action_memory is a list of all the actions that were performed AFTER the world_memory was last updated.
@@ -26,10 +26,11 @@ Follow these steps to complete your task:
 
 3. Combine action_memory and world_memory, condensing extraneous details:
    - The completion of task essential operations should always be included, including information about it's extra options and specifications.
-       - Condense all navigation information for completed task essential operations.
-   - Information about failures or dead-ends in the website, and the reason for these failures and dead-ends, should also be included.
-   - Information about failing to complete task-essential subtasks is task-essential information.
+   - Information about dead-ends in the website and its reasons should be included.
+   - Information about failing to complete task-essential subtasks and its reasons should be included.
+   - Only include website location information when it concerns a dead-end or failure.
    - Only include information either already in world_memory, or that you know is true from action_memory.
+   - DO NOT include observational information that's not about a failure/dead-end.
 
 5. Give me the new world memory:
    - Provide your entire response as a JSON object with a single key "new_world_memory" whose value is the new world memory as a string.
@@ -43,11 +44,11 @@ Remember:
 - The action_memory is a list of tuples in the format: (where the action was taken, the object that action was taken on).
 - The task_details is a list of tuples in the format: (object, details about the user's preferences for that object)
 - The web_agent_task is the task of the web agent which you are assisting.
-- Ensure the new world memory contains all task essential information, all attempt failures (and the reasons for those failures), and dead-ends on the website.
-- Ensure the new world memory condenses all navigation information about completed task essential operations.
+- Ensure the new world memory condenses all navigation information about completed task essential subtasks.
 - More recent actions in the action_memory are closer to the right of the list.
-- Task-essential information includes the success and failure of attempting to fulfill user specifications in task_details.
-- Only include information you know is definitely true, don't assume anything.
-- The new world memory only serves to record what has been done.
+- Only include information you know is definitely true. DO NOT assume anything.
+- The new world memory only serves to record what has been done. It is not for planning the future.
+- You MUST include information about the completion of task-essential subtasks.
+- Task-essential subtasks include specifications/tasks mentioned in the task_details or web_agent_task.
 
 Follow the steps carefully and reason step-by-step, then give your final answer as a JSON object as described above.
