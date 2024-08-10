@@ -283,24 +283,27 @@ def call_unified_task_clarifier(user_task, context, provider="anthropic"):
     input(f"Unified task clarifier call")
 
     # Use regex to find the JSON array in the output
-    json_match = re.search(r'\[.*]', answer, re.DOTALL)
+    json_match = re.findall(r'\[.*?\]', answer, re.DOTALL)
 
     if json_match:
-        json_str = json_match.group(0)
+        for match in json_match:
+            json_str = match
 
-        try:
-            questions = json.loads(json_str)
+            try:
+                questions = json.loads(json_str)
 
-            # Verify that we have a list of strings
-            if isinstance(questions, list) and all(isinstance(q, str) for q in questions):
-                # 'questions' now contains the list of questions from the LLM's output
-                return questions
-            else:
-                print("Unified Task Clarifier Error: Parsed JSON is not a list of strings")
-                return []
-        except json.JSONDecodeError:
-            print("Unified Task Clarifier Error: Invalid JSON format")
-            return []
+                # Verify that we have a list of strings
+                if isinstance(questions, list) and all(isinstance(q, str) for q in questions):
+                    # 'questions' now contains the list of questions from the LLM's output
+                    return questions
+                else:
+                    # print("Unified Task Clarifier Error: Parsed JSON is not a list of strings")
+                    # return []
+                    continue
+            except json.JSONDecodeError:
+                continue
+        print("Unified Task Clarifier Error: Invalid JSON format")
+        return []
     else:
         print("Unified Task Clarifier Error: No JSON array found in the output")
         return []

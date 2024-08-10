@@ -17,6 +17,7 @@ Follow these steps to complete your task:
        - Reason step-by-step about its options. If a set of options has a default option, do not ask about that set of options.
        - If there aren't any default options for a set of options, we need questions about all possible options presented in the important info that is unspecified by the user.
        - We need questions to ask for clarifications requested by the important info and unspecified by the user task.
+       - Combine the different options questions for the same item of interest into the same question
    - Every question should ask about different types of clarifications.
    - For every question, it should include all possible options from the important info that the user can choose from that is relevant to that question.
 
@@ -31,11 +32,10 @@ Remember:
 - The question only asks for information unspecified by the user, but is mentioned explicitly in the important info.
 - The important info contains all information that you may need clarification for. Don't assume possible questions.
 - If the user has already specified a type of option, do not ask about that option type.
-- Every question should ask about different things.
+- Every question should ask about different things, but if the options refer to the same object, ask them in the same question.
 - You must include all information that is relevant to a question, in the question. To keep questions brief, make them specific.
 - If a set of options has a default choice, DO NOT ask about those options.
 - For options without a default choice, you must ask about these and give the user all options that are available for the question that you are asking them.
-- Ask ONE question for each item of interest.
 - Output your final set of questions as a JSON array of strings.
 
 Follow the steps carefully and reason step-by-step, then give me your final set of questions in the specified JSON format.
