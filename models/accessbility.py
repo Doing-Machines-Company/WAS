@@ -40,6 +40,9 @@ class AxObservation(PageObservation):
                         ignored_properties = {"focusable", "editable", "readonly", "level", "settable", "multiline", "invalid"}
                         if property["name"] in ignored_properties:
                             continue
+                        elif property["name"] == "hidden" and property["value"]["value"]:
+                            valid_node = False
+                            break
                         properties.append(f'{property["name"]}: {property["value"]["value"]}')
                     except KeyError:
                         pass
