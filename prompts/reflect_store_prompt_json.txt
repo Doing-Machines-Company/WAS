@@ -5,7 +5,9 @@ Here's the input data:
   "old_accessibility_tree": "$old_accessibility_tree",
   "action_number": "$action_number",
   "reason_for_action": "$reason_for_action",
-  "new_accessibility_tree": "$new_accessibility_tree"
+  "new_accessibility_tree": "$new_accessibility_tree",
+  "web_agent_task": "$web_agent_task",
+  "task_details": "$task_details"
 }
 
 Follow these steps to complete your task:
@@ -13,11 +15,13 @@ Follow these steps to complete your task:
 1. Analyze the old accessibility tree, action number, and why the web agent chose to perform that action:
    - Every action in the accessibility tree is labeled with a number at the start of the line.
    - The action number matches an action to this number on the old accessibility tree.
-   - Reason about this action, it's intended purpose, and whether it succeeded or failed.
+   - Reason about this action, its intended purpose, and whether it succeeded or failed.
 
 2. Reason about the action and two accessibility trees:
    - Examine the old accessibility tree and new accessibility tree. Reason about their difference carefully
    - Reason about the effects of the action that was performed using the two accessibility trees.
+   - Reason about any task-essential operations that were completed:
+      - 'Task-essential' means that the information explicitly matches or is implied by information in the agent's task, or explicitly matches or is implied by details in task_details.
 
 3. Tell me the effects of the action:
    - Use the following JSON format to indicate your chosen action:
@@ -30,9 +34,13 @@ Follow these steps to complete your task:
        "old_web_page_purpose": "Customization menu for Magical Sandwich",
        "action_effect": "Increase quantity of Magical Sandwich to 2"
      }
+    - If there are quotes " within the strings, be sure to escape them, otherwise the JSON will be malformed.
+
 
 Remember:
 - Every action in the accessibility trees is labeled with a number at the start of the line.
+- The task_details is a list of tuples in the format: (object, details about the user's preferences for that object)
+- The web_agent_task is the task of the web agent which you are assisting.
 - Some actions have {} brackets at the end of the line describing what that action does. Assume these descriptions are accurate.
 - The old_accessibility_tree is the web page BEFORE the action.
 - The new_accessibility_tree is the web page AFTER the action.
@@ -40,5 +48,6 @@ Remember:
 - If the action failed or reached a dead-end on the website, include that as a part of the action_effect.
 - If the action attempted or did to move away from a failure or dead-end on the website, also include that as a part of the action_effect. If the move was successful, also include where it moved to in the action_effect.
 - Only include information you know is definitely true, don't assume anything.
+- Use precise language and be detailed about anything that's task-essential.
 
 Follow the steps carefully and reason step-by-step, then give your final answer in the JSON format described above.

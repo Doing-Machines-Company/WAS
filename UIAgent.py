@@ -132,11 +132,11 @@ class Agent:
 
                 if str(old_inf_tree) != '':
                     mem_response = call_reflect_agent(chosen_action_index, reason_for_action, str(old_inf_tree),
-                                                      str(curr_inf_tree))
+                                                      str(curr_inf_tree), self.task, self.clarifications)
                     if mem_response is None:
                         raise Exception
                     old_web_page_purpose, object_and_effect = mem_response[0], mem_response[1]
-                    new_memory = LinearMemory(object_and_effect, old_web_page_purpose)
+                    new_memory = LinearMemory(object_details=old_web_page_purpose, location_details=object_and_effect)
                     self.action_mem.append(new_memory)
 
                 old_inf_tree = curr_inf_tree

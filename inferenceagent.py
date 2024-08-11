@@ -68,7 +68,9 @@ def call_llm(prompt, provider="anthropic", model="claude-3-5-sonnet-20240620", m
         raise ValueError("Invalid provider. Choose 'anthropic', 'groq', or 'together'. ")
 
 def call_action_agent(task, task_details, ax_tree, world_memory, action_memory, context, provider="anthropic"):
-    action_memory = str(action_memory)
+    new_action_memory = ''
+    for i, lin_mem in enumerate(action_memory):
+        new_action_memory += f"\n{i+1}) LOCATION: {lin_mem.object_details}\n{i+1}) EFFECT: {lin_mem.location_details}"
     with open('prompts/new_prompt.txt', 'r') as f:
         prompt = f.read()
     replacements = {
@@ -76,7 +78,7 @@ def call_action_agent(task, task_details, ax_tree, world_memory, action_memory, 
         'task': task,
         'task_details': task_details,
         'world_memory': world_memory,
-        'action_memory': action_memory,
+        'action_memory': new_action_memory,
         'context': context
     }
     prompt = string.Template(prompt)
@@ -97,14 +99,17 @@ def call_action_agent(task, task_details, ax_tree, world_memory, action_memory, 
     return None
 
 def call_memory_agent(web_agent_task, task_details, action_memory, world_memory, provider="anthropic"):
-    action_memory = str(action_memory)
+    new_action_memory = ''
+    for i, lin_mem in enumerate(action_memory):
+        new_action_memory += f"\n{i+1}) LOCATION: {lin_mem.object_details}\n{i+1}) EFFECT: {lin_mem.location_details}"
+    input("ACTION MEMORY")
     with open('prompts/world_mem_prompt_json.txt', 'r') as f:
         prompt = f.read()
     replacements = {
         'web_agent_task': web_agent_task,
         'task_details': task_details,
         'world_memory': world_memory,
-        'action_memory': action_memory,
+        'action_memory': new_action_memory,
     }
     prompt = string.Template(prompt)
     prompt = prompt.substitute(replacements)
@@ -141,7 +146,7 @@ def call_memory_agent(web_agent_task, task_details, action_memory, world_memory,
     else:
         return "Error: No JSON object found in the answer"
 
-def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tree, provider="anthropic"):
+def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tree, web_agent_task, task_details, provider="anthropic"):
     with open('prompts/reflect_store_prompt_json.txt', 'r') as f:
         prompt = f.read()
     replacements = {
@@ -149,6 +154,8 @@ def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tre
         'reason_for_action': reason_for_action,
         'old_accessibility_tree': old_ax_tree,
         'new_accessibility_tree': new_ax_tree,
+        'web_agent_task': web_agent_task,
+        'task_details': task_details
     }
     prompt = string.Template(prompt)
     prompt = prompt.substitute(replacements)

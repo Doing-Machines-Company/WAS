@@ -12,25 +12,29 @@ Follow these steps to complete your task:
 
 1. Analyze the world_memory, web_agent_task and task_details:
    - The world_memory is a summary of everything the agent has seen and done that is relevant to task-essential subtasks to the agent's task, examine it carefully.
-       - 'Task-essential' means that the information explicitly matches information in the agent's task, or explicitly matches details in task_details.
+       - 'Task-essential' means that the information explicitly matches or is implied by information in the agent's task, or explicitly matches or is implied by details in task_details.
        - The world_memory keeps track of:
-           - The completion of task-essential subtasks that have already been done.
+           - The definite completion of task-essential subtasks.
            - Dead-ends and details of failures in attempts to navigate to or complete task-essential subtasks.
            - General navigation information ONLY for navigating to complete the next task-essential subtask that needs to be completed.
 
 2. Reason about the action_memory and world_memory:
    - The action_memory is a list of all the actions that were performed AFTER the world_memory was last updated.
-   - Reason about the action_memory to determine it's over-arching effect.
-   - Determine what it tells you that is relevant to the web agent's task.
-       - Determine if it completes a task-essential subtask, navigates to complete a task-essential subtask, or otherwise.
+   - Reason about the action_memory to determine its effects, and what has definitely been completed.
+   - Determine what is relevant to the web agent's task and task details.
+       - Determine the exact effects of actions that have been done, and if they are task-essential.
 
-3. Combine action_memory and world_memory, condensing extraneous details:
+3. Combine action_memory and world_memory to form the new world memory:
    - The completion of task essential operations should always be included, including information about it's extra options and specifications.
    - Information about dead-ends in the website and its reasons should be included.
    - Information about failing to complete task-essential subtasks and its reasons should be included.
    - Only include website location information when it concerns a dead-end or failure.
    - Only include information either already in world_memory, or that you know is true from action_memory.
    - DO NOT include observational information that's not about a failure/dead-end.
+
+4. Condense the new world memory:
+   - Remove information about successful intermediate navigation steps.
+   - Keep information about failures and dead-ends.
 
 5. Give me the new world memory:
    - Provide your entire response as a JSON object with a single key "new_world_memory" whose value is the new world memory as a string.
@@ -41,14 +45,17 @@ Follow these steps to complete your task:
 
 Remember:
 - The world_memory was last updated before action_memory was recorded.
-- The action_memory is a list of tuples in the format: (where the action was taken, the object that action was taken on).
+- The action_memory is an enumerated list of tuples in the format:
+   - x) Location: Where action was taken
+     x) Effect: Effect of action
+   - Later items in action_memory happened more recently.
 - The task_details is a list of tuples in the format: (object, details about the user's preferences for that object)
 - The web_agent_task is the task of the web agent which you are assisting.
-- Ensure the new world memory condenses all navigation information about completed task essential subtasks.
-- More recent actions in the action_memory are closer to the right of the list.
-- Only include information you know is definitely true. DO NOT assume anything.
+- Ensure the new world memory condenses all navigation information about COMPLETED task essential subtasks.
+- ONLY include information you know is DEFINITELY true. DO NOT assume anything.
 - The new world memory only serves to record what has been done. It is not for planning the future.
-- You MUST include information about the completion of task-essential subtasks.
+- You MUST include information about the COMPLETION of task-essential operations.
 - Task-essential subtasks include specifications/tasks mentioned in the task_details or web_agent_task.
+- Use precise language and be detailed about anything that's task-essential.
 
 Follow the steps carefully and reason step-by-step, then give your final answer as a JSON object as described above.
