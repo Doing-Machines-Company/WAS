@@ -5,6 +5,24 @@ import json
 from html.parser import HTMLParser
 from bs4 import BeautifulSoup
 
+def is_button(element):
+    """
+    Determine if an element is a button based on its tag and attributes.
+    """
+    if element.name == 'button':
+        return True
+    if element.name == 'a' and ('btn' in element.get('class', [])):
+        return True
+    return False
+
+def get_button_text(element):
+    """
+    Extract the visible text from a button element.
+    """
+    # Remove any hidden text
+    for hidden in element.find_all(class_='is-visually-hidden'):
+        hidden.decompose()
+    return element.text.strip()
 
 def get_element_details(html):
     """
@@ -149,7 +167,30 @@ def style_similarity(document_1, document_2):
     return jaccard_similarity(classes_page1, classes_page2)
 
 
-def element_similarity(document_1, document_2, k=0.6):
+def element_similarity(document_1, document_2, k=0.6, button_text_match=False):
+
+    if button_text_match:
+
+        soup1 = BeautifulSoup(document_1, 'html.parser')
+        soup2 = BeautifulSoup(document_2, 'html.parser')
+
+        element1 = soup1.find()
+        element2 = soup2.find()
+
+        # Check if both elements are buttons
+        if is_button(element1) and is_button(element2) and element1.name == element2.name:
+            print('BOTH ARE BUTTONS')
+
+            text1 = get_button_text(element1)
+            text2 = get_button_text(element2)
+
+            print(text1)
+            print(text2)
+
+            # If button texts don't match, return 0 similarity
+            if text1 != text2:
+                return 0
+
     structural_sim = structural_similarity(document_1, document_2)
     style_sim = style_similarity(document_1, document_2)
     if style_sim < 0.33:
@@ -157,10 +198,11 @@ def element_similarity(document_1, document_2, k=0.6):
     return structural_sim
     #return min(structural_sim, style_sim)  # Structural sim seems to be more telling
 
+#
+# string1 = '<a class="btn media__btn js-orderNow" href="#!/order/variant/new?code=14SCEXTRAV&amp;qty=1&amp;toppings=X:1/1;1|C:1/1;1|H:1/1;1|B:1/1;1|P:1/1;1|S:1/1;1|O:1/1;1|R:1/1;1|M:1/1;1|Cp:1/1;1|G:1/1;1" data-dpz-track-evt-name="Order CTA | ExtravaganZZa" data-dpz-track-ga4-event-name="select_item" data-dpz-track-ga4-product="S_ZZ" data-dpz-segment-track-event-name="Product Clicked" data-dpz-segment-track-product="S_ZZ" data-quid="S_ZZ"> Add to Order<span class="is-visually-hidden">: ExtravaganZZa</span> </a>'
+# string2 = '<a class="btn btn--outline media__btn js-customize" href="#!/product/S_ZZ/builder/" data-dpz-track-evt-name="Customize CTA | ExtravaganZZa" data-dpz-track-ga4-event-name="select_item" data-dpz-track-ga4-product="S_ZZ" data-dpz-segment-track-event-name="Product Clicked" data-dpz-segment-track-product="S_ZZ" data-quid="S_ZZ-customize"> Customize<span class="is-visually-hidden">: ExtravaganZZa</span> </a>'
+#
+# print(element_similarity(string1, string2, button_text_match=True))
 
-# string1 = "<a class=\"css-0\" data-quid=\"main-navigation-order-online\" href=\"/en/pages/order/\">Order Online</a>"
-# string2 = "<a data-quid=\"location\" href=\"/en/pages/order/?locations=1#!/locations/\" class=\"css-0\">Locations</a>"
-#
-#
 # similarity_score = element_similarity(string1, string2)
 # print(f"Similarity Score: {similarity_score}")

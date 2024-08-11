@@ -16,12 +16,16 @@ def index():
 
 @socketio.on('connect')
 def handle_connect():
+    emit('connection_response', {'status': 'connected'})
+
+@socketio.on('start_agent')
+def handle_start_agent():
     global agent_initialized
     with agent_lock:
         if not agent_initialized:
             Thread(target=run_agent).start()
             agent_initialized = True
-    emit('connection_response', {'status': 'connected'})
+    emit('agent_started', {'status': 'Agent started'})
 
 def run_agent():
     agent.run()  # This should start the agent's main loop, including asking the initial question
@@ -34,6 +38,8 @@ def agent_loop():
                 socketio.emit('browser_update', {'screenshot': data})
             elif output_type == 'question':
                 socketio.emit('agent_question', {'question': data})
+            elif output_type == 'only_out':
+                socketio.emit('agent_only_out', {'message': data})
         socketio.sleep(0.1)
 
 @socketio.on('user_response')

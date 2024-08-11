@@ -156,6 +156,8 @@ class Agent:
 
                 chosen_action_index, reason_for_action = action_out
 
+                self.output_queue.put(('only_out', reason_for_action))
+
                 chosen_indefinite = curr_inf_tree.get_action_from_index(chosen_action_index)
                 chosen_action = chosen_indefinite.action
 
