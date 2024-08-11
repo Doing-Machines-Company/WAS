@@ -37,14 +37,20 @@ with open('./data/factsNEW.txt', 'r') as f:
     document = f.read()
 nodes = [TextNode(text = chunk, id_ = i) for (i, chunk) in enumerate(document.split('***'))]
 index = VectorStoreIndex(nodes)
-retriever = index.as_retriever(vector_store_query_mode="mmr", vector_store_kwargs={"mmr_threshold": 1})
+retriever = index.as_retriever(similarity_top_k=2)
 print("took", time.time() - start)
-# start = time.time()
-context_info = "\n".join([node.get_content() for node in retriever.retrieve(task)])
-# print("Retrieving took...", time.time() -start)
-# print(context_info)
+def autoregressive_retrieve(index, task, k=2):
+    new_task = task 
+    nodes = []
+    for i in range(k):
+        retriever = index.as_retriever(similarity_top_k = i+1)
+        new_node = retriever.retrieve(new_task)[-1]
+        new_task += new_node.get_content()
+        nodes.append(new_node)
+    return nodes
+top_k = 2
 interesting_items: list[str] = call_task_separator(task)
-item_context_pairs = "\n\n".join(["Item: " + item + "\n" + "Context: " + "".join([node.get_content() for node in retriever.retrieve(item)]) for item in interesting_items])
+item_context_pairs = "\n\n".join(["Item: " + item + "\n" + "Context: " + "".join([node.get_content() for node in autoregressive_retrieve(index, item, top_k)]) for item in interesting_items])
 print('-'*80)
 print(item_context_pairs)
 print('-'*80)

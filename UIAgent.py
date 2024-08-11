@@ -68,11 +68,20 @@ class Agent:
         self.retriever = self.index.as_retriever(vector_store_query_mode="mmr",
                                                  vector_store_kwargs={"mmr_threshold": 1})
         print("took", time.time() - start)
-
+        def autoregressive_retrieve(index, task, k=2):
+            new_task = task 
+            nodes = []
+            for i in range(k):
+                retriever = index.as_retriever(similarity_top_k = i+1)
+                new_node = retriever.retrieve(new_task)[-1]
+                new_task += new_node.get_content()
+                nodes.append(new_node)
+            return nodes
+        top_k = 2
         self.context_info = "\n".join([node.get_content() for node in self.retriever.retrieve(self.task)])
         self.interesting_items = call_task_separator(self.task)
         self.item_context_pairs = "\n\n".join(["Item: " + item + "\n" + "Context: " + "".join(
-            [node.get_content() for node in self.retriever.retrieve(item)]) for item in self.interesting_items])
+            [node.get_content() for node in autoregressive_retrieve(self.index, item, top_k)]) for item in self.interesting_items])
 
         self.questions = call_unified_task_clarifier(self.task, self.item_context_pairs)
 

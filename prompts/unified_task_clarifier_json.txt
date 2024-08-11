@@ -27,7 +27,7 @@ Follow these steps to complete your task:
      "How much coke do you want (8oz or 20oz)?",
      "Do you want feta cheese in your sandwich?"
    ]
-
+   If there are quotes " within the strings, be sure to escape them, otherwise the JSON will be malformed.
 Remember:
 - The question only asks for information unspecified by the user, but is mentioned explicitly in the important info.
 - The important info contains all information that you may need clarification for. Don't assume possible questions.
