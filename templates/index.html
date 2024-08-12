@@ -132,6 +132,20 @@
             margin-left: 10px;
             cursor: pointer;
         }
+        .thinking {
+            align-self: center;
+            color: #0B648F;
+            font-style: italic;
+        }
+        .thinking::after {
+            content: '.';
+            animation: thinking 1.5s infinite;
+        }
+        @keyframes thinking {
+            0% { content: '.'; }
+            33% { content: '..'; }
+            66% { content: '...'; }
+        }
     </style>
 </head>
 <body>
@@ -144,10 +158,11 @@
             <button id="start-button" v-if="!agentStarted" @click="startAgent">Start</button>
         </div>
         <div class="chat-container">
-            <div class="messages">
+            <div class="messages" ref="chatMessages">
                 <div v-for="message in messages" :class="['message', message.type + '-message']">
                     <div class="message-content">{% raw %}{{ message.text }}{% endraw %}</div>
                 </div>
+                <div v-if="showThinking" class="thinking">thinking</div>
             </div>
             <div class="input-container" v-if="waitingForUserInput">
                 <input v-model="inputMessage" @keyup.enter="sendResponse" placeholder="Type your response...">
@@ -166,13 +181,21 @@
                 browserScreenshot: '',
                 waitingForUserInput: false,
                 agentStarted: false,
-                hasScreenshot: false
+                hasScreenshot: false,
+                agentActive: false,
+                isAtBottom: true
+            },
+            computed: {
+                showThinking() {
+                    return this.agentActive && !this.waitingForUserInput;
+                }
             },
             created() {
                 this.socket = io();
                 this.socket.on('agent_question', (data) => {
                     this.messages.push({ type: 'agent', text: data.question });
                     this.waitingForUserInput = true;
+                    this.scrollToBottomIfNeeded();
                 });
                 this.socket.on('browser_update', (data) => {
                     this.browserScreenshot = 'data:image/jpeg;base64,' + data.screenshot;
@@ -180,9 +203,14 @@
                 });
                 this.socket.on('agent_only_out', (data) => {
                     this.messages.push({ type: 'only-out', text: data.message });
+                    this.scrollToBottomIfNeeded();
                 });
                 this.socket.on('agent_started', (data) => {
                     this.agentStarted = true;
+                    this.agentActive = true;
+                });
+                this.socket.on('agent_stopped', () => {
+                    this.agentActive = false;
                 });
             },
             methods: {
@@ -195,8 +223,37 @@
                         this.socket.emit('user_response', { response: this.inputMessage });
                         this.inputMessage = '';
                         this.waitingForUserInput = false;
+                        this.scrollToBottomIfNeeded();
+                    }
+                },
+                isScrolledToBottom() {
+                    const element = this.$refs.chatMessages;
+                    return element.scrollHeight - element.scrollTop === element.clientHeight;
+                },
+                scrollToBottom() {
+                    this.$nextTick(() => {
+                        const element = this.$refs.chatMessages;
+                        element.scrollTop = element.scrollHeight;
+                    });
+                },
+                scrollToBottomIfNeeded() {
+                    if (this.isAtBottom) {
+                        this.scrollToBottom();
                     }
                 }
+            },
+            watch: {
+                messages() {
+                    this.$nextTick(() => {
+                        this.isAtBottom = this.isScrolledToBottom();
+                    });
+                }
+            },
+            mounted() {
+                const element = this.$refs.chatMessages;
+                element.addEventListener('scroll', () => {
+                    this.isAtBottom = this.isScrolledToBottom();
+                });
             }
         });
     </script>

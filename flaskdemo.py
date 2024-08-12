@@ -28,8 +28,10 @@ def handle_start_agent():
     emit('agent_started', {'status': 'Agent started'})
 
 def run_agent():
-    agent.run()  # This should start the agent's main loop, including asking the initial question
-
+    try:
+        agent.run()
+    finally:
+        socketio.emit('agent_stopped')  # Emit when the agent stops, even if there's an error
 def agent_loop():
     while True:
         if not agent.output_queue.empty():
