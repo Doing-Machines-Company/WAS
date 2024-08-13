@@ -16,7 +16,7 @@ anthropic_client = anthropic.Anthropic(
 groq_client = Groq()
 together_client = Together(api_key=os.environ.get('TOGETHER_API_KEY'))
 
-def call_llm(prompt, provider="anthropic", model="claude-3-5-sonnet-20240620", max_tokens=1000):
+def call_llm(prompt, provider="anthropic", model="claude-3-5-sonnet-20240620", max_tokens=2500):
     if provider == "anthropic":
         message = anthropic_client.messages.create(
             model=model,
@@ -61,7 +61,7 @@ def call_llm(prompt, provider="anthropic", model="claude-3-5-sonnet-20240620", m
             top_k=50,
             repetition_penalty=1,
             stop=["<|eot_id|>"],
-            stream=False
+            stream=False,
         )
         return response.choices[0].message.content
     else:

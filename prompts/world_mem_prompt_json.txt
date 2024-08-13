@@ -24,19 +24,24 @@ Follow these steps to complete your task:
    - Determine what is relevant to the web agent's task and task details.
        - Determine the exact effects of actions that have been done, and if they are task-essential.
 
-3. Combine action_memory and world_memory to form the new world memory:
+3. Reason about what is definitely and explicitly true from action_memory and world_me:
+   - The action_memory is very explicit and precise in language. Determine what is definitely true.
+   - Reason through this step-by-step, using chain-of-thought (CoT).
+
+4. Integrate information that is definitely true from action_memory with world_memory to form new world memory.
    - The completion of task essential operations should always be included, including information about it's extra options and specifications.
    - Information about dead-ends in the website and its reasons should be included.
    - Information about failing to complete task-essential subtasks and its reasons should be included.
    - Only include website location information when it concerns a dead-end or failure.
-   - Only include information either already in world_memory, or that you know is true from action_memory.
+   - ONLY include information either you know is true from step 3.
    - DO NOT include observational information that's not about a failure/dead-end.
+   - action_memory uses very precise language for actions. Information integrated from action_memory should use the same language as its source from action_memory.
 
-4. Condense the new world memory:
+5. Condense the new world memory:
    - Remove information about successful intermediate navigation steps.
    - Keep information about failures and dead-ends.
 
-5. Give me the new world memory:
+6. Give me the new world memory:
    - Provide your entire response as a JSON object with a single key "new_world_memory" whose value is the new world memory as a string.
      For example:
      {
@@ -52,10 +57,10 @@ Remember:
 - The task_details is a list of tuples in the format: (object, details about the user's preferences for that object)
 - The web_agent_task is the task of the web agent which you are assisting.
 - Ensure the new world memory condenses all navigation information about COMPLETED task essential subtasks.
-- ONLY include information you know is DEFINITELY true. DO NOT assume anything.
 - The new world memory only serves to record what has been done. It is not for planning the future.
 - You MUST include information about the COMPLETION of task-essential operations.
 - Task-essential subtasks include specifications/tasks mentioned in the task_details or web_agent_task.
-- Use precise language and be detailed about anything that's task-essential.
+- Be precise and detailed about anything that's task-essential.
+- ONLY include information you know is DEFINITELY true. DO NOT assume anything.
 
 Follow the steps carefully and reason step-by-step, then give your final answer as a JSON object as described above.
