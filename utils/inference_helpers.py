@@ -137,7 +137,7 @@ def do_action_flow(page, chosen_action, chosen_element, chosen_xpath, type_list)
     if not screenshot_success:  # TODO BOUNDING BOX FOR THE SCREENSHOT IF SUCCESS
         print('action screenshot failed')
 
-    input("ABOUT TO DO ACTION")
+    # input("ABOUT TO DO ACTION")
 
     success = apply_action(page, chosen_action, chosen_action_screenshot, chosen_element, chosen_xpath,
                            type_list)

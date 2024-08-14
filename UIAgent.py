@@ -109,7 +109,6 @@ class Agent:
             self.question_answers.append((question, answer))
 
         self.clarifications = call_unified_question_cleaner(self.task, self.question_answers)
-        time.sleep(5)
         base_state = get_page_state(self.page, self.cdpSession)
         old_inf_tree = ''
 

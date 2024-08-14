@@ -71,7 +71,7 @@ def call_action_agent(task, task_details, ax_tree, world_memory, action_memory, 
     new_action_memory = ''
     for i, lin_mem in enumerate(action_memory):
         new_action_memory += f"\n{i+1}) LOCATION: {lin_mem.object_details}\n{i+1}) EFFECT: {lin_mem.location_details}"
-    with open('prompts/new_prompt.txt', 'r') as f:
+    with open('prompts/action_decider_prompt.txt', 'r') as f:
         prompt = f.read()
     replacements = {
         'ax_tree': ax_tree,
@@ -88,7 +88,7 @@ def call_action_agent(task, task_details, ax_tree, world_memory, action_memory, 
     answer = call_llm(prompt, provider)
     
     print(answer)
-    input("Action call")
+    # input("Action call")
 
     pattern = r'choose\(\s*(\d+),\s*"([^"]*(?:\\.[^"]*)*)"\)'
     match = re.search(pattern, answer)
@@ -102,7 +102,7 @@ def call_memory_agent(web_agent_task, task_details, action_memory, world_memory,
     new_action_memory = ''
     for i, lin_mem in enumerate(action_memory):
         new_action_memory += f"\n{i+1}) LOCATION: {lin_mem.object_details}\n{i+1}) EFFECT: {lin_mem.location_details}"
-    input("ACTION MEMORY")
+    # input("ACTION MEMORY")
     with open('prompts/world_mem_prompt_json.txt', 'r') as f:
         prompt = f.read()
     replacements = {
@@ -118,7 +118,7 @@ def call_memory_agent(web_agent_task, task_details, action_memory, world_memory,
     answer = call_llm(prompt, provider = 'together', model='llama-3.1-70b-versatile')
     
     print(answer)
-    input("World mem call")
+    # input("World mem call")
 
     # pattern = r'"""([\s\S]*?)"""'
     # match = re.search(pattern, answer)
@@ -164,7 +164,7 @@ def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tre
     answer = call_llm(prompt, provider = 'together', model='llama-3.1-70b-versatile')
     
     print(answer)
-    input("Memory store call")
+    # input("Memory store call")
 
     json_pattern = r'\{[^{}]*\}'
 
@@ -232,7 +232,7 @@ def call_task_clarifier(user_task, item_context_pairs, provider="anthropic"):
     answer = call_llm(prompt, provider='together')
     
     print(answer)
-    input("Task clarifier call")
+    # input("Task clarifier call")
 
     pattern = r'"""([\s\S]*?)"""'
     match = re.search(pattern, answer)
@@ -287,7 +287,7 @@ def call_unified_task_clarifier(user_task, context, provider="anthropic"):
     answer = call_llm(prompt, provider = 'together', model='llama-3.1-70b-versatile')
     
     print(answer)
-    input(f"Unified task clarifier call")
+    # input(f"Unified task clarifier call")
 
     # Use regex to find the JSON array in the output
     json_match = re.findall(r'\[.*?\]', answer, re.DOTALL)

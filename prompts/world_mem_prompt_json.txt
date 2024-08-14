@@ -36,12 +36,13 @@ Follow these steps to complete your task:
    - ONLY include information either you know is true from step 3.
    - DO NOT include observational information that's not about a failure/dead-end.
    - action_memory uses very precise language for actions. Information integrated from action_memory should use the same language as its source from action_memory.
+   - Use Chain-of-Thought (CoT), reason step-by-step to integrate the information accurately.
 
 5. Condense the new world memory:
    - Remove information about successful intermediate navigation steps.
    - Keep information about failures and dead-ends.
 
-6. Give me the new world memory:
+6. AFTER completing all of these steps, finally give me the new world memory:
    - Provide your entire response as a JSON object with a single key "new_world_memory" whose value is the new world memory as a string.
      For example:
      {
@@ -63,4 +64,5 @@ Remember:
 - Be precise and detailed about anything that's task-essential.
 - ONLY include information you know is DEFINITELY true. DO NOT assume anything.
 
-Follow the steps carefully and reason step-by-step, then give your final answer as a JSON object as described above.
+First, you MUST follow ALL the steps carefully and reason step-by-step.
+Then give your final answer as a JSON object as described above.

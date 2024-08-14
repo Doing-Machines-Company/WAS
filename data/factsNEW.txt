@@ -1,4 +1,4 @@
-Specialty pizzas: ExtravaganZZa, MeatZZa, Philly Cheese Steak, Pacific Veggie, Honolulu Hawaiian, Deluxe, Cali Chicken Bacon Ranch, Buffalo Chicken, Ultimate Pepperoni, Spinach & Feta, Wisconsin 6 Cheese, Memphis BBQ Chicken
+Specialty pizzas (names): ExtravaganZZa, MeatZZa, Philly Cheese Steak, Pacific Veggie, Honolulu Hawaiian, Deluxe, Cali Chicken Bacon Ranch, Buffalo Chicken, Ultimate Pepperoni, Spinach & Feta, Wisconsin 6 Cheese, Memphis BBQ Chicken
 Specialty pizzas can only be found through the dedicated button for them. The preset for these pizzas cannot be found through the regular pizza builder/crust constructions.
 For specialty pizzas, the most important customization option are its size and crust option.
 Specialty pizzas already have default toppings.
