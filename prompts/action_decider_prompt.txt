@@ -39,6 +39,7 @@ Follow these steps to complete your task:
    - Note any relevant elements or actions available on the page.
 
 2. Reason about your task, task details, past actions, and important info:
+   - Understand how what can be done on this page will help you complete your task and task details.
    - Review your assigned task and task details, then consider what steps are necessary to complete it.
    - Examine both types of memory to understand what you've already done.
    - Determine if there is a clear sign that the last action failed.
@@ -50,10 +51,12 @@ Follow these steps to complete your task:
    - The action_memory, world_memory and important_info may often constrain your next possible actions.
    - Based on your analysis and reasoning, identify the most appropriate action from the accessibility tree.
    - Consider how this action will help you progress towards completing your task.
+      - Reason very carefully about the action's text in the accessibility tree and ensure that you understand what that action will do.
    - Use Chain-of-Thought (CoT), reason step-by-step to ensure that you are choosing the next action that will satisfy as much of the task and task_details as much as possible.
 
 4. Double check that your chosen next action to ensure that it is the ideal next action:
    - Cross-reference with what's already been done according to world_memory and action_memory.
+   - Reason very carefully about the action's text in the accessibility tree and double check that you understand what that action will do.
    - Use Chain-of-Thought (CoT), reason step-by-step to double-check if the action you've chosen will satisfy as much of the task and task_details as much as possible.
 
 5. Provide your decision:
@@ -62,7 +65,8 @@ Follow these steps to complete your task:
    - action_number: The number of the action you've chosen from the accessibility tree.
    - action_reason: One brief sentence reason of why you chose that action (e.g., to navigate, because needed option isn't available, current page is a dead end for task, to input information for payment.etc)
    - For example:
-     choose(42, "Current page for Specialty Pizzas doesn't contain Magic Pizza, navigating to Menu where Magic Pizza may appear")
+     choose(X, "Current page for Specialty Pizzas doesn't contain Magic Pizza, navigating to Menu where Magic Pizza may appear")
+     where X is the number of the action you choose.
 
 Remember:
 - Every action in the accessibility tree is labeled with a number at the start of the line.
