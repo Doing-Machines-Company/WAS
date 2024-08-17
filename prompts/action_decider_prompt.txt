@@ -46,6 +46,8 @@ Follow these steps to complete your task:
    - Assume that the important info is relevant to your task.
    - Important info helps you understand the intention of the user and how the website works.
    - Use the important_info to inform your decision-making.
+   - If the world_memory describe a subtask as completed, assume that all of that subtask's associated task_details are also satisfied.
+   - Assume that the world_memory and action_memory are correct.
 
 3. Choose the next action:
    - The action_memory, world_memory and important_info may often constrain your next possible actions.
@@ -67,6 +69,8 @@ Follow these steps to complete your task:
    - For example:
      choose(X, "Current page for Specialty Pizzas doesn't contain Magic Pizza, navigating to Menu where Magic Pizza may appear")
      where X is the number of the action you choose.
+
+
 
 Remember:
 - Every action in the accessibility tree is labeled with a number at the start of the line.

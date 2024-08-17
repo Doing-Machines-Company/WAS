@@ -25,11 +25,20 @@ Follow these steps to complete your task, I will give you the inputs at the end:
    - If the action didn't fail, it may still not have completed all the intent described in intention_for_action.
    - Use Chain-of-Thought (CoT), reason step-by-step to determine what is definitely true accurately.
 
-3. Determine the effect of the action and double check that there are explicit signs of this effect in the accessibility trees:
-   - Use Chain-of-Thought (CoT), reason step-by-step to determine what is definitely true accurately.
-   - Things are only true if they're already in the world_memory, or explicitly stated in action_memory.
+3. Double check to determine all the effects of the action that are task-relevant:
+   - Carefully examine the two accessibility trees for any details that are task-relevant.
+      - Determine task-relevant information in both accessibility trees.
+      - Remember that task-relevant means that the information explicitly matches or is implied by information in the agent's task, or explicitly matches or is implied by details in task_details.
+   - Determine all task-relevant effects of the action.
+   - Use Chain-of-Thought (CoT), reason step-by-step to determine all task-relevant action effects.
 
-4. AFTER completing all of these steps, finally give me the effects of the action:
+4. Determine the effects of the action and double check that there are explicit signs of this effect in the accessibility trees:
+   - The action effects should contain all information that is task-relevant.
+   - Use Chain-of-Thought (CoT), reason step-by-step to determine what is definitely true accurately.
+   - Things explicitly stated in the world_memory and action_memory are true.
+   - It is very important that you do not hallucinate and make sure that you have an action effect which is correct and true.
+
+5. AFTER completing all of these steps, finally give me the effects of the action:
    - Provide your entire response as a JSON object with two keys, "old_web_page_purpose" and "action_effect", their values are strings.
      For example:
      {
@@ -61,7 +70,7 @@ Remember:
 - We only consider an action failed if no new actions on the new_accessibility_tree can help complete the intention_for_action.
 - If the action failed, action_effect must contain very precise and very detailed information about the reasons for the failure.
 - action_effect must be very precise and very detailed.
-- action_effect must include all task-relevant information.
+- action_effect must include all task-relevant information, task-relevant information includes specifications mentioned in the task_details or web_agent_task.
 - action_effect must specify if the performed action was successful or failed only if the action failed.
 - action_effect must describe the actual effect of the performed action.
 - action_effect MUST ONLY include information that is explicitly true. Don't assume anything. DO NOT HALLUCINATE.
