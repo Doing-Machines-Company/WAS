@@ -51,6 +51,7 @@ class Agent:
         self.at_new_state = False
         self.ws_endpoint = None
         self.playwright = None
+        self.initialize_index()
 
     def ask_user(self, question):
         self.output_queue.put(('question', question))
@@ -68,6 +69,7 @@ class Agent:
         self.retriever = self.index.as_retriever(vector_store_query_mode="mmr",
                                                  vector_store_kwargs={"mmr_threshold": 1})
         print("took", time.time() - start)
+    def formulate_questions(self):
         def autoregressive_retrieve(index, task, k=2):
             new_task = task 
             nodes = []
@@ -82,7 +84,7 @@ class Agent:
         self.interesting_items = call_task_separator(self.task)
         self.item_context_pairs = "\n\n".join(["Item: " + item + "\n" + "Context: " + "".join(
             [node.get_content() for node in autoregressive_retrieve(self.index, item, top_k)]) for item in self.interesting_items])
-
+        print(self.item_context_pairs)
         self.questions = call_unified_task_clarifier(self.task, self.item_context_pairs)
 
     def launch_browser(self):
@@ -102,8 +104,7 @@ class Agent:
         self.launch_browser()
         self.capture_and_send_screenshot()
         self.task = self.ask_user("What do you want done on dominos?")
-        self.initialize_index()
-
+        self.formulate_questions()
         for question in self.questions:
             answer = self.ask_user(question)
             self.question_answers.append((question, answer))
@@ -146,10 +147,10 @@ class Agent:
                     base_state = curr_page_state
                     self.world_mem = call_memory_agent(self.task, self.clarifications, self.action_mem, self.world_mem)
                     self.action_mem = []
-
+                start = time.time()
                 action_out = call_action_agent(self.task, self.clarifications, curr_inf_tree, self.world_mem,
                                                self.action_mem, self.item_context_pairs)
-
+                print("Action took", time.time() -start)
                 if action_out is None:
                     raise Exception
 
