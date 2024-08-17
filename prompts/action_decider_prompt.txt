@@ -39,6 +39,7 @@ Follow these steps to complete your task:
    - Note any relevant elements or actions available on the page.
 
 2. Reason about your task, task details, past actions, and important info:
+   - Understand how what can be done on this page will help you complete your task and task details.
    - Review your assigned task and task details, then consider what steps are necessary to complete it.
    - Examine both types of memory to understand what you've already done.
    - Determine if there is a clear sign that the last action failed.
@@ -46,14 +47,17 @@ Follow these steps to complete your task:
    - Important info helps you understand the intention of the user and how the website works.
    - Use the important_info to inform your decision-making.
 
-
-3. Given your memory, list ALL actions on the page that are needed to complete your task and satisfy task_details:
+3. Choose the next action:
    - The action_memory, world_memory and important_info may often constrain your next possible actions.
-   - Consider how this action will help you progress towards completing your task.
-
-4. Choose the NEXT action:
    - Based on your analysis and reasoning, identify the most appropriate action from the accessibility tree.
-   - Ensure the chosen action aligns with your current position in the task sequence.
+   - Consider how this action will help you progress towards completing your task.
+      - Reason very carefully about the action's text in the accessibility tree and ensure that you understand what that action will do.
+   - Use Chain-of-Thought (CoT), reason step-by-step to ensure that you are choosing the next action that will satisfy as much of the task and task_details as much as possible.
+
+4. Double check that your chosen next action to ensure that it is the ideal next action:
+   - Cross-reference with what's already been done according to world_memory and action_memory.
+   - Reason very carefully about the action's text in the accessibility tree and double check that you understand what that action will do.
+   - Use Chain-of-Thought (CoT), reason step-by-step to double-check if the action you've chosen will satisfy as much of the task and task_details as much as possible.
 
 5. Provide your decision:
    - Use the following Python function format to indicate your chosen action:
@@ -61,7 +65,8 @@ Follow these steps to complete your task:
    - action_number: The number of the action you've chosen from the accessibility tree.
    - action_reason: One brief sentence reason of why you chose that action (e.g., to navigate, because needed option isn't available, current page is a dead end for task, to input information for payment.etc)
    - For example:
-     choose(42, "Current page for Specialty Pizzas doesn't contain Magic Pizza, navigating to Menu where Magic Pizza may appear")
+     choose(X, "Current page for Specialty Pizzas doesn't contain Magic Pizza, navigating to Menu where Magic Pizza may appear")
+     where X is the number of the action you choose.
 
 Remember:
 - Every action in the accessibility tree is labeled with a number at the start of the line.
@@ -73,11 +78,12 @@ Remember:
      x) Effect: Effect of action
    - Later items in action_memory happened more recently.
 - The task_details is a list of tuples in the format: (object, details about the user's preferences for that object).
-- You must try your best to adhere to task_details. If the user doesn't give specify specific attributes, use the default the website gives you.
+- You must adhere to task_details. If the user doesn't give specify specific attributes, use the default the website gives you.
 - If the user's desired item has multiple default attributes, only modify them if the user specifies that you do so in task_details.
 - Some actions require inputting text, these are labelled INPUT_TEXT right after their starting number.
 - You can only input text into the web page (and interact with actions with the INPUT_TEXT label at the start) by calling the associated SPECIAL ACTION to call a different assistant agent, and telling it the intention of your input (e.g., input all information for payment) using action_reason.
 - More recent actions in the action_memory are closer to the right of the list.
 - Assume that once you see a piece of information the user wants to retrieve, it's automatically given to the user.
+- You must satisfy everything in task and task_details, and this may require adding/removing items from cart.etc
 
 Follow the steps carefully and reason step-by-step, then give your final answer inside a Python function as described above.
