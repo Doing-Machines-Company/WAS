@@ -6,7 +6,7 @@ from utils.inference_data import *
 from groq import Groq
 from together import Together
 import json
-
+from openai import OpenAI
 # Set up the Anthropic API client
 anthropic_client = anthropic.Anthropic(
     api_key=os.environ.get("ANTHROPIC_API_KEY")
@@ -14,7 +14,12 @@ anthropic_client = anthropic.Anthropic(
 
 # Set up the Groq API client
 groq_client = Groq()
+
+#set up Together API client
 together_client = Together(api_key=os.environ.get('TOGETHER_API_KEY'))
+
+#set up OpenAI API client
+openai_client = OpenAI()
 
 #system prompt is the part of the prompt that remains the same across calls to a given module, will attempt to cache if possible
 def call_llm(system_prompt = '', user_prompt= '', provider="anthropic", model="claude-3-5-sonnet-20240620", max_tokens=2500):
@@ -72,10 +77,27 @@ def call_llm(system_prompt = '', user_prompt= '', provider="anthropic", model="c
             stream=False,
         )
         return response.choices[0].message.content
+    elif provider == 'openai':
+        completion = openai_client.chat.completions.create(
+            model="chatgpt-4o-latest",
+            temperature=0,
+            max_tokens=max_tokens,
+            messages=[
+                {
+                    "role": "system", 
+                    "content": system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": user_prompt
+                }
+            ]
+        )
+        return completion.choices[0].message.content
     else:
         raise ValueError("Invalid provider. Choose 'anthropic', 'groq', or 'together'. ")
 
-def call_action_agent(task, task_details, ax_tree, world_memory, action_memory, context, provider="anthropic"):
+def call_action_agent(task, task_details, ax_tree, world_memory, action_memory, context, provider="openai"):
     new_action_memory = ''
     for i, lin_mem in enumerate(action_memory):
         new_action_memory += f"\n{i+1}) LOCATION: {lin_mem.object_details}\n{i+1}) EFFECT: {lin_mem.location_details}"
@@ -99,7 +121,7 @@ def call_action_agent(task, task_details, ax_tree, world_memory, action_memory, 
     }
     system_prompt = string.Template(system_prompt)
     system_prompt = system_prompt.substitute(replacements)
-    print(system_prompt)
+    # print(system_prompt)
 
     answer = call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider=provider)
     
@@ -129,7 +151,7 @@ def call_memory_agent(web_agent_task, task_details, action_memory, world_memory,
     }
     prompt = string.Template(prompt)
     prompt = prompt.substitute(replacements)
-    print(prompt)
+    # print(prompt)
     
     answer = call_llm(user_prompt=prompt, provider = 'groq', model='llama-3.1-70b-versatile')
     
@@ -175,7 +197,7 @@ def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tre
     }
     prompt = string.Template(prompt)
     prompt = prompt.substitute(replacements)
-    print(prompt)
+    # print(prompt)
     
     answer = call_llm(user_prompt=prompt, provider = 'groq', model='llama-3.1-70b-versatile')
     
@@ -243,7 +265,7 @@ def call_task_clarifier(user_task, item_context_pairs, provider="anthropic"):
     }
     prompt = string.Template(prompt)
     prompt = prompt.substitute(replacements)
-    print(prompt)
+    # print(prompt)
     
     answer = call_llm(user_prompt=prompt, provider='together')
     
@@ -278,7 +300,7 @@ def call_input_agent(user_task, agent_intent, task_details, input_ax_tree, conte
     }
     prompt = string.Template(prompt)
     prompt = prompt.substitute(replacements)
-    print(prompt)
+    # print(prompt)
     
     answer = call_llm(user_prompt=prompt, provider='groq', model='llama-3.1-70b-versatile')
 
@@ -350,7 +372,7 @@ def call_unified_question_cleaner(user_task, user_qa, provider="anthropic"):
     }
     prompt = string.Template(prompt)
     prompt = prompt.substitute(replacements)
-    print(prompt)
+    # print(prompt)
     
     answer = call_llm(user_prompt=prompt, provider='together', model='llama-3.1-8b-instant')
 
