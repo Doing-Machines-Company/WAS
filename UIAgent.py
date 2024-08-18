@@ -1,3 +1,5 @@
+import copy
+
 from utils.element_utils.element_similarity import element_similarity
 from pathlib import Path
 import os
@@ -48,7 +50,6 @@ class Agent:
         self.clarifications = None
         self.input_queue = Queue()
         self.output_queue = Queue()
-        self.at_new_state = False
         self.ws_endpoint = None
         self.playwright = None
         self.initialize_index()
@@ -110,13 +111,15 @@ class Agent:
             self.question_answers.append((question, answer))
 
         self.clarifications = call_unified_question_cleaner(self.task, self.question_answers)
-        base_state = get_page_state(self.page, self.cdpSession)
+        base_state = None
         old_inf_tree = ''
 
         while self.keep_running:
 
             self.capture_and_send_screenshot()
             curr_page_state = get_page_state(self.page, self.cdpSession)
+            if base_state is None:
+                base_state = curr_page_state
             matched_inference_state = match_action_effects(curr_page_state, self.url_state_manager)
 
             if matched_inference_state:
@@ -141,9 +144,8 @@ class Agent:
 
                 old_inf_tree = curr_inf_tree
 
-                self.at_new_state = is_different_page(base_state, curr_page_state)
-                if self.at_new_state:
-                    self.at_new_state = False
+                at_new_state = is_different_page(base_state, curr_page_state)
+                if at_new_state:
                     base_state = curr_page_state
                     self.world_mem = call_memory_agent(self.task, self.clarifications, self.action_mem, self.world_mem)
                     self.action_mem = []
