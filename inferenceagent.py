@@ -112,7 +112,7 @@ def call_action_agent(task, task_details, ax_tree, world_memory, action_memory, 
     }
     user_prompt = string.Template(user_prompt)
     user_prompt = user_prompt.substitute(replacements)
-    print(user_prompt)
+    # print(user_prompt)
     
     with open('prompts/action_decider/action_decider_system.txt', 'r') as f:
         system_prompt = f.read()
@@ -197,7 +197,7 @@ def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tre
     }
     prompt = string.Template(prompt)
     prompt = prompt.substitute(replacements)
-    print(prompt)
+    # print(prompt)
     
     answer = call_llm(user_prompt=prompt, provider = 'groq', model='llama-3.1-70b-versatile')
     
@@ -374,7 +374,7 @@ def call_unified_question_cleaner(user_task, user_qa, provider="anthropic"):
     prompt = prompt.substitute(replacements)
     # print(prompt)
     
-    answer = call_llm(user_prompt=prompt, provider='together', model='llama-3.1-8b-instant')
+    answer = call_llm(user_prompt=prompt, provider='groq', model='llama-3.1-8b-instant')
 
     # Find JSON array in the text
     json_pattern = r'\[(?:[^[\]{}]|\{[^{}]*\})*\]'
