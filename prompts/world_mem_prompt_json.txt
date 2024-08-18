@@ -41,6 +41,8 @@ Follow these steps to complete your task, I will give you the inputs at the end:
 5. Condense the new_world_memory:
    - Remove information about successful intermediate navigation steps.
    - Keep information about failures and dead-ends.
+   - Use Chain-of-Thought (CoT), reason step-by-step to ensure that you are condensing the new_world_memory correctly.
+       - Remember that the wording in action_memory and world_memory was chosen for a reason, do not assume anything.
 
 6. AFTER completing all of these steps, finally give me the new_world_memory:
    - Provide your entire response as a JSON object with a single key "new_world_memory" whose value is a string of the new_world_memory information.

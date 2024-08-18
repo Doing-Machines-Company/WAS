@@ -185,7 +185,7 @@ def call_memory_agent(web_agent_task, task_details, action_memory, world_memory,
         return "Error: No JSON object found in the answer"
 
 def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tree, web_agent_task, task_details, provider="anthropic"):
-    with open('prompts/reflect_store_prompt_json.txt', 'r') as f:
+    with open('prompts/reflect_store_prompt_json_v2.txt', 'r') as f:
         prompt = f.read()
     replacements = {
         'action_number': action_number,
@@ -197,7 +197,7 @@ def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tre
     }
     prompt = string.Template(prompt)
     prompt = prompt.substitute(replacements)
-    # print(prompt)
+    print(prompt)
     
     answer = call_llm(user_prompt=prompt, provider = 'groq', model='llama-3.1-70b-versatile')
     
