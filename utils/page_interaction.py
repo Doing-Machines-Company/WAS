@@ -20,7 +20,7 @@ def get_page_state(page: PlaywrightPage, cdpSession: CDPSession, attempts=3, del
     for _ in range(attempts):
         # Navigate to the given URL and wait for the page to load
         start = time.time()
-        wait_for_load(page)
+        #wait_for_load(page)
 
         if delete_footer:
             remove_footer_js = """
