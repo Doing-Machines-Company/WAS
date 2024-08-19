@@ -207,19 +207,25 @@ def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tre
     json_pattern = r'\{[^{}]*\}'
 
     # Find all matches
-    json_str = re.findall(json_pattern, answer)[-1]
-    if not json_str:
-        print("Reflect Restore Error: No JSON object found in the LLM output")
+    json_match = re.findall(json_pattern, answer)
+    if json_match:
+        for match in json_match:
+            json_str = match
 
-    # Step 3: Parse the JSON string
-    try:
-        data = json.loads(json_str)
-        old_web_page_purpose = data.get('old_web_page_purpose', '')
-        action_effect = data.get('action_effect', '')
-        return old_web_page_purpose, action_effect
-    except json.JSONDecodeError:
-        print("Reflect Restore Error: Invalid JSON in the LLM output")
-        return None
+            try:
+                data = json.loads(json_str)
+                if 'old_web_page_purpose' in data and 'action_effect' in data:
+                    old_web_page_purpose = data.get('old_web_page_purpose', '')
+                    action_effect = data.get('action_effect', '')
+                    print(data)
+                else:
+                    continue
+                return old_web_page_purpose, action_effect
+            except json.JSONDecodeError:
+                continue
+    else:
+        print("Reflect Restore Error: No JSON object found in the LLM output")
+        return '', ''
 
 
 
