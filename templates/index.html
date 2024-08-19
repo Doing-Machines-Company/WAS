@@ -146,6 +146,22 @@
             33% { content: '..'; }
             66% { content: '...'; }
         }
+        /* New style for reset button */
+        #reset-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-family: 'Futura', sans-serif;
+            font-size: 18px;
+            font-weight: bold;
+            padding: 10px 20px;
+            background-color: crimson;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 10;
+        }
     </style>
 </head>
 <body>
@@ -156,6 +172,7 @@
                 <div v-else class="placeholder-text">Starting...</div>
             </div>
             <button id="start-button" v-if="!agentStarted" @click="startAgent">Start</button>
+            <button id="reset-button" v-if="agentStarted" @click="resetAgent">Reset</button>
         </div>
         <div class="chat-container">
             <div class="messages" ref="chatMessages">
@@ -212,6 +229,13 @@
                 this.socket.on('agent_stopped', () => {
                     this.agentActive = false;
                 });
+                // New event listener for agent reset
+                this.socket.on('agent_reset', (data) => {
+                    this.agentStarted = false;
+                    this.agentActive = false;
+                    this.messages.push({ type: 'only-out', text: 'Agent has been reset. Click Start to begin again.' });
+                    this.scrollToBottomIfNeeded();
+                });
             },
             methods: {
                 startAgent() {
@@ -240,6 +264,16 @@
                     if (this.isAtBottom) {
                         this.scrollToBottom();
                     }
+                },
+                // New method for resetting the agent
+                resetAgent() {
+                    this.socket.emit('reset_agent');
+                    this.messages = [];
+                    this.browserScreenshot = '';
+                    this.hasScreenshot = false;
+                    this.waitingForUserInput = false;
+                    this.agentStarted = false;
+                    this.agentActive = false;
                 }
             },
             watch: {
