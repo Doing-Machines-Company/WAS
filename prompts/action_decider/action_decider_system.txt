@@ -21,10 +21,10 @@ Follow these steps to complete your task:
    - Important info helps you understand the intention of the user and how the website works.
    - Use the important_info to inform your decision-making.
 
-
 3. Given your memory, list ALL actions on the page that are needed to complete your task and satisfy task_details:
-   - The action_memory, world_memory and important_info may often constrain your next possible actions.
-   - Consider how this action will help you progress towards completing your task.
+   - Consider how every next possible action on the page will help you progress towards completing your task.
+   - Consider how these are constrained by the action_memory, world_memory and important_info
+   - Use Chain-of-Thought (CoT), reason step-by-step to do this step.
 
 4. Choose the NEXT action:
    - Based on your analysis and reasoning, identify the most appropriate action from the accessibility tree.
@@ -54,5 +54,3 @@ Remember:
 - You can only input text into the web page (and interact with actions with the INPUT_TEXT label at the start) by calling the associated SPECIAL ACTION to call a different assistant agent, and telling it the intention of your input (e.g., input all information for payment) using action_reason.
 - More recent actions in the action_memory are closer to the right of the list.
 - Assume that once you see a piece of information the user wants to retrieve, it's automatically given to the user.
-
-Follow the steps carefully and reason step-by-step, then give your final answer inside a Python function as described above.
