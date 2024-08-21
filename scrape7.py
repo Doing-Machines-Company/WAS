@@ -45,68 +45,6 @@ def normalize_url(url: str) -> str:
     # return urlunparse((scheme, netloc, path, '', '', ''))  # Ignoring the query and fragment
     return url
 
-
-
-def close_resources(cdp_session, page, context):
-    cdp_session.detach()
-    page.close()
-    context.close()
-
-def create_new_context_and_page(browser, cookies):
-        context = browser.new_context(
-            permissions=[], #this is to prevent popups
-            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36')
-        if cookies is not None:
-            context.add_cookies(cookies)
-        page = context.new_page()
-        cdpSession = context.new_cdp_session(page)
-        return context, page, cdpSession
-
-def login(page):
-    # print('LOGGING IN')
-    page.goto('https://www.dominos.com/en/restaurants?type=Delivery')
-    wait_for_load(page)
-    # page.get_by_label("Street Address", exact=False).fill('934 Keeamoku Street')
-    # page.get_by_label("Suite/Apt #", exact=False).fill('')
-    # page.get_by_label("ZIP Code", exact=False).fill('96814')
-    # page.get_by_label("City", exact=False).fill('Honolulu')
-    # page.get_by_label("State", exact=False).select_option('HI')
-    page.get_by_label("Street Address", exact=False).fill('5819 Centre Ave')
-    page.get_by_label("Suite/Apt #", exact=False).fill('Apt 448')
-    page.get_by_label("ZIP Code", exact=False).fill('15206')
-    page.get_by_label("City", exact=False).fill('Pittsburgh')
-    page.get_by_label("State", exact=False).select_option('PA')  # THIS
-    page.get_by_role("button", name="Continue for Delivery").click()
-    wait_for_load(page)
-    page.get_by_role("button", name="Delivery To").click()
-    page.get_by_role("button", name="Change").click()
-    page.get_by_role("button", name="Carryout").click()
-    page.get_by_role("button", name="Continue").click()
-    wait_for_load(page)
-def setup_context(browser, cookies, logged_in = True, attempts = 3):
-    context, page, cdpSession = create_new_context_and_page(browser, cookies)
-    success = True
-    if logged_in:
-        for attempt in range(attempts):
-            try:
-                if not success: #if we failed before, create new context and page
-                    context, page, cdpSession = create_new_context_and_page(browser, cookies)
-                    print("Trying login again...")
-                login(page)
-                # print('LOGIN SUCCESSFUL')
-            except Exception as e:
-                # page.screenshot(path='login_failure.png', full_page=True)
-                close_resources(cdpSession, page, context)
-                # cdpSession.detach()
-                # page.close()
-                # context.close()
-                print(f"Error logging in {attempt+1} times: {e}")
-                success=False
-            else:
-                success = True
-                break
-    return context, page, cdpSession, success
-
 #out of a set of actions generated from an observation, removes duplicates.
 #does not remove duplicates in header or footer because they are generally
 #significant enough that we want to keep them

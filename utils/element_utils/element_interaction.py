@@ -1,5 +1,6 @@
-
-def get_xpath_by_outer_html(page, outer_html):
+import asyncio
+ 
+async def get_xpath_by_outer_html(page, outer_html):
     # JavaScript function to find the element by outerHTML and generate its XPath
     js_code = """
     (outerHTML) => {
@@ -30,7 +31,7 @@ def get_xpath_by_outer_html(page, outer_html):
     }
     """
     # Evaluate the JavaScript code in the context of the page
-    xpath = page.evaluate(js_code, outer_html)
+    xpath = await page.evaluate(js_code, outer_html)
     return xpath
 
 
@@ -43,7 +44,7 @@ def remove_last_xpath_item(xpath):
     # If there is no '/', return the original string
     return xpath
 
-def click_element_by_outer_html(des_page, outer_html):  # TODO, CLAUDE MORE OF THIS FOR OTHER INTERACTION TYPES
+async def click_element_by_outer_html(des_page, outer_html):  # TODO, CLAUDE MORE OF THIS FOR OTHER INTERACTION TYPES
     js_code = """
     (outerHTML) => {
         const element = Array.from(document.querySelectorAll('*')).find(el => el.outerHTML === outerHTML);
@@ -54,7 +55,7 @@ def click_element_by_outer_html(des_page, outer_html):  # TODO, CLAUDE MORE OF T
         return false;
     }
     """
-    result = des_page.evaluate(js_code, outer_html)
+    result = await des_page.evaluate(js_code, outer_html)
     return result
 
 def make_xpath_friendly(des_xpath):
@@ -63,7 +64,7 @@ def make_xpath_friendly(des_xpath):
     else:
         return None
 
-def get_element(des_page, des_xpath):
+async def get_element(des_page, des_xpath):
     return des_page.locator(f"xpath={des_xpath}") if des_xpath else None
     # if des_xpath:
     #     return des_page.evaluate(

@@ -12,7 +12,6 @@ import copy as cp
 import pickle
 import re
 from models import PageObservation
-from playwright.sync_api import sync_playwright
 from inferenceagent import *
 import time
 from scrape7 import setup_context
@@ -26,13 +25,14 @@ from typing import List
 from queue import Queue
 import base64
 from playwright.sync_api import sync_playwright, Error as PlaywrightError
+from playwright.async_api import async_playwright
 import threading
-
+import asyncio
 
 class Agent:
     def __init__(self):
         self.stop_event = threading.Event()
-        self.playwright_lock = threading.Lock()
+        self.playwright_lock = asyncio.Lock()
         self.reset()
         self.initialize_index()
 
@@ -97,33 +97,33 @@ class Agent:
         print(self.item_context_pairs)
         self.questions = call_unified_task_clarifier(self.task, self.item_context_pairs)
 
-    def launch_browser(self):
-        with self.playwright_lock:
+    async def launch_browser(self):
+        async with self.playwright_lock:
             if self.playwright is None:
-                self.playwright = sync_playwright().start()
+                self.playwright = await async_playwright().start()
             if self.browser is None:
-                self.browser = self.playwright.chromium.launch(headless=False)
+                self.browser = await self.playwright.chromium.launch(headless=False)
             if self.browser_context is None or self.page is None or self.cdp_session is None:
                 try:
-                    self.browser_context, self.page, self.cdp_session, _ = setup_context(self.browser, None)
+                    self.browser_context, self.page, self.cdp_session, _ = await setup_context(self.browser, None)
                 except Exception as e:
                     print(f"Error during setup_context: {e}")
-                    self.cleanup_browser()
+                    await self.cleanup_browser()
                     raise
 
-    def cleanup_browser(self):
-        with self.playwright_lock:
+    async def cleanup_browser(self):
+        async with self.playwright_lock:
             try:
                 if self.cdp_session:
-                    self.cdp_session.detach()
+                    await self.cdp_session.detach()
                 if self.page:
-                    self.page.close()
+                    await self.page.close()
                 if self.browser_context:
-                    self.browser_context.close()
+                    await self.browser_context.close()
                 if self.browser:
-                    self.browser.close()
+                    await self.browser.close()
                 if self.playwright:
-                    self.playwright.stop()
+                    await self.playwright.stop()
             except Exception as e:
                 print(f"Error during browser cleanup: {e}")
             finally:
@@ -133,18 +133,17 @@ class Agent:
                 self.page = None
                 self.cdp_session = None
 
-    def capture_and_send_screenshot(self):
-        with self.playwright_lock:
+    async def capture_and_send_screenshot(self):
+        async with self.playwright_lock:
             if self.page:
-                screenshot = self.page.screenshot(full_page=False)
+                screenshot = await self.page.screenshot(full_page=False)
                 base64_screenshot = base64.b64encode(screenshot).decode('utf-8')
                 self.output_queue.put(('screenshot', base64_screenshot))
 
-    def run(self):
-        self.launch_browser()
+    async def run(self):
+        await self.launch_browser()
         try:
-            self.capture_and_send_screenshot()
-
+            await self.capture_and_send_screenshot()
             # Process task and questions once
             if self.task is None:
                 self.task = self.ask_user("What do you want done on dominos?")
@@ -165,10 +164,10 @@ class Agent:
 
             # Main action loop
             while not self.stop_event.is_set():
-                self.capture_and_send_screenshot()
+                await self.capture_and_send_screenshot()
 
-                with self.playwright_lock:
-                    curr_page_state = get_page_state(self.page, self.cdp_session)
+                async with self.playwright_lock:
+                    curr_page_state = await get_page_state(self.page, self.cdp_session)
                     if base_state is None:
                         base_state = curr_page_state
 
@@ -219,9 +218,9 @@ class Agent:
                         chosen_action = chosen_indefinite.action
 
                         if chosen_indefinite.location != IndefiniteAction.Location.SPECIAL:
-                            chosen_element, chosen_xpath, type_list = get_chosen_element(self.page,
+                            chosen_element, chosen_xpath, type_list = await get_chosen_element(self.page,
                                                                                          chosen_indefinite)
-                            success = do_action_flow(self.page, chosen_action, chosen_element, chosen_xpath,
+                            success = await do_action_flow(self.page, chosen_action, chosen_element, chosen_xpath,
                                                      type_list)
                             if not success:
                                 print(f"This action was broken: {chosen_action}")
@@ -237,10 +236,10 @@ class Agent:
                                     unhidden_input_string = replace_hidden_inputs(input_string, self.hidden_inputs)
                                     chosen_indefinite = curr_inf_tree.get_action_from_index(chosen_action_index)
                                     chosen_action = chosen_indefinite.action
-                                    chosen_element, chosen_xpath, type_list = get_chosen_element(self.page,
+                                    chosen_element, chosen_xpath, type_list = await get_chosen_element(self.page,
                                                                                                  chosen_indefinite)
                                     chosen_action.set_input_string(unhidden_input_string)
-                                    success = do_action_flow(self.page, chosen_action, chosen_element, chosen_xpath,
+                                    success = await do_action_flow(self.page, chosen_action, chosen_element, chosen_xpath,
                                                              type_list)
                     else:
                         print("No matched state, why?")
@@ -248,7 +247,7 @@ class Agent:
                     time.sleep(5)
         finally:
             print("CLEANING")
-            self.cleanup_browser()
+            await self.cleanup_browser()
             print("FINISHED CLEANING")
             print("DONE!")
 

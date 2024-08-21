@@ -19,6 +19,7 @@ from llama_index.core.schema import TextNode
 from llama_index.core import VectorStoreIndex
 from utils.element_utils.element_similarity import element_similarity
 from typing import List
+import asyncio 
 
 def load_scraper_state(file_path: str):
     with open(file_path, 'rb') as f:
@@ -40,7 +41,7 @@ def match_action_effects(curr_page_state: PageState, url_state_manager: URLState
         print("NOTHING FOUND")
         return None
     
-def get_chosen_element(page, chosen_indefinite):
+async def get_chosen_element(page, chosen_indefinite):
     assert(chosen_indefinite.location != IndefiniteAction.Location.SPECIAL)
     chosen_action = chosen_indefinite.action
     if chosen_action.action_type is not None:
@@ -51,34 +52,34 @@ def get_chosen_element(page, chosen_indefinite):
     else:
         type_list = chosen_indefinite.type_list
 
-    chosen_element = get_element(page, chosen_action.xpath)
+    chosen_element = await get_element(page, chosen_action.xpath)
     # assert(traj_action.friendly_xpath != None)
 
     chosen_xpath = chosen_action.xpath
-    if not chosen_element or chosen_element.count() < 1 or chosen_element.evaluate(
+    if not chosen_element or await chosen_element.count() < 1 or await chosen_element.evaluate(
             "element => element.outerHTML") != chosen_action.html:  # perhaps do a stripped check
         print('First attempt failed')
         chosen_element = get_element(page, chosen_action.friendly_xpath)
         chosen_xpath = chosen_action.friendly_xpath
-        if not chosen_element or chosen_element.count() < 1 or chosen_element.evaluate(
+        if not chosen_element or await chosen_element.count() < 1 or await chosen_element.evaluate(
                 "element => element.outerHTML") != chosen_action.html:
             print('Second attempt failed')
             # now we try getting stuff at rune time
             potentially_better_chosen_xpath = get_xpath_by_outer_html(page, chosen_action.html)
             potentially_better_friendly_chosen_xpath = make_xpath_friendly(potentially_better_chosen_xpath)
-            chosen_element = get_element(page, potentially_better_friendly_chosen_xpath)
+            chosen_element = await get_element(page, potentially_better_friendly_chosen_xpath)
             chosen_xpath = potentially_better_friendly_chosen_xpath
-            if not chosen_element or chosen_element.count() < 1:
+            if not chosen_element or await chosen_element.count() < 1:
                 print('Third attempt failed')
-                chosen_element = get_element(page, potentially_better_chosen_xpath)
+                chosen_element = await get_element(page, potentially_better_chosen_xpath)
                 chosen_xpath = potentially_better_chosen_xpath
-                if not chosen_element or chosen_element.count() < 1:
+                if not chosen_element or await chosen_element.count() < 1:
                     print('Fourth attempt failed')
-                    chosen_element = get_element(page, chosen_action.friendly_xpath)
+                    chosen_element = await get_element(page, chosen_action.friendly_xpath)
                     chosen_xpath = chosen_action.friendly_xpath
-                    if not chosen_element or chosen_element.count() < 1:
+                    if not chosen_element or await chosen_element.count() < 1:
                         print('Fifth attempt failed')
-                        chosen_element = get_element(page, chosen_action.xpath)
+                        chosen_element = await get_element(page, chosen_action.xpath)
                         chosen_xpath = chosen_action.xpath
     return chosen_element, chosen_xpath, type_list
 
@@ -107,14 +108,14 @@ def is_different_page(base_state, new_state):  # TODO, put this in some util aft
     return True
 
 
-def do_action_flow(page, chosen_action, chosen_element, chosen_xpath, type_list):
-    chosen_action_screenshot, screenshot_success = take_screenshot(
+async def do_action_flow(page, chosen_action, chosen_element, chosen_xpath, type_list):
+    chosen_action_screenshot, screenshot_success = await take_screenshot(
         page)  # we take a screenshot in case there's nothing to scroll to
 
-    if chosen_element and chosen_element.count() > 0 and chosen_xpath:
+    if chosen_element and await chosen_element.count() > 0 and chosen_xpath:
         try:
-            scroll_into_view(chosen_element)
-            chosen_action_screenshot, screenshot_success = take_screenshot(page)
+            await scroll_into_view(chosen_element)
+            chosen_action_screenshot, screenshot_success = await take_screenshot(page)
         except Exception as e:
             print("SCROLL FAILED DURING TRAJECTORY")
             print(e)
@@ -124,7 +125,7 @@ def do_action_flow(page, chosen_action, chosen_element, chosen_xpath, type_list)
             try:
                 # to_box_item = page.locator(f"xpath={action.friendly_xpath}")
                 # if final_element and final_element.count() > 0:  # should be redundant given continue above
-                to_box_coords = chosen_element.bounding_box(timeout=10000)
+                to_box_coords = await chosen_element.bounding_box(timeout=10000)
             except Exception as e:
                 print(f'GETTING BOUNDING BOXES FAILED FOR IN TRAJ {chosen_action}')
                 print(e)
@@ -139,7 +140,7 @@ def do_action_flow(page, chosen_action, chosen_element, chosen_xpath, type_list)
 
     # input("ABOUT TO DO ACTION")
 
-    success = apply_action(page, chosen_action, chosen_action_screenshot, chosen_element, chosen_xpath,
+    success = await apply_action(page, chosen_action, chosen_action_screenshot, chosen_element, chosen_xpath,
                            type_list)
 
     return success

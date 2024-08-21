@@ -10,14 +10,16 @@ from models.actions import *
 from bs4 import BeautifulSoup
 import time
 from typing import Optional, List, Any
+import asyncio
 
 CDPSession = Any
 AxNode = Any
-def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
+async def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
     start = time.time()
-    accessibility_tree = cdpSession.send(
+    response = await cdpSession.send(
         "Accessibility.getFullAXTree", {}
-    )["nodes"]
+    )
+    accessibility_tree = response["nodes"]
     print("\tcdp js took", time.time() - start)
     seen_ids = set()
     _accessibility_tree = []
@@ -26,17 +28,9 @@ def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
             _accessibility_tree.append(node)
             seen_ids.add(node["nodeId"])
     accessibility_tree = _accessibility_tree
-    for node in accessibility_tree:
-        if "backendDOMNodeId" not in node:
-            continue
-        backend_node_id = str(node["backendDOMNodeId"])
-        try:
-            remote_object = cdpSession.send(
-                "DOM.resolveNode", {"backendNodeId": int(backend_node_id)}
-            )
-            remote_object_id = remote_object["object"][
-                "objectId"]  # MAY BE ABLE TO FIND ELEMENT GIVEN REMOTE OBJECT ID, NO NEED FOR XPATHS
-            xpath_script = '''
+
+    async def get_xpath(remote_object_id):
+        xpath_script = '''
                     function() {
                         function getXPath(element) {
                             if (!element || !element.parentNode) {
@@ -64,22 +58,38 @@ def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
                     }
                     '''
 
-            xpath_response = cdpSession.send(
-                "Runtime.callFunctionOn",
-                {
-                    "objectId": remote_object_id,
-                    "functionDeclaration": xpath_script,
-                    "returnByValue": True
-                }
-            )
-            node_xpath = xpath_response["result"]["value"]
-            response = cdpSession.send(
+        xpath_response = await cdpSession.send(
+            "Runtime.callFunctionOn",
+            {
+                "objectId": remote_object_id,
+                "functionDeclaration": xpath_script,
+                "returnByValue": True
+            }
+        )
+        node_xpath = xpath_response["result"]["value"]
+        return node_xpath
+    
+    async def get_html(remote_object_id):
+        response = await cdpSession.send(
                 "DOM.getOuterHTML",
                 {
                     "objectId": remote_object_id,
                 },
             )
-            node["html"] = response["outerHTML"]
+        return response["outerHTML"]
+    
+    async def process_node(node): 
+        backend_node_id = str(node["backendDOMNodeId"])
+        try:
+            remote_object = await cdpSession.send(
+                "DOM.resolveNode", {"backendNodeId": int(backend_node_id)}
+            )
+            remote_object_id = remote_object["object"][
+                "objectId"]  # MAY BE ABLE TO FIND ELEMENT GIVEN REMOTE OBJECT ID, NO NEED FOR XPATHS
+            html_task = asyncio.create_task(get_html(remote_object_id))
+            xpath_task = asyncio.create_task(get_xpath(remote_object_id))
+            node_html, node_xpath = await asyncio.gather(html_task, xpath_task)
+            node["html"] = node_html
             node["xpath"] = node_xpath
             node["action_effect"] = None
 
@@ -87,8 +97,13 @@ def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
             node['xpath'] = ''
             if 'html' not in node:
                 node['html'] = ''
-            continue
-
+            return
+    start = time.time()
+    tasks = [process_node(node) for node in accessibility_tree if "backendDOMNodeId" in node]
+    print("making list took", time.time() - start)
+    start = time.time()
+    await asyncio.gather(*tasks)
+    print("Gather took", time.time() - start)
     return accessibility_tree
 
 

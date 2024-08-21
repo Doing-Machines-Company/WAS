@@ -16,7 +16,7 @@ anthropic_client = anthropic.Anthropic(
 groq_client = Groq()
 
 #set up Together API client
-together_client = Together(api_key=os.environ.get('TOGETHER_API_KEY'))
+# together_client = Together(api_key=os.environ.get('TOGETHER_API_KEY'))
 
 #set up OpenAI API client
 openai_client = OpenAI()

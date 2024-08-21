@@ -146,17 +146,50 @@
 #     # manage_resources(cdp_session, page, context)
 
 #     browser.close()
-import os
+# import os
 
-def add_effect_txt(directory):
-    for root, dirs, files in os.walk(directory):
-        if 'info.txt' in files:
-            effect_file_path = os.path.join(root, 'effect.txt')
-            if not os.path.exists(effect_file_path):
-                with open(effect_file_path, 'w') as f:
-                    f.write("")
-                print(f"Created effect.txt in {root}")
+# def add_effect_txt(directory):
+#     for root, dirs, files in os.walk(directory):
+#         if 'info.txt' in files:
+#             effect_file_path = os.path.join(root, 'effect.txt')
+#             if not os.path.exists(effect_file_path):
+#                 with open(effect_file_path, 'w') as f:
+#                     f.write("")
+#                 print(f"Created effect.txt in {root}")
 
-# Usage
-directory_path = 'dominos'
-add_effect_txt(directory_path)
+# # Usage
+# directory_path = 'dominos'
+# add_effect_txt(directory_path)
+
+import anthropic
+import time
+client = anthropic.Anthropic()
+start = time.time()
+
+with open('poopoo1.txt', 'r') as f:
+    user_prompt = f.read()
+with open('prompts/action_decider/action_decider_system.txt', 'r') as f:
+    system_prompt = f.read()
+response = client.beta.prompt_caching.messages.create(
+    model="claude-3-5-sonnet-20240620",
+    max_tokens=1024,
+    system=[
+        {
+            "type": "text",
+            "text": "You, are a web agent tasked with navigating a website to complete a specific task for a user. You will be provided with an accessibility tree, a task to complete, some retrieved context about the website that may be helpful in completing/understanding this specific task, and two types of memory of actions you've taken so far. Your goal is to analyze the current web page, reason about your task and past actions, and choose the most appropriate next action to complete your task."
+        },
+        {
+            "type": "text",
+            "text": system_prompt,
+            "cache_control": {"type": "ephemeral"}
+        }
+    ],
+    messages=[
+        {
+            "role": "user",
+            "content": "HI"
+        }
+    ]
+)
+print(response)
+print("Took", time.time() - start)
