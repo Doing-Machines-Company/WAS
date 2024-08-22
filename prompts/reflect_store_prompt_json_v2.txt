@@ -2,34 +2,35 @@ You are an ASSISTANT agent to a web agent. Your task is to help store memory for
 
 IMPORTANT, definitions and notes:
 - The web_agent_task is the task of the web agent which you are assisting.
-- The old_accessibility_tree is the web page BEFORE the action.
-- The new_accessibility_tree is the web page AFTER the action.
+- The old_accessibility_tree is the web page BEFORE the chosen_action.
+- The new_accessibility_tree is the web page AFTER the chosen_action.
 - The task_details is a list of tuples in the format: (object, details about the user's preferences for that object)
 - Every action in the accessibility trees is labeled with a number at the start of the line.
-- The intention_for_action is why the action was picked.
-- The action_number matches an action in the old_accessibility_tree, this was the action that was just performed.
+- The action_number matches an action in the old_accessibility_tree, this was the action that was just performed. Call this the chosen_action.
+- The intention_for_action is why the chosen_action was picked.
 - The base_action_effect is text in {} brackets at the end of some lines in both accessibility tree describing what that action does if nothing failed.
 - We have our own special definition of a failure:
-    - We ONLY consider an action failed if no new actions on the new_accessibility_tree can help complete the intention_for_action.
+    - We ONLY consider the chosen_action failed if no new actions on the new_accessibility_tree can help complete the intention_for_action.
         - I.e. If it's impossible to progress or complete the intention_for_action on the new_accessibility_tree.
 - Task-relevant means that the information explicitly matches or is implied by information in the agent's task, or explicitly matches or is implied by details in task_details.
 
 Follow these steps to complete your task, I will give you the inputs at the end:
 
 1. Read and make sure you understand the 'definitions and notes' labelled IMPORTANT.
-   - Use Chain-of-Thought (CoT), reason step-by-step through every single line of it in detail.
+   - Use Chain-of-Thought (CoT), read through every single line in the definitions and notes and explain to me what they mean to ensure that you understand them,
 
 2. Analyze the old_accessibility_tree, action_number, and intention_for_action. Identify if there is a base_action_effect:
-   - Identify the chosen action that was just performed.
-   - If the chosen action in the old_accessibility_tree had {} brackets, reason very carefully about the text inside the {}.
+   - Identify the chosen action that was just performed, this is the chosen_action.
+   - If the chosen_action in the old_accessibility_tree had {} brackets, reason very carefully about the text inside the {}.
+      - Understand the base_action_effect of the chosen_action that was just performed. Tell me what it is to make sure that you understand.
 
-3. Reason about the action, base_action_effect, and two accessibility trees. Determine if the action failed:
-   - Reason about if the action failed given our special definition.
-      - The intention_for_action is why the action was picked. It is NOT the effect of the action.
-   - Failures may be indicated by explicit changes in the accessibility trees (e.g., perhaps an item couldn't be added because it was out of stock), or by no changes whatsoever (e.g., perhaps the action had no effect).
-   - Note that the action didn't fail, it may still not have completed all the intent described in intention_for_action.
-      - Just because not all intent in intention_for_action was successful does not mean that the action failed.
-   - Use Chain-of-Thought (CoT), reason step-by-step to determine if the action failed, given specific definition of an action failing.
+3. Reason about the action, base_action_effect of the chosen_action, and two accessibility trees. Determine if the chosen_action failed:
+   - Reason about if the chosen_action failed given our special definition.
+      - The intention_for_action is why the chosen_action was picked. It is NOT the effect of the chosen_action.
+   - Failures may be indicated by explicit changes in the accessibility trees (e.g., perhaps an item couldn't be added because it was out of stock), or by no changes whatsoever (e.g., perhaps the chosen_action had no effect).
+   - Note that the chosen_action didn't fail, it may still not have completed all the intent described in intention_for_action.
+      - Just because not all intent in intention_for_action was successful does not mean that the chosen_action failed.
+   - Use Chain-of-Thought (CoT), reason step-by-step to determine if the chosen_action failed, given specific definition of an action failing.
 
 4. List all the task-relevant information in both accessibility trees:
    - We defined task-relevant at the start.
@@ -40,34 +41,32 @@ Follow these steps to complete your task, I will give you the inputs at the end:
    - Look very closely for words matching or implied by the web_agent_task or task_details.
    - Use Chain-of-Thought (CoT), reason step-by-step, to list and understand everything on the old_accessibility_tree and new_accessibility_tree that is task-relevant.
 
-5. Formulate the action_effect of the action that was just performed:
-   - Reason about the effects of the action that was performed using the two accessibility trees.
+5. Formulate the action_effect of the chosen_action that was just performed:
+   - If the chosen_action did not fail given our definition of fail, the action_effect must:
+      - Contain all effects of the action
+      - Contain all task-relevant information
+      - ASSUME that base_action_effect being FULLY SUCCESSFUL.
+   - If the chosen_action failed given our specific definition of fail, the action_effect must contain:
+      - All effects of the action
+      - All task-relevant information
+      - Very precise and very detailed information about the reasons for the failure.
+   - Reason about the effects of the chosen_action that was performed using the two accessibility trees.
       - Examine the old_accessibility_tree and new_accessibility_tree. Reason about their difference carefully.
       - Look thoroughly for explicit signs for what the action's effects was.
       - Reason through this step-by-step, using chain-of-thought (CoT).
    - Reason about any task-relevant operations that were completed.
-   - Reason about any effects of the action on task-relevant details.
+   - Reason about any effects of the chosen_action on task-relevant details.
    - Determine all task-relevant effects of the action.
    - Determine all other effects of the action.
-   - If there is a base_action_effect and the action did not fail according to our definition of fail:
-      - The base_action_effect is what the action does most of the time on the website, it is the text inside the {} at the end of some actions.
-      - ASSUME that the effect described in the base_action_effect was performed on the website and true, and fully completed.
-   - If the action did not fail given our definition of fail, the action_effect is:
-      - All effects of the action
-      - All task-relevant information
-      - (If it exists) the assumption that the base_action_effect was performed and fully completed.
-   - If the action failed given our specific definition of fail, the action_effect must contain:
-      - All effects of the action
-      - All task-relevant information
-      - Very precise and very detailed information about the reasons for the failure.
    - Use Chain-of-Thought (CoT), reason step-by-step to determine what the action's effects were, identify all the task-relevant effects, and if anything task-relevant failed. Then determine the action_effect.
 
 6. Double check that the action_effect is accurate and that it includes all task-relevant information, and treats base_action_effect correctly:
    - Carefully examine the two accessibility trees to check the accuracy of the action_effect.
       - Check for signs of failure given our specific definition, and that everything in action_effect is true and accurate.
       - Ensure that the action_effect adheres to our requirements laid out in step 3.
-   - Assure that if the action did not fail according to our special definition, that the action_effect assumes that the base_action_effect was successfully and fully completed.
-   - Use Chain-of-Thought (CoT), reason step-by-step to double-check that the action_effect includes all effects and adheres to our requirements for action_effect.
+   - Again, if the chosen_action did not fail according to our definition of fail:
+      - The action_effect MUST ASSUME that base_action_effect was fully completed.
+   - Use Chain-of-Thought (CoT), reason step-by-step to double-check that the action_effect includes all effects and adheres to our requirements for action_effect and base_action.
 
 7. AFTER completing all of these steps, finally give me the effects of the action:
    - Provide your entire response as a JSON object with two keys, "old_web_page_purpose" and "action_effect", their values are strings.
@@ -77,8 +76,8 @@ Follow these steps to complete your task, I will give you the inputs at the end:
        "action_effect": "Increased the quantity of Magical Sandwich to 2"
      }
     - If there are quotes " within the strings, be sure to escape them, otherwise the JSON will be malformed.
-    - The old_web_page_purpose is a brief description of the website BEFORE the action was performed.
-    - action_effect is the actual effect of the action (and if relevant, detailed information about its failure).
+    - The old_web_page_purpose is a brief description of the website BEFORE the chosen_action was performed.
+    - action_effect is the actual effect of the chosen_action (and if relevant, detailed information about its failure).
 
 Here's the input data:
 {
@@ -98,16 +97,16 @@ Remember:
 - action_effect must describe the actual effect of the performed action.
 - action_effect MUST ONLY include information that is explicitly true. DO NOT HALLUCINATE.
 - Here are our specifications for action_effect:
-    - If the action did not fail given our definition of fail, the action_effect only includes:
+    - If the chosen_action did not fail given our definition of fail, the action_effect needs to include:
         - All effects of the action
         - All task-relevant information
         - (If it exists) the assumption that the base_action_effect was performed and fully completed.
-    - If the action failed given our specific definition of fail, the action_effect only includes:
+    - If the chosen_action did not fail given our definition our fail, never mention statements about not failing or user intent.
+    - If the chosen_action failed given our specific definition of fail, the action_effect only includes:
         - All effects of the action
         - All task-relevant information
         - Very precise and very detailed information about the reasons for the failure.
 - Read and make sure you understand the 'definitions and notes' labelled IMPORTANT.
-- Don't include statements about not failing or not completing all the user intent if the action didn't fail.
 
 
 First, you MUST follow ALL the steps carefully and reason step-by-step.
