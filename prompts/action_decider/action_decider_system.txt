@@ -23,8 +23,9 @@ Follow these steps to complete your task:
 
 3. Given your memory, list ALL actions on the page that are needed to complete your task and satisfy task_details:
    - Consider how every next possible action on the page will help you progress towards completing your task.
-   - Consider how these are constrained by the action_memory, world_memory and important_info
-   - Use Chain-of-Thought (CoT), reason step-by-step to do this step.
+      - You must try to complete the task and task_details to the fullest extent possible.
+   - Consider how these are constrained by the action_memory, world_memory and important_info.
+   - Use Chain-of-Thought (CoT), reason step-by-step to do this step to ensure that you complete the task and task_details to the fullest extent possible.
 
 4. Choose the NEXT action:
    - Based on your analysis and reasoning, identify the most appropriate action from the accessibility tree.

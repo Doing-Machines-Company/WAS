@@ -12,6 +12,7 @@ IMPORTANT, definitions and notes:
 - We have our own special definition of a failure:
     - We ONLY consider an action failed if no new actions on the new_accessibility_tree can help complete the intention_for_action.
         - I.e. If it's impossible to progress or complete the intention_for_action on the new_accessibility_tree.
+- Task-relevant means that the information explicitly matches or is implied by information in the agent's task, or explicitly matches or is implied by details in task_details.
 
 Follow these steps to complete your task, I will give you the inputs at the end:
 
@@ -30,17 +31,22 @@ Follow these steps to complete your task, I will give you the inputs at the end:
       - Just because not all intent in intention_for_action was successful does not mean that the action failed.
    - Use Chain-of-Thought (CoT), reason step-by-step to determine if the action failed, given specific definition of an action failing.
 
-4. Formulate the action_effect of the action that was just performed:
+4. List all the task-relevant information in both accessibility trees:
+   - We defined task-relevant at the start.
+   - Thoroughly understand the web_agent_task and task_details to understand everything that the user wants.
+      - The web_agent_task may also contain specifications that the user desires, these must be met.
+      - The task_details must also be met.
+   - List all task-relevant information in both the old_accessibility_tree and new_accessibility_tree.
+   - Look very closely for words matching or implied by the web_agent_task or task_details.
+   - Use Chain-of-Thought (CoT), reason step-by-step, to list and understand everything on the old_accessibility_tree and new_accessibility_tree that is task-relevant.
+
+5. Formulate the action_effect of the action that was just performed:
    - Reason about the effects of the action that was performed using the two accessibility trees.
       - Examine the old_accessibility_tree and new_accessibility_tree. Reason about their difference carefully.
       - Look thoroughly for explicit signs for what the action's effects was.
       - Reason through this step-by-step, using chain-of-thought (CoT).
-   - Reason about any task-relevant operations that were completed:
-      - 'Task-relevant' means that the information explicitly matches or is implied by information in the agent's task, or explicitly matches or is implied by details in task_details.
-   - Carefully examine the two accessibility trees for any details that are task-relevant.
-      - Determine task-relevant information in both accessibility trees.
-      - Remember that task-relevant means that the information explicitly matches or is implied by information in the agent's task, or explicitly matches or is implied by details in task_details.
-   - Reason about any task-relevant effects of the action that was just performed.
+   - Reason about any task-relevant operations that were completed.
+   - Reason about any effects of the action on task-relevant details.
    - Determine all task-relevant effects of the action.
    - Determine all other effects of the action.
    - If there is a base_action_effect and the action did not fail according to our definition of fail:
@@ -56,14 +62,14 @@ Follow these steps to complete your task, I will give you the inputs at the end:
       - Very precise and very detailed information about the reasons for the failure.
    - Use Chain-of-Thought (CoT), reason step-by-step to determine what the action's effects were, identify all the task-relevant effects, and if anything task-relevant failed. Then determine the action_effect.
 
-5. Double check that the action_effect is accurate and that it includes all task-relevant information, and treats base_action_effect correctly:
+6. Double check that the action_effect is accurate and that it includes all task-relevant information, and treats base_action_effect correctly:
    - Carefully examine the two accessibility trees to check the accuracy of the action_effect.
       - Check for signs of failure given our specific definition, and that everything in action_effect is true and accurate.
       - Ensure that the action_effect adheres to our requirements laid out in step 3.
    - Assure that if the action did not fail according to our special definition, that the action_effect assumes that the base_action_effect was successfully and fully completed.
    - Use Chain-of-Thought (CoT), reason step-by-step to double-check that the action_effect includes all effects and adheres to our requirements for action_effect.
 
-6. AFTER completing all of these steps, finally give me the effects of the action:
+7. AFTER completing all of these steps, finally give me the effects of the action:
    - Provide your entire response as a JSON object with two keys, "old_web_page_purpose" and "action_effect", their values are strings.
      For example:
      {
@@ -101,6 +107,7 @@ Remember:
         - All task-relevant information
         - Very precise and very detailed information about the reasons for the failure.
 - Read and make sure you understand the 'definitions and notes' labelled IMPORTANT.
+- Don't include statements about not failing or not completing all the user intent if the action didn't fail.
 
 
 First, you MUST follow ALL the steps carefully and reason step-by-step.
