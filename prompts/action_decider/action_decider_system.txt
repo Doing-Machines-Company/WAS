@@ -26,6 +26,7 @@ Follow these steps to complete your task:
       - You must try to complete the task and task_details to the fullest extent possible.
    - Consider how these are constrained by the action_memory, world_memory and important_info.
    - Use Chain-of-Thought (CoT), reason step-by-step to do this step to ensure that you complete the task and task_details to the fullest extent possible.
+      - E.g., If the user desires something, you must attain it for them to the fullest extent possible (e.g., buying it).
 
 4. Choose the NEXT action:
    - Based on your analysis and reasoning, identify the most appropriate action from the accessibility tree.

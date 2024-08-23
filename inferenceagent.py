@@ -16,7 +16,7 @@ anthropic_client = anthropic.Anthropic(
 groq_client = Groq()
 
 #set up Together API client
-# together_client = Together(api_key=os.environ.get('TOGETHER_API_KEY'))
+together_client = Together(api_key=os.environ.get('TOGETHER_API_KEY'))
 
 #set up OpenAI API client
 openai_client = OpenAI()
@@ -154,7 +154,7 @@ def call_memory_agent(web_agent_task, task_details, action_memory, world_memory,
     prompt = prompt.substitute(replacements)
     # print(prompt)
     
-    answer = call_llm(user_prompt=prompt, provider = 'groq', model='llama-3.1-70b-versatile')
+    answer = call_llm(user_prompt=prompt,  provider='groq' , model='llama-3.1-70b-versatile')
     
     print(answer)
     # input("World mem call")
@@ -185,9 +185,9 @@ def call_memory_agent(web_agent_task, task_details, action_memory, world_memory,
     else:
         return "Error: No JSON object found in the answer"
 
-def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tree, web_agent_task, task_details, provider="anthropic"):
-    with open('prompts/reflect_store_prompt_json_v2.txt', 'r') as f:
-        prompt = f.read()
+def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tree, web_agent_task, task_details, provider="openai"):
+    with open('prompts/reflect/reflect_user.txt', 'r') as f:
+        user_prompt = f.read()
     replacements = {
         'action_number': action_number,
         'reason_for_action': reason_for_action,
@@ -196,12 +196,16 @@ def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tre
         'web_agent_task': web_agent_task,
         'task_details': task_details
     }
-    prompt = string.Template(prompt)
-    prompt = prompt.substitute(replacements)
+    user_prompt = string.Template(user_prompt)
+    user_prompt = user_prompt.substitute(replacements)
+
+    with open('prompts/reflect/reflect_system.txt', 'r') as f:
+        system_prompt = f.read()
     # print(prompt)
     
-    answer = call_llm(user_prompt=prompt, provider = 'groq', model='llama-3.1-70b-versatile')
-    
+    # answer = call_llm(user_prompt=prompt,  provider='groq' , model='llama-3.1-70b-versatile')
+    answer = call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider=provider)
+
     print(answer)
     # input("Memory store call")
 
@@ -215,9 +219,9 @@ def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tre
 
             try:
                 data = json.loads(json_str)
-                if 'old_web_page_purpose' in data and 'action_effect' in data:
+                if 'old_web_page_purpose' in data and 'answer' in data:
                     old_web_page_purpose = data.get('old_web_page_purpose', '')
-                    action_effect = data.get('action_effect', '')
+                    action_effect = data.get('answer', '')
                     print(data)
                 else:
                     continue
@@ -239,7 +243,7 @@ def call_task_separator(web_agent_task, provider="anthropic"):
     prompt = string.Template(prompt)
     prompt = prompt.substitute(replacements)
     
-    answer = call_llm(user_prompt=prompt, provider='groq', model = 'llama-3.1-8b-instant')
+    answer = call_llm(user_prompt=prompt,  provider='groq' , model = 'llama-3.1-8b-instant')
     answer = answer.strip()
     print(answer)
     # Step 1: Use regex to find the JSON object
@@ -274,7 +278,7 @@ def call_task_clarifier(user_task, item_context_pairs, provider="anthropic"):
     prompt = prompt.substitute(replacements)
     # print(prompt)
     
-    answer = call_llm(user_prompt=prompt, provider='together')
+    answer = call_llm(user_prompt=prompt,  provider='groq' )
     
     print(answer)
     # input("Task clarifier call")
@@ -309,7 +313,7 @@ def call_input_agent(user_task, agent_intent, task_details, input_ax_tree, conte
     prompt = prompt.substitute(replacements)
     # print(prompt)
     
-    answer = call_llm(user_prompt=prompt, provider='groq', model='llama-3.1-70b-versatile')
+    answer = call_llm(user_prompt=prompt,  provider='groq' , model='llama-3.1-70b-versatile')
 
     pattern = r'"text_area_number":\s*(\d+).*?"desired_input":\s*"(.*?)"'
 
@@ -329,7 +333,7 @@ def call_unified_task_clarifier(user_task, context, provider="anthropic"):
     prompt = string.Template(prompt)
     prompt = prompt.substitute(replacements)
     # print(prompt)
-    answer = call_llm(user_prompt=prompt, provider = 'groq', model='llama-3.1-70b-versatile')
+    answer = call_llm(user_prompt=prompt,  provider='groq' , model='llama-3.1-70b-versatile')
     
     print(answer)
     # input(f"Unified task clarifier call")
@@ -381,7 +385,7 @@ def call_unified_question_cleaner(user_task, user_qa, provider="anthropic"):
     prompt = prompt.substitute(replacements)
     # print(prompt)
     
-    answer = call_llm(user_prompt=prompt, provider='groq', model='llama-3.1-8b-instant')
+    answer = call_llm(user_prompt=prompt,  provider='groq' , model='llama-3.1-8b-instant')
 
     # Find JSON array in the text
     json_pattern = r'\[(?:[^[\]{}]|\{[^{}]*\})*\]'
