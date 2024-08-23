@@ -12,10 +12,11 @@ Definitions and notes:
 - We have our own special definition of a failure:
     - We ONLY consider the chosen_action failed if no new actions on the new_accessibility_tree can help complete the intention_for_action, or if there is an explicit message saying that the intention_for_action is impossible.
 - Task-relevant means that the information explicitly matches or is implied by information in the agent's task, or explicitly matches or is implied by details in task_details.
+- The answer is what you will be giving me at the end of your reasoning, along with old_web_page_purpose.
 
 Follow these steps to complete your task, I will give you the inputs at the end:
 
-1. Read and make sure you understand the 'definitions and notes'.
+1. Read and make sure you understand the 'definitions and notes':
    - Use Chain-of-Thought (CoT), read through every single line in the definitions and notes and explain to me what they mean to ensure that you understand them,
 
 2. Analyze the old_accessibility_tree, action_number, and intention_for_action. Identify if there is a base_action_effect:
@@ -31,7 +32,7 @@ Follow these steps to complete your task, I will give you the inputs at the end:
       - Just because not all intent in intention_for_action was successful does not mean that the chosen_action failed.
    - Use Chain-of-Thought (CoT), reason step-by-step to determine if the chosen_action failed, given specific definition of an action failing.
 
-4. List every single thing the user desires in the web_agent_task and task_details.
+4. List every single thing the user desires in the web_agent_task and task_details:
   - The web_agent_task itself may contain multiple specifications.
   - Thoroughly understand the web_agent_task and task_details to understand everything that the user wants.
 
@@ -42,38 +43,45 @@ Follow these steps to complete your task, I will give you the inputs at the end:
       - Look very closely for words matching or implied by the web_agent_task or task_details.
   - Use Chain-of-Thought (CoT), reason step-by-step, to list everything on the old_accessibility_tree and new_accessibility_tree that is task-relevant. Then for each of these, understand what they are.
 
-6. Formulate the answer of the chosen_action that was just performed:
-   - If the chosen_action did not fail according to step 3, YOU MUST ASSUME that the base_action_effect was already fully and instantly completed, regardless of what else you see on the page during this step. Some websites have weird front-end behavior that's unintuitive, but if the chosen_action didn't fail according to step 3, then base_action_effect is information from the backend of the website that's ABSOLUTELY CORRECT AND FULLY COMPLETED. Then under this assumption for base_action_effect behavior:
-       - Reason about the effects of the chosen_action that was performed using the two accessibility trees.
-          - Examine the old_accessibility_tree and new_accessibility_tree. Reason about their difference carefully.
-          - Look thoroughly for explicit signs for what the chosen_action's effects was.
-          - Reason through this step-by-step, using chain-of-thought (CoT).
-       - Reason about any effects of the chosen_action on task-relevant information.
-       - Determine all effects of the chosen_action.
-       - IMPORTANT: If the chosen_action did not fail according to step 3, the base_action_effect was already fully and instantly and successfully completed.
-   SPECIFICATIONS for answer:
-       - If the chosen_action did not fail according to step 3, the answer must:
-          - Contain all effects of the chosen_action.
-          - Contain all task-relevant information from both trees from step 5.
-          - IMPORTANT: ASSUME that base_action_effect is already FULLY SUCCESSFULLY COMPLETED.
-       - If the chosen_action failed according to step 3, the answer must:
-          - Contain all effects of the chosen_action.
-          - Contain all task-relevant information from both trees from step 5.
-          - Contain very precise and very detailed information about the reasons for the failure.
-   - Use Chain-of-Thought (CoT), reason step-by-step, to formulate the answer according to these specifications.
+6. Understand the effects of the chosen_action that was just performed, this is your initial answer:
+   - Reason about the effects of the chosen_action that was performed using the two accessibility trees.
+      - Examine the old_accessibility_tree and new_accessibility_tree. Reason about their difference carefully.
+      - Look thoroughly for explicit signs for what the chosen_action's effects was.
+      - Reason through this step-by-step, using chain-of-thought (CoT).
+   - Reason about any effects of the chosen_action on task-relevant information.
+   - Determine all effects of the chosen_action.
+   - Use Chain-of-Thought (CoT), reason step-by-step, to formulate the initial answer with only the action's effects.
 
-7. Double check that your answer contains all task-relevant information from step 5.
-   - Re-read your reasoning from step 5.
-   - Ensure that your answer incorporates all task-relevant information.
-   - Do not break our assumptions for base_action_effect.
+7. Change the initial answer to integrate the base_action_effect if step 3 didn't indicate a failure according to our definition, this is your intermediate answer:
+   - If the chosen_action did not fail according to step 3:
+      - Identify if there is a base_action_effect, and reason about what parts of it aligns with the intention_for_action. This is what you want to integrate into the initial answer to form  your intermediate answer.
+      - Regardless of what else you see on the page during this step, you must assume the parts of the base_action_effect that aligns with the intention_for_action to be fully completed.
+   - Use Chain-of-Thought (CoT), reason step-by-step, to change the initial answer from step 6 to assume this correctly. This is your intermediate answer.
 
-8. AFTER completing all of these steps, finally give me the effects of the action:
+8. Add all task-relevant information from step 5 into the intermediate answer to form the final answer:
+   - Re-read your reasoning from step 5, list all task-relevant information found in both accessibility trees found in step 5.
+   - Reason step-by-step to ensure that you are incorporating all task-relevant information from step 5 without changing the result of step 7 into the intermediate answer, to form the final answer.
+
+9. Given steps 6, 7, and 8, double-check your final answer.
+  -SPECIFICATIONS for final answer:
+      - If the chosen_action did not fail according to step 3, the answer must:
+         - Contain all effects of the chosen_action. This must be detailed.
+         - Contain all task-relevant information from both trees from step 5. This must be detailed.
+         - IMPORTANT: ASSUME that base_action_effect is already FULLY SUCCESSFULLY COMPLETED.
+      - If the chosen_action failed according to step 3, the answer must:
+         - Contain all effects of the chosen_action. This must be detailed.
+         - Contain all task-relevant information from both trees from step 5. This must be detailed.
+         - Contain very precise and very detailed information about the reasons for the failure.
+  - Use Chain-of-Thought (CoT), reason step-by-step, to double-check.
+
+
+10. AFTER completing all of these steps, finally give me the answer:
    - Provide your entire response as a JSON object with two keys, "old_web_page_purpose" and "answer", their values are strings.
      For example:
      {
        "old_web_page_purpose": "Customization menu for Magical Sandwich",
-       "answer": "Increased the quantity of Magical Sandwich to 2"
+       "final_answer": "Increased the quantity of Magical Sandwich to 2"
      }
     - If there are quotes " within the strings, be sure to escape them, otherwise the JSON will be malformed.
     - The old_web_page_purpose is a brief description of the website BEFORE the chosen_action was performed.
-    - The answer is what we described in step 6.
+    - The final_answer is your final answer.

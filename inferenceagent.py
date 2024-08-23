@@ -186,7 +186,7 @@ def call_memory_agent(web_agent_task, task_details, action_memory, world_memory,
         return "Error: No JSON object found in the answer"
 
 def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tree, web_agent_task, task_details, provider="openai"):
-    with open('prompts/reflect/reflect_user.txt', 'r') as f:
+    with open('prompts/reflect_store_prompt_json_v2.txt', 'r') as f:
         user_prompt = f.read()
     replacements = {
         'action_number': action_number,
@@ -199,12 +199,12 @@ def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tre
     user_prompt = string.Template(user_prompt)
     user_prompt = user_prompt.substitute(replacements)
 
-    with open('prompts/reflect/reflect_system.txt', 'r') as f:
-        system_prompt = f.read()
+    # with open('prompts/reflect/reflect_system.txt', 'r') as f:
+    #     system_prompt = f.read()
     # print(prompt)
     
-    # answer = call_llm(user_prompt=prompt,  provider='groq' , model='llama-3.1-70b-versatile')
-    answer = call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider=provider)
+    answer = call_llm(user_prompt=user_prompt,  provider='groq' , model='llama-3.1-70b-versatile')
+    # answer = call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider=provider)
 
     print(answer)
     # input("Memory store call")
@@ -219,9 +219,9 @@ def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tre
 
             try:
                 data = json.loads(json_str)
-                if 'old_web_page_purpose' in data and 'answer' in data:
+                if 'old_web_page_purpose' in data and 'final_answer' in data:
                     old_web_page_purpose = data.get('old_web_page_purpose', '')
-                    action_effect = data.get('answer', '')
+                    action_effect = data.get('final_answer', '')
                     print(data)
                 else:
                     continue

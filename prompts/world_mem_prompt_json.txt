@@ -68,6 +68,7 @@ Remember:
 - Task-relevant subtasks include specifications/tasks mentioned in the task_details or web_agent_task.
 - new_world_memory must be very precise and very detailed about all information that is task-relevant.
 - new_world_memory must ONLY include information you know is DEFINITELY true. DO NOT assume anything.
+- new_world_memory must ONLY include information about tasks that were completed, is currently being completed, or failures.
 
-First, you MUST follow ALL the steps carefully and reason step-by-step.
+First, you MUST follow ALL the steps and their instructions carefully, reason step-by-step.
 Then give your final answer as a JSON object as described above.

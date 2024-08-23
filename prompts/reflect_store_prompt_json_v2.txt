@@ -1,6 +1,6 @@
 You are an ASSISTANT agent to a web agent. Your task is to help store memory for the agent.
 
-IMPORTANT, definitions and notes:
+Definitions and notes:
 - The web_agent_task is the task of the web agent which you are assisting.
 - The old_accessibility_tree is the web page BEFORE the chosen_action.
 - The new_accessibility_tree is the web page AFTER the chosen_action.
@@ -10,80 +10,87 @@ IMPORTANT, definitions and notes:
 - The intention_for_action is why the chosen_action was picked.
 - The base_action_effect is text in {} brackets at the end of some lines in both accessibility tree describing what that action does if nothing failed.
 - We have our own special definition of a failure:
-    - We ONLY consider the chosen_action failed if no new actions on the new_accessibility_tree can help complete the intention_for_action and the intention_for_action is clearly incomplete.
-        - I.e. If it's impossible to progress or complete the intention_for_action on the new_accessibility_tree.
-- Task-relevant means that the information explicitly matches or is implied by information in the agent's task, or explicitly matches or is implied by details in task_details.
+    - We ONLY consider the chosen_action failed if no new actions on the new_accessibility_tree can help complete the intention_for_action, or if there is an explicit message saying that the intention_for_action is impossible.
+- Task-relevant means that the information explicitly matches or is implied by information in the agent's task, or explicitly matches or is implied by details in task_details, and is found in either accessibility tree.
+- The answer is what you will be giving me at the end of your reasoning, along with old_web_page_purpose.
 
 Follow these steps to complete your task, I will give you the inputs at the end:
 
-1. Read and make sure you understand the 'definitions and notes' labelled IMPORTANT.
+1. Read and make sure you understand the 'definitions and notes':
    - Use Chain-of-Thought (CoT), read through every single line in the definitions and notes and explain to me what they mean to ensure that you understand them,
 
 2. Analyze the old_accessibility_tree, action_number, and intention_for_action. Identify if there is a base_action_effect:
    - Identify the chosen action that was just performed, this is the chosen_action.
    - If the chosen_action in the old_accessibility_tree had {} brackets, reason very carefully about the text inside the {}.
-      - Understand the base_action_effect of the chosen_action that was just performed. Tell me what it is to make sure that you understand.
+      - Understand the base_action_effect of the chosen_action that was just performed.
+      - The only part of the base_action_effect for the chosen_action that you should be concerned with are parts of it which align with parts of the intention_for_action
+      - Tell me what parts of this base_action_effects aligns with what parts of the intention_for_action is to make sure that you understand.
 
 3. Reason about the action, base_action_effect of the chosen_action, and two accessibility trees. Determine if the chosen_action failed:
    - Reason about if the chosen_action failed given our special definition.
       - The intention_for_action is why the chosen_action was picked. It is NOT the effect of the chosen_action.
-   - We have our own definition of failure. This is the only definition you should consider.
+   - We have our own definition of failure. This is the only definition you should use.
    - Note that even if the chosen_action didn't fail, it may still not have completed all the intent described in intention_for_action.
       - Just because not all intent in intention_for_action was successful does not mean that the chosen_action failed.
    - Use Chain-of-Thought (CoT), reason step-by-step to determine if the chosen_action failed, given specific definition of an action failing.
 
-4. List every single thing the user desires in the web_agent_task and task_details.
-  - The web_agent_task itself may contain multiple specifications.
-  - Thoroughly understand the web_agent_task and task_details to understand everything that the user wants.
+4. Break down the web_agent_task and task_details, and list out everything that the user desires individually:
+  - The web_agent_task itself may contain multiple specifications, you must break these down and list them out separately.
+  - Break down every individual desire/specification found in web_agen_task and task_details to individual pieces.
+  - List out every user individual desire using bullet points.
 
-5. List all the task-relevant information in both accessibility trees:
+5. For every single desire that you listed out in step 4, determine its task-relevant information, and list all of these out:
    - We defined task-relevant at the start, first review this definition properly.
-   - You listed our all user desires in step 4, use these desires and the implications of these desires to understand what is task-relevant.
-   - List all task-relevant information in both the old_accessibility_tree and new_accessibility_tree.
-      - Look very closely for words matching or implied by the web_agent_task or task_details.
-  - Use Chain-of-Thought (CoT), reason step-by-step, to list everything on the old_accessibility_tree and new_accessibility_tree that is task-relevant. Then for each of these, understand what they are.
+   - For every single desire that you listed out in step 4:
+      - Carefully examine both accessibility trees, and list out every single piece of task-relevant information in both accessibility trees associated with that desire.
+      - Items in the accessibility trees may have similar wording to the desire from step 4, or be otherwise implied by said desire. Look for everything that looks similar in the accessibility tree and reason if it's related to said desire.
+      - You MUST examine the accessibility trees carefully and IN THEIR ENTIRETY for each desire.
+  - Use Chain-of-Thought (CoT), reason step-by-step, to list every piece of task-relevant information on the old_accessibility_tree and new_accessibility_tree.
 
-6. Formulate the action_effect of the chosen_action that was just performed:
-   - If the chosen_action did not fail according to step 3, the action_effect must:
-      - Contain all effects of the action
-      - Contain all task-relevant information from only both trees
-      - ASSUME that base_action_effect being FULLY SUCCESSFUL.
-   - If the chosen_action failed according to step 3, the action_effect must contain:
-      - All effects of the action
-      - All task-relevant information from only both trees
-      - Very precise and very detailed information about the reasons for the failure.
+6. Understand the effects of the chosen_action that was just performed, this is your initial answer:
    - Reason about the effects of the chosen_action that was performed using the two accessibility trees.
       - Examine the old_accessibility_tree and new_accessibility_tree. Reason about their difference carefully.
-      - Look thoroughly for explicit signs for what the action's effects was.
+      - Look thoroughly for explicit signs for what the chosen_action's effects was.
       - Reason through this step-by-step, using chain-of-thought (CoT).
-   - Reason about any task-relevant operations that were completed.
-   - Reason about any effects of the chosen_action on task-relevant details.
-   - Determine all task-relevant effects of the action.
-   - Determine all other effects of the action.
-   - Use Chain-of-Thought (CoT), reason step-by-step to determine what the action's effects were and identify all the task-relevant effects. Then determine the action_effect.
+   - Reason about any effects of the chosen_action on task-relevant information.
+   - Determine all effects of the chosen_action.
+   - Use Chain-of-Thought (CoT), reason step-by-step, to formulate the initial answer with only the action's effects.
 
-7. Double check that the action_effect is accurate and that it includes all task-relevant information:
-   - Carefully examine the two accessibility trees to check the accuracy of the action_effect.
-      - Check that everything in action_effect is true and accurate.
-      - Ensure that the action_effect adheres to our requirements laid out in step 6.
-   - Use Chain-of-Thought (CoT), reason step-by-step to double-check that the action_effect adheres to our specifications laid out in step 6.
-      - Ensure that the base_action_effect is considered correctly according to specifications.
+7. Change the initial answer to integrate the parts of the base_action_effect which aligns with parts of the intention_for_action if step 3 didn't indicate a failure according to our definition, this is your intermediate answer:
+   - If the chosen_action did not fail according to step 3:
+      - Identify if there is a base_action_effect, and reason about what parts of the base_action_effect aligns with what parts of intention_for_action. This is what you want to integrate into the initial answer to form your intermediate answer.
+      - Regardless of what else you see on the page during this step, you must assume the parts of the base_action_effect that aligns with parts of the intention_for_action to be fully completed.
+   - You must only integrate the parts of the base_action_effect which aligns with parts of the intention_for_action.
+   - Use Chain-of-Thought (CoT), reason step-by-step, to change the initial answer from step 6 to assume this correctly. This is your intermediate answer.
 
-8. Double check that the action_effect treats base_action_effect correctly:
-   - Again, if the chosen_action did not fail according to step 3:
-      - The action_effect MUST ASSUME that base_action_effect was FULLY CONFIRMED TO BE COMPLETED.
-   - Use Chain-of-Thought (CoT), reason step-by-step to double-check.
+8. List out all task-relevant information you gave me from step 5, then add all of them into the intermediate answer to form the final answer:
+   - Re-read your reasoning from step 5, repeat task-relevant information found in both accessibility trees that you found in step 5.
+   - Reason step-by-step to ensure that you are incorporating ALL task-relevant information from step 5 without changing the result of step 7 into the intermediate answer, to form the final answer.
 
-9. AFTER completing all of these steps, finally give me the effects of the action:
-   - Provide your entire response as a JSON object with two keys, "old_web_page_purpose" and "action_effect", their values are strings.
+9. Given steps 6, 7, and 8, double-check your final answer.
+  -SPECIFICATIONS for final answer:
+      - If the chosen_action did not fail according to step 3, the answer must:
+         - Contain all effects of the chosen_action. This must be detailed.
+         - Contain all task-relevant information from both trees from step 5. This must be detailed.
+         - IMPORTANT: ASSUME that base_action_effect is already FULLY SUCCESSFULLY COMPLETED.
+      - If the chosen_action failed according to step 3, the answer must:
+         - Contain all effects of the chosen_action. This must be detailed.
+         - Contain all task-relevant information from both trees from step 5. This must be detailed.
+         - Contain very precise and very detailed information about the reasons for the failure.
+  - Use Chain-of-Thought (CoT), reason step-by-step, to double-check.
+
+
+10. AFTER completing all of these steps, finally give me the answer:
+   - Provide your entire response as a JSON object with two keys, "old_web_page_purpose" and "final_answer", their values are strings.
      For example:
      {
        "old_web_page_purpose": "Customization menu for Magical Sandwich",
-       "action_effect": "Increased the quantity of Magical Sandwich to 2"
+       "final_answer": "Increased the quantity of Magical Sandwich to 2"
      }
     - If there are quotes " within the strings, be sure to escape them, otherwise the JSON will be malformed.
     - The old_web_page_purpose is a brief description of the website BEFORE the chosen_action was performed.
-    - action_effect is the actual effect of the chosen_action (and if relevant, detailed information about its failure).
+    - The final_answer is your final answer.
+
 
 Here's the input data:
 {
@@ -95,22 +102,13 @@ Here's the input data:
   "task_details": "$task_details"
 }
 
-
-
 Remember:
-- action_effect must be very precise and very detailed.
-- action_effect must describe the actual effect of the performed action.
-- action_effect MUST ONLY include information that is explicitly true. DO NOT HALLUCINATE.
+- answer must be very precise and very detailed.
+- answer must describe the actual effect of the chosen_action.
+- answer MUST ONLY include information that is explicitly true. DO NOT HALLUCINATE.
 - Read and make sure you understand the 'definitions and notes' labelled IMPORTANT.
--  If the chosen_action did not fail according to step 3, the action_effect must:
-  - Contain all effects of the action
-  - Contain all task-relevant information from only both trees
-  - ASSUME that base_action_effect being FULLY SUCCESSFUL.
-- If the chosen_action failed according to step 3, the action_effect must contain:
-  - All effects of the action
-  - All task-relevant information from only both trees
-  - Very precise and very detailed information about the reasons for the failure.
+- We have our own special definition of fail/failed/failure, it's in the definitions and notes section. Make sure that you use this definition to treat base_action_effect as specified.
+- All task-relevant information and effects of the action must be VERY DETAILED and VERY PRECISE.
 
-
-First, you MUST follow ALL the steps carefully and reason step-by-step.
+First, you MUST follow ALL the steps and their instructions carefully, reason step-by-step.
 Then give your final answer as a JSON object as described above.

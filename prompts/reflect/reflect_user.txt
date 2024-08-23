@@ -13,15 +13,8 @@ Remember:
 - answer must describe the actual effect of the chosen_action.
 - answer MUST ONLY include information that is explicitly true. DO NOT HALLUCINATE.
 - Read and make sure you understand the 'definitions and notes' labelled IMPORTANT.
--  If the chosen_action did not fail according to step 3, the answer must:
-  - Contain all effects of the chosen_action.
-  - Contain all task-relevant information.
-  - ASSUME that the base_action_effect is already FULLY COMPLETED.
-- If the chosen_action failed according to step 3, the answer must contain:
-  - All effects of the chosen_action.
-  - All task-relevant information.
-  - Very precise and very detailed information about the reasons for the failure.
-- We have our own special definition of fail/failed/failure, it's in the definitions and notes section.
+- We have our own special definition of fail/failed/failure, it's in the definitions and notes section. Make sure that you use this definition to treat base_action_effect as specified.
+- All task-relevant information and effects of the action must be VERY DETAILED and VERY PRECISE.
 
 First, you MUST follow ALL the steps carefully and reason step-by-step.
 Then give your final answer as a JSON object as described above.
