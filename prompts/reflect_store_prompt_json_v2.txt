@@ -61,6 +61,7 @@ Follow these steps to complete your task, I will give you the inputs at the end:
       - Identify if there is a base_action_effect, and reason about what parts of the base_action_effect aligns with what parts of intention_for_action. This is what you want to integrate into the initial answer to form your intermediate answer.
       - Regardless of what else you see on the page during this step, you must assume the parts of the base_action_effect that aligns with parts of the intention_for_action to be fully completed.
    - You must only integrate the parts of the base_action_effect which aligns with parts of the intention_for_action.
+   - The intention_for_action is NOT the effect of the action, ONLY information from the base_action_effect should be integrated.
    - Use Chain-of-Thought (CoT), reason step-by-step, to change the initial answer from step 6 to assume this correctly. This is your intermediate answer.
 
 8. List out all task-relevant information you gave me from step 5, then add all of them into the intermediate answer to form the final answer:
@@ -77,8 +78,7 @@ Follow these steps to complete your task, I will give you the inputs at the end:
          - Contain all effects of the chosen_action. This must be detailed.
          - Contain all task-relevant information from both trees from step 5. This must be detailed.
          - Contain very precise and very detailed information about the reasons for the failure.
-  - Use Chain-of-Thought (CoT), reason step-by-step, to double-check.
-
+  - Use Chain-of-Thought (CoT), reason step-by-step, to double-check that your final answer meets these specifications.
 
 10. AFTER completing all of these steps, finally give me the answer:
    - Provide your entire response as a JSON object with two keys, "old_web_page_purpose" and "final_answer", their values are strings.
@@ -103,9 +103,9 @@ Here's the input data:
 }
 
 Remember:
-- answer must be very precise and very detailed.
-- answer must describe the actual effect of the chosen_action.
-- answer MUST ONLY include information that is explicitly true. DO NOT HALLUCINATE.
+- final_answer must be very precise and very detailed.
+- final_answer must describe the actual effect of the chosen_action.
+- final_answer MUST ONLY include information that is explicitly true. DO NOT HALLUCINATE.
 - Read and make sure you understand the 'definitions and notes' labelled IMPORTANT.
 - We have our own special definition of fail/failed/failure, it's in the definitions and notes section. Make sure that you use this definition to treat base_action_effect as specified.
 - All task-relevant information and effects of the action must be VERY DETAILED and VERY PRECISE.
