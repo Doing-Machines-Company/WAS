@@ -97,16 +97,15 @@ def call_llm(system_prompt = '', user_prompt= '', provider="anthropic", model="c
     else:
         raise ValueError("Invalid provider. Choose 'anthropic', 'groq', or 'together'. ")
 
-def call_action_agent(task, task_details, ax_tree, world_memory, action_memory, context, provider="openai"):
+def call_action_agent(task, ax_tree, world_memory, action_memory, context, provider="openai"):
     new_action_memory = ''
     for i, lin_mem in enumerate(action_memory):
         new_action_memory += f"\n{i+1}) LOCATION: {lin_mem.object_details}\n{i+1}) EFFECT: {lin_mem.location_details}"
-    with open('prompts/action_decider/action_decider_user.txt', 'r') as f:
+    with open('prompts/action_decider/action_decider_user_v2.txt', 'r') as f:
         user_prompt = f.read()
     replacements = {
         'ax_tree': ax_tree,
         'task': task,
-        'task_details': task_details,
         'world_memory': world_memory,
         'action_memory': new_action_memory,
     }
@@ -114,14 +113,14 @@ def call_action_agent(task, task_details, ax_tree, world_memory, action_memory, 
     user_prompt = user_prompt.substitute(replacements)
     print(user_prompt)
     
-    with open('prompts/action_decider/action_decider_system.txt', 'r') as f:
+    with open('prompts/action_decider/action_decider_system_v2.txt', 'r') as f:
         system_prompt = f.read()
     replacements = {
-        'context' : context        
+        'context' : context
     }
     system_prompt = string.Template(system_prompt)
     system_prompt = system_prompt.substitute(replacements)
-    # print(system_prompt)
+    print(system_prompt)
 
     answer = call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider=provider)
     
@@ -137,16 +136,15 @@ def call_action_agent(task, task_details, ax_tree, world_memory, action_memory, 
 
     return None
 
-def call_memory_agent(web_agent_task, task_details, action_memory, world_memory, provider="anthropic"):
+def call_memory_agent(web_agent_task, action_memory, world_memory, provider="anthropic"):
     new_action_memory = ''
     for i, lin_mem in enumerate(action_memory):
         new_action_memory += f"\n{i+1}) LOCATION: {lin_mem.object_details}\n{i+1}) EFFECT: {lin_mem.location_details}"
     # input("ACTION MEMORY")
-    with open('prompts/world_mem_prompt_json.txt', 'r') as f:
+    with open('prompts/world_mem_prompt_v2.txt', 'r') as f:
         prompt = f.read()
     replacements = {
         'web_agent_task': web_agent_task,
-        'task_details': task_details,
         'world_memory': world_memory,
         'action_memory': new_action_memory,
     }
@@ -154,7 +152,7 @@ def call_memory_agent(web_agent_task, task_details, action_memory, world_memory,
     prompt = prompt.substitute(replacements)
     # print(prompt)
     
-    answer = call_llm(user_prompt=prompt,  provider='groq' , model='llama-3.1-70b-versatile')
+    answer = call_llm(user_prompt=prompt,  provider='together' , model='llama-3.1-70b-versatile')
     
     print(answer)
     # input("World mem call")
@@ -185,8 +183,8 @@ def call_memory_agent(web_agent_task, task_details, action_memory, world_memory,
     else:
         return "Error: No JSON object found in the answer"
 
-def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tree, web_agent_task, task_details, provider="openai"):
-    with open('prompts/reflect_store_prompt_json_v2.txt', 'r') as f:
+def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tree, web_agent_task, provider="openai"):
+    with open('prompts/reflect_store_prompt_v2.txt', 'r') as f:
         user_prompt = f.read()
     replacements = {
         'action_number': action_number,
@@ -194,17 +192,11 @@ def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tre
         'old_accessibility_tree': old_ax_tree,
         'new_accessibility_tree': new_ax_tree,
         'web_agent_task': web_agent_task,
-        'task_details': task_details
     }
     user_prompt = string.Template(user_prompt)
     user_prompt = user_prompt.substitute(replacements)
-
-    # with open('prompts/reflect/reflect_system.txt', 'r') as f:
-    #     system_prompt = f.read()
-    # print(prompt)
     
-    answer = call_llm(user_prompt=user_prompt,  provider='groq' , model='llama-3.1-70b-versatile')
-    # answer = call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider=provider)
+    answer = call_llm(user_prompt=user_prompt,  provider='together' , model='llama-3.1-70b-versatile')
 
     print(answer)
     # input("Memory store call")
@@ -243,7 +235,7 @@ def call_task_separator(web_agent_task, provider="anthropic"):
     prompt = string.Template(prompt)
     prompt = prompt.substitute(replacements)
     
-    answer = call_llm(user_prompt=prompt,  provider='groq' , model = 'llama-3.1-8b-instant')
+    answer = call_llm(user_prompt=prompt,  provider='together' , model = 'llama-3.1-8b-instant')
     answer = answer.strip()
     print(answer)
     # Step 1: Use regex to find the JSON object
@@ -278,7 +270,7 @@ def call_task_clarifier(user_task, item_context_pairs, provider="anthropic"):
     prompt = prompt.substitute(replacements)
     # print(prompt)
     
-    answer = call_llm(user_prompt=prompt,  provider='groq' )
+    answer = call_llm(user_prompt=prompt,  provider='together' )
     
     print(answer)
     # input("Task clarifier call")
@@ -291,7 +283,7 @@ def call_task_clarifier(user_task, item_context_pairs, provider="anthropic"):
 
     return ""
 
-def call_input_agent(user_task, agent_intent, task_details, input_ax_tree, context, hidden_inputs: list[HiddenInput], provider="anthropic"):
+def call_input_agent(user_task, agent_intent, input_ax_tree, context, hidden_inputs: list[HiddenInput], provider="anthropic"):
     with open('prompts/mass_input_prompt_json.txt', 'r') as f:
         prompt = f.read()
 
@@ -304,7 +296,6 @@ def call_input_agent(user_task, agent_intent, task_details, input_ax_tree, conte
     replacements = {
         'user_task': user_task,
         'agent_intent': agent_intent,
-        'task_details': task_details,
         'input_ax_tree': input_ax_tree,
         'context': context,
         'hidden_items': formatted_hidden_items
@@ -313,7 +304,7 @@ def call_input_agent(user_task, agent_intent, task_details, input_ax_tree, conte
     prompt = prompt.substitute(replacements)
     # print(prompt)
     
-    answer = call_llm(user_prompt=prompt,  provider='groq' , model='llama-3.1-70b-versatile')
+    answer = call_llm(user_prompt=prompt,  provider='together' , model='llama-3.1-70b-versatile')
 
     pattern = r'"text_area_number":\s*(\d+).*?"desired_input":\s*"(.*?)"'
 
@@ -333,7 +324,7 @@ def call_unified_task_clarifier(user_task, context, provider="anthropic"):
     prompt = string.Template(prompt)
     prompt = prompt.substitute(replacements)
     # print(prompt)
-    answer = call_llm(user_prompt=prompt,  provider='groq' , model='llama-3.1-70b-versatile')
+    answer = call_llm(user_prompt=prompt,  provider='together' , model='llama-3.1-70b-versatile')
     
     print(answer)
     # input(f"Unified task clarifier call")
@@ -385,7 +376,8 @@ def call_unified_question_cleaner(user_task, user_qa, provider="anthropic"):
     prompt = prompt.substitute(replacements)
     # print(prompt)
     
-    answer = call_llm(user_prompt=prompt,  provider='groq' , model='llama-3.1-8b-instant')
+    # answer = call_llm(user_prompt=prompt,  provider='together' , model='llama-3.1-8b-instant')
+    answer = call_llm(user_prompt=prompt,  provider='together' , model='llama-3.1-70b-versatile')
 
     # Find JSON array in the text
     json_pattern = r'\[(?:[^[\]{}]|\{[^{}]*\})*\]'
