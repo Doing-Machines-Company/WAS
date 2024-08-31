@@ -184,11 +184,7 @@ def call_memory_agent(web_agent_task, action_memory, world_memory, provider="ant
         return "Error: No JSON object found in the answer"
 
 def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tree, web_agent_task, provider="openai"):
-<<<<<<< HEAD
-    with open('prompts/reflect_store_prompt_json_v2.txt', 'r') as f:
-=======
     with open('prompts/reflect_store_prompt_v2.txt', 'r') as f:
->>>>>>> origin/unified-task-prompts
         user_prompt = f.read()
     replacements = {
         'action_number': action_number,
