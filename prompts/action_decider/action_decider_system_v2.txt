@@ -15,7 +15,7 @@ Follow these steps to complete your task:
 
 2. Break down the task, and list out everything that the user desires individually to help you determine what is task-relevant:
   - 'Task-relevant' information means that the information explicitly matches or is implied by information in web_agent_task.
-  - The web_agent_task itself may contain multiple specifications, you must break these down and list them out separately.
+  - The task itself may contain multiple specifications, you must break these down and list them out separately.
   - Break down every individual desire/specification found in the task to individual pieces.
   - List out every user individual desire using bullet points.
        - Everything related to these desires are task-relevant.
