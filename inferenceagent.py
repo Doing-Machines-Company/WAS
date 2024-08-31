@@ -101,7 +101,7 @@ def call_action_agent(task, ax_tree, world_memory, action_memory, context, provi
     new_action_memory = ''
     for i, lin_mem in enumerate(action_memory):
         new_action_memory += f"\n{i+1}) LOCATION: {lin_mem.object_details}\n{i+1}) EFFECT: {lin_mem.location_details}"
-    with open('prompts/action_decider/action_decider_user.txt', 'r') as f:
+    with open('prompts/action_decider/action_decider_user_v2.txt', 'r') as f:
         user_prompt = f.read()
     replacements = {
         'ax_tree': ax_tree,
@@ -113,14 +113,14 @@ def call_action_agent(task, ax_tree, world_memory, action_memory, context, provi
     user_prompt = user_prompt.substitute(replacements)
     print(user_prompt)
     
-    with open('prompts/action_decider/action_decider_system.txt', 'r') as f:
+    with open('prompts/action_decider/action_decider_system_v2.txt', 'r') as f:
         system_prompt = f.read()
     replacements = {
-        'context' : context        
+        'context' : context
     }
     system_prompt = string.Template(system_prompt)
     system_prompt = system_prompt.substitute(replacements)
-    # print(system_prompt)
+    print(system_prompt)
 
     answer = call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider=provider)
     
@@ -141,7 +141,7 @@ def call_memory_agent(web_agent_task, action_memory, world_memory, provider="ant
     for i, lin_mem in enumerate(action_memory):
         new_action_memory += f"\n{i+1}) LOCATION: {lin_mem.object_details}\n{i+1}) EFFECT: {lin_mem.location_details}"
     # input("ACTION MEMORY")
-    with open('prompts/world_mem_prompt_json.txt', 'r') as f:
+    with open('prompts/world_mem_prompt_v2.txt', 'r') as f:
         prompt = f.read()
     replacements = {
         'web_agent_task': web_agent_task,
@@ -184,7 +184,11 @@ def call_memory_agent(web_agent_task, action_memory, world_memory, provider="ant
         return "Error: No JSON object found in the answer"
 
 def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tree, web_agent_task, provider="openai"):
+<<<<<<< HEAD
     with open('prompts/reflect_store_prompt_json_v2.txt', 'r') as f:
+=======
+    with open('prompts/reflect_store_prompt_v2.txt', 'r') as f:
+>>>>>>> origin/unified-task-prompts
         user_prompt = f.read()
     replacements = {
         'action_number': action_number,

@@ -91,11 +91,11 @@ class Agent:
         top_k = 2
         self.context_info = "\n".join([node.get_content() for node in self.retriever.retrieve(self.task)])
         self.interesting_items = call_task_separator(self.task)
-        self.item_context_pairs = "\n\n".join(["Item: " + item + "\n" + "Context: " + "".join(
+        self.item_context_pairs = "\n\n".join(["Item: " + item + "\n" + "Context: " + "".join(  # THIS IS CONTEXT
             [node.get_content() for node in autoregressive_retrieve(self.index, item, top_k)]) for item in
                                                self.interesting_items])
         print(self.item_context_pairs)
-        self.questions = call_unified_task_clarifier(self.task, self.item_context_pairs)
+        # self.questions = call_unified_task_clarifier(self.task, self.item_context_pairs)
 
     async def launch_browser(self):
         async with self.playwright_lock:

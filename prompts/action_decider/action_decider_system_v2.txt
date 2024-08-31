@@ -10,12 +10,21 @@ Follow these steps to complete your task:
 1. Analyze the web accessibility_tree:
    - Examine the accessibility tree carefully.
    - Understand the purpose and functionality of the current accessibility_tree.
-   - Examine the text inside {} carefully for each line.
+   - Examine the text inside {} carefully for each line. These may help hint at what that action is supposed to generally do.
    - Note any relevant elements or actions available on the accessibility_tree.
 
-2. Reason about your task, action_memory, world_memory, and important_info:
+2. Break down the task, and list out everything that the user desires individually to help you determine what is task-relevant:
+  - 'Task-relevant' information means that the information explicitly matches or is implied by information in web_agent_task.
+  - The web_agent_task itself may contain multiple specifications, you must break these down and list them out separately.
+  - Break down every individual desire/specification found in the task to individual pieces.
+  - List out every user individual desire using bullet points.
+       - Everything related to these desires are task-relevant.
+
+2. Reason about all task-relevant tasks, action_memory, world_memory, and important_info:
+   - The world_memory describes all task relevant information, it was last updated before action_memory was recorded.
+   - You have an understanding about what is task-relevant from step 2.
    - Reason about your action_memory and world_memory to determine what has already been completed and attempted on this website.
-   - Review your assigned task then determine what still needs to be completed.
+   - Review your task, then determine what still needs to be completed.
    - Assume that the important info is relevant to your task.
        - Important info helps you understand the intention of the user and how the website works.
        - Use the important_info to inform your decision-making.
@@ -23,8 +32,8 @@ Follow these steps to complete your task:
 
 3. Choose the next action:
    - Consider how every next possible action on the accessibility_tree will help you progress towards completing your task.
-      - You must try to complete the task to the fullest extent possible.
-   - Based on your analysis and reasoning from step 2, identify the most appropriate action from the accessibility_tree.
+      - You must try to complete all task-relevant desires you got from step 2.
+   - Based on your analysis and reasoning from step 3, identify the most appropriate action from the accessibility_tree.
    - Ensure the chosen action aligns with your current position in the task sequence.
    - Ensure that you fulfill the user's desire as much as possible.
    - Reason step-by-step, first identify all relevant actions that will help you complete your next step, then choose the next desired action.
