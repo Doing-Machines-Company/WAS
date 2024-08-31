@@ -2,17 +2,15 @@ You are an ASSISTANT agent to a web agent. Your task is to keep track of what ta
 
 Follow these steps to complete your task, I will give you the inputs at the end:
 
-1. Analyze the world_memory, action_memory, web_agent_task and task_details, and think in detail about what they tell you:
+1. Analyze the world_memory, action_memory, web_agent_task, and think in detail about what they tell you:
    - The action_memory is a list of all the actions that were performed AFTER the world_memory was last updated.
        - The action_memory is an enumerated list of tuples in the format:
            - x) Location: Where action was taken
              x) Effect: Effect of action
            - Later items in action_memory happened more recently.
    - The world_memory is a summary of everything the agent has seen and done that is relevant to task-relevant subtasks to the agent's task, examine it carefully.
-       - 'Task-relevant' information means that the information explicitly matches or is implied by information in the agent's task, or explicitly matches or is implied by details in task_details.
+       - 'Task-relevant' information means that the information explicitly matches or is implied by information in the agent's task.
    - The world_memory was last updated before action_memory was recorded.
-   - The task_details is a list of tuples in the format: (object, details about the user's preferences for that object)
-   - The web_agent_task is the task of the web agent which you are assisting.
 
 2. Reason about the action_memory and world_memory. Determine what is definitely and explicitly true from action_memory and world_memory, determining what is task-relevant and has been completed:
    - Reason about the action_memory to determine its effects, and what has definitely been completed.
@@ -54,7 +52,6 @@ Follow these steps to complete your task, I will give you the inputs at the end:
 Here's the input data in JSON format:
 {
   "web_agent_task": "$web_agent_task",
-  "task_details": "$task_details",
   "world_memory": "$world_memory",
   "action_memory": "$action_memory"
 }
@@ -65,7 +62,7 @@ Remember:
 - Ensure the new_world_memory condenses all navigation information about COMPLETED task essential subtasks.
 - The new_world_memory only serves to record what has been done. It is not for planning the future.
 - You MUST include information about the COMPLETION of task-relevant operations.
-- Task-relevant subtasks include specifications/tasks mentioned in the task_details or web_agent_task.
+- Task-relevant subtasks include specifications/tasks mentioned in the web_agent_task.
 - new_world_memory must be very precise and very detailed about all information that is task-relevant.
 - new_world_memory must ONLY include information you know is DEFINITELY true. DO NOT assume anything.
 - new_world_memory must ONLY include information about tasks that were completed, is currently being completed, or failures.

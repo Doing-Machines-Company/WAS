@@ -13,9 +13,9 @@ Follow these steps to complete your task:
    - Examine the text inside {} carefully for each line.
    - Note any relevant elements or actions available on the accessibility_tree.
 
-2. Reason about your task, task_details, action_memory, world_memory, and important_info:
+2. Reason about your task, action_memory, world_memory, and important_info:
    - Reason about your action_memory and world_memory to determine what has already been completed and attempted on this website.
-   - Review your assigned task and task_details, then determine what still needs to be completed.
+   - Review your assigned task then determine what still needs to be completed.
    - Assume that the important info is relevant to your task.
        - Important info helps you understand the intention of the user and how the website works.
        - Use the important_info to inform your decision-making.
@@ -23,7 +23,7 @@ Follow these steps to complete your task:
 
 3. Choose the next action:
    - Consider how every next possible action on the accessibility_tree will help you progress towards completing your task.
-      - You must try to complete the task and task_details to the fullest extent possible.
+      - You must try to complete the task to the fullest extent possible.
    - Based on your analysis and reasoning from step 2, identify the most appropriate action from the accessibility_tree.
    - Ensure the chosen action aligns with your current position in the task sequence.
    - Ensure that you fulfill the user's desire as much as possible.

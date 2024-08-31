@@ -97,7 +97,7 @@ def call_llm(system_prompt = '', user_prompt= '', provider="anthropic", model="c
     else:
         raise ValueError("Invalid provider. Choose 'anthropic', 'groq', or 'together'. ")
 
-def call_action_agent(task, task_details, ax_tree, world_memory, action_memory, context, provider="openai"):
+def call_action_agent(task, ax_tree, world_memory, action_memory, context, provider="openai"):
     new_action_memory = ''
     for i, lin_mem in enumerate(action_memory):
         new_action_memory += f"\n{i+1}) LOCATION: {lin_mem.object_details}\n{i+1}) EFFECT: {lin_mem.location_details}"
@@ -106,7 +106,6 @@ def call_action_agent(task, task_details, ax_tree, world_memory, action_memory, 
     replacements = {
         'ax_tree': ax_tree,
         'task': task,
-        'task_details': task_details,
         'world_memory': world_memory,
         'action_memory': new_action_memory,
     }
@@ -137,7 +136,7 @@ def call_action_agent(task, task_details, ax_tree, world_memory, action_memory, 
 
     return None
 
-def call_memory_agent(web_agent_task, task_details, action_memory, world_memory, provider="anthropic"):
+def call_memory_agent(web_agent_task, action_memory, world_memory, provider="anthropic"):
     new_action_memory = ''
     for i, lin_mem in enumerate(action_memory):
         new_action_memory += f"\n{i+1}) LOCATION: {lin_mem.object_details}\n{i+1}) EFFECT: {lin_mem.location_details}"
@@ -146,7 +145,6 @@ def call_memory_agent(web_agent_task, task_details, action_memory, world_memory,
         prompt = f.read()
     replacements = {
         'web_agent_task': web_agent_task,
-        'task_details': task_details,
         'world_memory': world_memory,
         'action_memory': new_action_memory,
     }
@@ -185,7 +183,7 @@ def call_memory_agent(web_agent_task, task_details, action_memory, world_memory,
     else:
         return "Error: No JSON object found in the answer"
 
-def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tree, web_agent_task, task_details, provider="openai"):
+def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tree, web_agent_task, provider="openai"):
     with open('prompts/reflect_store_prompt_json_v2.txt', 'r') as f:
         user_prompt = f.read()
     replacements = {
@@ -194,7 +192,6 @@ def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tre
         'old_accessibility_tree': old_ax_tree,
         'new_accessibility_tree': new_ax_tree,
         'web_agent_task': web_agent_task,
-        'task_details': task_details
     }
     user_prompt = string.Template(user_prompt)
     user_prompt = user_prompt.substitute(replacements)
@@ -291,7 +288,7 @@ def call_task_clarifier(user_task, item_context_pairs, provider="anthropic"):
 
     return ""
 
-def call_input_agent(user_task, agent_intent, task_details, input_ax_tree, context, hidden_inputs: list[HiddenInput], provider="anthropic"):
+def call_input_agent(user_task, agent_intent, input_ax_tree, context, hidden_inputs: list[HiddenInput], provider="anthropic"):
     with open('prompts/mass_input_prompt_json.txt', 'r') as f:
         prompt = f.read()
 
@@ -304,7 +301,6 @@ def call_input_agent(user_task, agent_intent, task_details, input_ax_tree, conte
     replacements = {
         'user_task': user_task,
         'agent_intent': agent_intent,
-        'task_details': task_details,
         'input_ax_tree': input_ax_tree,
         'context': context,
         'hidden_items': formatted_hidden_items
@@ -383,29 +379,32 @@ def call_unified_question_cleaner(user_task, user_qa, provider="anthropic"):
     }
     prompt = string.Template(prompt)
     prompt = prompt.substitute(replacements)
-    # print(prompt)
+    print(prompt)
     
     answer = call_llm(user_prompt=prompt,  provider='groq' , model='llama-3.1-8b-instant')
 
     # Find JSON array in the text
-    json_pattern = r'\[(?:[^[\]{}]|\{[^{}]*\})*\]'
-    match = re.search(json_pattern, answer)
+    print(answer)
+    # input("Memory store call")
 
-    if not match:
-        raise ValueError("No JSON array found in the answer")
+    json_pattern = r'\{[^{}]*\}'
 
-    json_str = match.group(0)
+    # Find all matches
+    json_match = re.findall(json_pattern, answer)
+    if json_match:
+        for match in json_match:
+            json_str = match
 
-    # Parse JSON string
-    try:
-        parsed_json = json.loads(json_str)
-    except json.JSONDecodeError:
-        raise ValueError("Invalid JSON structure found in the answer")
-
-    # Extract object-preference pairs
-    object_preference_pairs = []
-    for item in parsed_json:
-        if isinstance(item, dict) and 'object' in item and 'preference' in item:
-            object_preference_pairs.append((item['object'], item['preference']))
-
-    return object_preference_pairs
+            try:
+                data = json.loads(json_str)
+                if 'new_task' in data:
+                    new_task = data.get('new_task', '')
+                    print(data)
+                else:
+                    continue
+                return new_task
+            except json.JSONDecodeError:
+                continue
+    else:
+        print("Question Cleaner Error: No JSON object found in the LLM output")
+        return ''

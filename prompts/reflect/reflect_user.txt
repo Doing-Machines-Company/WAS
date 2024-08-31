@@ -5,7 +5,6 @@ Here's the input data:
   "action_number": "$action_number",
   "intention_for_action": "$reason_for_action",
   "web_agent_task": "$web_agent_task",
-  "task_details": "$task_details"
 }
 
 Remember:

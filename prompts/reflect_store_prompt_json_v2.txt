@@ -4,14 +4,13 @@ Definitions and notes:
 - The web_agent_task is the task of the web agent which you are assisting.
 - The old_accessibility_tree is the web page BEFORE the chosen_action.
 - The new_accessibility_tree is the web page AFTER the chosen_action.
-- The task_details is a list of tuples in the format: (object, details about the user's preferences for that object)
 - Every action in the accessibility trees is labeled with a number at the start of the line.
 - The action_number matches an action in the old_accessibility_tree, this was the action that was just performed. Call this the chosen_action.
 - The intention_for_action is why the chosen_action was picked.
 - The base_action_effect is text in {} brackets at the end of some lines in both accessibility tree describing what that action does if nothing failed.
 - We have our own special definition of a failure:
     - We ONLY consider the chosen_action failed if no new actions on the new_accessibility_tree can help complete the intention_for_action, or if there is an explicit message saying that the intention_for_action is impossible.
-- Task-relevant means that the information explicitly matches or is implied by information in the agent's task, or explicitly matches or is implied by details in task_details, and is found in either accessibility tree.
+- Task-relevant means that the information explicitly matches or is implied by information in the agent's task, and is found in either accessibility tree.
 - The answer is what you will be giving me at the end of your reasoning, along with old_web_page_purpose.
 
 Follow these steps to complete your task, I will give you the inputs at the end:
@@ -34,7 +33,7 @@ Follow these steps to complete your task, I will give you the inputs at the end:
       - Just because not all intent in intention_for_action was successful does not mean that the chosen_action failed.
    - Use Chain-of-Thought (CoT), reason step-by-step to determine if the chosen_action failed, given specific definition of an action failing.
 
-4. Break down the web_agent_task and task_details, and list out everything that the user desires individually:
+4. Break down the web_agent_task and list out everything that the user desires individually:
   - The web_agent_task itself may contain multiple specifications, you must break these down and list them out separately.
   - Break down every individual desire/specification found in web_agen_task and task_details to individual pieces.
   - List out every user individual desire using bullet points.
@@ -99,7 +98,6 @@ Here's the input data:
   "action_number": "$action_number",
   "intention_for_action": "$reason_for_action",
   "web_agent_task": "$web_agent_task",
-  "task_details": "$task_details"
 }
 
 Remember:
