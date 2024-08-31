@@ -2,36 +2,42 @@ You are an ASSISTANT agent to a web agent. Your task is to keep track of what ta
 
 Follow these steps to complete your task, I will give you the inputs at the end:
 
-1. Analyze the world_memory, action_memory, web_agent_task and task_details, and think in detail about what they tell you:
+1. Break down the web_agent_task, and list out everything that the user desires individually to help you determine what is task-relevant:
+  - 'Task-relevant' information means that the information explicitly matches or is implied by information in web_agent_task.
+  - The web_agent_task itself may contain multiple specifications, you must break these down and list them out separately.
+  - Break down every individual desire/specification found in web_agen_task to individual pieces.
+  - List out every user individual desire using bullet points.
+       - Everything related to these desires are task-relevant.
+
+2. Analyze the world_memory, action_memory, web_agent_task. Determine what is definitely and explicitly true from action_memory and world_memory, and then determine all task-relevant information in action_memory and world_memory:
+   - Task-relevant information is all information relating to the desires you got in step 1.
+   - The world_memory is a summary of everything the agent has experienced and done that is task-relevant.
+   - The world_memory was last updated BEFORE action_memory was recorded.
+   - Reason about the world_memory to determine its effects, and what has definitely been completed. List what is definitely and explicitly true from the world_memory.
+       - The world_memory is very explicit and precise in language.
    - The action_memory is a list of all the actions that were performed AFTER the world_memory was last updated.
        - The action_memory is an enumerated list of tuples in the format:
            - x) Location: Where action was taken
              x) Effect: Effect of action
            - Later items in action_memory happened more recently.
-   - The world_memory is a summary of everything the agent has seen and done that is relevant to task-relevant subtasks to the agent's task, examine it carefully.
-       - 'Task-relevant' information means that the information explicitly matches or is implied by information in the agent's task, or explicitly matches or is implied by details in task_details.
-   - The world_memory was last updated before action_memory was recorded.
-   - The task_details is a list of tuples in the format: (object, details about the user's preferences for that object)
-   - The web_agent_task is the task of the web agent which you are assisting.
+   - Reason about the action_memory to determine its effects, and what has definitely been completed. List what is definitely and explicitly true from the action_memory.
+       - The action_memory is very explicit and precise in language.
+   - Determine and list out what is task-relevant from action_memory and world_memory.
+       - Determine the exact effects of what has been done, and if they are task-relevant.
+       - Determine all task-relevant experiences.
+   - action_memory and world_memory use very precise language. All task-relevant information should use the exact same language where relevant.
+   - Reason through this step-by-step, using chain-of-thought (CoT), to determine all task-relevant information found in world_memory and action_memory.
 
-2. Reason about the action_memory and world_memory. Determine what is definitely and explicitly true from action_memory and world_memory, determining what is task-relevant and has been completed:
-   - Reason about the action_memory to determine its effects, and what has definitely been completed.
-   - Determine what is task-relevant from action_memory and world_memory.
-       - Determine the exact effects of actions that have been done, and if they are task-relevant.
-   - The action_memory is very explicit and precise in language. List what is definitely and explicitly true from the action_memory.
-   - Reason through this step-by-step, using chain-of-thought (CoT).
-
-3. Integrate information that is definitely true from action_memory with world_memory to form new_world_memory.
+3. Integrate information that is definitely true from action_memory and world_memory to form new_world_memory.
+   - You got all task-relevant information in step 2.
    - The new_world_memory should keep track of:
-       - The explicit completion of task-relevant subtasks.
+       - The explicit completion of task-relevant operations.
        - Failures in attempts to navigate to or complete task-relevant subtasks, and the reasons for the failures.
        - Dead-ends in the website and its reasons
        - General navigation information ONLY for navigating to complete the next task-relevant subtask that needs to be completed.
-   - The completion of task-relevant operations should always be included.
    - Only include website location information when it concerns a dead-end or failure.
-   - Only include information either you know is true and explicit from step 2.
    - DO NOT include observational information that's not about a failure/dead-end.
-   - action_memory uses very precise language for actions. Information integrated from action_memory should use the same language as its source from action_memory.
+   - Only include information that is explicit from step 2. Step 2 uses very precise language, use the exact same language.
    - Use Chain-of-Thought (CoT), reason step-by-step to integrate the information accurately.
 
 4. Double check that your new_world_memory only contains information that is explicitly true:
@@ -42,7 +48,9 @@ Follow these steps to complete your task, I will give you the inputs at the end:
    - Remove information about successful intermediate navigation steps.
    - Keep information about failures and dead-ends.
    - Use Chain-of-Thought (CoT), reason step-by-step to ensure that you are condensing the new_world_memory correctly.
-       - Remember that the wording in action_memory and world_memory was chosen for a reason, do not assume anything.
+       - Wording in action_memory and world_memory was chosen for a reason, do not assume anything.
+       - Ensure that the language is consistent with what was described in world_memory or action_memory.
+   - Be careful not to over-condense and assume something that's false or incorrect.
 
 6. AFTER completing all of these steps, finally give me the new_world_memory:
    - Provide your entire response as a JSON object with a single key "new_world_memory" whose value is a string of the new_world_memory information.
@@ -54,7 +62,6 @@ Follow these steps to complete your task, I will give you the inputs at the end:
 Here's the input data in JSON format:
 {
   "web_agent_task": "$web_agent_task",
-  "task_details": "$task_details",
   "world_memory": "$world_memory",
   "action_memory": "$action_memory"
 }
@@ -63,9 +70,9 @@ Here's the input data in JSON format:
 
 Remember:
 - Ensure the new_world_memory condenses all navigation information about COMPLETED task essential subtasks.
-- The new_world_memory only serves to record what has been done. It is not for planning the future.
+- The new_world_memory only serves to record what has been done. DO NOT plan what needs to be done in the new_world_memory.
 - You MUST include information about the COMPLETION of task-relevant operations.
-- Task-relevant subtasks include specifications/tasks mentioned in the task_details or web_agent_task.
+- Task-relevant subtasks include specifications/tasks mentioned in the web_agent_task.
 - new_world_memory must be very precise and very detailed about all information that is task-relevant.
 - new_world_memory must ONLY include information you know is DEFINITELY true. DO NOT assume anything.
 - new_world_memory must ONLY include information about tasks that were completed, is currently being completed, or failures.

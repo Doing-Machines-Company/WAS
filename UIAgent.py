@@ -91,11 +91,11 @@ class Agent:
         top_k = 2
         self.context_info = "\n".join([node.get_content() for node in self.retriever.retrieve(self.task)])
         self.interesting_items = call_task_separator(self.task)
-        self.item_context_pairs = "\n\n".join(["Item: " + item + "\n" + "Context: " + "".join(
+        self.item_context_pairs = "\n\n".join(["Item: " + item + "\n" + "Context: " + "".join(  # THIS IS CONTEXT
             [node.get_content() for node in autoregressive_retrieve(self.index, item, top_k)]) for item in
                                                self.interesting_items])
         print(self.item_context_pairs)
-        self.questions = call_unified_task_clarifier(self.task, self.item_context_pairs)
+        # self.questions = call_unified_task_clarifier(self.task, self.item_context_pairs)
 
     async def launch_browser(self):
         async with self.playwright_lock:
@@ -149,15 +149,15 @@ class Agent:
                 self.task = self.ask_user("What do you want done on dominos?")
 
             self.formulate_questions()
-
-            for question in self.questions:
-                if self.stop_event.is_set():
-                    break
-                answer = self.ask_user(question)
-                self.question_answers.append((question, answer))
-
-            if not self.stop_event.is_set():
-                self.clarifications = call_unified_question_cleaner(self.task, self.question_answers)
+            #
+            # for question in self.questions:
+            #     if self.stop_event.is_set():
+            #         break
+            #     answer = self.ask_user(question)
+            #     self.question_answers.append((question, answer))
+            #
+            # if not self.stop_event.is_set():
+            #     self.clarifications = call_unified_question_cleaner(self.task, self.question_answers)
 
             base_state = None
             old_inf_tree = ''
@@ -186,7 +186,7 @@ class Agent:
 
                         if str(old_inf_tree) != '':
                             mem_response = call_reflect_agent(chosen_action_index, reason_for_action, str(old_inf_tree),
-                                                              str(curr_inf_tree), self.task, self.clarifications)
+                                                              str(curr_inf_tree), self.task)
                             if mem_response is None:
                                 raise Exception
                             old_web_page_purpose, object_and_effect = mem_response[0], mem_response[1]
@@ -199,12 +199,12 @@ class Agent:
                         at_new_state = is_different_page(base_state, curr_page_state)
                         if at_new_state:
                             base_state = curr_page_state
-                            self.world_mem = call_memory_agent(self.task, self.clarifications, self.action_mem,
+                            self.world_mem = call_memory_agent(self.task, self.action_mem,
                                                                self.world_mem)
                             self.action_mem = []
 
                         start = time.time()
-                        action_out = call_action_agent(self.task, self.clarifications, curr_inf_tree, self.world_mem,
+                        action_out = call_action_agent(self.task, curr_inf_tree, self.world_mem,
                                                        self.action_mem, self.item_context_pairs)
                         print("Action took", time.time() - start)
 
@@ -231,7 +231,7 @@ class Agent:
                             if chosen_action.action_type == Action.Type.STOP:
                                 self.stop_event.set()
                             elif chosen_action.action_type == Action.Type.INPUT_GIVEN_INTENT:
-                                desired = call_input_agent(self.task, reason_for_action, self.clarifications,
+                                desired = call_input_agent(self.task, reason_for_action,
                                                            curr_inf_tree.get_input_tree(), self.context_info,
                                                            self.hidden_inputs)
                                 for (chosen_action_index, input_string) in desired:
