@@ -33,7 +33,6 @@ Remember:
 - You can only input text into the web page (and interact with actions with the INPUT_TEXT label at the start) by calling the associated SPECIAL ACTION to call a different assistant agent, and telling it the intention of your input (e.g., input all information for payment) using action_reason.
 - More recent actions in the action_memory are closer to the right of the list.
 - Assume that once you see a piece of information the user wants to retrieve, it's automatically given to the user.
-- If the user desires something, you must take it through the checkout process and buy it for them. Assume that you have access to all the user's personal information.
 
 First, you MUST follow ALL the steps and their instructions carefully, reason step-by-step.
 Then, give your final answer inside a Python function as described above.

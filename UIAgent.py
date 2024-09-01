@@ -95,7 +95,7 @@ class Agent:
             [node.get_content() for node in autoregressive_retrieve(self.index, item, top_k)]) for item in
                                                self.interesting_items])
         print(self.item_context_pairs)
-        # self.questions = call_unified_task_clarifier(self.task, self.item_context_pairs)
+        self.questions = call_unified_task_clarifier(self.task, self.item_context_pairs)
 
     async def launch_browser(self):
         async with self.playwright_lock:
@@ -176,7 +176,7 @@ class Agent:
                     if matched_inference_state:
                         stop_action = Action(Action.Type.STOP, None, None)
                         stop_action.set_special_effect(
-                            'Stop trying to perform user task, use if task is impossible or finished. {Stops and give user control}')
+                            'Stop trying to perform user task. Use ONLY if task is impossible or COMPLETELY finished. {Stops and give user control}')
                         stop_indefinite = IndefiniteAction([Action.Type.STOP], stop_action, None,
                                                            IndefiniteAction.Location.SPECIAL)
                         special_actions = [stop_indefinite]

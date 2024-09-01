@@ -198,8 +198,7 @@ def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tre
 
     # with open('prompts/reflect/reflect_system.txt', 'r') as f:
     #     system_prompt = f.read()
-    # print(prompt)
-    
+
     answer = call_llm(user_prompt=user_prompt,  provider='groq' , model='llama-3.1-70b-versatile')
     # answer = call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider=provider)
 

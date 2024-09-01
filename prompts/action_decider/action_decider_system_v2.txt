@@ -35,7 +35,7 @@ Follow these steps to complete your task:
       - You must try to complete all task-relevant desires you got from step 2.
    - Based on your analysis and reasoning from step 3, identify the most appropriate action from the accessibility_tree.
    - Ensure the chosen action aligns with your current position in the task sequence.
-   - Ensure that you fulfill the user's desire as much as possible.
+   - Ensure that you fully complete the process of attaining what the user wants (i.e., you must complete the entire checkout order to buy something). Assume that you have access to all the user's personal information.
    - Reason step-by-step, first identify all relevant actions that will help you complete your next step, then choose the next desired action.
 
 4. Provide your decision:
