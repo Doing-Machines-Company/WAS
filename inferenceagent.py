@@ -7,6 +7,8 @@ from groq import Groq
 from together import Together
 import json
 from openai import OpenAI
+from cerebras.cloud.sdk import Cerebras
+
 # Set up the Anthropic API client
 anthropic_client = anthropic.Anthropic(
     api_key=os.environ.get("ANTHROPIC_API_KEY")
@@ -21,8 +23,10 @@ together_client = Together(api_key=os.environ.get('TOGETHER_API_KEY'))
 #set up OpenAI API client
 openai_client = OpenAI()
 
+cerebras_client = Cerebras(api_key=os.environ.get("CEREBRAS_API_KEY"))
+
 #system prompt is the part of the prompt that remains the same across calls to a given module, will attempt to cache if possible
-def call_llm(system_prompt = '', user_prompt= '', provider="anthropic", model="claude-3-5-sonnet-20240620", max_tokens=2500):
+def call_llm(system_prompt = '', user_prompt= '', provider="anthropic", model="claude-3-5-sonnet-20240620", max_tokens=4000):
     if provider == "anthropic":
         message = anthropic_client.beta.prompt_caching.messages.create(
             model=model,
@@ -94,6 +98,25 @@ def call_llm(system_prompt = '', user_prompt= '', provider="anthropic", model="c
             ]
         )
         return completion.choices[0].message.content
+    elif provider == 'cerebras':
+        completion = cerebras_client.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": user_prompt
+                }
+            ],
+            model=model,
+            stream=False,
+            max_tokens=max_tokens,
+            temperature=0,
+            top_p=1
+        )
+        return completion.choices[0].message.content
     else:
         raise ValueError("Invalid provider. Choose 'anthropic', 'groq', or 'together'. ")
 
@@ -152,7 +175,7 @@ def call_memory_agent(web_agent_task, action_memory, world_memory, provider="ant
     prompt = prompt.substitute(replacements)
     # print(prompt)
     
-    answer = call_llm(user_prompt=prompt,  provider='groq' , model='llama-3.1-70b-versatile')
+    answer = call_llm(user_prompt=prompt,  provider='cerebras' , model='llama3.1-70b')
     
     print(answer)
     # input("World mem call")
@@ -199,7 +222,7 @@ def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tre
     # with open('prompts/reflect/reflect_system.txt', 'r') as f:
     #     system_prompt = f.read()
 
-    answer = call_llm(user_prompt=user_prompt,  provider='groq' , model='llama-3.1-70b-versatile')
+    answer = call_llm(user_prompt=user_prompt,  provider='cerebras' , model='llama3.1-70b')
     # answer = call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider=provider)
 
     print(answer)
@@ -239,7 +262,7 @@ def call_task_separator(web_agent_task, provider="anthropic"):
     prompt = string.Template(prompt)
     prompt = prompt.substitute(replacements)
     
-    answer = call_llm(user_prompt=prompt,  provider='groq' , model = 'llama-3.1-8b-instant')
+    answer = call_llm(user_prompt=prompt,  provider='cerebras' , model = 'llama3.1-8b')
     answer = answer.strip()
     print(answer)
     # Step 1: Use regex to find the JSON object
@@ -308,7 +331,7 @@ def call_input_agent(user_task, agent_intent, input_ax_tree, context, hidden_inp
     prompt = prompt.substitute(replacements)
     # print(prompt)
     
-    answer = call_llm(user_prompt=prompt,  provider='groq' , model='llama-3.1-70b-versatile')
+    answer = call_llm(user_prompt=prompt,  provider='cerebras' , model='llama3.1-70b')
 
     pattern = r'"text_area_number":\s*(\d+).*?"desired_input":\s*"(.*?)"'
 
@@ -328,7 +351,7 @@ def call_unified_task_clarifier(user_task, context, provider="anthropic"):
     prompt = string.Template(prompt)
     prompt = prompt.substitute(replacements)
     # print(prompt)
-    answer = call_llm(user_prompt=prompt,  provider='groq' , model='llama-3.1-70b-versatile')
+    answer = call_llm(user_prompt=prompt,  provider='cerebras' , model='llama3.1-70b')
     
     print(answer)
     # input(f"Unified task clarifier call")
@@ -380,7 +403,7 @@ def call_unified_question_cleaner(user_task, user_qa, provider="anthropic"):
     prompt = prompt.substitute(replacements)
     print(prompt)
     
-    answer = call_llm(user_prompt=prompt,  provider='groq' , model='llama-3.1-8b-instant')
+    answer = call_llm(user_prompt=prompt,  provider='cerebras' , model='llama3.1-8b')
 
     # Find JSON array in the text
     print(answer)
