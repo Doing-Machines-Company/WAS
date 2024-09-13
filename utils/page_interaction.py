@@ -94,14 +94,14 @@ async def get_page_state(page: PlaywrightPage, cdpSession: CDPSession, attempts=
             """
             await page.evaluate(remove_footer_js)
 
-        print("Load took", time.time() - start)
+        # print("Load took", time.time() - start)
         # Retrieve the accessibility tree and create an AxObservation object
         start = time.time()
         ax_nodes = await get_ax_tree(cdpSession)
-        print("CDP took", time.time() - start)
+        # print("CDP took", time.time() - start)
         start = time.time()
         cleaned = AxObservation(ax_nodes, page.url)  # LITERALLY THE WHOLE TREE
-        print("Cleaning took", time.time() - start)
+        # print("Cleaning took", time.time() - start)
         #DON'T PRINT FOR NOW, IT'S CLUTTERING EVERYTHING
 
         # Extract the header and footer HTML
@@ -109,7 +109,7 @@ async def get_page_state(page: PlaywrightPage, cdpSession: CDPSession, attempts=
         header_html = await page.evaluate("document.getElementsByTagName('header')[0]?.outerHTML || ''")
         footer_html = await page.evaluate("document.getElementsByTagName('footer')[0]?.outerHTML || ''")
         # header_html = ''
-        print("Header footer took", time.time() -start)
+        # print("Header footer took", time.time() -start)
         #currently page specific
 
         # Extract actions from the accessibility nodes and filter out None values, only scrape header and footer on homepage
@@ -122,15 +122,15 @@ async def get_page_state(page: PlaywrightPage, cdpSession: CDPSession, attempts=
         '''
         start = time.time()
         indefinite_actions = [ax_node_to_action(node, header_html, footer_html, page.url) for node in cleaned.nodes_info]
-        print("LENGTH: ", len(indefinite_actions))
-        print("Converting to actions took ", time.time() - start)
+        # print("LENGTH: ", len(indefinite_actions))
+        # print("Converting to actions took ", time.time() - start)
         new_indefinite_actions = []
         start = time.time()
         for indefinite_action in indefinite_actions:
             if (indefinite_action is not None) and (indefinite_action.action is not None) and (indefinite_action.type_list != []):
                 new_indefinite_actions.append(indefinite_action)
-        print("NEW LENGTH", len(new_indefinite_actions))
-        print("Indefinite action loop took", time.time() - start)
+        # print("NEW LENGTH", len(new_indefinite_actions))
+        # print("Indefinite action loop took", time.time() - start)
         # indefinite_actions = [(tL, a) for (tL, a) in indefinite_actions if tL != []]  # TODO now a list of lists of actions
 
 

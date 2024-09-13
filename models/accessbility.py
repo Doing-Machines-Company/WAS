@@ -124,6 +124,7 @@ class InferenceAxtree:
         self.use_scrape = use_scrape
         self.live_actions = []
         self.live_action_effects = []
+        self.special_actions = special_actions if special_actions is not None else []
 
         count = 0
         self.tree_str = ''
@@ -250,5 +251,69 @@ class InferenceAxtree:
     def get_input_tree(self):
         return self.input_tree
 
+    def get_tree_with_specific_action_effect(self, index: int) -> str:
+
+        # Retrieve the target action and its effect
+        target_action = self.live_actions[index]
+
+        tree_str = ''
+        count = 0
+
+        # Iterate over special actions first
+        for i, special_action in enumerate([self.live_actions[0]] + self.special_actions, start=0):
+            if count == index:
+                # Include the action effect
+                tree_str += f"[{count}] SPECIAL ACTION: {str(special_action.action.special_effect)}\n"
+            else:
+                # Omit the action effect
+                tree_str += f"[{count}] SPECIAL ACTION: \n"
+            count += 1
+
+        # Iterate over ax_nodes
+        for node in self.scrap_info.ax_nodes:
+            node_id = node['nodeId']
+            if node_id in self.action_effect_lib and self.action_lib[node_id].location != IndefiniteAction.Location.FOOTER:
+                action = self.action_lib[node_id]
+                action_effect = self.action_effect_lib[node_id]
+
+                if node_id == target_action.ax_node_index:
+                    # Include the action effect
+                    if Action.Type.INPUT in action.type_list:
+                        tree_str += (
+                            f"[{count}; INPUT_TEXT] {node['indent']}"
+                            f"{node['role']} {repr(node['name'])} "
+                            f"{' '.join(node['properties'])} {{{action_effect}}}\n"
+                        )
+                    else:
+                        tree_str += (
+                            f"[{count}] {node['indent']}"
+                            f"{node['role']} {repr(node['name'])} "
+                            f"{' '.join(node['properties'])} {{{action_effect}}}\n"
+                        )
+                else:
+                    # Omit the action effect
+                    if Action.Type.INPUT in action.type_list:
+                        tree_str += (
+                            f"[{count}; INPUT_TEXT] {node['indent']}"
+                            f"{node['role']} {repr(node['name'])} "
+                            f"{' '.join(node['properties'])}\n"
+                        )
+                    else:
+                        tree_str += (
+                            f"[{count}] {node['indent']}"
+                            f"{node['role']} {repr(node['name'])} "
+                            f"{' '.join(node['properties'])}\n"
+                        )
+
+                # Append to live_actions and live_action_effects is not needed here
+                count += 1
+            else:
+                # Nodes without associated actions are added as-is
+                tree_str += (
+                    f"{node['indent']}{node['role']} {repr(node['name'])} "
+                    f"{' '.join(node['properties'])}\n"
+                )
+
+        return tree_str
     def __str__(self):
         return self.tree_str

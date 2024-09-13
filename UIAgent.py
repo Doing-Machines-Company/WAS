@@ -188,7 +188,7 @@ class Agent:
                                                         use_scrape=True)
 
                         if str(old_inf_tree) != '':
-                            mem_response = call_reflect_agent(chosen_action_index, reason_for_action, str(old_inf_tree),
+                            mem_response = call_reflect_agent(chosen_action_index, reason_for_action, str(old_inf_tree.get_tree_with_specific_action_effect(chosen_action_index)),
                                                               str(curr_inf_tree), self.task)
                             if mem_response is None:
                                 raise Exception
