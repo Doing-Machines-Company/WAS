@@ -280,13 +280,13 @@ class InferenceAxtree:
                     # Include the action effect
                     if Action.Type.INPUT in action.type_list:
                         tree_str += (
-                            f"[{count}; INPUT_TEXT] {node['indent']}"
+                            f"[{count} (THIS ACTION WAS JUST CHOSEN); INPUT_TEXT] {node['indent']}"
                             f"{node['role']} {repr(node['name'])} "
                             f"{' '.join(node['properties'])} {{{action_effect}}}\n"
                         )
                     else:
                         tree_str += (
-                            f"[{count}] {node['indent']}"
+                            f"[{count} (THIS ACTION WAS JUST CHOSEN)] {node['indent']}"
                             f"{node['role']} {repr(node['name'])} "
                             f"{' '.join(node['properties'])} {{{action_effect}}}\n"
                         )

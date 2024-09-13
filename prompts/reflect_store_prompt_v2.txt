@@ -5,7 +5,6 @@ Definitions and notes:
 - The old_accessibility_tree is the web page BEFORE the chosen_action.
 - The new_accessibility_tree is the web page AFTER the chosen_action.
 - Every action in the accessibility trees is labeled with a number at the start of the line.
-- The action_number matches an action in the old_accessibility_tree, this was the action that was just performed. Call this the chosen_action.
 - The intention_for_action is why the chosen_action was picked.
 - The base_action_effect is text in {} brackets at the end of some lines in both accessibility tree describing what that action does if nothing failed.
 - We have our own special definition of a failure, this is the only definition you should use:
@@ -19,9 +18,10 @@ Follow these steps to complete your task, I will give you the inputs at the end:
 
 2. Break down the web_agent_task, and list out everything that the user desires individually. All of these desires are task-relevant.
 
-3. Analyze the old_accessibility_tree, action_number, and intention_for_action. Identify if there is a base_action_effect for the chosen_action and understand the effects of the chosen_action:
-   - Identify the chosen action that was just performed, this is the chosen_action.
-   - Reason step-by-step about the effects of the chosen_action that was performed using the two accessibility trees.
+3. Analyze the old_accessibility_tree, and intention_for_action. Identify if there is a base_action_effect for the chosen_action and understand the effects of the chosen_action:
+   - Determine the purpose of the old_web_page_purpose web page, this is the old_web_page_purpose.
+   - Identify the chosen action that was just performed on the old_accessibility_tree, this will be labelled by (THIS ACTION WAS JUST CHOSEN) near the start of the action in the old_accessibility_tree, this is the chosen_action.
+   - Reason step-by-step about the effects of the chosen_action that was performed using the difference between the two accessibility trees.
 
 4. Reason about the action, base_action_effect of the chosen_action, and two accessibility trees. Determine if the chosen_action failed:
   - The intention_for_action is why the chosen_action was picked. It is NOT the effect of the chosen_action.
@@ -52,12 +52,12 @@ Follow these steps to complete your task, I will give you the inputs at the end:
      }
     - If there are quotes " within the strings, be sure to escape them, otherwise the JSON will be malformed.
     - The final_answer is your final answer.
+    - The old_web_page_purpose is the old_web_page_purpose from step 3.
 
 Here's the input data:
 {
   "old_accessibility_tree": "$old_accessibility_tree",
   "new_accessibility_tree": "$new_accessibility_tree",
-  "action_number": "$action_number",
   "intention_for_action": "$reason_for_action",
   "web_agent_task": "$web_agent_task",
 }
@@ -69,5 +69,6 @@ Remember:
 - Read and make sure you understand the 'definitions and notes' labelled IMPORTANT.
 - We have our own special definition of fail/failed/failure, it's in the definitions and notes section. Make sure that you use this definition to treat base_action_effect as specified.
 - All task-relevant information and effects of the action must be VERY DETAILED and VERY PRECISE.
+- Do not include any reasoning in the final_answer. Do not include any information about what you do not know in the final_answer.
 
 Follow ALL the steps then give me your final answer.
