@@ -41,6 +41,8 @@ Follow these steps to complete your task, I will give you the inputs at the end:
       - All effects of the chosen_action. This must be detailed.
       - All information from step 5 that is relevant to All desires of the user.
       - Very precise and very detailed information about the reasons for the failure.
+   - Do not include any reasoning steps or assumptions in the final_answer.
+   - Do not include any information about what you do not know in the final_answer.
    - Use Chain-of-Thought (CoT), reason step-by-step, to do this. Ensure that you meet the specifications I'm giving you and assuming correctly for the base_action_effect.
 
 7. AFTER completing all of these steps, finally give me the answer:
@@ -69,6 +71,7 @@ Remember:
 - Read and make sure you understand the 'definitions and notes' labelled IMPORTANT.
 - We have our own special definition of fail/failed/failure, it's in the definitions and notes section. Make sure that you use this definition to treat base_action_effect as specified.
 - All task-relevant information and effects of the action must be VERY DETAILED and VERY PRECISE.
-- Do not include any reasoning in the final_answer. Do not include any information about what you do not know in the final_answer.
+- Do not include any reasoning steps or assumptions in the final_answer.
+- Do not include any information about what you do not know in the final_answer.
 
 Follow ALL the steps then give me your final answer.
