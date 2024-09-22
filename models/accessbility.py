@@ -127,7 +127,8 @@ class InferenceAxtree:
         self.special_actions = special_actions if special_actions is not None else []
 
         count = 0
-        self.tree_str = ''
+        self.raw_tree = ''
+        self.scrape_tree = ''
         self.debug_tree = ''
         self.input_tree = ''
 
@@ -137,7 +138,8 @@ class InferenceAxtree:
         input_all_indefinite = IndefiniteAction([Action.Type.INPUT_GIVEN_INTENT], input_all_action, None,
                                                 IndefiniteAction.Location.SPECIAL)
 
-        self.tree_str += f"[{count}] SPECIAL ACTION: {str(input_all_indefinite.action.special_effect)}\n"
+        self.raw_tree += f"[{count}] SPECIAL ACTION: {str(input_all_indefinite.action.special_effect)}\n"
+        self.scrape_tree += f"[{count}] SPECIAL ACTION: {str(input_all_indefinite.action.special_effect)}\n"
         self.debug_tree += f"[{count}] SPECIAL ACTION: {str(input_all_indefinite.action.special_effect)}\n"
         self.live_actions.append(input_all_indefinite)
         self.live_action_effects.append("SPECIAL ACTION")
@@ -145,7 +147,8 @@ class InferenceAxtree:
 
 
         for indefinite_action in special_actions:
-            self.tree_str += f"[{count}] SPECIAL ACTION: {str(indefinite_action.action.special_effect)}\n"
+            self.raw_tree += f"[{count}] SPECIAL ACTION: {str(indefinite_action.action.special_effect)}\n"
+            self.scrape_tree += f"[{count}] SPECIAL ACTION: {str(indefinite_action.action.special_effect)}\n"
             self.debug_tree += f"[{count}] SPECIAL ACTION: {str(indefinite_action.action.special_effect)}\n"
             self.live_actions.append(indefinite_action)
             self.live_action_effects.append("SPECIAL ACTION")
@@ -180,14 +183,14 @@ class InferenceAxtree:
                     # if self.action_lib[node['nodeId']].location == IndefiniteAction.Location.FOOTER:
                     #     break
                     if Action.Type.INPUT in self.action_lib[node['nodeId']].type_list and self.action_lib[node['nodeId']].location != IndefiniteAction.Location.FOOTER:
-                        self.tree_str += f"[{count}; INPUT_TEXT] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                        self.raw_tree += f"[{count}; INPUT_TEXT] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + "\n"
                         self.debug_tree += f"[{count}; INPUT_TEXT] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + "\n"
                         self.input_tree += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                         node["properties"]) + "\n"
                     else:
-                        self.tree_str += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                        self.raw_tree += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + "\n"
                         self.debug_tree += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + "\n"
@@ -198,7 +201,7 @@ class InferenceAxtree:
                     self.live_actions.append(self.action_lib[node['nodeId']])
                     self.live_action_effects.append(self.action_effect_lib[node['nodeId']])
                 else:
-                    self.tree_str += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                    self.raw_tree += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                         node["properties"]) + "\n"
                     self.debug_tree += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                         node["properties"]) + "\n"
@@ -210,15 +213,19 @@ class InferenceAxtree:
                 #     break
                 if node['nodeId'] in self.action_effect_lib and self.action_lib[node['nodeId']].location != IndefiniteAction.Location.FOOTER:
                     if Action.Type.INPUT in self.action_lib[node['nodeId']].type_list:
-                        self.tree_str += f"[{count}; INPUT_TEXT] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                        self.scrape_tree += f"[{count}; INPUT_TEXT] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + " {" + self.action_effect_lib[node['nodeId']] + "}" + "\n"
+                        self.raw_tree += f"[{count}; INPUT_TEXT] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                            node["properties"]) + "\n"
                         self.debug_tree += f"[{count}; INPUT_TEXT] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + " {" + self.action_effect_lib[node['nodeId']] + "}" + f" **MATCHED TO {self.action_number_lib[node['nodeId']]}**" + "\n"
                         self.input_tree += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + " {" + self.action_effect_lib[node['nodeId']] + "}" + "\n"
                     else:
-                        self.tree_str += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                        self.scrape_tree += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + " {" + self.action_effect_lib[node['nodeId']] + "}" + "\n"
+                        self.raw_tree += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                            node["properties"]) + "\n"
                         self.debug_tree += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + " {" + self.action_effect_lib[node[
                             'nodeId']] + "}" + f" **MATCHED TO {self.action_number_lib[node['nodeId']]}**" + "\n"
@@ -231,7 +238,9 @@ class InferenceAxtree:
                 else:
                     self.debug_tree += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                         node["properties"]) + "\n"
-                    self.tree_str += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                    self.raw_tree += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                        node["properties"]) + "\n"
+                    self.scrape_tree += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                         node["properties"]) + "\n"
                     self.input_tree += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                         node["properties"]) + "\n"
@@ -315,5 +324,13 @@ class InferenceAxtree:
                 )
 
         return tree_str
+
+    def get_raw_tree(self):
+        return self.raw_tree
+
+    def get_scrape_tree(self):
+        return self.scrape_tree
     def __str__(self):
-        return self.tree_str
+        if self.use_scrape:
+            return self.scrape_tree
+        return self.raw_tree

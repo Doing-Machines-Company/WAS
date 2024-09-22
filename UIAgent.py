@@ -1,30 +1,9 @@
-import copy
 import queue
-
-from utils.element_utils.element_similarity import element_similarity
-from pathlib import Path
-import os
-from bs4 import BeautifulSoup
-import numpy as np
-from PIL import Image, ImageDraw
-import cv2
-import copy as cp
-import pickle
-import re
-from models import PageObservation
-from inferenceagent import *
-import time
-from scrape7 import setup_context
-from utils import *
-from utils.inference_data import *
 from utils.inference_helpers import *
 from llama_index.core.schema import TextNode
 from llama_index.core import VectorStoreIndex
-from utils.element_utils.element_similarity import element_similarity
-from typing import List
 from queue import Queue
 import base64
-from playwright.sync_api import sync_playwright, Error as PlaywrightError
 from playwright.async_api import async_playwright
 import threading
 import asyncio
@@ -96,7 +75,7 @@ class Agent:
                                                self.interesting_items])
         print("Item context pairs\n", self.item_context_pairs)
         with open('data/questions.txt', 'r') as f:
-            self.question_context = f.read() 
+            self.question_context = f.read()
         print("Question Context\n", self.question_context)
         self.questions = call_unified_task_clarifier(self.task, self.question_context)
 
@@ -189,7 +168,7 @@ class Agent:
 
                         if str(old_inf_tree) != '':
                             mem_response = call_reflect_agent(chosen_action_index, reason_for_action, str(old_inf_tree.get_tree_with_specific_action_effect(chosen_action_index)),
-                                                              str(curr_inf_tree), self.task)
+                                                              curr_inf_tree.get_raw_tree(), self.task)
                             if mem_response is None:
                                 raise Exception
                             old_web_page_purpose, object_and_effect = mem_response[0], mem_response[1]

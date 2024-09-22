@@ -84,6 +84,7 @@ def call_llm(system_prompt = '', user_prompt= '', provider="anthropic", model="c
     elif provider == 'openai':
         completion = openai_client.chat.completions.create(
             model="chatgpt-4o-latest",
+            # model="gpt-4o-mini"
             temperature=0,
             max_tokens=max_tokens,
             messages=[
@@ -218,14 +219,16 @@ def call_reflect_agent(action_number, reason_for_action, old_ax_tree, new_ax_tre
     }
     user_prompt = string.Template(user_prompt)
     user_prompt = user_prompt.substitute(replacements)
+    print(user_prompt)
 
     # with open('prompts/reflect/reflect_system.txt', 'r') as f:
     #     system_prompt = f.read()
 
     answer = call_llm(user_prompt=user_prompt,  provider='cerebras' , model='llama3.1-70b')
     # answer = call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider=provider)
-
+    # print('reflect start')
     print(answer)
+    # input('reflect stop')
     # input("Memory store call")
 
     json_pattern = r'\{[^{}]*\}'
@@ -403,7 +406,7 @@ def call_unified_question_cleaner(user_task, user_qa, provider="anthropic"):
     prompt = prompt.substitute(replacements)
     print(prompt)
     
-    answer = call_llm(user_prompt=prompt,  provider='cerebras' , model='llama3.1-8b')
+    answer = call_llm(user_prompt=prompt,  provider='cerebras' , model='llama3.1-70b')
 
     # Find JSON array in the text
     print(answer)

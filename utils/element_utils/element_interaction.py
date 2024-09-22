@@ -1,5 +1,5 @@
 import asyncio
- 
+
 async def get_xpath_by_outer_html(page, outer_html):
     # JavaScript function to find the element by outerHTML and generate its XPath
     js_code = """
@@ -66,9 +66,3 @@ def make_xpath_friendly(des_xpath):
 
 async def get_element(des_page, des_xpath):
     return des_page.locator(f"xpath={des_xpath}") if des_xpath else None
-    # if des_xpath:
-    #     return des_page.evaluate(
-    #         f"document.evaluate('{des_xpath}', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue")
-    # else:
-    #     return None
-
