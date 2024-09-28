@@ -43,6 +43,8 @@ Follow these steps to complete your task, I will give you the inputs at the end:
       - Very precise and very detailed information about the reasons for the failure.
    - Do not include any reasoning steps or assumptions in the final_answer.
    - Do not include any information about what you do not know in the final_answer.
+   - The purpose of the final answer is to describe the effect of the chosen_action.
+   - Do not plan or include what needs to be done in final_answer.
    - Use Chain-of-Thought (CoT), reason step-by-step, to do this. Ensure that you meet the specifications I'm giving you and assuming correctly for the base_action_effect.
 
 7. AFTER completing all of these steps, finally give me the answer:
@@ -53,8 +55,9 @@ Follow these steps to complete your task, I will give you the inputs at the end:
        "final_answer": "Increased the quantity of Magical Sandwich to 2"
      }
     - If there are quotes " within the strings, be sure to escape them, otherwise the JSON will be malformed.
-    - The final_answer is your final answer.
+    - The final_answer is your final_answer from step 6.
     - The old_web_page_purpose is the old_web_page_purpose from step 3.
+
 
 Here's the input data:
 {

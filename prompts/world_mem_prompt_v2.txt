@@ -14,6 +14,7 @@ Follow these steps to complete your task, I will give you the inputs at the end:
            - Later items in action_memory happened more recently.
    - Reason about the action_memory and world_memory to precisely determine everything that has definitely been completed. Enumerate what is definitely and explicitly true.
    - You must include precise action descriptions about everything that is task-relevant, you got all task-relevant information in step 1. Ensure that you do not assume things.
+   - Use the effect of the actions and their locations from action_memory to guide you.
    - Both the world_memory and action_memory are very explicit and precise in language.
    - Use the exact same language as the action_memory and world_memory when describing things that have been done, and what they were done to, where relevant.
    - Reason through this step-by-step, using chain-of-thought (CoT), to do this.
@@ -55,7 +56,8 @@ Here's the input data in JSON format:
 
 Remember:
 - Ensure the new_world_memory condenses all navigation information about COMPLETED task essential subtasks.
-- The new_world_memory only serves to record what has been done. DO NOT plan what needs to be done in the new_world_memory.
+- The new_world_memory only serves to record what has been done.
+- Do not plan or include what needs to be done in new_world_memory.
 - You MUST include information about the COMPLETION of task-relevant operations.
 - Task-relevant subtasks include specifications/tasks mentioned in the web_agent_task.
 - new_world_memory must be very precise and very detailed about all information that is task-relevant.

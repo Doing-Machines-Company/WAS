@@ -39,6 +39,7 @@ Follow these steps to complete your task:
    - Reason step-by-step, first identify all relevant actions that will help you complete your next step, then choose the next desired action.
 
 4. Provide your decision:
+   - Following your reasoning from step 3, choose the next action that you want to perform.
    - Use the following Python function format to indicate your chosen action:
      choose(action_number: int, action_reason: str)
    - action_number: The number of the action you've chosen from the accessibility tree.
@@ -46,3 +47,4 @@ Follow these steps to complete your task:
        - The action_reason should be the next immediate reason that the action was being performed, and not multiple future reasons.
    - For example:
      choose(42, "Current page for Specialty Pizzas doesn't contain Magic Pizza, navigating to Menu where Magic Pizza may appear")
+   - Reason step-by-step, using Chain-of-Thought (CoT), to do this.
