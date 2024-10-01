@@ -1,3 +1,4 @@
+import copy
 import queue
 from utils.inference_helpers import *
 from llama_index.core.schema import TextNode
@@ -7,6 +8,9 @@ import base64
 from playwright.async_api import async_playwright
 import threading
 import asyncio
+import datetime
+from utils.inference_data import *
+from utils.trajectory_saves import *
 
 class Agent:
     def __init__(self):
@@ -35,6 +39,8 @@ class Agent:
         self.browser_context = None
         self.page = None
         self.cdp_session = None
+        self.curr_save_node = None
+        self.saved_trajectory = SavedTrajectory()
 
     def ask_user(self, question):
         self.output_queue.put(('question', question))
@@ -69,15 +75,18 @@ class Agent:
 
         top_k = 2
         self.context_info = "\n".join([node.get_content() for node in self.retriever.retrieve(self.task)])
-        self.interesting_items = call_task_separator(self.task)
+        self.interesting_items = call_task_separator(self.task).parsed_output
         self.item_context_pairs = "\n\n".join(["Item: " + item + "\n" + "Context: " + "".join(  # THIS IS CONTEXT
             [node.get_content() for node in autoregressive_retrieve(self.index, item, top_k)]) for item in
                                                self.interesting_items])
         print("Item context pairs\n", self.item_context_pairs)
+
+        self.saved_trajectory.important_info = self.item_context_pairs
+
         with open('data/questions.txt', 'r') as f:
             self.question_context = f.read()
         print("Question Context\n", self.question_context)
-        self.questions = call_unified_task_clarifier(self.task, self.question_context)
+        self.questions = call_unified_task_clarifier(self.task, self.question_context).parsed_output
 
     async def launch_browser(self):
         async with self.playwright_lock:
@@ -115,11 +124,13 @@ class Agent:
                 self.page = None
                 self.cdp_session = None
 
-    async def capture_and_send_screenshot(self):
+    async def capture_and_send_screenshot(self, save_node=None):
         async with self.playwright_lock:
             if self.page:
                 screenshot = await self.page.screenshot(full_page=False)
                 base64_screenshot = base64.b64encode(screenshot).decode('utf-8')
+                if save_node is not None:
+                    save_node.screenshot = base64_screenshot
                 self.output_queue.put(('screenshot', base64_screenshot))
 
     async def run(self):
@@ -129,6 +140,7 @@ class Agent:
             # Process task and questions once
             if self.task is None:
                 self.task = self.ask_user("What do you want done on dominos?")
+                self.saved_trajectory.user_input_task = self.task
 
             self.formulate_questions()
             print(self.questions)
@@ -138,20 +150,24 @@ class Agent:
                 answer = self.ask_user(question)
                 self.question_answers.append((question, answer))
 
+            self.saved_trajectory.question_answers = self.question_answers
             if not self.stop_event.is_set():
-                self.task = call_unified_question_cleaner(self.task, self.question_answers)
+                self.task = call_unified_question_cleaner(self.task, self.question_answers).parsed_output
+                self.cleaned_task = self.saved_trajectory.cleaned_task
 
             base_state = None
             old_inf_tree = ''
 
             # Main action loop
             while not self.stop_event.is_set():
-                await self.capture_and_send_screenshot()
+                self.curr_save_node = SavedTrajectoryNode()
+                await self.capture_and_send_screenshot(self.curr_save_node)
 
                 async with self.playwright_lock:
                     curr_page_state = await get_page_state(self.page, self.cdp_session)
                     if base_state is None:
                         base_state = curr_page_state
+                    self.curr_save_node.url = self.page.url
 
                     matched_inference_state = match_action_effects(curr_page_state, self.url_state_manager)
 
@@ -167,8 +183,10 @@ class Agent:
                                                         use_scrape=True)
 
                         if str(old_inf_tree) != '':
-                            mem_response = call_reflect_agent(chosen_action_index, reason_for_action, str(old_inf_tree.get_tree_with_specific_action_effect(chosen_action_index)),
+                            reflect_response_call = call_reflect_agent(chosen_action_index, reason_for_action, str(old_inf_tree.get_tree_with_specific_action_effect(chosen_action_index)),
                                                               curr_inf_tree.get_raw_tree(), self.task)
+                            self.curr_save_node.reflect_call = copy.deepcopy(reflect_response_call)
+                            mem_response = reflect_response_call.parsed_output
                             if mem_response is None:
                                 raise Exception
                             old_web_page_purpose, object_and_effect = mem_response[0], mem_response[1]
@@ -181,13 +199,17 @@ class Agent:
                         at_new_state = is_different_page(base_state, curr_page_state)
                         if at_new_state:
                             base_state = curr_page_state
-                            self.world_mem = call_memory_agent(self.task, self.action_mem,
+                            world_mem_call = call_memory_agent(self.task, self.action_mem,
                                                                self.world_mem)
+                            self.curr_save_node.world_mem_call = copy.deepcopy(world_mem_call)
+                            self.world_mem = world_mem_call.parsed_output
                             self.action_mem = []
 
                         start = time.time()
-                        action_out = call_action_agent(self.task, curr_inf_tree, self.world_mem,
+                        action_out_call = call_action_agent(self.task, curr_inf_tree, self.world_mem,
                                                        self.action_mem, self.item_context_pairs)
+                        self.curr_save_node.ad_call = copy.deepcopy(action_out_call)
+                        action_out = action_out_call.parsed_output
                         print("Action took", time.time() - start)
 
                         if action_out is None:
@@ -215,7 +237,7 @@ class Agent:
                             elif chosen_action.action_type == Action.Type.INPUT_GIVEN_INTENT:
                                 desired = call_input_agent(self.task, reason_for_action,
                                                            curr_inf_tree.get_input_tree(), self.context_info,
-                                                           self.hidden_inputs)
+                                                           self.hidden_inputs).parsed_output
                                 for (chosen_action_index, input_string) in desired:
                                     unhidden_input_string = replace_hidden_inputs(input_string, self.hidden_inputs)
                                     chosen_indefinite = curr_inf_tree.get_action_from_index(chosen_action_index)
@@ -227,7 +249,7 @@ class Agent:
                                                              type_list)
                     else:
                         print("No matched state, why?")
-
+                    self.saved_trajectory.add_node(copy.deepcopy(self.curr_save_node))
                     time.sleep(5)
         finally:
             print("CLEANING")
@@ -237,4 +259,15 @@ class Agent:
 
     def stop(self):
         print("Stop method called")
+        # Get the current date and time
+        now = datetime.datetime.now()
+        filename = f"{self.saved_trajectory.user_input_task}_{now.strftime('%Y%m%d_%H%M')}.pkl"
+
+        save_directory = 'saved_trajectories'
+        if not os.path.exists(save_directory):
+            os.makedirs(save_directory)
+
+        full_path = os.path.join(save_directory, filename)
+        with open(full_path, 'wb') as file:
+            pickle.dump(self.saved_trajectory, file)
         self.stop_event.set()

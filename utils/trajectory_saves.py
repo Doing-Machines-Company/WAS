@@ -1,24 +1,27 @@
 from dataclasses import dataclass
+from inferenceagent import AgentCall
 
-
-@dataclass
-class AgentCall:
-    system_prompt: str
-    user_prompt: str
-    llm_response: str
 
 
 class SavedTrajectoryNode:
     def __init__(self):
         self.ad_call: AgentCall | None = None
         self.reflect_call: AgentCall | None = None
-        self.worldmem_call: AgentCall | None = None
-        self.url: str = ''
+        self.world_mem_call: AgentCall | None = None
+        self.url: str | None = None
+        self.screenshot: bytes | None = None
 
 
 class SavedTrajectory:
-    def __init__(self, nodes):
-        self.nodes = nodes
+    def __init__(self):
+        self.nodes = []
+        self.user_input_task = None
+        self.question_answers = None
+        self.cleaned_task = None
+        self.important_info = None
+
+    def add_node(self, node):
+        self.nodes.append(node)
 
     def step_through(self):
         index = 0
