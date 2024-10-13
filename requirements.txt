@@ -242,7 +242,6 @@ rich==13.7.0
 rpds-py==0.18.0
 rsa==4.9
 safetensors==0.4.1
-scikit-learn==1.3.2
 semver==3.0.2
 sentencepiece==0.1.99
 shellingham==1.5.4

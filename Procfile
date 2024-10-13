@@ -1,2 +1,2 @@
-release: pip install --upgrade playwright install
+release: playwright install
 web: gunicorn flaskdemo:app
