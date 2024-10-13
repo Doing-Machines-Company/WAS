@@ -5,7 +5,7 @@ from utils.web_extraction import *
 from utils.element_utils.element_interaction import *
 import numpy as np
 from scrape_llm import use_gpt_fill_input
-import cv2
+# import cv2
 from typing import Optional, List, Any
 
 
@@ -243,28 +243,29 @@ async def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes
     return False
 
 async def take_screenshot(page, attempts=3, full=False):
-    for i in range(attempts):
-        try:
-            screenshot = await page.screenshot(full_page=full)
-            return screenshot, True
-        except Exception as e:
-            print("SCREENSHOT FAILED")
-            print(e)
-    print("ALL SCREENSHOT ATTEMPTS FAILED")
-    # Create a blank image using OpenCV
-    height, width = 600, 800  # You can adjust these dimensions as needed
-    blank_image = np.zeros((height, width, 3), np.uint8)
-    blank_image[:] = (255, 255, 255)  # White background
+    # for i in range(attempts):
+    #     try:
+    #         screenshot = await page.screenshot(full_page=full)
+    #         return screenshot, True
+    #     except Exception as e:
+    #         print("SCREENSHOT FAILED")
+    #         print(e)
+    # print("ALL SCREENSHOT ATTEMPTS FAILED")
+    # # Create a blank image using OpenCV
+    # height, width = 600, 800  # You can adjust these dimensions as needed
+    # blank_image = np.zeros((height, width, 3), np.uint8)
+    # blank_image[:] = (255, 255, 255)  # White background
 
-    # Add text to the image
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    text = "Screenshot Failed"
-    textsize = cv2.getTextSize(text, font, 1, 2)[0]
-    text_x = (width - textsize[0]) // 2
-    text_y = (height + textsize[1]) // 2
-    cv2.putText(blank_image, text, (text_x, text_y), font, 1, (0, 0, 0), 2)
+    # # Add text to the image
+    # font = cv2.FONT_HERSHEY_SIMPLEX
+    # text = "Screenshot Failed"
+    # textsize = cv2.getTextSize(text, font, 1, 2)[0]
+    # text_x = (width - textsize[0]) // 2
+    # text_y = (height + textsize[1]) // 2
+    # cv2.putText(blank_image, text, (text_x, text_y), font, 1, (0, 0, 0), 2)
 
-    # Convert the OpenCV image to bytes (similar to Playwright's screenshot output)
-    _, buffer = cv2.imencode('.png', blank_image)
-    print("SAVING DUMMY SCREENSHOT")
-    return buffer.tobytes(), False
+    # # Convert the OpenCV image to bytes (similar to Playwright's screenshot output)
+    # _, buffer = cv2.imencode('.png', blank_image)
+    # print("SAVING DUMMY SCREENSHOT")
+    # return buffer.tobytes(), False
+    pass
