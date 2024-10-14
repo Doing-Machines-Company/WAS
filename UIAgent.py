@@ -1,5 +1,6 @@
 import copy
 import queue
+import time  # Added import for time
 from utils.inference_helpers import *
 from llama_index.core.schema import TextNode
 from llama_index.core import VectorStoreIndex
@@ -9,6 +10,8 @@ from playwright.async_api import async_playwright
 import threading
 import asyncio
 import datetime
+import os  # Added import for os
+import pickle  # Added import for pickle
 from utils.inference_data import *
 from utils.trajectory_saves import *
 
@@ -20,7 +23,7 @@ class Agent:
         self.initialize_index()
 
     def reset(self):
-        self.scraper_state_file = 'dominos/scraper_state.pkl'
+        self.scraper_state_file = 'dominosNoImages/scraper_state.pkl'
         self.url_state_manager = load_scraper_state(self.scraper_state_file)
         self.task = None
         self.action_mem = []
@@ -76,9 +79,11 @@ class Agent:
         top_k = 2
         self.context_info = "\n".join([node.get_content() for node in self.retriever.retrieve(self.task)])
         self.interesting_items = call_task_separator(self.task).parsed_output
-        self.item_context_pairs = "\n\n".join(["Item: " + item + "\n" + "Context: " + "".join(  # THIS IS CONTEXT
-            [node.get_content() for node in autoregressive_retrieve(self.index, item, top_k)]) for item in
-                                               self.interesting_items])
+        self.item_context_pairs = "\n\n".join([
+            "Item: " + item + "\n" + "Context: " + "".join(
+                [node.get_content() for node in autoregressive_retrieve(self.index, item, top_k)]
+            ) for item in self.interesting_items
+        ])
         print("Item context pairs\n", self.item_context_pairs)
 
         self.saved_trajectory.important_info = self.item_context_pairs
@@ -149,8 +154,12 @@ class Agent:
                     break
                 answer = self.ask_user(question)
                 self.question_answers.append((question, answer))
+                # Check stop_event after each user response
+                if self.stop_event.is_set():
+                    break
 
             self.saved_trajectory.question_answers = self.question_answers
+
             if not self.stop_event.is_set():
                 self.task = call_unified_question_cleaner(self.task, self.question_answers).parsed_output
                 self.cleaned_task = self.saved_trajectory.cleaned_task
@@ -161,7 +170,7 @@ class Agent:
             # Main action loop
             while not self.stop_event.is_set():
                 self.curr_save_node = SavedTrajectoryNode()
-                await self.capture_and_send_screenshot(self.curr_save_node)
+                await self.capture_and_send_screenshot(self.curr_save_node)  # note that we are locking in here with self.playwright_lock
 
                 async with self.playwright_lock:
                     curr_page_state = await get_page_state(self.page, self.cdp_session)
@@ -181,10 +190,15 @@ class Agent:
 
                         curr_inf_tree = InferenceAxtree(matched_inference_state, special_actions=special_actions,
                                                         use_scrape=True)
+                        if self.stop_event.is_set():
+                            break
 
                         if str(old_inf_tree) != '':
-                            reflect_response_call = call_reflect_agent(chosen_action_index, reason_for_action, str(old_inf_tree.get_tree_with_specific_action_effect(chosen_action_index)),
-                                                              curr_inf_tree.get_raw_tree(), self.task)
+                            reflect_response_call = call_reflect_agent(
+                                chosen_action_index, reason_for_action,
+                                str(old_inf_tree.get_tree_with_specific_action_effect(chosen_action_index)),
+                                curr_inf_tree.get_raw_tree(), self.task
+                            )
                             self.curr_save_node.reflect_call = copy.deepcopy(reflect_response_call)
                             mem_response = reflect_response_call.parsed_output
                             if mem_response is None:
@@ -195,6 +209,8 @@ class Agent:
                             self.action_mem.append(new_memory)
 
                         old_inf_tree = curr_inf_tree
+                        if self.stop_event.is_set():
+                            break
 
                         at_new_state = is_different_page(base_state, curr_page_state)
                         if at_new_state:
@@ -206,8 +222,17 @@ class Agent:
                             self.action_mem = []
 
                         start = time.time()
-                        action_out_call = call_action_agent(self.task, curr_inf_tree, self.world_mem,
-                                                       self.action_mem, self.item_context_pairs)
+                        # Check stop_event after API call
+                        if self.stop_event.is_set():
+                            break
+
+                        action_out_call = call_action_agent(
+                            self.task, curr_inf_tree, self.world_mem,
+                            self.action_mem, self.item_context_pairs, store_out=True
+                        )
+                        # Check stop_event after API call
+                        if self.stop_event.is_set():
+                            break
                         self.curr_save_node.ad_call = copy.deepcopy(action_out_call)
                         action_out = action_out_call.parsed_output
                         print("Action took", time.time() - start)
@@ -223,35 +248,68 @@ class Agent:
                         chosen_indefinite = curr_inf_tree.get_action_from_index(chosen_action_index)
                         chosen_action = chosen_indefinite.action
 
+                        # Check stop_event after API call
+                        if self.stop_event.is_set():
+                            break
+
                         if chosen_indefinite.location != IndefiniteAction.Location.SPECIAL:
-                            chosen_element, chosen_xpath, type_list = await get_chosen_element(self.page,
-                                                                                         chosen_indefinite)
-                            success = await do_action_flow(self.page, chosen_action, chosen_element, chosen_xpath,
-                                                     type_list)
+                            chosen_element, chosen_xpath, type_list = await get_chosen_element(
+                                self.page,
+                                chosen_indefinite
+                            )
+                            success = await do_action_flow(
+                                self.page, chosen_action, chosen_element, chosen_xpath,
+                                type_list
+                            )
                             if not success:
                                 print(f"This action was broken: {chosen_action}")
-                                self.stop_event.set()
+                                # self.stop_event.set()
+                                self.stop()
                         else:
                             if chosen_action.action_type == Action.Type.STOP:
-                                self.stop_event.set()
+                                # self.stop_event.set()
+                                self.stop()
                             elif chosen_action.action_type == Action.Type.INPUT_GIVEN_INTENT:
-                                desired = call_input_agent(self.task, reason_for_action,
-                                                           curr_inf_tree.get_input_tree(), self.context_info,
-                                                           self.hidden_inputs).parsed_output
+                                desired = call_input_agent(
+                                    self.task, reason_for_action,
+                                    curr_inf_tree.get_input_tree(), self.context_info,
+                                    self.hidden_inputs
+                                ).parsed_output
                                 for (chosen_action_index, input_string) in desired:
                                     unhidden_input_string = replace_hidden_inputs(input_string, self.hidden_inputs)
                                     chosen_indefinite = curr_inf_tree.get_action_from_index(chosen_action_index)
                                     chosen_action = chosen_indefinite.action
-                                    chosen_element, chosen_xpath, type_list = await get_chosen_element(self.page,
-                                                                                                 chosen_indefinite)
+                                    chosen_element, chosen_xpath, type_list = await get_chosen_element(
+                                        self.page,
+                                        chosen_indefinite
+                                    )
                                     chosen_action.set_input_string(unhidden_input_string)
-                                    success = await do_action_flow(self.page, chosen_action, chosen_element, chosen_xpath,
-                                                             type_list)
+                                    success = await do_action_flow(
+                                        self.page, chosen_action, chosen_element, chosen_xpath,
+                                        type_list
+                                    )
+                                    if not success:
+                                        # self.stop_event.set()
+                                        self.stop()
+
                     else:
                         print("No matched state, why?")
+
                     self.saved_trajectory.add_node(copy.deepcopy(self.curr_save_node))
-                    time.sleep(5)
+
+                if self.stop_event.is_set():
+                    break
+                await asyncio.sleep(5)
+                # time.sleep(5)
+
+                # Check stop_event after sleep
+                if self.stop_event.is_set():
+                    break
+        except Exception as e:
+            print(f"Agent encountered an exception: {e}")
         finally:
+            if self.stop_event.is_set():
+                print("Stop event detected. Initiating cleanup...")
             print("CLEANING")
             await self.cleanup_browser()
             print("FINISHED CLEANING")

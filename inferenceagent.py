@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import List, Tuple, Optional
 from utils.inference_data import HiddenInput  # Ensure HiddenInput is properly defined in your module
 from groq import Groq
-from together import Together
+# from together import Together
 from openai import OpenAI
 from cerebras.cloud.sdk import Cerebras
 
@@ -29,7 +29,7 @@ anthropic_client = anthropic.Anthropic(
 groq_client = Groq()
 
 # Set up Together API client
-together_client = Together(api_key=os.environ.get('TOGETHER_API_KEY'))
+# together_client = Together(api_key=os.environ.get('TOGETHER_API_KEY'))
 
 # Set up OpenAI API client
 openai_client = OpenAI()
@@ -101,19 +101,19 @@ def call_llm(
         )
         output = completion.choices[0].message.content
 
-    elif provider == "together":
-        response = together_client.chat.completions.create(
-            model="meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
-            messages=[{"role": "user", "content": user_prompt}],
-            max_tokens=max_tokens,
-            temperature=0,
-            top_p=1,
-            top_k=50,
-            repetition_penalty=1,
-            stop=["<|eot_id|>"],
-            stream=False,
-        )
-        output = response.choices[0].message.content
+    # elif provider == "together":
+    #     response = together_client.chat.completions.create(
+    #         model="meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+    #         messages=[{"role": "user", "content": user_prompt}],
+    #         max_tokens=max_tokens,
+    #         temperature=0,
+    #         top_p=1,
+    #         top_k=50,
+    #         repetition_penalty=1,
+    #         stop=["<|eot_id|>"],
+    #         stream=False,
+    #     )
+    #     output = response.choices[0].message.content
 
     elif provider == 'openai':
         completion = openai_client.chat.completions.create(
