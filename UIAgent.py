@@ -7,18 +7,17 @@ from llama_index.core import VectorStoreIndex
 from queue import Queue
 import base64
 from playwright.async_api import async_playwright
-# import threading
 import asyncio
 import datetime
 import os  # Added import for os
 import pickle  # Added import for pickle
 from utils.inference_data import *
 from utils.trajectory_saves import *
-from eventlet.green.threading import Event  # Use eventlet's threading Event
+from threading import Event  # Use standard threading Event
 
 class Agent:
     def __init__(self):
-        self.stop_event = Event()  # Use eventlet's threading Event
+        self.stop_event = Event()  # Use standard threading Event
         self.playwright_lock = asyncio.Lock()
         self.reset()
         self.initialize_index()

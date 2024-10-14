@@ -1,17 +1,14 @@
-import eventlet
-eventlet.monkey_patch()
-
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 from UIAgent import Agent
-from eventlet.green.threading import Thread, Lock
+from threading import Thread, Lock
 import time
 import asyncio
 
 app = Flask(__name__)
 socketio = SocketIO(app)
 
-agent:Agent = None
+agent: Agent = None
 agent_thread = None
 agent_lock = Lock()  # Initialize a lock
 background_task_started = False  # Add this global variable
