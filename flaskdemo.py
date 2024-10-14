@@ -1,16 +1,20 @@
+import eventlet
+eventlet.monkey_patch()
+
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 from UIAgent import Agent
-from threading import Thread, Lock
+from eventlet.green.threading import Thread, Lock
 import time
 import asyncio
 
 app = Flask(__name__)
 socketio = SocketIO(app)
 
-agent = None
+agent:Agent = None
 agent_thread = None
 agent_lock = Lock()  # Initialize a lock
+background_task_started = False  # Add this global variable
 
 @app.route('/')
 def index():
@@ -18,7 +22,11 @@ def index():
 
 @socketio.on('connect')
 def handle_connect():
+    global background_task_started
     emit('connection_response', {'status': 'connected'})
+    if not background_task_started:
+        socketio.start_background_task(agent_loop)
+        background_task_started = True
 
 @socketio.on('start_agent')
 def handle_start_agent():
@@ -41,7 +49,7 @@ def handle_reset_agent():
             agent.stop()
             if agent_thread:
                 start_time = time.time()
-                agent_thread.join(timeout=20)  # Increased timeout to 10 seconds for better cleanup
+                agent_thread.join(timeout=20)  # Increased timeout to 20 seconds for better cleanup
                 elapsed = time.time() - start_time
                 print(f"{time.time()}: Join completed, took {elapsed:.2f} seconds")
                 if agent_thread.is_alive():
@@ -53,11 +61,12 @@ def handle_reset_agent():
         print(f"{time.time()}: Agent reset completed.")
         emit('agent_reset', {'status': 'Agent reset'})
 
-
 def run_agent():
     global agent, agent_thread
     try:
-        asyncio.run(agent.run())
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(agent.run())
     except Exception as e:
         print(f"{time.time()}: Agent encountered an error: {e}")
     finally:
@@ -65,7 +74,6 @@ def run_agent():
         socketio.emit('agent_stopped')
         print(f"{time.time()}: Agent thread finished")
         # Do NOT set agent and agent_thread to None here
-
 
 def agent_loop():
     global agent
@@ -88,5 +96,4 @@ def handle_user_response(data):
         agent.input_queue.put(response)
 
 if __name__ == '__main__':
-    socketio.start_background_task(agent_loop)
     socketio.run(app)

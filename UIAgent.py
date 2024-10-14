@@ -7,23 +7,24 @@ from llama_index.core import VectorStoreIndex
 from queue import Queue
 import base64
 from playwright.async_api import async_playwright
-import threading
+# import threading
 import asyncio
 import datetime
 import os  # Added import for os
 import pickle  # Added import for pickle
 from utils.inference_data import *
 from utils.trajectory_saves import *
+from eventlet.green.threading import Event  # Use eventlet's threading Event
 
 class Agent:
     def __init__(self):
-        self.stop_event = threading.Event()
+        self.stop_event = Event()  # Use eventlet's threading Event
         self.playwright_lock = asyncio.Lock()
         self.reset()
         self.initialize_index()
 
     def reset(self):
-        self.scraper_state_file = 'dominosNoImages/scraper_state.pkl'
+        self.scraper_state_file = 'dominos/scraper_state.pkl'
         self.url_state_manager = load_scraper_state(self.scraper_state_file)
         self.task = None
         self.action_mem = []
@@ -170,7 +171,7 @@ class Agent:
             # Main action loop
             while not self.stop_event.is_set():
                 self.curr_save_node = SavedTrajectoryNode()
-                await self.capture_and_send_screenshot(self.curr_save_node)  # note that we are locking in here with self.playwright_lock
+                await self.capture_and_send_screenshot(self.curr_save_node)
 
                 async with self.playwright_lock:
                     curr_page_state = await get_page_state(self.page, self.cdp_session)
@@ -228,7 +229,7 @@ class Agent:
 
                         action_out_call = call_action_agent(
                             self.task, curr_inf_tree, self.world_mem,
-                            self.action_mem, self.item_context_pairs, store_out=True
+                            self.action_mem, self.item_context_pairs
                         )
                         # Check stop_event after API call
                         if self.stop_event.is_set():
@@ -263,11 +264,9 @@ class Agent:
                             )
                             if not success:
                                 print(f"This action was broken: {chosen_action}")
-                                # self.stop_event.set()
                                 self.stop()
                         else:
                             if chosen_action.action_type == Action.Type.STOP:
-                                # self.stop_event.set()
                                 self.stop()
                             elif chosen_action.action_type == Action.Type.INPUT_GIVEN_INTENT:
                                 desired = call_input_agent(
@@ -289,7 +288,6 @@ class Agent:
                                         type_list
                                     )
                                     if not success:
-                                        # self.stop_event.set()
                                         self.stop()
 
                     else:
@@ -300,7 +298,6 @@ class Agent:
                 if self.stop_event.is_set():
                     break
                 await asyncio.sleep(5)
-                # time.sleep(5)
 
                 # Check stop_event after sleep
                 if self.stop_event.is_set():
