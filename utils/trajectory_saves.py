@@ -90,23 +90,23 @@ class SavedTrajectory:
                 input("\nPress Enter to continue...")
 
             elif decision == '3':
-                if node.worldmem_call:
+                if node.world_mem_call:
                     print("\n--- World Mem Call ---")
-                    if node.worldmem_call.system_prompt:
+                    if node.world_mem_call.system_prompt:
                         print("System Prompt:")
-                        print(node.worldmem_call.system_prompt)
+                        print(node.world_mem_call.system_prompt)
                     else:
                         print("No system prompt available.")
 
-                    if node.worldmem_call.user_prompt:
+                    if node.world_mem_call.user_prompt:
                         print("\nUser Prompt:")
-                        print(node.worldmem_call.user_prompt)
+                        print(node.world_mem_call.user_prompt)
                     else:
                         print("No user prompt available.")
 
-                    if node.worldmem_call.llm_response:
+                    if node.world_mem_call.llm_response:
                         print("\nLLM Response:")
-                        print(node.worldmem_call.llm_response)
+                        print(node.world_mem_call.llm_response)
                     else:
                         print("No LLM response available.")
                 else:
