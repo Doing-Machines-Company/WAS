@@ -4,7 +4,7 @@ import os
 from bs4 import BeautifulSoup
 import numpy as np
 from PIL import Image, ImageDraw
-import cv2
+# import cv2
 import copy as cp
 import pickle
 import re

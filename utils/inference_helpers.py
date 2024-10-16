@@ -4,7 +4,7 @@ import os
 from bs4 import BeautifulSoup
 import numpy as np
 from PIL import Image, ImageDraw
-import cv2
+# import cv2
 import copy as cp
 import pickle
 import re
@@ -112,39 +112,12 @@ async def do_action_flow(page, chosen_action, chosen_element, chosen_xpath, type
     chosen_action_screenshot, screenshot_success = await take_screenshot(
         page)  # we take a screenshot in case there's nothing to scroll to
 
-    if chosen_element and await chosen_element.count() > 0 and chosen_xpath:
-        try:
-            await scroll_into_view(chosen_element)
-            chosen_action_screenshot, screenshot_success = await take_screenshot(page)
-        except Exception as e:
-            print("SCROLL FAILED DURING TRAJECTORY")
-            print(e)
 
-        if screenshot_success:
-            to_box_coords = None
-            try:
-                # to_box_item = page.locator(f"xpath={action.friendly_xpath}")
-                # if final_element and final_element.count() > 0:  # should be redundant given continue above
-                to_box_coords = await chosen_element.bounding_box(timeout=10000)
-            except Exception as e:
-                print(f'GETTING BOUNDING BOXES FAILED FOR IN TRAJ {chosen_action}')
-                print(e)
-
-            chosen_action_screenshot = create_boundingbox(chosen_action_screenshot, to_box_coords)
-    else:
-        print(f"This action was not found: {chosen_action}")
-        print('Could not find item in trajectory')
-
-    if not screenshot_success:  # TODO BOUNDING BOX FOR THE SCREENSHOT IF SUCCESS
-        print('action screenshot failed')
-
-    # input("ABOUT TO DO ACTION")
 
     success = await apply_action(page, chosen_action, chosen_action_screenshot, chosen_element, chosen_xpath,
                            type_list)
 
     return success
-
 
 def replace_hidden_inputs(input_string: str, inputs_list: list[HiddenInput]) -> str:
     for hidden_input in inputs_list:

@@ -5,7 +5,7 @@ import os
 from bs4 import BeautifulSoup
 import numpy as np
 from PIL import Image, ImageDraw
-import cv2
+# import cv2
 import copy as cp
 import pickle
 import re
@@ -73,18 +73,18 @@ class IndefiniteAction:
 
 
 '''
-scraper_state_file = 'dominos/scraper_state.pkl'
-url_state_manager = load_scraper_state(scraper_state_file)
-counter = 0
-for url_state in url_state_manager.urls.values():
-    samples = url_state.unique_samples.values()
-    for sample in samples:
-        # sample is a list of scrape actions
-        for scrape_action in sample:
-            counter += 1
-            action = scrape_action.action
-            if element_similarity('<button data-quid="overlay-no-thanks" class="waterfall-upsell__no-thanks btn btn--outline">No, Go to Checkout</button>', action.html) >= 0.9:
-                print(action.html)
-                input('give it a moment')
+# scraper_state_file = 'dominos/scraper_state.pkl'
+# url_state_manager = load_scraper_state(scraper_state_file)
+# counter = 0
+# for url_state in url_state_manager.urls.values():
+#     samples = url_state.unique_samples.values()
+#     for sample in samples:
+#         # sample is a list of scrape actions
+#         for scrape_action in sample:
+#             counter += 1
+#             action = scrape_action.action
+#             if element_similarity('<button data-quid="overlay-no-thanks" class="waterfall-upsell__no-thanks btn btn--outline">No, Go to Checkout</button>', action.html) >= 0.9:
+#                 print(action.html)
+#                 input('give it a moment')
 
-print(counter)
+# print(counter)
