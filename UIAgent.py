@@ -18,6 +18,7 @@ from threading import Event  # Use standard threading Event
 class Agent:
     def __init__(self):
         self.stop_event = Event()  # Use standard threading Event
+        self.cleaned_up = Event()
         self.playwright_lock = asyncio.Lock()
         self.reset()
         self.initialize_index()
@@ -98,7 +99,7 @@ class Agent:
             if self.playwright is None:
                 self.playwright = await async_playwright().start()
             if self.browser is None:
-                self.browser = await self.playwright.chromium.launch(headless=True)
+                self.browser = await self.playwright.chromium.launch(headless=False)
             if self.browser_context is None or self.page is None or self.cdp_session is None:
                 try:
                     self.browser_context, self.page, self.cdp_session, _ = await setup_context(self.browser, None)
@@ -306,10 +307,16 @@ class Agent:
         finally:
             if self.stop_event.is_set():
                 print("Stop event detected. Initiating cleanup...")
-            print("CLEANING")
-            await self.cleanup_browser()
-            print("FINISHED CLEANING")
-            print("DONE!")
+                print("CLEANING")
+                await self.cleanup_browser()
+                print("FINISHED CLEANING")
+                print("DONE!")
+            else:
+                self.output_queue.put(('only_out', "Agent crashed, please reset."))
+                self.stop()
+                await self.cleanup_browser()
+
+            self.cleaned_up.set()
 
     def stop(self):
         print("Stop method called")

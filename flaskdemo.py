@@ -1,7 +1,10 @@
+import eventlet
+eventlet.monkey_patch()
+
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 from UIAgent import Agent
-from threading import Thread, Lock
+from eventlet.green.threading import Thread, Lock
 import time
 import asyncio
 
@@ -84,6 +87,7 @@ def agent_loop():
             elif output_type == 'only_out':
                 socketio.emit('agent_only_out', {'message': data})
         socketio.sleep(0.1)
+
 
 @socketio.on('user_response')
 def handle_user_response(data):
