@@ -1,5 +1,6 @@
 import copy
 import queue
+import gc
 import time  # Added import for time
 from utils.inference_helpers import *
 from llama_index.core.schema import TextNode
@@ -124,11 +125,13 @@ class Agent:
             except Exception as e:
                 print(f"Error during browser cleanup: {e}")
             finally:
+                del self.playwright, self.browser, self.browser_context, self.page, self.cdp_session
                 self.playwright = None
                 self.browser = None
                 self.browser_context = None
                 self.page = None
                 self.cdp_session = None
+            gc.collect()
             self.cleaned_up.set()
 
     async def capture_and_send_screenshot(self, save_node=None):
@@ -298,6 +301,7 @@ class Agent:
 
                 if self.stop_event.is_set():
                     break
+                gc.collect()
                 await asyncio.sleep(5)
 
                 # Check stop_event after sleep
@@ -306,7 +310,7 @@ class Agent:
         except Exception as e:
             print(f"Agent encountered an exception: {e}")
         finally:
-            if self.stop_event.is_set():
+            if self.stop_event.is_set():  # only set in self.stop()
                 print("Stop event detected. Initiating cleanup...")
                 print("CLEANING")
                 await self.cleanup_browser()

@@ -1,6 +1,7 @@
 import eventlet
 eventlet.monkey_patch()
 
+import gc
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 from UIAgent import Agent
@@ -46,12 +47,13 @@ def handle_reset_agent():
     with agent_lock:  # Ensure thread-safe reset
         if agent:
             print(f"{time.time()}: Stopping agent...")
-            agent.stop()
-            # Wait for the agent's cleanup to complete
-            if not agent.cleaned_up.wait(timeout=20):
-                print(f"{time.time()}: Warning: Agent did not clean up within timeout.")
-            else:
-                print(f"{time.time()}: Agent cleanup completed.")
+            if agent and not agent.cleaned_up.is_set():
+                agent.stop()
+                # Wait for the agent's cleanup to complete
+                if not agent.cleaned_up.wait(timeout=20):
+                    print(f"{time.time()}: Warning: Agent did not clean up within timeout.")
+                else:
+                    print(f"{time.time()}: Agent cleanup completed.")
 
             if agent_thread:
                 start_time = time.time()
@@ -62,8 +64,12 @@ def handle_reset_agent():
                     print(f"{time.time()}: Warning: Agent thread did not stop within timeout.")
                 else:
                     print(f"{time.time()}: Agent thread has successfully stopped.")
+
+        del agent, agent_thread
         agent = None
         agent_thread = None
+        gc.collect()
+
         print(f"{time.time()}: Agent reset completed.")
         emit('agent_reset', {'status': 'Agent reset'})
 
