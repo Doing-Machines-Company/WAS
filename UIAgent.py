@@ -98,7 +98,7 @@ class Agent:
             if self.playwright is None:
                 self.playwright = await async_playwright().start()
             if self.browser is None:
-                self.browser = await self.playwright.chromium.launch(headless=False)
+                self.browser = await self.playwright.chromium.launch(headless=True)
             if self.browser_context is None or self.page is None or self.cdp_session is None:
                 try:
                     self.browser_context, self.page, self.cdp_session, _ = await setup_context(self.browser, None)
