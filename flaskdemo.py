@@ -47,6 +47,12 @@ def handle_reset_agent():
         if agent:
             print(f"{time.time()}: Stopping agent...")
             agent.stop()
+            # Wait for the agent's cleanup to complete
+            if not agent.cleaned_up.wait(timeout=20):
+                print(f"{time.time()}: Warning: Agent did not clean up within timeout.")
+            else:
+                print(f"{time.time()}: Agent cleanup completed.")
+
             if agent_thread:
                 start_time = time.time()
                 agent_thread.join(timeout=20)  # Increased timeout to 20 seconds for better cleanup

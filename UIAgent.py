@@ -129,6 +129,7 @@ class Agent:
                 self.browser_context = None
                 self.page = None
                 self.cdp_session = None
+            self.cleaned_up.set()
 
     async def capture_and_send_screenshot(self, save_node=None):
         async with self.playwright_lock:
@@ -316,7 +317,6 @@ class Agent:
                 self.stop()
                 await self.cleanup_browser()
 
-            self.cleaned_up.set()
 
     def stop(self):
         print("Stop method called")
