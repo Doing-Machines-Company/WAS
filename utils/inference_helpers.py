@@ -64,8 +64,8 @@ async def get_chosen_element(page, chosen_indefinite):
         if not chosen_element or await chosen_element.count() < 1 or await chosen_element.evaluate(
                 "element => element.outerHTML") != chosen_action.html:
             print('Second attempt failed')
-            # now we try getting stuff at rune time
-            potentially_better_chosen_xpath = get_xpath_by_outer_html(page, chosen_action.html)
+            # now we try getting stuff at run time
+            potentially_better_chosen_xpath = await get_xpath_by_outer_html(page, chosen_action.html)
             potentially_better_friendly_chosen_xpath = make_xpath_friendly(potentially_better_chosen_xpath)
             chosen_element = await get_element(page, potentially_better_friendly_chosen_xpath)
             chosen_xpath = potentially_better_friendly_chosen_xpath
