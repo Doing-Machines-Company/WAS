@@ -59,7 +59,7 @@ async def get_chosen_element(page, chosen_indefinite):
     if not chosen_element or await chosen_element.count() < 1 or await chosen_element.evaluate(
             "element => element.outerHTML") != chosen_action.html:  # perhaps do a stripped check
         print('First attempt failed')
-        chosen_element = get_element(page, chosen_action.friendly_xpath)
+        chosen_element = await get_element(page, chosen_action.friendly_xpath)
         chosen_xpath = chosen_action.friendly_xpath
         if not chosen_element or await chosen_element.count() < 1 or await chosen_element.evaluate(
                 "element => element.outerHTML") != chosen_action.html:
