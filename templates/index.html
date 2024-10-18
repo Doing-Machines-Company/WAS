@@ -1,3 +1,4 @@
+<!-- templates/index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -165,20 +166,28 @@
     </style>
 </head>
 <body>
+    <!-- Pass the key to JavaScript -->
+    <script>
+        const KEY = "{{ key }}"
+    </script>
     <div id="app">
         <div class="browser-container">
             <div class="screenshot-wrapper" v-if="agentStarted">
+                {% raw %}
                 <img v-if="hasScreenshot" id="browser-view" :src="browserScreenshot" alt="Starting...">
                 <div v-else class="placeholder-text">Starting...</div>
+                {% endraw %}
             </div>
             <button id="start-button" v-if="!agentStarted" @click="startAgent">Start</button>
             <button id="reset-button" v-if="agentStarted" @click="resetAgent">Reset</button>
         </div>
         <div class="chat-container">
             <div class="messages" ref="chatMessages">
+                {% raw %}
                 <div v-for="message in messages" :class="['message', message.type + '-message']">
-                    <div class="message-content">{% raw %}{{ message.text }}{% endraw %}</div>
+                    <div class="message-content">{{ message.text }}</div>
                 </div>
+                {% endraw %}
                 <div v-if="showThinking" class="thinking">thinking</div>
             </div>
             <div class="input-container" v-if="waitingForUserInput">
@@ -208,33 +217,62 @@
                 }
             },
             created() {
-                this.socket = io();
+                // Initialize Socket.IO with the key as a query parameter
+                this.socket = io("/", { query: "key=" + KEY });
+
+                // Handle connection response
+                this.socket.on('connection_response', (data) => {
+                    if(data.status === 'invalid_key') {
+                        alert('Invalid key. Please use a valid key.');
+                        // Optionally, redirect or hide content
+                        this.$el.innerHTML = '<div style="display:flex; justify-content:center; align-items:center; height:100vh; font-size:24px; color:red;">Please use a valid key.</div>';
+                    } else if(data.status === 'connected') {
+                        // Connected successfully
+                    }
+                });
+
+                // Handle agent questions
                 this.socket.on('agent_question', (data) => {
                     this.messages.push({ type: 'agent', text: data.question });
                     this.waitingForUserInput = true;
                     this.scrollToBottomIfNeeded();
                 });
+
+                // Handle browser updates
                 this.socket.on('browser_update', (data) => {
                     this.browserScreenshot = 'data:image/jpeg;base64,' + data.screenshot;
                     this.hasScreenshot = true;
                 });
+
+                // Handle agent-only messages
                 this.socket.on('agent_only_out', (data) => {
                     this.messages.push({ type: 'only-out', text: data.message });
                     this.scrollToBottomIfNeeded();
                 });
+
+                // Handle agent start
                 this.socket.on('agent_started', (data) => {
                     this.agentStarted = true;
                     this.agentActive = true;
                 });
+
+                // Handle agent stop
                 this.socket.on('agent_stopped', () => {
                     this.agentActive = false;
                 });
-                // New event listener for agent reset
+
+                // Handle agent reset
                 this.socket.on('agent_reset', (data) => {
                     this.agentStarted = false;
                     this.agentActive = false;
                     this.messages.push({ type: 'only-out', text: 'Agent has been reset. Click Start to begin again.' });
                     this.scrollToBottomIfNeeded();
+                });
+
+                // Handle errors
+                this.socket.on('error', (data) => {
+                    console.error(data.message);
+                    // Optionally, display error to the user
                 });
             },
             methods: {
@@ -265,7 +303,7 @@
                         this.scrollToBottom();
                     }
                 },
-                // New method for resetting the agent
+                // Method to reset the agent
                 resetAgent() {
                     this.socket.emit('reset_agent');
                     this.messages = [];

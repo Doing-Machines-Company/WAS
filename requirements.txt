@@ -55,7 +55,6 @@ docopt==0.6.2
 docstring-parser==0.15
 docx2txt==0.8
 eval_type_backport==0.2.0
-eventlet==0.37.0
 exceptiongroup==1.2.0
 executing==2.0.1
 Farama-Notifications==0.0.4
@@ -86,7 +85,6 @@ grpcio==1.62.1
 grpcio-status==1.60.0
 grpcio-tools==1.62.1
 gunicorn==23.0.0
-gunicorn-websocket==0.0.3
 gym==0.26.2
 Gym-env==0.0.2
 gym-notices==0.0.8

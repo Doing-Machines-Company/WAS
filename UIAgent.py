@@ -1,25 +1,24 @@
+# UIAgent.py
+
 import copy
-import queue
+import asyncio
 import gc
-import time  # Added import for time
+import time
 from utils.inference_helpers import *
 from llama_index.core.schema import TextNode
 from llama_index.core import VectorStoreIndex
-from queue import Queue
 import base64
 from playwright.async_api import async_playwright
-import asyncio
 import datetime
-import os  # Added import for os
-import pickle  # Added import for pickle
+import os
+import pickle
 from utils.inference_data import *
 from utils.trajectory_saves import *
-from threading import Event  # Use standard threading Event
 
 class Agent:
     def __init__(self):
-        self.stop_event = Event()  # Use standard threading Event
-        self.cleaned_up = Event()
+        self.stop_event = asyncio.Event()  # Use asyncio.Event for async compatibility
+        self.cleaned_up = asyncio.Event()
         self.playwright_lock = asyncio.Lock()
         self.reset()
         self.initialize_index()
@@ -36,8 +35,8 @@ class Agent:
             HiddenInput('first_name', "User's first name", "James"),
             HiddenInput('last_name', "User's last name", "Chen")
         ]
-        self.input_queue = Queue()
-        self.output_queue = Queue()
+        self.input_queue = asyncio.Queue()
+        self.output_queue = asyncio.Queue()
         self.stop_event.clear()
         self.playwright = None
         self.browser = None
@@ -47,12 +46,13 @@ class Agent:
         self.curr_save_node = None
         self.saved_trajectory = SavedTrajectory()
 
-    def ask_user(self, question):
-        self.output_queue.put(('question', question))
+    async def ask_user(self, question):
+        await self.output_queue.put(('question', question))
         while not self.stop_event.is_set():
             try:
-                return self.input_queue.get(timeout=0.1)
-            except queue.Empty:
+                response = await asyncio.wait_for(self.input_queue.get(), timeout=0.1)
+                return response
+            except asyncio.TimeoutError:
                 continue
         raise InterruptedError("Agent stopped")
 
@@ -125,7 +125,6 @@ class Agent:
             except Exception as e:
                 print(f"Error during browser cleanup: {e}")
             finally:
-                del self.playwright, self.browser, self.browser_context, self.page, self.cdp_session
                 self.playwright = None
                 self.browser = None
                 self.browser_context = None
@@ -141,27 +140,29 @@ class Agent:
                 base64_screenshot = base64.b64encode(screenshot).decode('utf-8')
                 if save_node is not None:
                     save_node.screenshot = base64_screenshot
-                self.output_queue.put(('screenshot', base64_screenshot))
+                await self.output_queue.put(('screenshot', base64_screenshot))
 
     async def run(self):
         await self.launch_browser()
         try:
             await self.capture_and_send_screenshot()
             # Process task and questions once
-            if self.task is None:
-                self.task = self.ask_user("What do you want done on dominos?")
-                self.saved_trajectory.user_input_task = self.task
+            if not self.stop_event.is_set():
+                if self.task is None:
+                    self.task = await self.ask_user("What do you want done on dominos?")
+                    self.saved_trajectory.user_input_task = self.task
 
-            self.formulate_questions()
-            print(self.questions)
-            for question in self.questions:
-                if self.stop_event.is_set():
-                    break
-                answer = self.ask_user(question)
-                self.question_answers.append((question, answer))
-                # Check stop_event after each user response
-                if self.stop_event.is_set():
-                    break
+            if not self.stop_event.is_set():
+                self.formulate_questions()
+                print(self.questions)
+                for question in self.questions:
+                    if self.stop_event.is_set():
+                        break
+                    answer = await self.ask_user(question)
+                    self.question_answers.append((question, answer))
+                    # Check stop_event after each user response
+                    if self.stop_event.is_set():
+                        break
 
             self.saved_trajectory.question_answers = self.question_answers
 
@@ -248,7 +249,7 @@ class Agent:
                         chosen_action_index, reason_for_action = action_out
                         reason_for_action = reason_for_action.encode('utf-8').decode('unicode_escape')
                         print(f'reason_for_action: {reason_for_action}')
-                        self.output_queue.put(('only_out', reason_for_action))
+                        await self.output_queue.put(('only_out', reason_for_action))
 
                         chosen_indefinite = curr_inf_tree.get_action_from_index(chosen_action_index)
                         chosen_action = chosen_indefinite.action
@@ -317,10 +318,9 @@ class Agent:
                 print("FINISHED CLEANING")
                 print("DONE!")
             else:
-                self.output_queue.put(('only_out', "Agent crashed, please reset."))
+                await self.output_queue.put(('only_out', "Agent crashed, please reset."))
                 self.stop()
                 await self.cleanup_browser()
-
 
     def stop(self):
         print("Stop method called")
