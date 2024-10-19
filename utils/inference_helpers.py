@@ -12,7 +12,8 @@ from models import PageObservation
 from playwright.sync_api import sync_playwright
 from inferenceagent import *
 import time
-from scrape7 import setup_context
+# from scrape7 import setup_context
+from utils.page_interaction import setup_context
 from utils import *
 # from utils.inference_data import *  # here are the dataclasses for this script
 from llama_index.core.schema import TextNode

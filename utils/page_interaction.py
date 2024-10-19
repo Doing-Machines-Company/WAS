@@ -18,9 +18,13 @@ async def login(page):
     # await page.get_by_label("ZIP Code", exact=False).fill('96814')
     # await page.get_by_label("City", exact=False).fill('Honolulu')
     # await page.get_by_label("State", exact=False).select_option('HI')
-    await page.get_by_label("Street Address", exact=False).fill('5819 Centre Ave')
-    await page.get_by_label("Suite/Apt #", exact=False).fill('Apt 448')
-    await page.get_by_label("ZIP Code", exact=False).fill('15206')
+    # await page.get_by_label("Street Address", exact=False).fill('5819 Centre Ave')
+    # await page.get_by_label("Suite/Apt #", exact=False).fill('Apt 448')
+    # await page.get_by_label("ZIP Code", exact=False).fill('15206')
+    # await page.get_by_label("City", exact=False).fill('Pittsburgh')
+    # await page.get_by_label("State", exact=False).select_option('PA')  # THIS
+    await page.get_by_label("Street Address", exact=False).fill('5000 Forbes Ave')
+    await page.get_by_label("ZIP Code", exact=False).fill('15213')
     await page.get_by_label("City", exact=False).fill('Pittsburgh')
     await page.get_by_label("State", exact=False).select_option('PA')  # THIS
     await page.get_by_role("button", name="Continue for Delivery").click()
