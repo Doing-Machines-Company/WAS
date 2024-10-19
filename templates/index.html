@@ -172,14 +172,14 @@
     </script>
     <div id="app">
         <div class="browser-container">
+            {% raw %}
             <div class="screenshot-wrapper" v-if="agentStarted">
-                {% raw %}
                 <img v-if="hasScreenshot" id="browser-view" :src="browserScreenshot" alt="Starting...">
                 <div v-else class="placeholder-text">Starting...</div>
-                {% endraw %}
             </div>
             <button id="start-button" v-if="!agentStarted" @click="startAgent">Start</button>
             <button id="reset-button" v-if="agentStarted" @click="resetAgent">Reset</button>
+            {% endraw %}
         </div>
         <div class="chat-container">
             <div class="messages" ref="chatMessages">
@@ -187,8 +187,8 @@
                 <div v-for="message in messages" :class="['message', message.type + '-message']">
                     <div class="message-content">{{ message.text }}</div>
                 </div>
-                {% endraw %}
                 <div v-if="showThinking" class="thinking">thinking</div>
+                {% endraw %}
             </div>
             <div class="input-container" v-if="waitingForUserInput">
                 <input v-model="inputMessage" @keyup.enter="sendResponse" placeholder="Type your response...">
@@ -250,6 +250,12 @@
                     this.scrollToBottomIfNeeded();
                 });
 
+                // Handle user messages from other clients
+                this.socket.on('user_message', (data) => {
+                    this.messages.push({ type: 'user', text: data.text });
+                    this.scrollToBottomIfNeeded();
+                });
+
                 // Handle agent start
                 this.socket.on('agent_started', (data) => {
                     this.agentStarted = true;
@@ -263,10 +269,32 @@
 
                 // Handle agent reset
                 this.socket.on('agent_reset', (data) => {
-                    this.agentStarted = false;
-                    this.agentActive = false;
-                    this.messages.push({ type: 'only-out', text: 'Agent has been reset. Click Start to begin again.' });
+                    this.clearInterface();
+                });
+
+                // Handle agent state (for new connections)
+                this.socket.on('agent_state', (data) => {
+                    this.messages = data.messages;
+                    this.browserScreenshot = data.browserScreenshot ? ('data:image/jpeg;base64,' + data.browserScreenshot) : '';
+                    this.hasScreenshot = !!data.browserScreenshot;
+                    // Determine if the agent is active based on messages or screenshot
+                    this.agentStarted = this.messages.length > 0 || this.hasScreenshot;
+                    this.waitingForUserInput = data.waiting_for_input;
+                    this.agentActive = this.waitingForUserInput || this.agentActive;
                     this.scrollToBottomIfNeeded();
+                });
+
+                // Handle agent already running
+                this.socket.on('agent_already_running', (data) => {
+                    this.agentStarted = true;
+                    this.agentActive = true;
+                    this.messages.push({ type: 'only-out', text: 'Agent is already running.' });
+                    this.scrollToBottomIfNeeded();
+                });
+
+                // Handle input disabled event
+                this.socket.on('input_disabled', (data) => {
+                    this.waitingForUserInput = false;
                 });
 
                 // Handle errors
@@ -281,9 +309,13 @@
                 },
                 sendResponse() {
                     if (this.inputMessage.trim() !== '') {
+                        // Append the message locally
                         this.messages.push({ type: 'user', text: this.inputMessage });
+                        // Emit the user response to the server
                         this.socket.emit('user_response', { response: this.inputMessage });
+                        // Clear the input field
                         this.inputMessage = '';
+                        // Update waiting state
                         this.waitingForUserInput = false;
                         this.scrollToBottomIfNeeded();
                     }
@@ -306,6 +338,10 @@
                 // Method to reset the agent
                 resetAgent() {
                     this.socket.emit('reset_agent');
+                    this.clearInterface();
+                },
+                // Method to clear chat and image
+                clearInterface() {
                     this.messages = [];
                     this.browserScreenshot = '';
                     this.hasScreenshot = false;
