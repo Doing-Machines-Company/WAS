@@ -117,8 +117,7 @@ def call_llm(
 
     elif provider == 'openai':
         completion = openai_client.chat.completions.create(
-            model="chatgpt-4o-latest",
-            # model="gpt-4o-mini"
+            model="gpt-4o",
             temperature=0,
             max_tokens=max_tokens,
             messages=[
@@ -131,6 +130,26 @@ def call_llm(
                     "content": user_prompt
                 }
             ]
+        )
+        output = completion.choices[0].message.content
+
+    elif provider == 'openailog':
+        completion = openai_client.chat.completions.create(
+            model="gpt-4o",
+            temperature=0,
+            max_tokens=max_tokens,
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": user_prompt
+                }
+            ],
+          store=True,
+          metadata={"agent":"action", "testing":"testing"}
         )
         output = completion.choices[0].message.content
 
