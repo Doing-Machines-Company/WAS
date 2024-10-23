@@ -4,7 +4,8 @@ Follow these steps to complete your task, I will give you the inputs at the end:
 
 1. Break down the web_agent_task, and list out everything that the user desires individually. All of these desires are task-relevant.
 
-2. Analyze the world_memory and action_memory. Determine the explicitly true things that have been done:
+2. Determine what has been done on the website for world_memory and action_memory separately:
+   - You must include precise action descriptions about everything that has been completed.
    - The world_memory is a summary of everything the agent has experienced and done that is task-relevant.
    - The world_memory was last updated BEFORE action_memory was recorded.
    - The action_memory is a list of all the actions that were performed AFTER the world_memory was last updated.
@@ -12,14 +13,18 @@ Follow these steps to complete your task, I will give you the inputs at the end:
            - x) Location: Where action was taken
              x) Effect: Effect of action
            - Later items in action_memory happened more recently.
-   - Reason about the action_memory and world_memory to precisely determine everything that has definitely been completed. Enumerate what is definitely and explicitly true.
-   - You must include precise action descriptions about everything that is task-relevant, you got all task-relevant information in step 1. Ensure that you do not assume things.
-   - Use the effect of the actions and their locations from action_memory to guide you.
-   - Both the world_memory and action_memory are very explicit and precise in language.
-   - Use the exact same language as the action_memory and world_memory when describing things that have been done, and what they were done to, where relevant.
+       - Use the effect of the actions and their locations from action_memory to guide you.
+   - Both the world_memory and action_memory are very explicit and precise in language. Use the exact same language and wording (i.e., same words and descriptors).
+   - For each memory type, list what is definitely and explicitly true.
+   - Reason through this step-by-step through the wording of each memory type.
+
+3. Given your analysis of world_memory and action_memory from step 2, integrate the information and determine everything that has been completed on the website:
+   - List everything that you know is explicitly true in step 2.
+   - The world_memory may know information that the action_memory doesn't, assume that the action_memory is correct about everything that it knows and states.
+   - If the action_memory states that something has been completed, assume its has been fully completed.
    - Reason through this step-by-step, using chain-of-thought (CoT), to do this.
 
-3. Formulate information that is definitely true from action_memory and world_memory to form new_world_memory.
+4. Formulate information that is definitely true from action_memory and world_memory to form new_world_memory.
    - You got all task-relevant information in step 1.
    - The new_world_memory should keep track of:
        - The explicit completion of task-relevant operations.
@@ -28,17 +33,17 @@ Follow these steps to complete your task, I will give you the inputs at the end:
        - General navigation information ONLY for navigating to complete the next task-relevant subtask that needs to be completed.
    - Only include website location information when it concerns a dead-end or failure.
    - DO NOT include observational information that's not about a failure/dead-end.
-   - Only include information that is explicit from step 2. Step 2 uses very precise language, use the exact same language.
+   - Only include information that is explicit from step 3. Step 3 uses very precise language, use the exact same language.
    - Use Chain-of-Thought (CoT), reason step-by-step, to give me new_world_memory.
 
-4. Remove intermediate steps from the new_world_memory:
+5. Remove intermediate steps from the new_world_memory:
    - Remove information about successful intermediate navigation steps.
    - Keep information about failures and dead-ends.
    - Be careful not to over-condense and assume something that's false or incorrect.
    - Use the exact same language as the action_memory and world_memory when describing things that have been done, and what they were done to, where relevant.
    - Use Chain-of-Thought (CoT), reason step-by-step to ensure that you are condensing the new_world_memory correctly.
 
-5. AFTER completing all of these steps, finally give me the new_world_memory:
+6. AFTER completing all of these steps, finally give me the new_world_memory:
    - Provide your entire response as a JSON object with a single key "new_world_memory" whose value is a string of the new_world_memory information.
      For example:
      {
