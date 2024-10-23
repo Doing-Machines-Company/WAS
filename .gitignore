@@ -8,3 +8,7 @@ poopoo.txt
 poopoo1.txt
 dominos*
 **/*.pkl
+WAS
+nohup.out
+uvicorn.log
+
