@@ -10,7 +10,7 @@ Follow these steps to complete your task:
 1. Analyze the web accessibility_tree:
    - Examine the accessibility tree carefully.
    - Understand the purpose and functionality of the current accessibility_tree.
-   - Examine the text inside {} carefully for each line. These may help hint at what that action is supposed to generally do.
+   - Examine the text inside {} carefully for each line. These may help hint at what that action in the accessibility is supposed to generally do.
    - Note any relevant elements or actions available on the accessibility_tree.
 
 2. Break down the task, and list out everything that the user desires individually to help you determine what is task-relevant:
@@ -20,7 +20,7 @@ Follow these steps to complete your task:
   - List out every user individual desire using bullet points.
        - Everything related to these desires are task-relevant.
 
-2. Reason about all task-relevant tasks, action_memory, world_memory, and important_info:
+3. Reason about all task-relevant tasks, action_memory, world_memory, and important_info:
    - The world_memory describes all task relevant information, it was last updated before action_memory was recorded.
    - You have an understanding about what is task-relevant from step 2.
    - Reason about your action_memory and world_memory to determine what has already been completed and attempted on this website.
@@ -30,16 +30,17 @@ Follow these steps to complete your task:
        - Use the important_info to inform your decision-making.
    - Use Chain-of-Thought (CoT), reason step-by-step to understand what has already been done on the website, and what still needs to be done.
 
-3. Choose the next action:
-   - Consider how every next possible action on the accessibility_tree will help you progress towards completing your task.
-      - You must try to complete all task-relevant desires you got from step 2.
-   - Based on your analysis and reasoning from step 3, identify the most appropriate action from the accessibility_tree.
-   - Ensure the chosen action aligns with your current position in the task sequence.
-   - Ensure that you fully complete the process of attaining what the user wants (i.e., you must complete the entire checkout order to buy something). Assume that you have access to all the user's personal information.
-   - Reason step-by-step, first identify all relevant actions that will help you complete your next step, then choose the next desired action.
+4. Choose the next action:
+   - First list out every next possible action on the accessibility_tree that is task-relevant (relates to a user desire).
+       - You got user desires in step 2.
+       - Consider how each individual action on the accessibility_tree will help you progress towards completing your task.
+       - Consider how each action fits into what you've already done in world_memory and action_memory.
+   - Finally, reason step-by-step to choose the best next action.
+       - Ensure that you fully complete the process of attaining what the user wants (i.e., you must complete the entire checkout order to buy something). Assume that you have access to all the user's personal information.
+       - Be careful not to visit somewhere which is known to be unhelpful, these will be recorded in world_memory and action_memory.
 
-4. Provide your decision:
-   - Following your reasoning from step 3, choose the next action that you want to perform.
+5. Provide your decision:
+   - Following your reasoning from step 4, choose the next action that you want to perform.
    - Use the following Python function format to indicate your chosen action:
      choose(action_number: int, action_reason: str)
    - action_number: The number of the action you've chosen from the accessibility tree.

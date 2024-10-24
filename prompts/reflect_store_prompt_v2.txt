@@ -21,26 +21,29 @@ Follow these steps to complete your task, I will give you the inputs at the end:
 3. Analyze the old_accessibility_tree, and intention_for_action. Identify if there is a base_action_effect for the chosen_action and understand the effects of the chosen_action:
    - Determine the purpose of the old_web_page_purpose web page, this is the old_web_page_purpose.
    - Identify the chosen action that was just performed on the old_accessibility_tree, this will be labelled by (THIS ACTION WAS JUST CHOSEN) near the start of the action in the old_accessibility_tree, this is the chosen_action.
-   - Reason step-by-step about the effects of the chosen_action that was performed using the difference between the two accessibility trees.
+   - Reason step-by-step about the effects of the chosen_action that was performed using the difference between the two accessibility trees and the old_accessibility_tree.
 
 4. Reason about the action, base_action_effect of the chosen_action, and two accessibility trees. Determine if the chosen_action failed:
-  - The intention_for_action is why the chosen_action was picked. It is NOT the effect of the chosen_action.
   - Reason step-by-step to determine if the chosen_action failed.
   - If the chosen_action didn't fail, take note that you need to assume some parts of the base_action_effect during step 6 if there is a base_action_effect.
+  - Reason step-by-step to do this.
 
 5. For every single desire that you listed out in step 2, determine its task-relevant information, and list all of these out:
    - For every single desire that you listed out in step 2:
       - List out every single piece of information in both accessibility trees associated with that desire, all of this information is task-relevant.
+      - Use precise and exact wording which aligns with what's on the accessibility trees, note that the task-relevant information may not exactly match the user's desires.
+      - Reason step-by-step to do this.
 
 6. Reason step-by-step to formulate your final_answer:
    - If the chosen_action did not fail according to step 4 your final_answer must include:
       - Identify if there is a base_action_effect for the chosen_action, reason about what parts of the base_action_effect aligns with what parts of intention_for_action aligns with that base_action_effect. You MUST assume that parts base_action_effect which aligns with the first step of the intention_for_action was fully completed.
+          - The intention_for_action is why the chosen_action was picked. It is NOT the effect of the chosen_action. Not all desires in intention_for_action may have been satisfied, you may only assume what's in base_action_effect explicitly.
           - Reason step-by-step to do this.
-      - All information from step 5 that is relevant to All desires of the user.
-      - All effects of the chosen_action. This must be detailed.
+      - All task-relevant information from step 5.
+      - All effects of the chosen_action from step 3. This must be detailed.
    - If the chosen_action did fail according to step 4 your final_answer must include:
       - All effects of the chosen_action. This must be detailed.
-      - All information from step 5 that is relevant to All desires of the user.
+      - All task-relevant information from step 5.
       - Very precise and very detailed information about the reasons for the failure.
    - Do not include any reasoning steps or assumptions in the final_answer.
    - Do not include any information about what you do not know in the final_answer.

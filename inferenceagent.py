@@ -218,7 +218,7 @@ def call_action_agent(
         'action_memory': new_action_memory,
     }
     user_prompt = string.Template(user_prompt_template).substitute(replacements)
-    print("User Prompt:\n", user_prompt)
+    # print("User Prompt:\n", user_prompt)
 
     with open('prompts/action_decider/action_decider_system_v2.txt', 'r') as f:
         system_prompt_template = f.read()
@@ -226,7 +226,7 @@ def call_action_agent(
         'context': context
     }
     system_prompt = string.Template(system_prompt_template).substitute(replacements)
-    print("System Prompt:\n", system_prompt)
+    # print("System Prompt:\n", system_prompt)
 
     # Call the updated call_llm without return_prompt
     agent_call = call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider=provider)
@@ -342,7 +342,7 @@ def call_reflect_agent(
         'web_agent_task': web_agent_task,
     }
     user_prompt = string.Template(user_prompt_template).substitute(replacements)
-    print("User Prompt:\n", user_prompt)
+    # print("User Prompt:\n", user_prompt)
 
     # Call the updated call_llm without return_prompt
     agent_call = call_llm(user_prompt=user_prompt, provider='cerebras', model='llama3.1-70b')
