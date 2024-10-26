@@ -29,7 +29,8 @@ valid_keys = set(['key1', 'key2', 'key3'])  # Example keys
 #     'background_task': Task,
 #     'messages': List[Dict],
 #     'browserScreenshot': str,
-#     'waiting_for_input': bool
+#     'waiting_for_input': bool,
+#     'input_timeout_task': Task or None
 # }
 agents = {}
 agents_lock = asyncio.Lock()
@@ -40,11 +41,13 @@ client_keys = {}
 # Mapping of keys to sets of connected sids
 key_clients = defaultdict(set)
 
+
 @app.get("/", response_class=HTMLResponse)
 async def get(request: Request, key: str = None):
     if not key or key not in valid_keys:
         return templates.TemplateResponse("invalid_key.html", {"request": request})
     return templates.TemplateResponse("index.html", {"request": request, "key": key})
+
 
 @sio.event
 async def connect(sid, environ):
@@ -81,13 +84,15 @@ async def connect(sid, environ):
                 #     'agent': agent,
                 #     'messages': [],
                 #     'browserScreenshot': '',
-                #     'waiting_for_input': False
+                #     'waiting_for_input': False,
+                #     'input_timeout_task': None
                 # }
                 # agent_task = asyncio.create_task(run_agent(key))
                 # background_task = asyncio.create_task(agent_loop(key))
                 # agents[key]['agent_task'] = agent_task
                 # agents[key]['background_task'] = background_task
                 pass
+
 
 @sio.event
 async def disconnect(sid):
@@ -96,40 +101,9 @@ async def disconnect(sid):
         await sio.leave_room(sid, key)
         key_clients[key].discard(sid)
         if not key_clients[key]:
-            # No more clients connected to this key, reset the agent
-            async with agents_lock:
-                agent_info = agents.get(key)
-                if agent_info:
-                    agent = agent_info['agent']
-                    print(f"{time.time()}: Stopping agent for key {key} due to no active connections...")
-                    if agent and not agent.cleaned_up.is_set():
-                        agent.stop()
-                        try:
-                            await asyncio.wait_for(agent.cleaned_up.wait(), timeout=20)
-                            print(f"{time.time()}: Agent for key {key} cleanup completed.")
-                        except asyncio.TimeoutError:
-                            print(f"{time.time()}: Warning: Agent for key {key} did not clean up within timeout.")
-                    # Cancel the agent task
-                    agent_task = agent_info.get('agent_task')
-                    if agent_task:
-                        agent_task.cancel()
-                        try:
-                            await agent_task
-                        except asyncio.CancelledError:
-                            pass
-                    # Cancel the background task
-                    background_task = agent_info.get('background_task')
-                    if background_task:
-                        background_task.cancel()
-                        try:
-                            await background_task
-                        except asyncio.CancelledError:
-                            pass
-                    # Clear the agent's state
-                    del agents[key]
-                    gc.collect()
-                    print(f"{time.time()}: Agent reset completed for key {key} due to no active connections.")
-                    await sio.emit('agent_reset', {'status': 'Agent reset due to no active connections'}, to=key)
+            # No more clients connected to this key, reset the agent instantly
+            await reset_agent_for_key(key, reason="no_active_connections")
+
 
 @sio.event
 async def start_agent(sid):
@@ -144,7 +118,8 @@ async def start_agent(sid):
                 'agent': agent,
                 'messages': [],
                 'browserScreenshot': '',
-                'waiting_for_input': False
+                'waiting_for_input': False,
+                'input_timeout_task': None
             }
             # Start the agent's run method as a background task
             agent_task = asyncio.create_task(run_agent(key))
@@ -156,50 +131,15 @@ async def start_agent(sid):
         else:
             await sio.emit('agent_already_running', {'status': 'Agent is already running'}, to=sid)
 
+
 @sio.event
 async def reset_agent(sid):
     key = client_keys.get(sid)
     if not key:
         await sio.emit('error', {'message': 'No key associated with this connection'}, to=sid)
         return
-    async with agents_lock:
-        agent_info = agents.get(key)
-        if agent_info:
-            agent = agent_info['agent']
-            print(f"{time.time()}: Stopping agent for key {key}...")
-            if agent and not agent.cleaned_up.is_set():
-                agent.stop()
-                try:
-                    await asyncio.wait_for(agent.cleaned_up.wait(), timeout=20)
-                    print(f"{time.time()}: Agent for key {key} cleanup completed.")
-                except asyncio.TimeoutError:
-                    print(f"{time.time()}: Warning: Agent for key {key} did not clean up within timeout.")
-            # Cancel the agent task
-            agent_task = agent_info.get('agent_task')
-            if agent_task:
-                agent_task.cancel()
-                try:
-                    await agent_task
-                except asyncio.CancelledError:
-                    pass
-            # Cancel the background task
-            background_task = agent_info.get('background_task')
-            if background_task:
-                background_task.cancel()
-                try:
-                    await background_task
-                except asyncio.CancelledError:
-                    pass
-            # Clear the agent's state
-            agent_info['messages'].clear()
-            agent_info['browserScreenshot'] = ''
-            agent_info['waiting_for_input'] = False
-            del agents[key]
-            gc.collect()
-            print(f"{time.time()}: Agent reset completed for key {key}.")
-            await sio.emit('agent_reset', {'status': 'Agent reset'}, to=key)
-        else:
-            await sio.emit('error', {'message': 'No agent to reset for this key'}, to=sid)
+    await reset_agent_for_key(key, reason="user_reset", emit_to_sid=sid)
+
 
 @sio.event
 async def user_response(sid, data):
@@ -221,6 +161,10 @@ async def user_response(sid, data):
             # Append user message to the agent's message list
             agent_info['messages'].append({'type': 'user', 'text': response})
             agent_info['waiting_for_input'] = False
+            # Cancel the input timeout task if it exists
+            if agent_info.get('input_timeout_task'):
+                agent_info['input_timeout_task'].cancel()
+                agent_info['input_timeout_task'] = None
             await agent.input_queue.put(response)
             # Broadcast the user message to all clients in the key's room except sender
             await sio.emit('user_message', {'text': response}, to=key, skip_sid=sid)
@@ -228,6 +172,7 @@ async def user_response(sid, data):
             await sio.emit('input_disabled', to=key)
         else:
             await sio.emit('error', {'message': 'Agent is not running'}, to=sid)
+
 
 async def run_agent(key):
     agent_info = agents.get(key)
@@ -245,6 +190,8 @@ async def run_agent(key):
         print(f"{time.time()}: Agent run method for key {key} finished")
         await sio.emit('agent_stopped', to=key)
         print(f"{time.time()}: Agent task for key {key} finished")
+        await reset_agent_for_key(key, reason="agent_stopped")
+
 
 async def agent_loop(key):
     agent_info = agents.get(key)
@@ -262,8 +209,89 @@ async def agent_loop(key):
                 agent_info['messages'].append(message)  # Append agent question to messages
                 agent_info['waiting_for_input'] = True
                 await sio.emit('agent_question', {'question': data}, to=key)
+                # Start the 45-second input timeout
+                agent_info['input_timeout_task'] = asyncio.create_task(input_timeout(key))
             elif output_type == 'only_out':
                 message = {'type': 'only-out', 'text': data}
                 agent_info['messages'].append(message)  # Append agent-only message to messages
                 await sio.emit('agent_only_out', {'message': data}, to=key)
         await asyncio.sleep(0.1)
+
+
+async def input_timeout(key):
+    try:
+        await asyncio.sleep(45)
+        # Acquire the lock only to check the condition
+        async with agents_lock:
+            agent_info = agents.get(key)
+            should_reset = agent_info and agent_info['waiting_for_input'] and key_clients[key]
+        if should_reset:
+            print(f"{time.time()}: Agent waiting for input timed out for key {key}")
+            await reset_agent_for_key(key, reason="input_timeout")
+    except asyncio.CancelledError:
+        # Timeout was cancelled because user responded
+        pass
+
+
+async def reset_agent_for_key(key, reason="unknown", emit_to_sid=None):
+    """
+    Resets the agent associated with the given key.
+
+    Args:
+        key (str): The key associated with the agent.
+        reason (str): The reason for resetting ('no_active_connections', 'user_reset', 'input_timeout', 'agent_stopped').
+        emit_to_sid (str): Specific SID to emit messages to, if any.
+    """
+    async with agents_lock:
+        agent_info = agents.get(key)
+        if not agent_info:
+            # Agent already reset
+            return
+        agent = agent_info['agent']
+        print(f"{time.time()}: Stopping agent for key {key} due to {reason}...")
+        if agent and not agent.cleaned_up.is_set():
+            agent.stop()
+            try:
+                await asyncio.wait_for(agent.cleaned_up.wait(), timeout=20)
+                print(f"{time.time()}: Agent for key {key} cleanup completed.")
+            except asyncio.TimeoutError:
+                print(f"{time.time()}: Warning: Agent for key {key} did not clean up within timeout.")
+        # Cancel the agent task
+        agent_task = agent_info.get('agent_task')
+        if agent_task:
+            agent_task.cancel()
+            try:
+                await agent_task
+            except asyncio.CancelledError:
+                pass
+        # Cancel the background task
+        background_task = agent_info.get('background_task')
+        if background_task:
+            background_task.cancel()
+            try:
+                await background_task
+            except asyncio.CancelledError:
+                pass
+        # Cancel the input timeout task if it exists
+        input_timeout_task = agent_info.get('input_timeout_task')
+        if input_timeout_task:
+            input_timeout_task.cancel()
+            agent_info['input_timeout_task'] = None
+        # Clear the agent's state
+        del agents[key]
+        gc.collect()
+        print(f"{time.time()}: Agent reset completed for key {key} due to {reason}.")
+    # Emit appropriate messages based on the reason outside the lock
+    if reason == "no_active_connections":
+        await sio.emit('agent_reset', {'status': 'Agent reset due to no active connections'}, to=key)
+    elif reason == "user_reset":
+        if emit_to_sid:
+            await sio.emit('agent_reset', {'status': 'Agent reset by user'}, to=emit_to_sid)
+        else:
+            await sio.emit('agent_reset', {'status': 'Agent reset'}, to=key)
+    elif reason == "input_timeout":
+        await sio.emit('agent_reset', {'status': 'Agent reset due to input timeout'}, to=key)
+    elif reason == "agent_stopped":
+        await sio.emit('agent_reset', {'status': 'Agent stopped'}, to=key)
+    else:
+        await sio.emit('agent_reset', {'status': 'Agent reset'}, to=key)
