@@ -133,7 +133,41 @@ def call_llm(
         )
         output = completion.choices[0].message.content
 
-    elif provider == 'openailog':
+    elif provider == 'openai-o1-preview-store':
+        entire_prompt = system_prompt + '\n' + user_prompt
+        completion = openai_client.chat.completions.create(
+            model="o1-preview",
+            # temperature=0,
+            # max_tokens=max_tokens,
+            messages=[
+                {
+                    "role": "user",
+                    "content": entire_prompt
+                }
+            ],
+            store=True,
+            metadata={"agent": "action", "testing": "testing"}
+        )
+        output = completion.choices[0].message.content
+
+    elif provider == 'openai-o1-mini-store':
+        entire_prompt = system_prompt + '\n' + user_prompt
+        completion = openai_client.chat.completions.create(
+            model="o1-mini",
+            # temperature=0,
+            # max_tokens=max_tokens,
+            messages=[
+                {
+                    "role": "system",
+                    "content": entire_prompt
+                },
+            ],
+            store=True,
+            metadata={"agent": "action", "testing": "testing"}
+        )
+        output = completion.choices[0].message.content
+
+    elif provider == 'openai-store':
         completion = openai_client.chat.completions.create(
             model="gpt-4o",
             temperature=0,
