@@ -217,24 +217,15 @@ class Agent:
                         old_inf_tree = curr_inf_tree
                         if self.stop_event.is_set():
                             break
-
-                        at_new_state = is_different_page(base_state, curr_page_state)
-                        if at_new_state:
-                            base_state = curr_page_state
-                            world_mem_call = call_memory_agent(self.task, self.action_mem,
-                                                               self.world_mem)
-                            self.curr_save_node.world_mem_call = copy.deepcopy(world_mem_call)
-                            self.world_mem = world_mem_call.parsed_output
-                            self.action_mem = []
-
+                        
                         start = time.time()
                         # Check stop_event after API call
                         if self.stop_event.is_set():
                             break
 
                         action_out_call = call_action_agent(
-                            self.task, curr_inf_tree, self.world_mem,
-                            self.action_mem, self.item_context_pairs, provider="openai"
+                            self.task, curr_inf_tree,
+                            self.action_mem, self.item_context_pairs, provider="anthropic"
                         )
                         # Check stop_event after API call
                         if self.stop_event.is_set():

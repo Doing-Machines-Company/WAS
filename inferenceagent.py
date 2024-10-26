@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import List, Tuple, Optional
 from utils.inference_data import HiddenInput  # Ensure HiddenInput is properly defined in your module
 from groq import Groq
-# from together import Together
+from together import Together
 from openai import OpenAI
 from cerebras.cloud.sdk import Cerebras
 
@@ -29,7 +29,7 @@ anthropic_client = anthropic.Anthropic(
 groq_client = Groq()
 
 # Set up Together API client
-# together_client = Together(api_key=os.environ.get('TOGETHER_API_KEY'))
+together_client = Together(api_key=os.environ.get('TOGETHER_API_KEY'))
 
 # Set up OpenAI API client
 openai_client = OpenAI()
@@ -42,7 +42,7 @@ def call_llm(
     system_prompt: str = '',
     user_prompt: str = '',
     provider: str = "anthropic",
-    model: str = "claude-3-5-sonnet-20240620",
+    model: str = "claude-3-5-sonnet-latest",
     max_tokens: int = 4000
 ) -> AgentCall:
     """
@@ -59,7 +59,7 @@ def call_llm(
         AgentCall: An instance of AgentCall containing prompts and LLM response.
     """
     if provider == "anthropic":
-        message = anthropic_client.beta.prompt_caching.messages.create(
+        message = anthropic_client.messages.create(
             model=model,
             max_tokens=max_tokens,
             temperature=0,
@@ -67,7 +67,6 @@ def call_llm(
                 {
                     "type": "text",
                     "text": system_prompt,
-                    "cache_control": {"type": "ephemeral"}
                 }
             ],
             messages=[
@@ -101,23 +100,23 @@ def call_llm(
         )
         output = completion.choices[0].message.content
 
-    # elif provider == "together":
-    #     response = together_client.chat.completions.create(
-    #         model="meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
-    #         messages=[{"role": "user", "content": user_prompt}],
-    #         max_tokens=max_tokens,
-    #         temperature=0,
-    #         top_p=1,
-    #         top_k=50,
-    #         repetition_penalty=1,
-    #         stop=["<|eot_id|>"],
-    #         stream=False,
-    #     )
-    #     output = response.choices[0].message.content
+    elif provider == "together":
+        response = together_client.chat.completions.create(
+            model="meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+            messages=[{"role": "user", "content": user_prompt}],
+            max_tokens=max_tokens,
+            temperature=0,
+            top_p=1,
+            top_k=50,
+            repetition_penalty=1,
+            stop=["<|eot_id|>"],
+            stream=False,
+        )
+        output = response.choices[0].message.content
 
     elif provider == 'openai':
         completion = openai_client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-mini",
             temperature=0,
             max_tokens=max_tokens,
             messages=[
@@ -186,7 +185,6 @@ def call_llm(
 def call_action_agent(
     task: str,
     ax_tree: str,
-    world_memory: str,
     action_memory: List,  # Define the specific type if available
     context: str,
     provider: str = "openai"
@@ -214,11 +212,10 @@ def call_action_agent(
     replacements = {
         'ax_tree': ax_tree,
         'task': task,
-        'world_memory': world_memory,
         'action_memory': new_action_memory,
     }
     user_prompt = string.Template(user_prompt_template).substitute(replacements)
-    print("User Prompt:\n", user_prompt)
+    #print("User Prompt:\n", user_prompt)
 
     with open('prompts/action_decider/action_decider_system_v2.txt', 'r') as f:
         system_prompt_template = f.read()
@@ -226,7 +223,7 @@ def call_action_agent(
         'context': context
     }
     system_prompt = string.Template(system_prompt_template).substitute(replacements)
-    print("System Prompt:\n", system_prompt)
+    #print("System Prompt:\n", system_prompt)
 
     # Call the updated call_llm without return_prompt
     agent_call = call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider=provider)
@@ -332,7 +329,7 @@ def call_reflect_agent(
     Returns:
         AgentCall: An instance of AgentCall containing prompts, LLM response, and parsed output.
     """
-    with open('prompts/reflect_store_prompt_v2.txt', 'r') as f:
+    with open('prompts/reflect_store_prompt_v3.txt', 'r') as f:
         user_prompt_template = f.read()
     replacements = {
         'action_number': action_number,
@@ -342,10 +339,10 @@ def call_reflect_agent(
         'web_agent_task': web_agent_task,
     }
     user_prompt = string.Template(user_prompt_template).substitute(replacements)
-    print("User Prompt:\n", user_prompt)
+    #print("User Prompt:\n", user_prompt)
 
     # Call the updated call_llm without return_prompt
-    agent_call = call_llm(user_prompt=user_prompt, provider='cerebras', model='llama3.1-70b')
+    agent_call = call_llm(user_prompt=user_prompt, provider='openai', model='llama3.1-70b')
 
     print("LLM Response:\n", agent_call.llm_response)
 
@@ -398,7 +395,7 @@ def call_task_separator(
     prompt = string.Template(prompt_template).substitute(replacements)
 
     # Call the updated call_llm without return_prompt
-    agent_call = call_llm(user_prompt=prompt, provider='cerebras', model='llama3.1-8b')
+    agent_call = call_llm(user_prompt=prompt, provider='openai', model='llama3.1-8b')
     answer = agent_call.llm_response.strip()
     print("LLM Response:\n", answer)
 
@@ -553,7 +550,7 @@ def call_unified_task_clarifier(
     prompt = string.Template(prompt_template).substitute(replacements)
 
     # Call the updated call_llm without return_prompt
-    agent_call = call_llm(user_prompt=prompt, provider='cerebras', model='llama3.1-70b')
+    agent_call = call_llm(user_prompt=prompt, provider='openai', model='llama3.1-70b')
 
     print("LLM Response:\n", agent_call.llm_response)
 
@@ -616,7 +613,7 @@ def call_unified_question_cleaner(
     print("User Prompt:\n", prompt)
 
     # Call the updated call_llm without return_prompt
-    agent_call = call_llm(user_prompt=prompt, provider='cerebras', model='llama3.1-70b')
+    agent_call = call_llm(user_prompt=prompt, provider='openai', model='llama3.1-70b')
 
     print("LLM Response:\n", agent_call.llm_response)
 

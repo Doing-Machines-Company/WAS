@@ -8,12 +8,7 @@ Your task is:
 $task
 </task>
 
-Here's the memory of previous summarized actions:
-<world_memory>
-$world_memory
-</world_memory>
-
-Here's the memory of actions you've taken so far that haven't been summarized, these were performed AFTER the last time world_memory was updated:
+Here's the memory of actions you've taken so far:
 <action_memory>
 $action_memory
 </action_memory>
@@ -22,9 +17,8 @@ Remember:
 - Every action in the accessibility tree is labeled with a number at the start of the line.
 - Some actions have {} brackets at the end of the line describing what that action does. Assume these descriptions are accurate.
 - Some actions have the text SPECIAL ACTION after their number, pay attention to these and choose them when appropriate. These are found at the top of the accessibility tree.
-- The world_memory describes all task relevant information, it was last updated before action_memory was recorded.
 - The action_memory is an enumerated list of tuples in the format:
-   - x) Location: Where action was taken
+   - x) Location: Where was taken
      x) Effect: Effect of action
    - Later items in action_memory happened more recently.
 - You must try your best to adhere to task. If the user doesn't give specify specific attributes, use the default the website gives you.
