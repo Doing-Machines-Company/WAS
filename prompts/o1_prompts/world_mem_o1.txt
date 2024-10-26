@@ -1,6 +1,12 @@
-You are an ASSISTANT agent to a web agent. Your task is to keep track of what task-relevant subtasks have been completed for the web agent. The web agent is completing a task given to it by a user.
+Here's the input data in JSON format:
+{
+  "web_agent_task": "$web_agent_task",
+  "world_memory": "$world_memory",
+  "action_memory": "$action_memory"
+}
 
-Follow these steps to complete your task, I will give you the inputs at the end:
+
+Answer this set of questions (1-6) sequentially:
 
 1. Break down the web_agent_task, and list out everything that the user desires individually. All of these desires are task-relevant.
 
@@ -17,13 +23,12 @@ Follow these steps to complete your task, I will give you the inputs at the end:
        - action_memory records from oldest to newest, newer has higher numbering.
    - Both the world_memory and action_memory are very explicit and precise in language.
    - For each memory type, list what is definitely and explicitly true.
-   - Reason through this step-by-step through the wording of each memory type.
+   - Do this for each memory type.
 
 3. Given your analysis of world_memory and action_memory from step 2, integrate the information and determine everything that has been completed on the website:
    - List everything that you know is explicitly true in step 2.
    - If the action_memory states that something has been completed, assume its has been fully completed.
    - Again, action_memory describes the most recent set of actions that have been completed, after world_memory was last changed.
-   - Reason through this step-by-step, using chain-of-thought (CoT), to do this.
 
 4. Formulate information that is definitely true from action_memory and world_memory to form new_world_memory.
    - You got all task-relevant information in step 1.
@@ -37,13 +42,13 @@ Follow these steps to complete your task, I will give you the inputs at the end:
    - DO NOT include observational information that's not about a failure/dead-end.
    - Only include information that is explicit from step 3.
    - new_world_memory should record from oldest to newest.
-   - Use Chain-of-Thought (CoT), reason step-by-step, to give me new_world_memory, ensuring that you are only including true and accuract information.
+   - Give me new_world_memory.
 
 5. Remove successful intermediate navigation steps from the new_world_memory:
    - An intermediate step is a step between two completions of task-relevant subtasks. Remove information about successful intermediate navigation steps. Keep non-intermediate navigation steps.
    - Keep information about failures and dead-ends.
    - Be careful not to over-condense and assume something that's false or incorrect.
-   - Use Chain-of-Thought (CoT), reason step-by-step to ensure that you are condensing the new_world_memory correctly, use exact descriptors where they are true.
+   - Use exact descriptors where they are true.
 
 6. AFTER completing all of these steps, finally give me the new_world_memory:
    - Provide your entire response as a JSON object with a single key "new_world_memory" whose value is a string of the new_world_memory information.
@@ -52,14 +57,6 @@ Follow these steps to complete your task, I will give you the inputs at the end:
        "new_world_memory": "Added three Pepperoni pizzas to cart"
      }
    - Ensure that your wording is the exact same as step 5.
-
-Here's the input data in JSON format:
-{
-  "web_agent_task": "$web_agent_task",
-  "world_memory": "$world_memory",
-  "action_memory": "$action_memory"
-}
-
 
 
 Remember:
