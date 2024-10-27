@@ -116,7 +116,7 @@ def call_llm(
 
     elif provider == 'openai':
         completion = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             temperature=0,
             max_tokens=max_tokens,
             messages=[
@@ -464,7 +464,7 @@ def call_task_separator(
     prompt = string.Template(prompt_template).substitute(replacements)
 
     # Call the updated call_llm without return_prompt
-    agent_call = call_llm(user_prompt=prompt, provider='openai', model='llama3.1-8b')
+    agent_call = call_llm(user_prompt=prompt, provider='cerebras', model='llama3.1-70b')
     answer = agent_call.llm_response.strip()
     print("LLM Response:\n", answer)
 
@@ -619,7 +619,7 @@ def call_unified_task_clarifier(
     prompt = string.Template(prompt_template).substitute(replacements)
 
     # Call the updated call_llm without return_prompt
-    agent_call = call_llm(user_prompt=prompt, provider='openai', model='llama3.1-70b')
+    agent_call = call_llm(user_prompt=prompt, provider='cerebras', model='llama3.1-70b')
 
     print("LLM Response:\n", agent_call.llm_response)
 
@@ -682,7 +682,7 @@ def call_unified_question_cleaner(
     print("User Prompt:\n", prompt)
 
     # Call the updated call_llm without return_prompt
-    agent_call = call_llm(user_prompt=prompt, provider='openai', model='llama3.1-70b')
+    agent_call = call_llm(user_prompt=prompt, provider='cerebras', model='llama3.1-70b')
 
     print("LLM Response:\n", agent_call.llm_response)
 
