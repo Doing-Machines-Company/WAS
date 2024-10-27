@@ -142,10 +142,20 @@ class Agent:
                     save_node.screenshot = base64_screenshot
                 await self.output_queue.put(('screenshot', base64_screenshot))
 
+    async def check_if_loaded(self):
+        async with self.playwright_lock:
+            if self.page:
+                screenshot = await self.page.screenshot(full_page=False)
+                base64_screenshot = base64.b64encode(screenshot).decode('utf-8')
+                data_url = f"data:image/png;base64,{base64_screenshot}"
+                call_check_load_agent(data_url)
     async def run(self):
         await self.launch_browser()
         try:
             await self.capture_and_send_screenshot()
+            # curr_time = time.time()
+            # await self.check_if_loaded()
+            # input(f"WAITTT: {time.time() - curr_time}")
             # Process task and questions once
             if not self.stop_event.is_set():
                 if self.task is None:
