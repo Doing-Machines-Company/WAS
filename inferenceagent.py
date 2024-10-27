@@ -133,15 +133,12 @@ def call_llm(
         output = completion.choices[0].message.content
 
     elif provider == 'openai-o1-preview-store':
-        entire_prompt = system_prompt + '\n' + user_prompt
         completion = openai_client.chat.completions.create(
             model="o1-preview",
-            # temperature=0,
-            # max_tokens=max_tokens,
             messages=[
                 {
                     "role": "user",
-                    "content": entire_prompt
+                    "content": user_prompt
                 }
             ],
             store=True,
@@ -150,15 +147,12 @@ def call_llm(
         output = completion.choices[0].message.content
 
     elif provider == 'openai-o1-mini-store':
-        entire_prompt = system_prompt + '\n' + user_prompt
         completion = openai_client.chat.completions.create(
             model="o1-mini",
-            # temperature=0,
-            # max_tokens=max_tokens,
             messages=[
                 {
                     "role": "system",
-                    "content": entire_prompt
+                    "content": user_prompt
                 },
             ],
             store=True,
@@ -249,7 +243,6 @@ def call_action_agent(
         'action_memory': new_action_memory,
     }
     user_prompt = string.Template(user_prompt_template).substitute(replacements)
-    #print("User Prompt:\n", user_prompt)
 
     with open('prompts/action_decider/action_decider_system_v2.txt', 'r') as f:
         system_prompt_template = f.read()
@@ -257,7 +250,6 @@ def call_action_agent(
         'context': context
     }
     system_prompt = string.Template(system_prompt_template).substitute(replacements)
-    #print("System Prompt:\n", system_prompt)
 
     # Call the updated call_llm without return_prompt
     agent_call = call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider=provider)
@@ -275,6 +267,49 @@ def call_action_agent(
 
     return agent_call
 
+def call_check_load_agent(
+    screenshot,
+    provider: str = 'groq'
+) -> bool:
+    # Move the system message content into the user message
+    completion = groq_client.chat.completions.create(
+        model="llama-3.2-11b-vision-preview",
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": ""
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": screenshot
+                        }
+                    }
+                ]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "You are an expert at analyzing webpage screenshots to determine if a webpage has fully loaded or if there are errors. I will provide you with a screenshot of a webpage, and your task will be reasoning to answer a set of indicator questions to determine if the page has successfully loaded, then giving me your final answer in a JSON format I will specify.\n\nFirst, reason step-by-step and answer these indicator questions:\n\n1) Are there any loading spinners or progress indicators visible?\n2) Is the page content fully rendered, with readable text, images, and interactive elements appearing in their correct places?\n3) Are there any missing sections, placeholders, or broken images that suggest incomplete loading?\n\nThen finally reason step-by-step, based on the screenshot and your answers to the indicator questions, provide your answer in the following JSON format:\n{\n  \"pageLoaded\": true | false\n}\nIf the page did not load correctly, choose false. If the page is loaded choose true. Ensure your output is formatted strictly as JSON."
+                    }
+                ]
+            }
+        ],
+        temperature=1,
+        max_tokens=8000,
+        top_p=1,
+        stream=False,
+        stop=None,
+    )
+
+    print(completion.choices[0].message.content)
+
+    return False
 
 def call_memory_agent(
     web_agent_task: str,
