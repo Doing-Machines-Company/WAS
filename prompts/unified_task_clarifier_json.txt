@@ -16,11 +16,12 @@ Follow these steps to complete your task:
     - For each item/item type 
       - If the user has NOT specified ANY of the `Fields to specify:`, formulate a question that asks about the unspecified field 
       - If the user has indeed specified the field, do not ask a question about that field
+      - DO NOT ASK ANY QUESTIONS THAT ARE NOT IN THE Fields to specify:
 3. Give the final questions about every item of interest in a JSON array format.
    For example:
    [
      "How much coke do you want (8oz or 20oz)?",
-     "Do you want feta cheese in your sandwich?"
+     "What type of crust would you like for your Large Meatzza (Hand Tossed, Crunchy Thin Crust, or New York Style)"
    ]
    If there are quotes " within the strings, be sure to escape them, otherwise the JSON will be malformed.
 Remember:

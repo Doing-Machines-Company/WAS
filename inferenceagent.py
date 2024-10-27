@@ -376,7 +376,7 @@ def call_reflect_agent(
     #print("User Prompt:\n", user_prompt)
 
     # Call the updated call_llm without return_prompt
-    agent_call = call_llm(user_prompt=user_prompt, provider='openai', model='llama3.1-70b')
+    agent_call = call_llm(user_prompt=user_prompt, provider='cerebras', model='llama3.1-70b')
 
     print("LLM Response:\n", agent_call.llm_response)
 
