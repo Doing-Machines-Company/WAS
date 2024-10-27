@@ -66,8 +66,8 @@ class AxObservation(PageObservation):
                         "role": role,
                         "indent": indent,
                         "properties": properties,
-                        "html": node['html'],
-                        "xpath": node['xpath'],
+                        "html": node['html'] if 'html' in node else None,
+                        "xpath": node['xpath'] if 'html' in node else None,
                         "parent_html": node['parent_html'] if 'parent_html' in node else None
                     }
                     self.nodes_info.append(node_info)
@@ -145,8 +145,7 @@ class InferenceAxtree:
         self.live_action_effects.append("SPECIAL ACTION")
         count += 1
 
-
-        for indefinite_action in special_actions:
+        for indefinite_action in self.special_actions:
             self.raw_tree += f"[{count}] SPECIAL ACTION: {str(indefinite_action.action.special_effect)}\n"
             self.scrape_tree += f"[{count}] SPECIAL ACTION: {str(indefinite_action.action.special_effect)}\n"
             self.debug_tree += f"[{count}] SPECIAL ACTION: {str(indefinite_action.action.special_effect)}\n"

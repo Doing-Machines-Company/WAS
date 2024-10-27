@@ -267,7 +267,48 @@ def call_action_agent(
 
     return agent_call
 
-def call_check_load_agent(
+def call_check_load_agent_text(
+    ax_tree,
+) -> bool:
+    with open('prompts/check_load_text/check_load_user.txt', 'r') as f:
+        user_prompt_template = f.read()
+    replacements = {
+        'ax_tree': ax_tree,
+    }
+    user_prompt = string.Template(user_prompt_template).substitute(replacements)
+
+    with open('prompts/check_load_text/check_load_system.txt', 'r') as f:
+        system_prompt = f.read()
+
+    agent_call = call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider="cerebras")
+
+    json_match = re.search(r'\{[\s\S]*}', agent_call.llm_response)
+    page_loaded = None
+
+    if json_match:
+        json_str = json_match.group(0)
+
+        try:
+            # Step 3: Parse the JSON string
+            parsed_json = json.loads(json_str)
+
+            # Step 4: Extract the pageLoaded value
+            page_loaded = parsed_json.get("pageLoaded")
+
+            if page_loaded is not None:
+                return page_loaded
+            else:
+                parsed_output = "Error: 'pageLoaded' key not found in JSON"
+                return False
+
+        except json.JSONDecodeError:
+            parsed_output = "Error: Invalid JSON format"
+            return False
+    else:
+        parsed_output = "Error: No JSON object found in the answer"
+        return False
+
+def call_check_load_agent_screenshot(
     screenshot,
     provider: str = 'groq'
 ) -> bool:

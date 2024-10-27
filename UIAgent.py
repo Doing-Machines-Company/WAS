@@ -142,21 +142,32 @@ class Agent:
                     save_node.screenshot = base64_screenshot
                 await self.output_queue.put(('screenshot', base64_screenshot))
 
-    async def check_if_loaded(self):
+    async def check_if_loaded_screenshot(self):
         async with self.playwright_lock:
             if self.page:
                 screenshot = await self.page.screenshot(full_page=False)
                 base64_screenshot = base64.b64encode(screenshot).decode('utf-8')
                 data_url = f"data:image/png;base64,{base64_screenshot}"
-                call_check_load_agent(data_url)
+                call_check_load_agent_screenshot(data_url)
+
+
+    async def check_if_loaded_text(self):
+        async with self.playwright_lock:
+            ax_nodes = await get_ax_tree_no_extras(self.cdp_session)
+            cleaned = AxObservation(ax_nodes, self.page.url)
+            is_loaded = call_check_load_agent_text(cleaned)
+            return is_loaded
+
     async def run(self):
         await self.launch_browser()
         try:
             await self.capture_and_send_screenshot()
-            # curr_time = time.time()
-            # await self.check_if_loaded()
-            # input(f"WAITTT: {time.time() - curr_time}")
-            # Process task and questions once
+
+            start_time = time.time()
+            is_loaded = await self.check_if_loaded_text()
+            print(type(is_loaded))
+            print(is_loaded)
+            input(time.time() - start_time)
             if not self.stop_event.is_set():
                 if self.task is None:
                     self.task = await self.ask_user("What do you want done on dominos?")
