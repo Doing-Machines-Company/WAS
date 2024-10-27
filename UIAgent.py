@@ -162,12 +162,6 @@ class Agent:
         await self.launch_browser()
         try:
             await self.capture_and_send_screenshot()
-
-            start_time = time.time()
-            is_loaded = await self.check_if_loaded_text()
-            print(type(is_loaded))
-            print(is_loaded)
-            input(time.time() - start_time)
             if not self.stop_event.is_set():
                 if self.task is None:
                     self.task = await self.ask_user("What do you want done on dominos?")
@@ -315,9 +309,19 @@ class Agent:
                 if self.stop_event.is_set():
                     break
                 gc.collect()
-                await asyncio.sleep(5)
 
-                # Check stop_event after sleep
+                start_time = time.time()
+
+                await asyncio.sleep(0.5)
+
+                while time.time() - start_time <= 5.5:
+                    is_loaded = await self.check_if_loaded_text()
+                    if is_loaded:
+                        break
+                    else:
+                        await asyncio.sleep(0.1)
+
+                print(f"Lapsed time: {time.time() - start_time}")
                 if self.stop_event.is_set():
                     break
         except Exception as e:
