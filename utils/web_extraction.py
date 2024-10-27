@@ -107,6 +107,23 @@ async def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
     return accessibility_tree
 
 
+async def get_ax_tree_no_extras(cdpSession: CDPSession) -> list[AxNode]:
+    start = time.time()
+    response = await cdpSession.send(
+        "Accessibility.getFullAXTree", {}
+    )
+    accessibility_tree = response["nodes"]
+    print("\tcdp js took", time.time() - start)
+    seen_ids = set()
+    _accessibility_tree = []
+    for node in accessibility_tree:
+        if node["nodeId"] not in seen_ids:
+            _accessibility_tree.append(node)
+            seen_ids.add(node["nodeId"])
+    accessibility_tree = _accessibility_tree
+    return accessibility_tree
+
+
 def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: str) -> IndefiniteAction | None:
 
     # NOTE: NO LONGER FILTER OUT HEADER AND FOOTER ACTIONS HERE
