@@ -30,7 +30,11 @@ Follow these steps to complete your task:
        - Use the important_info to inform your decision-making.
    - Use Chain-of-Thought (CoT), reason step-by-step to understand what has already been done on the website, and what still needs to be done.
 
-4. Choose the next action:
+4. Reason about the current state of the task
+  - Putting together the accesibility tree and the memory, reason about where you are in the task
+  - Reason about the immediate next steps that must be taken
+
+5. Choose the next action:
    - First list out every next possible action on the accessibility_tree that is task-relevant (relates to a user desire).
        - You got user desires in step 1.
        - Consider how each individual action on the accessibility_tree will help you progress towards completing your task.
@@ -39,7 +43,7 @@ Follow these steps to complete your task:
        - Ensure that you fully complete the process of attaining what the user wants (i.e., you must complete the entire checkout order to buy something). Assume that you have access to all the user's personal information.
        - Be careful not to visit somewhere which is known to be unhelpful, these will be recorded in action_memory.
 
-5. Provide your decision:
+6. Provide your decision:
    - Following your reasoning from step 4, choose the next action that you want to perform.
    - Use the following Python function format to indicate your chosen action:
      choose(action_number: int, action_reason: str)

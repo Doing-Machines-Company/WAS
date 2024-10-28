@@ -280,7 +280,7 @@ def call_check_load_agent_text(
     with open('prompts/check_load_text/check_load_system.txt', 'r') as f:
         system_prompt = f.read()
 
-    agent_call = call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider="cerebras", model='llama3.1-70b')
+    agent_call = call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider="cerebras", model='llama3.1-8b')
 
     json_match = re.search(r'\{[\s\S]*}', agent_call.llm_response)
     page_loaded = None

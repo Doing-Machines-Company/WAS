@@ -240,7 +240,7 @@ class Agent:
 
                         action_out_call = call_action_agent(
                             self.task, curr_inf_tree,
-                            self.action_mem, self.item_context_pairs, provider="openai"
+                            self.action_mem, self.item_context_pairs, provider="anthropic"
                         )
                         # Check stop_event after API call
                         if self.stop_event.is_set():

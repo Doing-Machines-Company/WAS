@@ -23,20 +23,22 @@ Follow these steps to complete your task, I will give you the inputs at the end:
 3. Reason about the action, base_action_effect of the chosen_action, and two accessibility trees. Determine if the chosen_action failed:
   - Reason step-by-step to determine if the chosen_action failed.
 
-4. Reason step-by-step to formulate your final_answer:
+4. Do NOT include what the action allows or might enable (inferring purpose) just what it did
+
+5. Reason step-by-step to formulate your final_answer:
    - If the chosen_action did not fail according to step 3 your final_answer must include:
       - All effects of the chosen_action from step 2. This must be detailed.
    - If the chosen_action did fail according to step 3 your final_answer must include:
       - All effects of the chosen_action. This must be detailed.
       - Very precise and very detailed information about the reasons for the failure.
    - Do not include any reasoning steps or assumptions in the final_answer.
-   - Do NOT give prescriptions of what the model should do, only what has happened and why as faithfully as possible
+   - Do NOT give prescriptions of what the model should do, only what has happened as faithfully as possible
    - Do not include any information about what you do not know in the final_answer.
    - The purpose of the final answer is to describe the effect of the chosen_action.
    - Do not plan or include what needs to be done in final_answer.
    - Use Chain-of-Thought (CoT), reason step-by-step, to do this. Ensure that you meet the specifications I'm giving you and assuming correctly for the base_action_effect.
 
-5. AFTER completing all of these steps, finally give me the answer:
+6. AFTER completing all of these steps, finally give me the answer:
    - Provide your entire response as a JSON object with two keys, "old_web_page_purpose" and "final_answer", their values are strings.
      For example:
      {
