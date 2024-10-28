@@ -293,11 +293,20 @@
           // Handle agent stop
           this.socket.on("agent_stopped", () => {
             this.agentActive = false;
+            // Optionally, notify the user that the agent has stopped
+            this.messages.push({
+              type: "only-out",
+              text: "Agent has stopped itself.",
+            });
+            this.scrollToBottomIfNeeded();
           });
 
           // Handle agent reset
           this.socket.on("agent_reset", (data) => {
-            this.clearInterface();
+            if (data.reason !== "agent_stopped") {
+              this.clearInterface();
+            }
+            // Optionally, handle 'agent_stopped' case if needed
           });
 
           // Handle agent state (for new connections)

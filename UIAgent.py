@@ -232,7 +232,7 @@ class Agent:
                         old_inf_tree = curr_inf_tree
                         if self.stop_event.is_set():
                             break
-                        
+
                         start = time.time()
                         # Check stop_event after API call
                         if self.stop_event.is_set():
@@ -285,7 +285,11 @@ class Agent:
                                     curr_inf_tree.get_input_tree(), self.context_info,
                                     self.hidden_inputs
                                 ).parsed_output
+                                if self.stop_event.is_set():
+                                    break
                                 for (chosen_action_index, input_string) in desired:
+                                    if self.stop_event.is_set():
+                                        break
                                     unhidden_input_string = replace_hidden_inputs(input_string, self.hidden_inputs)
                                     chosen_indefinite = curr_inf_tree.get_action_from_index(chosen_action_index)
                                     chosen_action = chosen_indefinite.action
@@ -294,12 +298,17 @@ class Agent:
                                         chosen_indefinite
                                     )
                                     chosen_action.set_input_string(unhidden_input_string)
+                                    if self.stop_event.is_set():
+                                        break
                                     success = await do_action_flow(
                                         self.page, chosen_action, chosen_element, chosen_xpath,
                                         type_list
                                     )
                                     if not success:
                                         self.stop()
+
+                                    if self.stop_event.is_set():
+                                        break
 
                     else:
                         print("No matched state, why?")
@@ -312,14 +321,14 @@ class Agent:
 
                 start_time = time.time()
 
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(1)
 
                 while time.time() - start_time <= 5.5:
                     is_loaded = await self.check_if_loaded_text()
                     if is_loaded:
                         break
                     else:
-                        await asyncio.sleep(0.1)
+                        await asyncio.sleep(0.4)
 
                 print(f"Lapsed time: {time.time() - start_time}")
                 if self.stop_event.is_set():
