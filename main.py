@@ -190,7 +190,12 @@ async def run_agent(key):
         print(f"{time.time()}: Agent run method for key {key} finished")
         await sio.emit('agent_stopped', to=key)
         print(f"{time.time()}: Agent task for key {key} finished")
-        await reset_agent_for_key(key, reason="agent_stopped")
+        # Do not reset the agent when it stops itself
+        # Only clean up internal state
+        async with agents_lock:
+            if key in agents:
+                del agents[key]
+                gc.collect()
 
 
 async def agent_loop(key):
@@ -239,7 +244,7 @@ async def reset_agent_for_key(key, reason="unknown", emit_to_sid=None):
 
     Args:
         key (str): The key associated with the agent.
-        reason (str): The reason for resetting ('no_active_connections', 'user_reset', 'input_timeout', 'agent_stopped').
+        reason (str): The reason for resetting ('no_active_connections', 'user_reset', 'input_timeout').
         emit_to_sid (str): Specific SID to emit messages to, if any.
     """
     async with agents_lock:
@@ -281,35 +286,26 @@ async def reset_agent_for_key(key, reason="unknown", emit_to_sid=None):
         del agents[key]
         gc.collect()
         print(f"{time.time()}: Agent reset completed for key {key} due to {reason}.")
+
     # Emit appropriate messages based on the reason outside the lock
-    if reason == "no_active_connections":
+    if reason in ["no_active_connections", "input_timeout"]:
+        if reason == "no_active_connections":
+            status_message = "Agent reset due to no active connections."
+        elif reason == "input_timeout":
+            status_message = "Agent reset due to input timeout."
         await sio.emit('agent_reset', {
-            'status': 'Agent reset due to no active connections',
-            'reason': 'no_active_connections'
+            'status': status_message,
+            'reason': reason
         }, to=key)
     elif reason == "user_reset":
         if emit_to_sid:
             await sio.emit('agent_reset', {
-                'status': 'Agent reset by user',
-                'reason': 'user_reset'
+                'status': 'Agent reset by user.',
+                'reason': reason
             }, to=emit_to_sid)
         else:
             await sio.emit('agent_reset', {
-                'status': 'Agent reset',
-                'reason': 'user_reset'
+                'status': 'Agent reset.',
+                'reason': reason
             }, to=key)
-    elif reason == "input_timeout":
-        await sio.emit('agent_reset', {
-            'status': 'Agent reset due to input timeout',
-            'reason': 'input_timeout'
-        }, to=key)
-    elif reason == "agent_stopped":
-        await sio.emit('agent_reset', {
-            'status': 'Agent stopped',
-            'reason': 'agent_stopped'
-        }, to=key)
-    else:
-        await sio.emit('agent_reset', {
-            'status': 'Agent reset',
-            'reason': 'unknown'
-        }, to=key)
+    # Do not emit 'agent_reset' for other reasons like 'agent_stopped'

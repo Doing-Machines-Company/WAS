@@ -260,6 +260,12 @@ class Agent:
                         chosen_indefinite = curr_inf_tree.get_action_from_index(chosen_action_index)
                         chosen_action = chosen_indefinite.action
 
+
+
+                        if chosen_action is not None and chosen_action.html is not None and ('payment-order-now' in chosen_action.html or 'Place Your Order' in chosen_action.html):
+                            self.stop()
+                            await self.output_queue.put(('only_out', "Stopping agent to prevent actually buying a Pizza"))
+
                         # Check stop_event after API call
                         if self.stop_event.is_set():
                             break
