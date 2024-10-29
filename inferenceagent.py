@@ -10,6 +10,7 @@ from groq import Groq
 from together import Together
 from openai import OpenAI
 from cerebras.cloud.sdk import Cerebras
+import google.generativeai as google_client
 
 
 @dataclass
@@ -36,6 +37,8 @@ openai_client = OpenAI()
 
 # Set up Cerebras API client
 cerebras_client = Cerebras(api_key=os.environ.get("CEREBRAS_API_KEY"))
+
+google_client.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
 
 
 def call_llm(
@@ -199,6 +202,28 @@ def call_llm(
             top_p=1
         )
         output = completion.choices[0].message.content
+
+    elif provider == "google":
+        generation_config = {
+            "temperature": 0,
+            "top_p": 1,
+            "top_k": 40,
+            "max_output_tokens": 8192,
+            "response_mime_type": "text/plain",
+        }
+
+        model = google_client.GenerativeModel(
+            model_name="gemini-1.5-pro-002",
+            generation_config=generation_config,
+            system_instruction=system_prompt
+        )
+
+        chat_session = model.start_chat(
+            history=[
+            ]
+        )
+
+        output = chat_session.send_message(user_prompt).text
 
     else:
         raise ValueError("Invalid provider. Choose 'anthropic', 'groq', 'together', 'openai', or 'cerebras'.")
