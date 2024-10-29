@@ -132,18 +132,18 @@ class InferenceAxtree:
         self.debug_tree = ''
         self.input_tree = ''
 
-        input_all_action = Action(Action.Type.INPUT_GIVEN_INTENT, None, None)
-        input_all_action.set_special_effect(
-            'Call an agent to fill in all inputs on the page given some intent. {The intent is action_reason you return in choose}')
-        input_all_indefinite = IndefiniteAction([Action.Type.INPUT_GIVEN_INTENT], input_all_action, None,
-                                                IndefiniteAction.Location.SPECIAL)
+        # input_all_action = Action(Action.Type.INPUT_GIVEN_INTENT, None, None)
+        # input_all_action.set_special_effect(
+        #     'Call an agent to fill in all inputs on the page given some intent. {The intent is action_reason you return in choose}')
+        # input_all_indefinite = IndefiniteAction([Action.Type.INPUT_GIVEN_INTENT], input_all_action, None,
+        #                                         IndefiniteAction.Location.SPECIAL)
 
-        self.raw_tree += f"[{count}] SPECIAL ACTION: {str(input_all_indefinite.action.special_effect)}\n"
-        self.scrape_tree += f"[{count}] SPECIAL ACTION: {str(input_all_indefinite.action.special_effect)}\n"
-        self.debug_tree += f"[{count}] SPECIAL ACTION: {str(input_all_indefinite.action.special_effect)}\n"
-        self.live_actions.append(input_all_indefinite)
-        self.live_action_effects.append("SPECIAL ACTION")
-        count += 1
+        # self.raw_tree += f"[{count}] SPECIAL ACTION: {str(input_all_indefinite.action.special_effect)}\n"
+        # self.scrape_tree += f"[{count}] SPECIAL ACTION: {str(input_all_indefinite.action.special_effect)}\n"
+        # self.debug_tree += f"[{count}] SPECIAL ACTION: {str(input_all_indefinite.action.special_effect)}\n"
+        # self.live_actions.append(input_all_indefinite)
+        # self.live_action_effects.append("SPECIAL ACTION")
+        # count += 1
 
         for indefinite_action in self.special_actions:
             self.raw_tree += f"[{count}] SPECIAL ACTION: {str(indefinite_action.action.special_effect)}\n"
@@ -259,19 +259,21 @@ class InferenceAxtree:
     def get_input_tree(self):
         return self.input_tree
 
-    def get_tree_with_specific_action_effect(self, index: int) -> str:
+    def get_tree_with_specific_action_effect(self, indices: List[int]) -> str:
 
+        target_actions = [self.live_actions[i] for i in indices]
+        target_action_ax_node_indices = [target_action.ax_node_index for target_action in target_actions]
         # Retrieve the target action and its effect
-        target_action = self.live_actions[index]
+        # target_action = self.live_actions[index]
 
         tree_str = ''
         count = 0
 
         # Iterate over special actions first
-        for i, special_action in enumerate([self.live_actions[0]] + self.special_actions, start=0):
-            if count == index:
+        for i, special_action in enumerate(self.special_actions, start=0):
+            if count in indices:
                 # Include the action effect
-                tree_str += f"[{count}] SPECIAL ACTION: {str(special_action.action.special_effect)}\n"
+                tree_str += f"[{count} (THIS ACTION WAS JUST CHOSEN)] SPECIAL ACTION: {str(special_action.action.special_effect)}\n"
             else:
                 # Omit the action effect
                 tree_str += f"[{count}] SPECIAL ACTION: \n"
@@ -284,7 +286,7 @@ class InferenceAxtree:
                 action = self.action_lib[node_id]
                 action_effect = self.action_effect_lib[node_id]
 
-                if node_id == target_action.ax_node_index:
+                if node_id in target_action_ax_node_indices:
                     # Include the action effect
                     if Action.Type.INPUT in action.type_list:
                         tree_str += (

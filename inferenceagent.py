@@ -443,7 +443,7 @@ def call_memory_agent(
 
 
 def call_reflect_agent(
-    action_number: int,
+    # action_number: int,
     reason_for_action: str,
     old_ax_tree: str,
     new_ax_tree: str,
@@ -455,7 +455,7 @@ def call_reflect_agent(
 
     Args:
         action_number (int): The number of the action.
-        reason_for_action (str): Reason for the action.
+        # reason_for_action (str): Reason for the action.
         old_ax_tree (str): Old accessibility tree.
         new_ax_tree (str): New accessibility tree.
         web_agent_task (str): The web agent task description.
@@ -464,10 +464,12 @@ def call_reflect_agent(
     Returns:
         AgentCall: An instance of AgentCall containing prompts, LLM response, and parsed output.
     """
+    print(old_ax_tree)
+    input("LOOK AT TREE")
     with open('prompts/reflect_store_prompt_v3.txt', 'r') as f:
         user_prompt_template = f.read()
     replacements = {
-        'action_number': action_number,
+        # 'action_number': action_number,
         'reason_for_action': reason_for_action,
         'old_accessibility_tree': old_ax_tree,
         'new_accessibility_tree': new_ax_tree,

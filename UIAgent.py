@@ -207,7 +207,15 @@ class Agent:
                             'Stop trying to perform user task, use if task is impossible or finished. {Stops and give user control}')
                         stop_indefinite = IndefiniteAction([Action.Type.STOP], stop_action, None,
                                                            IndefiniteAction.Location.SPECIAL)
-                        special_actions = [stop_indefinite]
+
+                        input_all_action = Action(Action.Type.INPUT_GIVEN_INTENT, None, None)
+                        input_all_action.set_special_effect(
+                            'Call an agent to fill in all inputs on the page given some intent. {The intent is action_reason you return in choose}')
+                        input_all_indefinite = IndefiniteAction([Action.Type.INPUT_GIVEN_INTENT], input_all_action,
+                                                                None,
+                                                                IndefiniteAction.Location.SPECIAL)
+
+                        special_actions = [stop_indefinite, input_all_indefinite]
 
                         curr_inf_tree = InferenceAxtree(matched_inference_state, special_actions=special_actions,
                                                         use_scrape=True)
@@ -216,8 +224,8 @@ class Agent:
 
                         if str(old_inf_tree) != '':
                             reflect_response_call = call_reflect_agent(
-                                chosen_action_index, reason_for_action,
-                                str(old_inf_tree.get_tree_with_specific_action_effect(chosen_action_index)),
+                                reason_for_action,
+                                str(old_inf_tree.get_tree_with_specific_action_effect(reflect_action_indices)),  # reflect_action_indices used to be chosen_action_index
                                 curr_inf_tree.get_raw_tree(), self.task
                             )
                             self.curr_save_node.reflect_call = copy.deepcopy(reflect_response_call)
@@ -240,7 +248,7 @@ class Agent:
 
                         action_out_call = call_action_agent(
                             self.task, curr_inf_tree,
-                            self.action_mem, self.item_context_pairs, provider="google"
+                            self.action_mem, self.item_context_pairs, provider="anthropic"
                         )
                         # Check stop_event after API call
                         if self.stop_event.is_set():
@@ -253,6 +261,7 @@ class Agent:
                             raise Exception
 
                         chosen_action_index, reason_for_action = action_out
+                        reflect_action_indices = [chosen_action_index]
                         reason_for_action = reason_for_action.encode('utf-8').decode('unicode_escape')
                         print(f'reason_for_action: {reason_for_action}')
                         await self.output_queue.put(('only_out', reason_for_action))
@@ -296,6 +305,7 @@ class Agent:
                                 for (chosen_action_index, input_string) in desired:
                                     if self.stop_event.is_set():
                                         break
+                                    reflect_action_indices.append(chosen_action_index)
                                     unhidden_input_string = replace_hidden_inputs(input_string, self.hidden_inputs)
                                     chosen_indefinite = curr_inf_tree.get_action_from_index(chosen_action_index)
                                     chosen_action = chosen_indefinite.action
