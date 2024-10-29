@@ -464,8 +464,6 @@ def call_reflect_agent(
     Returns:
         AgentCall: An instance of AgentCall containing prompts, LLM response, and parsed output.
     """
-    print(old_ax_tree)
-    input("LOOK AT TREE")
     with open('prompts/reflect_store_prompt_v3.txt', 'r') as f:
         user_prompt_template = f.read()
     replacements = {
