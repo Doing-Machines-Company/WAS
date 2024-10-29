@@ -33,7 +33,9 @@ class Agent:
         self.question_answers = []
         self.hidden_inputs = [
             HiddenInput('first_name', "User's first name", "James"),
-            HiddenInput('last_name', "User's last name", "Chen")
+            HiddenInput('last_name', "User's last name", "Chen"),
+            HiddenInput('email', "User's email address", "example@gmail.com"),
+            HiddenInput('phone_number', "User's phone number", "4121234567")
         ]
         self.input_queue = asyncio.Queue()
         self.output_queue = asyncio.Queue()
@@ -344,7 +346,7 @@ class Agent:
                     if is_loaded:
                         break
                     else:
-                        await asyncio.sleep(0.2)
+                        await asyncio.sleep(0.1)
 
                 print(f"Lapsed time: {time.time() - start_time}")
                 if self.stop_event.is_set():
