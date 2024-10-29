@@ -240,7 +240,7 @@ class Agent:
 
                         action_out_call = call_action_agent(
                             self.task, curr_inf_tree,
-                            self.action_mem, self.item_context_pairs, provider="anthropic"
+                            self.action_mem, self.item_context_pairs, provider="google"
                         )
                         # Check stop_event after API call
                         if self.stop_event.is_set():
@@ -334,7 +334,7 @@ class Agent:
                     if is_loaded:
                         break
                     else:
-                        await asyncio.sleep(0.4)
+                        await asyncio.sleep(0.2)
 
                 print(f"Lapsed time: {time.time() - start_time}")
                 if self.stop_event.is_set():
