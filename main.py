@@ -19,7 +19,7 @@ socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
 templates = Jinja2Templates(directory="templates")
 
 # Define valid keys (replace with your actual keys or load from environment variables)
-valid_keys = set(['key1', 'key2', 'key3'])  # Example keys
+valid_keys = set(['key1', 'key2', 'key3', 'gneuibig', 'mrpronoun', 'bhpchiang', 'punwaiw', 'domschmidt'])  # Example keys
 # Alternatively, load from an environment variable:
 # valid_keys = set(k.strip() for k in os.getenv('VALID_KEYS', '').split(',') if k.strip())
 
