@@ -287,6 +287,10 @@ class Agent:
                         if chosen_action is not None and chosen_action.html is not None and ('payment-order-now' in chosen_action.html or 'Place Your Order' in chosen_action.html):
                             await self.output_queue.put(('exit_message', "Stopping agent to prevent actually buying a Pizza"))
                             self.stop()
+                        elif chosen_indefinite.location != IndefiniteAction.Location.SPECIAL and "pages/order/payment" in self.page.url: # may be a bad check
+                            await self.output_queue.put(
+                                ('exit_message', "Stopping agent to prevent actually buying a Pizza"))
+                            self.stop()
 
                         # Check stop_event after API call
                         if self.stop_event.is_set():
