@@ -22,10 +22,10 @@ class Agent:
         self.playwright_lock = asyncio.Lock()
         self.fast_mode = fast_mode
         self.retry_cap = retry_cap
-        self.reset()
+        # self.reset() UI resets agent, delete agent after done
         self.initialize_index()
 
-    def reset(self):
+    # def reset(self):
         self.scraper_state_file = 'dominos/scraper_state.pkl'
         self.url_state_manager = load_scraper_state(self.scraper_state_file)
         self.task = None
@@ -285,7 +285,7 @@ class Agent:
 
 
                         if chosen_action is not None and chosen_action.html is not None and ('payment-order-now' in chosen_action.html or 'Place Your Order' in chosen_action.html):
-                            await self.output_queue.put(('only_out', "Stopping agent to prevent actually buying a Pizza"))
+                            await self.output_queue.put(('exit_message', "Stopping agent to prevent actually buying a Pizza"))
                             self.stop()
 
                         # Check stop_event after API call
@@ -395,7 +395,7 @@ class Agent:
                 print("FINISHED CLEANING")
                 print("DONE!")
             else:
-                await self.output_queue.put(('only_out', "Agent crashed, please reset."))
+                await self.output_queue.put(('exit_message', "Agent crashed, please reset."))
                 self.stop()
                 await self.cleanup_browser()
 

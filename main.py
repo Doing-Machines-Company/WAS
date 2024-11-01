@@ -225,7 +225,37 @@ async def agent_loop(key):
                 message = {'type': 'only-out', 'text': data}
                 agent_info['messages'].append(message)  # Append agent-only message to messages
                 await sio.emit('agent_only_out', {'message': data}, to=key)
+            elif output_type == 'exit_message':  # **New Handling for exit_message**
+                message = {'type': 'exit', 'text': data}
+                agent_info['messages'].append(message)  # Append exit message to messages
+                await sio.emit('agent_exit_message', {'message': data}, to=key)
         await asyncio.sleep(0.1)
+
+    # Handle remaining messages after agent stops
+    start_time = time.time()
+    while not agent.output_queue.empty():
+        output_type, data = await agent.output_queue.get()
+        if output_type == 'screenshot':
+            agent_info['browserScreenshot'] = data  # Update the current screenshot
+            await sio.emit('browser_update', {'screenshot': data}, to=key)
+        elif output_type == 'question':
+            message = {'type': 'agent', 'text': data}
+            agent_info['messages'].append(message)  # Append agent question to messages
+            agent_info['waiting_for_input'] = True
+            await sio.emit('agent_question', {'question': data}, to=key)
+            # Start the 45-second input timeout
+            agent_info['input_timeout_task'] = asyncio.create_task(input_timeout(key))
+        elif output_type == 'only_out':
+            message = {'type': 'only-out', 'text': data}
+            agent_info['messages'].append(message)  # Append agent-only message to messages
+            await sio.emit('agent_only_out', {'message': data}, to=key)
+        elif output_type == 'exit_message':  # **New Handling for exit_message**
+            message = {'type': 'exit', 'text': data}
+            agent_info['messages'].append(message)  # Append exit message to messages
+            await sio.emit('agent_exit_message', {'message': data}, to=key)
+        await asyncio.sleep(0.1)
+        if (time.time() - start_time) >= 10:
+            break
 
 
 async def input_timeout(key):
