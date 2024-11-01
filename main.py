@@ -19,7 +19,9 @@ socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
 templates = Jinja2Templates(directory="templates")
 
 # Define valid keys (replace with your actual keys or load from environment variables)
-valid_keys = set(['key1', 'key2', 'key3', 'gneuibig', 'mrpronoun', 'bhpchiang', 'punwaiw', 'domschmidt'])  # Example keys
+slow_keys = set(['key1', 'key2', 'key3', 'gneuibig', 'mrpronoun', 'bhpchiang', 'punwaiw', 'domschmidt'])  # Example keys
+fast_keys = set(['mrpronounfast', 'bhpchiangfast', 'keyfast'])
+valid_keys = slow_keys | fast_keys
 # Alternatively, load from an environment variable:
 # valid_keys = set(k.strip() for k in os.getenv('VALID_KEYS', '').split(',') if k.strip())
 
@@ -113,7 +115,10 @@ async def start_agent(sid):
         return
     async with agents_lock:
         if key not in agents:
-            agent = Agent()
+            if key in fast_keys:
+                agent = Agent(fast_mode=True)
+            else:
+                agent = Agent(fast_mode=False)
             agents[key] = {
                 'agent': agent,
                 'messages': [],

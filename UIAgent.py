@@ -16,10 +16,12 @@ from utils.inference_data import *
 from utils.trajectory_saves import *
 
 class Agent:
-    def __init__(self):
+    def __init__(self, fast_mode=False, retry_cap=2):
         self.stop_event = asyncio.Event()  # Use asyncio.Event for async compatibility
         self.cleaned_up = asyncio.Event()
         self.playwright_lock = asyncio.Lock()
+        self.fast_mode = fast_mode
+        self.retry_cap = retry_cap
         self.reset()
         self.initialize_index()
 
@@ -46,6 +48,7 @@ class Agent:
         self.page = None
         self.cdp_session = None
         self.curr_save_node = None
+        self.failed_count = 0
         self.saved_trajectory = SavedTrajectory()
 
     async def ask_user(self, question):
@@ -160,6 +163,14 @@ class Agent:
             is_loaded = call_check_load_agent_text(cleaned)
             return is_loaded
 
+    async def loop_until_loaded(self, start_time):
+        while time.time() - start_time <= 6:
+            is_loaded = await self.check_if_loaded_text()
+            if is_loaded:
+                break
+            else:
+                await asyncio.sleep(0.3)
+
     async def run(self):
         await self.launch_browser()
         try:
@@ -224,7 +235,7 @@ class Agent:
                         if self.stop_event.is_set():
                             break
 
-                        if str(old_inf_tree) != '':
+                        if str(old_inf_tree) != '':  # MAKE THIS LESS BAD
                             reflect_response_call = call_reflect_agent(
                                 reason_for_action,
                                 str(old_inf_tree.get_tree_with_specific_action_effect(reflect_action_indices)),  # reflect_action_indices used to be chosen_action_index
@@ -239,7 +250,7 @@ class Agent:
                                                       location_details=object_and_effect)
                             self.action_mem.append(new_memory)
 
-                        old_inf_tree = curr_inf_tree
+                        # old_inf_tree = curr_inf_tree  NOW SET LATER, WE DON'T SET THIS IF CUR_INF_TREE IS BROKEN OR SOME ACTIONS BREAK
                         if self.stop_event.is_set():
                             break
 
@@ -281,6 +292,8 @@ class Agent:
                         if self.stop_event.is_set():
                             break
 
+                        action_failed = False
+
                         if chosen_indefinite.location != IndefiniteAction.Location.SPECIAL:
                             chosen_element, chosen_xpath, type_list = await get_chosen_element(
                                 self.page,
@@ -291,11 +304,17 @@ class Agent:
                                 type_list
                             )
                             if not success:
-                                print(f"This action was broken: {chosen_action}")
-                                self.stop()
+                                action_failed = True
+                                # self.stop()
                         else:
                             if chosen_action.action_type == Action.Type.STOP:
-                                self.stop()
+                                # self.failed_count += 1
+                                # if self.failed_count > self.retry_cap:
+                                #     self.stop()
+                                # else:
+                                #     self.action_mem = self.action_mem[:-1]  # pop may break
+                                action_failed = True  # currently we assume the agent stopping itself is an error, may want a special load action????
+
                             elif chosen_action.action_type == Action.Type.INPUT_GIVEN_INTENT:
                                 desired = call_input_agent(
                                     self.task, reason_for_action,
@@ -323,10 +342,20 @@ class Agent:
                                         type_list
                                     )
                                     if not success:
-                                        self.stop()
+                                        action_failed = True  # note that AD still sees curr ax tree and input agent is independent, so shouldn't break
+                                        # self.stop()
 
                                     if self.stop_event.is_set():
                                         break
+
+                        if action_failed:
+                            self.action_mem = self.action_mem[:-1]
+                            self.failed_count += 1
+                            if self.failed_count > self.retry_cap:
+                                self.stop()
+                        else:
+                            self.failed_count = 0
+                            old_inf_tree = curr_inf_tree
 
                     else:
                         print("No matched state, why?")
@@ -337,18 +366,23 @@ class Agent:
                     break
                 gc.collect()
 
-                start_time = time.time()
 
-                await asyncio.sleep(1)
+                if self.fast_mode:
+                    start_time = time.time()
 
-                while time.time() - start_time <= 5.5:
-                    is_loaded = await self.check_if_loaded_text()
-                    if is_loaded:
-                        break
-                    else:
-                        await asyncio.sleep(0.1)
+                    await asyncio.sleep(1)  # Initial sleep
 
-                print(f"Lapsed time: {time.time() - start_time}")
+                    try:
+                        # Set the remaining time as the timeout (6 seconds total - 1 second already slept)
+                        await asyncio.wait_for(self.loop_until_loaded(start_time), timeout=5)
+                    except asyncio.TimeoutError:
+                        print("Timeout reached while waiting for text to load.")
+
+                    print(f"Lapsed time: {time.time() - start_time}")
+                else:
+                    await asyncio.sleep(6)
+
+
                 if self.stop_event.is_set():
                     break
         except Exception as e:
