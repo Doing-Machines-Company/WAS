@@ -66,9 +66,9 @@ class AxObservation(PageObservation):
                         "role": role,
                         "indent": indent,
                         "properties": properties,
-                        "html": node['html'] if 'html' in node else None,
-                        "xpath": node['xpath'] if 'html' in node else None,
-                        "parent_html": node['parent_html'] if 'parent_html' in node else None
+                        "html": node['html'] if 'html' in node else "",  # MUST BE EMPTY STRING OR MAY BREAK AX NODE TO ACTION CODE
+                        "xpath": node['xpath'] if 'html' in node else "",
+                        "parent_html": node['parent_html'] if 'parent_html' in node else ""
                     }
                     self.nodes_info.append(node_info)
 

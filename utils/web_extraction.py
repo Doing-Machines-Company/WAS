@@ -188,7 +188,7 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
 
     if xpath and html and xpath.strip() != "" and html.strip() != "":
         # Check if the action is a pure link in the header or footer
-        if role.strip () in ignored_roles:
+        if role.strip() in ignored_roles:
             # return IndefiniteAction([], None, nodeId, IndefiniteAction.Location.UNDEFINED)  # may just want to return None?
             return None
 
