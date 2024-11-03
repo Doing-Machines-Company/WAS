@@ -11,7 +11,13 @@ import os
 from collections import defaultdict
 
 # Initialize Socket.IO server with ASGI mode
-sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
+# sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
+sio = socketio.AsyncServer(
+    async_mode='asgi',
+    cors_allowed_origins='*',
+    ping_interval=30,    # Ping every 30 seconds
+    ping_timeout=120     # Timeout after 120 seconds without pong
+)
 app = FastAPI()
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
 

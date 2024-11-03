@@ -187,7 +187,7 @@ async def apply_action(page: PlaywrightPage, a: Action, before_screenshot: bytes
                 count = await playwright_element.count()
                 if count > 0 or found_xpath:
                     try:
-                        page.evaluate(f"""
+                        await page.evaluate(f"""
                                 (xpath) => {{
                                     const option = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
                                     if (option) {{
