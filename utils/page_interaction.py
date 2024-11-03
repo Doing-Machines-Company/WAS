@@ -11,7 +11,7 @@ from typing import Optional, List, Any
 
 async def login(page):
     # print('LOGGING IN')
-    await page.goto('https://www.dominos.com/en/restaurants?type=Delivery')
+    await page.goto('https://www.dominos.com/en/restaurants?type=Carryout')
     await wait_for_load(page)
     # await page.get_by_label("Street Address", exact=False).fill('934 Keeamoku Street')
     # await page.get_by_label("Suite/Apt #", exact=False).fill('')
@@ -23,16 +23,17 @@ async def login(page):
     # await page.get_by_label("ZIP Code", exact=False).fill('15206')
     # await page.get_by_label("City", exact=False).fill('Pittsburgh')
     # await page.get_by_label("State", exact=False).select_option('PA')  # THIS
-    await page.get_by_label("Street Address", exact=False).fill('5000 Forbes Ave')
-    await page.get_by_label("ZIP Code", exact=False).fill('15213')
+    # await page.get_by_label("Street Address", exact=False).fill('5000 Forbes Ave')
+    # await page.get_by_label("ZIP Code", exact=False).fill('15213')
     await page.get_by_label("City", exact=False).fill('Pittsburgh')
     await page.get_by_label("State", exact=False).select_option('PA')  # THIS
-    await page.get_by_role("button", name="Continue for Delivery").click()
+    await page.get_by_role("button", name="Find a Store").click()
     await wait_for_load(page)
-    await page.get_by_role("button", name="Delivery To").click()
-    await page.get_by_role("button", name="Change").click()
-    await page.get_by_role("button", name="Carryout").click()
-    await page.get_by_role("button", name="Continue").click()
+    # await page.get_by_role("button", name="Delivery To").click()
+    # await page.get_by_role("button", name="Change").click()
+    # await page.get_by_role("button", name="Carryout").click()
+    first_item = page.get_by_role("link", name="Store Pickup").nth(1)
+    await first_item.click()
     await wait_for_load(page)
 
 async def setup_context(browser, cookies, logged_in = True, attempts = 3):
