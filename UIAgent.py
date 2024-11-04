@@ -1,5 +1,3 @@
-# UIAgent.py
-
 import copy
 import asyncio
 import gc
@@ -14,6 +12,19 @@ import os
 import pickle
 from utils.inference_data import *
 from utils.trajectory_saves import *
+from inferenceagent import (
+    call_action_agent,
+    call_unified_task_clarifier,
+    call_reflect_agent,
+    call_memory_agent,
+    call_task_separator,
+    call_task_clarifier,
+    call_input_agent,
+    call_unified_question_cleaner,
+    call_check_load_agent_text,
+    call_check_load_agent_screenshot
+)
+
 
 class Agent:
     def __init__(self, fast_mode=False, retry_cap=2):
@@ -25,7 +36,7 @@ class Agent:
         # self.reset() UI resets agent, delete agent after done
         self.initialize_index()
 
-    # def reset(self):
+        # def reset(self):
         self.scraper_state_file = 'dominos/scraper_state.pkl'
         self.url_state_manager = load_scraper_state(self.scraper_state_file)
         self.task = None
@@ -72,7 +83,7 @@ class Agent:
                                                  vector_store_kwargs={"mmr_threshold": 1})
         print("took", time.time() - start)
 
-    def formulate_questions(self):
+    async def formulate_questions(self):
         def autoregressive_retrieve(index, task, k=2):
             new_task = task
             nodes = []
@@ -85,7 +96,11 @@ class Agent:
 
         top_k = 2
         self.context_info = "\n".join([node.get_content() for node in self.retriever.retrieve(self.task)])
-        self.interesting_items = call_task_separator(self.task).parsed_output
+
+        # Await the asynchronous call_task_separator
+        agent_call = await call_task_separator(self.task)
+        self.interesting_items = agent_call.parsed_output if agent_call.parsed_output else []
+
         self.item_context_pairs = "\n\n".join([
             "Item: " + item + "\n" + "Context: " + "".join(
                 [node.get_content() for node in autoregressive_retrieve(self.index, item, top_k)]
@@ -95,10 +110,17 @@ class Agent:
 
         self.saved_trajectory.important_info = self.item_context_pairs
 
-        with open('data/questions.txt', 'r') as f:
-            self.question_context = f.read()
+        # Read questions.txt asynchronously
+        def read_questions():
+            with open('data/questions.txt', 'r') as f:
+                return f.read()
+
+        self.question_context = await asyncio.to_thread(read_questions)
         print("Question Context\n", self.question_context)
-        self.questions = call_unified_task_clarifier(self.task, self.question_context).parsed_output
+
+        # Await the asynchronous call_unified_task_clarifier
+        agent_call = await call_unified_task_clarifier(self.task, self.question_context)
+        self.questions = agent_call.parsed_output if agent_call.parsed_output else []
 
     async def launch_browser(self):
         async with self.playwright_lock:
@@ -153,23 +175,26 @@ class Agent:
                 screenshot = await self.page.screenshot(full_page=False)
                 base64_screenshot = base64.b64encode(screenshot).decode('utf-8')
                 data_url = f"data:image/png;base64,{base64_screenshot}"
-                call_check_load_agent_screenshot(data_url)
-
+                await call_check_load_agent_screenshot(data_url)
 
     async def check_if_loaded_text(self):
         async with self.playwright_lock:
             ax_nodes = await get_ax_tree_no_extras(self.cdp_session)
             cleaned = AxObservation(ax_nodes, self.page.url)
-            is_loaded = call_check_load_agent_text(cleaned)
+            is_loaded = await call_check_load_agent_text(cleaned)
             return is_loaded
 
-    async def loop_until_loaded(self, start_time):
-        while time.time() - start_time <= 6:
+    async def loop_until_loaded(self, start_time, wait_time=6):
+        await asyncio.sleep(1)
+        is_loaded = False
+        while time.time() - start_time <= wait_time // 2:
             is_loaded = await self.check_if_loaded_text()
             if is_loaded:
                 break
             else:
-                await asyncio.sleep(0.3)
+                await asyncio.sleep(0.5)
+        if not is_loaded:
+            await asyncio.sleep(wait_time // 2)
 
     async def run(self):
         await self.launch_browser()
@@ -181,7 +206,7 @@ class Agent:
                     self.saved_trajectory.user_input_task = self.task
 
             if not self.stop_event.is_set():
-                self.formulate_questions()
+                await self.formulate_questions()
                 print(self.questions)
                 for question in self.questions:
                     if self.stop_event.is_set():
@@ -195,8 +220,10 @@ class Agent:
             self.saved_trajectory.question_answers = self.question_answers
 
             if not self.stop_event.is_set():
-                self.task = call_unified_question_cleaner(self.task, self.question_answers).parsed_output
-                self.cleaned_task = self.saved_trajectory.cleaned_task
+                agent_call = await call_unified_question_cleaner(self.task, self.question_answers)
+                if agent_call.parsed_output:
+                    self.task = agent_call.parsed_output
+                    self.cleaned_task = self.saved_trajectory.cleaned_task
 
             base_state = None
             old_inf_tree = ''
@@ -236,9 +263,10 @@ class Agent:
                             break
 
                         if str(old_inf_tree) != '':  # MAKE THIS LESS BAD
-                            reflect_response_call = call_reflect_agent(
+                            reflect_response_call = await call_reflect_agent(
                                 reason_for_action,
-                                str(old_inf_tree.get_tree_with_specific_action_effect(reflect_action_indices)),  # reflect_action_indices used to be chosen_action_index
+                                str(old_inf_tree.get_tree_with_specific_action_effect(reflect_action_indices)),
+                                # reflect_action_indices used to be chosen_action_index
                                 curr_inf_tree.get_raw_tree(), self.task
                             )
                             self.curr_save_node.reflect_call = copy.deepcopy(reflect_response_call)
@@ -259,7 +287,7 @@ class Agent:
                         if self.stop_event.is_set():
                             break
 
-                        action_out_call = call_action_agent(
+                        action_out_call = await call_action_agent(
                             self.task, curr_inf_tree,
                             self.action_mem, self.item_context_pairs, provider="anthropic"
                         )
@@ -282,12 +310,12 @@ class Agent:
                         chosen_indefinite = curr_inf_tree.get_action_from_index(chosen_action_index)
                         chosen_action = chosen_indefinite.action
 
-
-
-                        if chosen_action is not None and chosen_action.html is not None and ('payment-order-now' in chosen_action.html or 'Place Your Order' in chosen_action.html):
-                            await self.output_queue.put(('exit_message', "Stopping agent to prevent actually buying a Pizza"))
+                        if chosen_action is not None and chosen_action.html is not None and (
+                                'payment-order-now' in chosen_action.html or 'Place Your Order' in chosen_action.html):
+                            await self.output_queue.put(
+                                ('exit_message', "Stopping agent to prevent actually buying a Pizza"))
                             self.stop()
-                        elif chosen_indefinite.location != IndefiniteAction.Location.SPECIAL and "pages/order/payment" in self.page.url: # may be a bad check
+                        elif chosen_indefinite.location != IndefiniteAction.Location.SPECIAL and "pages/order/payment" in self.page.url:  # may be a bad check
                             await self.output_queue.put(
                                 ('exit_message', "Stopping agent to prevent actually buying a Pizza"))
                             self.stop()
@@ -320,14 +348,14 @@ class Agent:
                                 action_failed = True  # currently we assume the agent stopping itself is an error, may want a special load action????
 
                             elif chosen_action.action_type == Action.Type.INPUT_GIVEN_INTENT:
-                                desired = call_input_agent(
+                                desired = await call_input_agent(
                                     self.task, reason_for_action,
                                     curr_inf_tree.get_input_tree(), self.context_info,
                                     self.hidden_inputs
-                                ).parsed_output
-                                if self.stop_event.is_set():
-                                    break
-                                for (chosen_action_index, input_string) in desired:
+                                )
+                                if desired.parsed_output is None:
+                                    raise Exception
+                                for (chosen_action_index, input_string) in desired.parsed_output:
                                     if self.stop_event.is_set():
                                         break
                                     reflect_action_indices.append(chosen_action_index)
@@ -370,22 +398,16 @@ class Agent:
                     break
                 gc.collect()
 
-
                 if self.fast_mode:
                     start_time = time.time()
-
-                    await asyncio.sleep(1)  # Initial sleep
-
                     try:
-                        # Set the remaining time as the timeout (6 seconds total - 1 second already slept)
-                        await asyncio.wait_for(self.loop_until_loaded(start_time), timeout=5)
+                        await asyncio.wait_for(self.loop_until_loaded(start_time, wait_time=6), timeout=7)
                     except asyncio.TimeoutError:
                         print("Timeout reached while waiting for text to load.")
 
                     print(f"Lapsed time: {time.time() - start_time}")
                 else:
                     await asyncio.sleep(6)
-
 
                 if self.stop_event.is_set():
                     break
