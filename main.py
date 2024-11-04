@@ -3,6 +3,7 @@ import socketio
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles  # Import StaticFiles
 import asyncio
 from UIAgent import Agent
 import gc
@@ -12,6 +13,7 @@ from collections import defaultdict
 
 # Initialize Socket.IO server with ASGI mode
 # sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
+# Initialize Socket.IO server with ASGI mode
 sio = socketio.AsyncServer(
     async_mode='asgi',
     cors_allowed_origins='*',
@@ -19,6 +21,10 @@ sio = socketio.AsyncServer(
     ping_timeout=120     # Timeout after 120 seconds without pong
 )
 app = FastAPI()
+
+# Mount the static files directory
+app.mount("/static", StaticFiles(directory="templates/static"), name="static")
+
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
 
 # Set up templates directory
