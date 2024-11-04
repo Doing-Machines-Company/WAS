@@ -32,7 +32,8 @@ templates = Jinja2Templates(directory="templates")
 
 # Define valid keys (replace with your actual keys or load from environment variables)
 slow_keys = set(['key1', 'key2', 'key3', 'gneubig', 'mrpronoun', 'bhpchiang', 'punwaiw', 'domschmidt'])  # Example keys
-fast_keys = set(['mrpronounfast', 'bhpchiangfast', 'keyfast', 'domschmidtfast', 'mihirprabfast', 'gneubigfast'])
+# fast_keys = set(['mrpronounfast', 'bhpchiangfast', 'keyfast', 'domschmidtfast', 'mihirprabfast', 'gneubigfast'])
+fast_keys = set(['fastkey1202', 'cempersonal', 'bt2445', 'cerebrasfellows', 'jamespersonal'])
 valid_keys = slow_keys | fast_keys
 # Alternatively, load from an environment variable:
 # valid_keys = set(k.strip() for k in os.getenv('VALID_KEYS', '').split(',') if k.strip())
