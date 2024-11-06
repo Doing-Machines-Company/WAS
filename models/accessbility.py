@@ -17,7 +17,7 @@ class PageObservation(ABC):
     def __eq__(self, other : PageObservation) -> bool:
         pass
 class AxObservation(PageObservation):
-    def __init__(self, axtree, url):
+    def __init__(self, axtree, url, processed = True):
         self.axtree = axtree
         self.url = url
         node_id_to_idx = {}
@@ -41,6 +41,8 @@ class AxObservation(PageObservation):
                         if property["name"] in ignored_properties:
                             continue
                         elif property["name"] == "hidden" and property["value"]["value"]:
+                            if not processed:
+                                continue 
                             valid_node = False
                             break
                         properties.append(f'{property["name"]}: {property["value"]["value"]}')

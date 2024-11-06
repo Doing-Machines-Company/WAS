@@ -180,7 +180,7 @@ class Agent:
     async def check_if_loaded_text(self):
         async with self.playwright_lock:
             ax_nodes = await get_ax_tree_no_extras(self.cdp_session)
-            cleaned = AxObservation(ax_nodes, self.page.url)
+            cleaned = AxObservation(ax_nodes, self.page.url, processed = False)
             is_loaded = await call_check_load_agent_text(cleaned)
             return is_loaded
 
@@ -408,7 +408,7 @@ class Agent:
                     print(f"Lapsed time: {time.time() - start_time}")
                 else:
                     await asyncio.sleep(6)
-
+                input()
                 if self.stop_event.is_set():
                     break
         except Exception as e:
