@@ -50,7 +50,7 @@ async def call_llm(
     """
     if provider == "anthropic":
         def anthropic_call():
-            message = anthropic_client.messages.create(
+            message = anthropic_client.beta.prompt_caching.messages.create(
                 model=model,
                 max_tokens=max_tokens,
                 temperature=0,
@@ -58,6 +58,7 @@ async def call_llm(
                     {
                         "type": "text",
                         "text": system_prompt,
+                        "cache_control": {"type": "ephemeral"}
                     }
                 ],
                 messages=[
@@ -274,7 +275,6 @@ async def call_action_agent(
         'action_memory': new_action_memory,
     }
     user_prompt = string.Template(user_prompt_template).substitute(replacements)
-
     # Read system prompt template asynchronously
     def read_system_prompt():
         with open('prompts/action_decider/action_decider_system_v2.txt', 'r') as f:
