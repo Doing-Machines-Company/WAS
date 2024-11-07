@@ -184,8 +184,68 @@ class Agent:
             is_loaded = await call_check_load_agent_text(cleaned)
             return is_loaded
 
-    async def loop_until_loaded(self, start_time, wait_time=6):
-        await asyncio.sleep(1)
+    async def wait_for_network_idle(self, idle_time=0.2, timeout=1.0):
+        """
+        Wait until there are no network requests for `idle_time` seconds,
+        but no longer than `timeout` seconds in total.
+
+        Args:
+            idle_time (float): Seconds of no network activity to consider idle.
+            timeout (float): Maximum seconds to wait.
+
+        Raises:
+            asyncio.TimeoutError: If the network does not become idle within `timeout`.
+        """
+        active_requests = set()
+        idle_event = asyncio.Event()
+
+        async def set_idle():
+            await asyncio.sleep(idle_time)
+            if not active_requests:
+                idle_event.set()
+
+        def on_request(request):
+            active_requests.add(request)
+            idle_event.clear()
+
+        def on_request_finished(request):
+            active_requests.discard(request)
+            if not active_requests:
+                asyncio.create_task(set_idle())
+
+        def on_request_failed(request):
+            active_requests.discard(request)
+            if not active_requests:
+                asyncio.create_task(set_idle())
+
+        # Attach event listeners
+        self.page.on("request", on_request)
+        self.page.on("requestfinished", on_request_finished)
+        self.page.on("requestfailed", on_request_failed)
+
+        try:
+            # Initial check: if no active requests, start idle timer
+            if not active_requests:
+                asyncio.create_task(set_idle())
+
+            # Wait for idle_event or timeout
+            await asyncio.wait_for(idle_event.wait(), timeout=timeout)
+        except asyncio.TimeoutError:
+            print(f"Timeout: Network did not become idle within {timeout} seconds.")
+        finally:
+            # Remove event listeners to prevent memory leaks
+            self.page.off("request", on_request)
+            self.page.off("requestfinished", on_request_finished)
+            self.page.off("requestfailed", on_request_failed)
+
+    async def loop_until_loaded(self, wait_time=6):
+        # await asyncio.sleep(1)
+        start_time = time.time()
+        try:
+            # await self.page.wait_for_load_state('networkidle', timeout=1000)
+            await self.wait_for_network_idle(idle_time=0.2, timeout=1)
+        except:
+            pass
         is_loaded = False
         while time.time() - start_time <= wait_time // 2:
             is_loaded = await self.check_if_loaded_text()
@@ -400,15 +460,16 @@ class Agent:
 
                 if self.fast_mode:
                     start_time = time.time()
+                    wait_time = 6
+                    timeout_wait = wait_time + 1
                     try:
-                        await asyncio.wait_for(self.loop_until_loaded(start_time, wait_time=6), timeout=7)
+                        await asyncio.wait_for(self.loop_until_loaded(wait_time=wait_time), timeout=timeout_wait)
                     except asyncio.TimeoutError:
                         print("Timeout reached while waiting for text to load.")
 
                     print(f"Lapsed time: {time.time() - start_time}")
                 else:
                     await asyncio.sleep(6)
-                input()
                 if self.stop_event.is_set():
                     break
         except Exception as e:
