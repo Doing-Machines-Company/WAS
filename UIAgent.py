@@ -180,8 +180,12 @@ class Agent:
     async def check_if_loaded_text(self):
         async with self.playwright_lock:
             ax_nodes = await get_ax_tree_no_extras(self.cdp_session)
-            cleaned = AxObservation(ax_nodes, self.page.url, processed = False)
-            is_loaded = await call_check_load_agent_text(cleaned)
+            cleaned = AxObservation(ax_nodes, self.page.url, processed=False)
+            try:
+                is_loaded = await asyncio.wait_for(call_check_load_agent_text(cleaned), timeout=1)
+            except asyncio.TimeoutError:
+                print("Timeout: call_check_load_agent_text took too long.")
+                is_loaded = False
             return is_loaded
 
     async def wait_for_network_idle(self, idle_time=0.2, timeout=1.0):
