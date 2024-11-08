@@ -50,7 +50,7 @@ async def call_llm(
     """
     if provider == "anthropic":
         def anthropic_call():
-            message = anthropic_client.beta.prompt_caching.messages.create(
+            message = anthropic_client.messages.create(
                 model=model,
                 max_tokens=max_tokens,
                 temperature=0,
@@ -58,7 +58,6 @@ async def call_llm(
                     {
                         "type": "text",
                         "text": system_prompt,
-                        "cache_control": {"type": "ephemeral"}
                     }
                 ],
                 messages=[
