@@ -5,21 +5,22 @@ import string
 import json
 import asyncio
 from dataclasses import dataclass
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Any
 from utils.inference_data import HiddenInput  # Ensure HiddenInput is properly defined in your module
 from groq import Groq
 from together import Together
 from openai import OpenAI
 from cerebras.cloud.sdk import Cerebras
 import google.generativeai as google_client
+from pydantic import BaseModel
 
 
 @dataclass
 class AgentCall:
     system_prompt: str
     user_prompt: str
-    llm_response: str
-    parsed_output: Optional[str] = None  # Made optional for flexibility
+    llm_response: Any
+    parsed_output: Optional[Any] = None
 
 
 # Initialize API clients outside of functions to avoid re-initialization
@@ -247,6 +248,58 @@ async def call_llm(
         llm_response=output
     )
 
+async def call_4o_structured_action(
+    system_prompt: str = '',
+    user_prompt: str = '',
+    max_tokens: int = 10000
+) -> AgentCall:
+
+
+    def call_structured_4o():
+        class ReasoningStep(BaseModel):
+            step_number: int
+            thought: str
+            conclusion: str
+
+        class ChosenAction(BaseModel):
+            action_number: int
+            action_reason: str
+
+        class ChainOfThought(BaseModel):
+            steps: List[ReasoningStep]
+            chosen_action_sequence: List[ChosenAction]
+
+        completion = openai_client.beta.chat.completions.parse(
+            model="gpt-4o-2024-08-06",
+            temperature=0,
+            max_tokens=max_tokens,
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": user_prompt
+                }
+            ],
+            response_format=ChainOfThought
+        )
+        return completion
+
+    # completion = call_structured_4o()
+
+    completion = await asyncio.to_thread(call_structured_4o)
+
+    chosen_actions = [(chosen.action_number, chosen.action_reason) for chosen in completion.choices[0].message.parsed.chosen_action_sequence]
+
+    return AgentCall(
+        system_prompt=system_prompt,
+        user_prompt=user_prompt,
+        llm_response=completion.choices[0].message,
+        parsed_output=chosen_actions
+    )
+
 
 async def call_action_agent(
     task: str,
@@ -299,6 +352,49 @@ async def call_action_agent(
     # Update the parsed_output in AgentCall
     agent_call.parsed_output = parsed_output
 
+    return agent_call
+
+async def call_action_agent_multi(
+    task: str,
+    ax_tree: str,
+    action_memory: List,  # Define the specific type if available
+    context: str,
+    provider:str = 'openai'
+) -> AgentCall:
+    """
+    Asynchronously calls the action agent LLM and processes its response.
+    """
+    new_action_memory = ''
+    for i, lin_mem in enumerate(action_memory):
+        new_action_memory += f"\n{i + 1}) LOCATION: {lin_mem.object_details}\n{i + 1}) EFFECT: {lin_mem.location_details}"
+
+    if provider == 'openai':
+        def read_user_prompt():
+            with open('prompts/action_decider/action_decider_multi_user_OAI.txt', 'r') as f:
+                return f.read()
+
+        user_prompt_template = await asyncio.to_thread(read_user_prompt)
+        replacements = {
+            'ax_tree': ax_tree,
+            'task': task,
+            'action_memory': new_action_memory,
+        }
+        user_prompt = string.Template(user_prompt_template).substitute(replacements)
+        def read_system_prompt():
+            with open('prompts/action_decider/action_decider_multi_system_OAI.txt', 'r') as f:
+                return f.read()
+
+        system_prompt_template = await asyncio.to_thread(read_system_prompt)
+        replacements = {
+            'context': context
+        }
+        system_prompt = string.Template(system_prompt_template).substitute(replacements)
+
+
+        agent_call = await call_4o_structured_action(system_prompt=system_prompt, user_prompt=user_prompt)
+
+    elif provider == 'anthropic':
+        pass
     return agent_call
 
 

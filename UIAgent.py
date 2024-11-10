@@ -351,100 +351,107 @@ class Agent:
                         if self.stop_event.is_set():
                             break
 
-                        action_out_call = await call_action_agent(
-                            self.task, curr_inf_tree,
-                            self.action_mem, self.item_context_pairs, provider="anthropic"
-                        )
+                        # action_out_call = await call_action_agent(
+                        #     self.task, curr_inf_tree,
+                        #     self.action_mem, self.item_context_pairs, provider="anthropic"
+                        # )
+                        # action_out_list = [action_out_call.parsed_output]  # a single action
+
+
+                        # TEST
+                        action_out_call = await call_action_agent_multi(self.task, curr_inf_tree, self.action_mem, self.item_context_pairs)
+
+                        #TEST
                         # Check stop_event after API call
                         if self.stop_event.is_set():
                             break
-                        self.curr_save_node.ad_call = copy.deepcopy(action_out_call)
-                        action_out = action_out_call.parsed_output
-                        print("Action took", time.time() - start)
+                        self.curr_save_node.ad_call = str(action_out_call)
 
-                        if action_out is None:
+                        action_out_list = action_out_call.parsed_output
+                        print("Action took", time.time() - start)
+                        print(action_out_list)
+
+                        if action_out_list is None or (action_out_list == []):
+                            # Now as action_out is a list, this may not ever be None due to structured outputs
                             raise Exception
 
-                        chosen_action_index, reason_for_action = action_out
-                        reflect_action_indices = [chosen_action_index]
-                        reason_for_action = reason_for_action.encode('utf-8').decode('unicode_escape')
-                        print(f'reason_for_action: {reason_for_action}')
-                        await self.output_queue.put(('only_out', reason_for_action))
+                        first_action_success = False
+                        reflect_action_indices = []
+                        for action_out in action_out_list:
+                            print("PISSS")
+                            chosen_action_index, reason_for_action = action_out  # we choose a list of actions in support, everything set up like input
+                            reflect_action_indices.append(chosen_action_index)
+                            reason_for_action = reason_for_action.encode('utf-8').decode('unicode_escape')
+                            print(f'reason_for_action: {reason_for_action}')
+                            await self.output_queue.put(('only_out', reason_for_action))
 
-                        chosen_indefinite = curr_inf_tree.get_action_from_index(chosen_action_index)
-                        chosen_action = chosen_indefinite.action
+                            chosen_indefinite = curr_inf_tree.get_action_from_index(chosen_action_index)
+                            chosen_action = chosen_indefinite.action
 
-                        if chosen_action is not None and chosen_action.html is not None and (
-                                'payment-order-now' in chosen_action.html or 'Place Your Order' in chosen_action.html):
-                            await self.output_queue.put(
-                                ('exit_message', "Stopping agent to prevent actually buying a Pizza"))
-                            self.stop()
-                        elif chosen_indefinite.location != IndefiniteAction.Location.SPECIAL and "pages/order/payment" in self.page.url:  # may be a bad check
-                            await self.output_queue.put(
-                                ('exit_message', "Stopping agent to prevent actually buying a Pizza"))
-                            self.stop()
+                            if chosen_action is not None and chosen_action.html is not None and (
+                                    'payment-order-now' in chosen_action.html or 'Place Your Order' in chosen_action.html):
+                                await self.output_queue.put(
+                                    ('exit_message', "Stopping agent to prevent actually buying a Pizza"))
+                                self.stop()
+                            elif chosen_indefinite.location != IndefiniteAction.Location.SPECIAL and "pages/order/payment" in self.page.url:  # may be a bad check
+                                await self.output_queue.put(
+                                    ('exit_message', "Stopping agent to prevent actually buying a Pizza"))
+                                self.stop()
 
-                        # Check stop_event after API call
-                        if self.stop_event.is_set():
-                            break
+                            # Check stop_event after API call
+                            if self.stop_event.is_set():
+                                break
 
-                        action_failed = False
 
-                        if chosen_indefinite.location != IndefiniteAction.Location.SPECIAL:
-                            chosen_element, chosen_xpath, type_list = await get_chosen_element(
-                                self.page,
-                                chosen_indefinite
-                            )
-                            success = await do_action_flow(
-                                self.page, chosen_action, chosen_element, chosen_xpath,
-                                type_list
-                            )
-                            if not success:
-                                action_failed = True
-                                # self.stop()
-                        else:
-                            if chosen_action.action_type == Action.Type.STOP:
-                                # self.failed_count += 1
-                                # if self.failed_count > self.retry_cap:
-                                #     self.stop()
-                                # else:
-                                #     self.action_mem = self.action_mem[:-1]  # pop may break
-                                action_failed = True  # currently we assume the agent stopping itself is an error, may want a special load action????
 
-                            elif chosen_action.action_type == Action.Type.INPUT_GIVEN_INTENT:
-                                desired = await call_input_agent(
-                                    self.task, reason_for_action,
-                                    curr_inf_tree.get_input_tree(), self.context_info,
-                                    self.hidden_inputs
+                            if chosen_indefinite.location != IndefiniteAction.Location.SPECIAL:
+                                chosen_element, chosen_xpath, type_list = await get_chosen_element(
+                                    self.page,
+                                    chosen_indefinite
                                 )
-                                if desired.parsed_output is None:
-                                    raise Exception
-                                for (chosen_action_index, input_string) in desired.parsed_output:
-                                    if self.stop_event.is_set():
-                                        break
-                                    reflect_action_indices.append(chosen_action_index)
-                                    unhidden_input_string = replace_hidden_inputs(input_string, self.hidden_inputs)
-                                    chosen_indefinite = curr_inf_tree.get_action_from_index(chosen_action_index)
-                                    chosen_action = chosen_indefinite.action
-                                    chosen_element, chosen_xpath, type_list = await get_chosen_element(
-                                        self.page,
-                                        chosen_indefinite
-                                    )
-                                    chosen_action.set_input_string(unhidden_input_string)
-                                    if self.stop_event.is_set():
-                                        break
-                                    success = await do_action_flow(
-                                        self.page, chosen_action, chosen_element, chosen_xpath,
-                                        type_list
-                                    )
-                                    if not success:
-                                        action_failed = True  # note that AD still sees curr ax tree and input agent is independent, so shouldn't break
-                                        # self.stop()
+                                success = await do_action_flow(
+                                    self.page, chosen_action, chosen_element, chosen_xpath,
+                                    type_list
+                                )
+                                if success:
+                                    first_action_success = True
+                            else:
+                                if chosen_action.action_type == Action.Type.STOP:
+                                    first_action_success = False  # currently we assume the agent stopping itself is an error, may want a special load action????
 
-                                    if self.stop_event.is_set():
-                                        break
+                                elif chosen_action.action_type == Action.Type.INPUT_GIVEN_INTENT:
+                                    desired = await call_input_agent(
+                                        self.task, reason_for_action,
+                                        curr_inf_tree.get_input_tree(), self.context_info,
+                                        self.hidden_inputs
+                                    )
+                                    if desired.parsed_output is None:
+                                        raise Exception
+                                    for (chosen_action_index, input_string) in desired.parsed_output:
+                                        if self.stop_event.is_set():
+                                            break
+                                        reflect_action_indices.append(chosen_action_index)
+                                        unhidden_input_string = replace_hidden_inputs(input_string, self.hidden_inputs)
+                                        chosen_indefinite = curr_inf_tree.get_action_from_index(chosen_action_index)
+                                        chosen_action = chosen_indefinite.action
+                                        chosen_element, chosen_xpath, type_list = await get_chosen_element(
+                                            self.page,
+                                            chosen_indefinite
+                                        )
+                                        chosen_action.set_input_string(unhidden_input_string)
+                                        if self.stop_event.is_set():
+                                            break
+                                        success = await do_action_flow(
+                                            self.page, chosen_action, chosen_element, chosen_xpath,
+                                            type_list
+                                        )
+                                        if success:
+                                            first_action_success = True
 
-                        if action_failed:
+                                        if self.stop_event.is_set():
+                                            break
+
+                        if not first_action_success:
                             self.action_mem = self.action_mem[:-1]
                             self.failed_count += 1
                             if self.failed_count > self.retry_cap:
