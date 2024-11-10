@@ -407,9 +407,15 @@ class Agent:
                                 break
 
 
+                            """
+                            
+                            As a matter of philosophy, if we fail in performing an action we don't tell reflect that.
+                            It's not the bot messing up, it's not the website being bad, it's us.
+                            
+                            """
+
 
                             if chosen_indefinite.location != IndefiniteAction.Location.SPECIAL:
-                                reflect_action_indices.append(chosen_action_index)
                                 chosen_element, chosen_xpath, type_list = await get_chosen_element(
                                     self.page,
                                     chosen_indefinite
@@ -420,10 +426,15 @@ class Agent:
                                 )
                                 if success:
                                     first_action_success = True
+                                    reflect_action_indices.append(chosen_action_index)
                             else:
                                 if chosen_action.action_type == Action.Type.STOP:
+
+
+
                                     pass  # IGNORE FOR NOW, THINK ABOUT BETTER LOGIC LATER
                                 elif chosen_action.action_type == Action.Type.INPUT_GIVEN_INTENT:
+                                    reflect_action_indices.append(chosen_action_index)
                                     desired = await call_input_agent(
                                         self.task, reason_for_action,
                                         curr_inf_tree.get_input_tree(), self.context_info,
@@ -434,7 +445,7 @@ class Agent:
                                     for (chosen_action_index, input_string) in desired.parsed_output:
                                         if self.stop_event.is_set():
                                             break
-                                        reflect_action_indices.append(chosen_action_index)
+
                                         unhidden_input_string = replace_hidden_inputs(input_string, self.hidden_inputs)
                                         chosen_indefinite = curr_inf_tree.get_action_from_index(chosen_action_index)
                                         chosen_action = chosen_indefinite.action
@@ -451,6 +462,7 @@ class Agent:
                                         )
                                         if success:
                                             first_action_success = True
+                                            reflect_action_indices.append(chosen_action_index)
 
                                         if self.stop_event.is_set():
                                             break
