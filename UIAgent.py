@@ -359,28 +359,32 @@ class Agent:
 
 
                         # TEST
-                        action_out_call = await call_action_agent_multi(self.task, curr_inf_tree, self.action_mem, self.item_context_pairs)
+                        action_out_call = await call_action_agent_multi(self.task, curr_inf_tree, self.action_mem, self.item_context_pairs, provider='anthropic')
 
-                        #TEST
+
+                        self.curr_save_node.ad_call = str(action_out_call)
+                        # TEST
                         # Check stop_event after API call
                         if self.stop_event.is_set():
                             break
-                        self.curr_save_node.ad_call = str(action_out_call)
 
                         action_out_list = action_out_call.parsed_output
                         print("Action took", time.time() - start)
                         print(action_out_list)
 
-                        if action_out_list is None or (action_out_list == []):
+                        if action_out_list is None:
                             # Now as action_out is a list, this may not ever be None due to structured outputs
                             raise Exception
 
+                        if action_out_list == []:
+                            print("NO ACTIONS GIVEN")
+
                         first_action_success = False
                         reflect_action_indices = []
+
                         for action_out in action_out_list:
-                            print("PISSS")
                             chosen_action_index, reason_for_action = action_out  # we choose a list of actions in support, everything set up like input
-                            reflect_action_indices.append(chosen_action_index)
+                            # reflect_action_indices.append(chosen_action_index)  # DO NOT PUT THIS HERE AS IT BREAKS SPECIAL ACTIONS FOR INF TREE
                             reason_for_action = reason_for_action.encode('utf-8').decode('unicode_escape')
                             print(f'reason_for_action: {reason_for_action}')
                             await self.output_queue.put(('only_out', reason_for_action))
@@ -405,6 +409,7 @@ class Agent:
 
 
                             if chosen_indefinite.location != IndefiniteAction.Location.SPECIAL:
+                                reflect_action_indices.append(chosen_action_index)
                                 chosen_element, chosen_xpath, type_list = await get_chosen_element(
                                     self.page,
                                     chosen_indefinite
@@ -417,8 +422,7 @@ class Agent:
                                     first_action_success = True
                             else:
                                 if chosen_action.action_type == Action.Type.STOP:
-                                    first_action_success = False  # currently we assume the agent stopping itself is an error, may want a special load action????
-
+                                    pass  # IGNORE FOR NOW, THINK ABOUT BETTER LOGIC LATER
                                 elif chosen_action.action_type == Action.Type.INPUT_GIVEN_INTENT:
                                     desired = await call_input_agent(
                                         self.task, reason_for_action,
@@ -450,7 +454,6 @@ class Agent:
 
                                         if self.stop_event.is_set():
                                             break
-
                         if not first_action_success:
                             self.action_mem = self.action_mem[:-1]
                             self.failed_count += 1

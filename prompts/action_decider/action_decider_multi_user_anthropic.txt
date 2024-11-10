@@ -27,5 +27,4 @@ Remember:
 - Assume that once you see a piece of information the user wants to retrieve, it's automatically given to the user.
 - Ensure that you fully complete the process of attaining what the user wants (i.e., you must complete the ENTIRE CHECKOUT PROCESS for the order to buy something). Assume that you have access to all the user's personal information.
 
-First, you MUST follow ALL the steps and their instructions carefully, reason step-by-step.
-Then, give me your final sequence of actions.
+First, you MUST follow ALL the steps and their instructions carefully, reason step-by-step. Then give me the final answer in the JSON format I specified.

@@ -364,6 +364,7 @@ async def call_action_agent_multi(
     """
     Asynchronously calls the action agent LLM and processes its response.
     """
+    agent_call = None
     new_action_memory = ''
     for i, lin_mem in enumerate(action_memory):
         new_action_memory += f"\n{i + 1}) LOCATION: {lin_mem.object_details}\n{i + 1}) EFFECT: {lin_mem.location_details}"
@@ -394,7 +395,60 @@ async def call_action_agent_multi(
         agent_call = await call_4o_structured_action(system_prompt=system_prompt, user_prompt=user_prompt)
 
     elif provider == 'anthropic':
-        pass
+        def read_user_prompt():
+            with open('prompts/action_decider/action_decider_multi_user_anthropic.txt', 'r') as f:
+                return f.read()
+
+        user_prompt_template = await asyncio.to_thread(read_user_prompt)
+        replacements = {
+            'ax_tree': ax_tree,
+            'task': task,
+            'action_memory': new_action_memory,
+        }
+        user_prompt = string.Template(user_prompt_template).substitute(replacements)
+
+        def read_system_prompt():
+            with open('prompts/action_decider/action_decider_multi_system_anthropic.txt', 'r') as f:
+                return f.read()
+
+        system_prompt_template = await asyncio.to_thread(read_system_prompt)
+        replacements = {
+            'context': context
+        }
+        system_prompt = string.Template(system_prompt_template).substitute(replacements)
+
+        agent_call = await call_llm(system_prompt=system_prompt, user_prompt=user_prompt)
+        output = agent_call.llm_response
+
+        json_pattern = re.compile(
+            r'```json\s*(\{.*?}|\[.*?])\s*```',
+            re.DOTALL | re.MULTILINE
+        )
+
+        match = json_pattern.search(output)
+        action_tuples = []
+
+        if match:
+            json_str = match.group(1)
+        else:
+            raise ValueError("No JSON block found in the LLM output.")
+
+        try:
+            actions = json.loads(json_str)
+
+            for action in actions:
+                if 'action_number' in action and 'action_reason' in action:
+                    tuple_entry = (action['action_number'], action['action_reason'])
+                    action_tuples.append(tuple_entry)
+
+        except json.JSONDecodeError as jde:
+            print(f"JSON Decode Error: {jde}")
+        except KeyError as ke:
+            print(f"Key Error: {ke}")
+
+
+        agent_call.parsed_output = action_tuples
+
     return agent_call
 
 
