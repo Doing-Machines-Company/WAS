@@ -61,6 +61,7 @@ class Agent:
         self.curr_save_node = None
         self.failed_count = 0
         self.saved_trajectory = SavedTrajectory()
+        self.init_special_actions()
 
     async def ask_user(self, question):
         await self.output_queue.put(('question', question))
@@ -177,16 +178,39 @@ class Agent:
                 data_url = f"data:image/png;base64,{base64_screenshot}"
                 await call_check_load_agent_screenshot(data_url)
 
+    async def get_light_tree(self):
+        ax_nodes = await get_ax_tree_no_extras(self.cdp_session)
+        cleaned = AxObservation(ax_nodes, self.page.url, numbered=False)
+        return cleaned
+
     async def check_if_loaded_text(self):
+
         async with self.playwright_lock:
-            ax_nodes = await get_ax_tree_no_extras(self.cdp_session)
-            cleaned = AxObservation(ax_nodes, self.page.url, processed=False)
+            # ax_nodes = await get_ax_tree_no_extras(self.cdp_session)
+            # cleaned = AxObservation(ax_nodes, self.page.url, numbered=False)
+            cleaned = await self.get_light_tree()
             try:
                 is_loaded = await asyncio.wait_for(call_check_load_agent_text(cleaned), timeout=1)
             except asyncio.TimeoutError:
                 print("Timeout: call_check_load_agent_text took too long.")
                 is_loaded = False
             return is_loaded
+
+    def init_special_actions(self):
+        stop_action = Action(Action.Type.STOP, None, None)
+        stop_action.set_special_effect(
+            'Stop trying to perform user task, use if task is impossible or finished. {Stops and give user control}')
+        stop_indefinite = IndefiniteAction([Action.Type.STOP], stop_action, None,
+                                           IndefiniteAction.Location.SPECIAL)
+
+        input_all_action = Action(Action.Type.INPUT_GIVEN_INTENT, None, None)
+        input_all_action.set_special_effect(
+            'Call an agent to fill in all inputs on the page given some intent. {The intent is action_reason you return in choose}')
+        input_all_indefinite = IndefiniteAction([Action.Type.INPUT_GIVEN_INTENT], input_all_action,
+                                                None,
+                                                IndefiniteAction.Location.SPECIAL)
+
+        self.special_actions = [stop_indefinite, input_all_indefinite]
 
     async def wait_for_network_idle(self, idle_time=0.2, timeout=1.0):
         """
@@ -290,11 +314,28 @@ class Agent:
                     self.cleaned_task = self.saved_trajectory.cleaned_task
 
             base_state = None
-            old_inf_tree = ''
+            old_inf_tree = None
 
             # Main action loop
             while not self.stop_event.is_set():
                 self.curr_save_node = SavedTrajectoryNode()
+
+                if self.fast_mode:
+                    start_time = time.time()
+                    wait_time = 6
+                    timeout_wait = wait_time + 1
+                    try:
+                        await asyncio.wait_for(self.loop_until_loaded(wait_time=wait_time), timeout=timeout_wait)
+                    except asyncio.TimeoutError:
+                        print("Timeout reached while waiting for text to load.")
+
+                    print(f"Lapsed time: {time.time() - start_time}")
+                else:
+                    await asyncio.sleep(6)
+
+                if self.stop_event.is_set():
+                    break
+
                 await self.capture_and_send_screenshot(self.curr_save_node)
 
                 async with self.playwright_lock:
@@ -306,34 +347,19 @@ class Agent:
                     matched_inference_state = match_action_effects(curr_page_state, self.url_state_manager)
 
                     if matched_inference_state:
-                        stop_action = Action(Action.Type.STOP, None, None)
-                        stop_action.set_special_effect(
-                            'Stop trying to perform user task, use if task is impossible or finished. {Stops and give user control}')
-                        stop_indefinite = IndefiniteAction([Action.Type.STOP], stop_action, None,
-                                                           IndefiniteAction.Location.SPECIAL)
 
-                        input_all_action = Action(Action.Type.INPUT_GIVEN_INTENT, None, None)
-                        input_all_action.set_special_effect(
-                            'Call an agent to fill in all inputs on the page given some intent. {The intent is action_reason you return in choose}')
-                        input_all_indefinite = IndefiniteAction([Action.Type.INPUT_GIVEN_INTENT], input_all_action,
-                                                                None,
-                                                                IndefiniteAction.Location.SPECIAL)
-
-                        special_actions = [stop_indefinite, input_all_indefinite]
-
-                        curr_inf_tree = InferenceAxtree(matched_inference_state, special_actions=special_actions,
+                        curr_inf_tree = InferenceAxtree(matched_inference_state, special_actions=self.special_actions,
                                                         use_scrape=True)
                         if self.stop_event.is_set():
                             break
 
-                        if str(old_inf_tree) != '':  # MAKE THIS LESS BAD
+                        if old_inf_tree is not None:  # MAKE THIS LESS BAD
                             reflect_response_call = await call_reflect_agent(
                                 reason_for_action,
                                 str(old_inf_tree.get_tree_with_specific_action_effect(reflect_action_indices)),
-                                # reflect_action_indices used to be chosen_action_index
-                                curr_inf_tree.get_raw_tree(), self.task
+                                curr_inf_tree.get_unnumbered_tree(), self.task
                             )
-                            self.curr_save_node.reflect_call = copy.deepcopy(reflect_response_call)
+                            self.curr_save_node.reflect_call.append(copy.deepcopy(reflect_response_call))
                             mem_response = reflect_response_call.parsed_output
                             if mem_response is None:
                                 raise Exception
@@ -342,7 +368,6 @@ class Agent:
                                                       location_details=object_and_effect)
                             self.action_mem.append(new_memory)
 
-                        # old_inf_tree = curr_inf_tree  NOW SET LATER, WE DON'T SET THIS IF CUR_INF_TREE IS BROKEN OR SOME ACTIONS BREAK
                         if self.stop_event.is_set():
                             break
 
@@ -351,15 +376,16 @@ class Agent:
                         if self.stop_event.is_set():
                             break
 
-                        # action_out_call = await call_action_agent(
-                        #     self.task, curr_inf_tree,
-                        #     self.action_mem, self.item_context_pairs, provider="anthropic"
-                        # )
-                        # action_out_list = [action_out_call.parsed_output]  # a single action
+                        action_out_call = await call_action_agent(
+                            self.task, curr_inf_tree,
+                            self.action_mem, self.item_context_pairs, provider="anthropic"
+                        )
+                        action_out_list = [action_out_call.parsed_output]  # a single action
 
 
                         # TEST
-                        action_out_call = await call_action_agent_multi(self.task, curr_inf_tree, self.action_mem, self.item_context_pairs, provider='anthropic')
+                        # action_out_call = await call_action_agent_multi(self.task, curr_inf_tree, self.action_mem, self.item_context_pairs, provider='anthropic')
+                        # action_out_list = action_out_call.parsed_output
 
 
                         self.curr_save_node.ad_call = str(action_out_call)
@@ -368,7 +394,7 @@ class Agent:
                         if self.stop_event.is_set():
                             break
 
-                        action_out_list = action_out_call.parsed_output
+
                         print("Action took", time.time() - start)
                         print(action_out_list)
 
@@ -379,12 +405,11 @@ class Agent:
                         if action_out_list == []:
                             print("NO ACTIONS GIVEN")
 
-                        first_action_success = False
-                        reflect_action_indices = []
+                        most_recent_successful = False
 
-                        for action_out in action_out_list:
+                        for (i, action_out) in enumerate(action_out_list):
+                            new_reflect_action_indices = []
                             chosen_action_index, reason_for_action = action_out  # we choose a list of actions in support, everything set up like input
-                            # reflect_action_indices.append(chosen_action_index)  # DO NOT PUT THIS HERE AS IT BREAKS SPECIAL ACTIONS FOR INF TREE
                             reason_for_action = reason_for_action.encode('utf-8').decode('unicode_escape')
                             print(f'reason_for_action: {reason_for_action}')
                             await self.output_queue.put(('only_out', reason_for_action))
@@ -416,6 +441,7 @@ class Agent:
 
 
                             if chosen_indefinite.location != IndefiniteAction.Location.SPECIAL:
+                                print(f"ABOUT TO DO NORMAL ACTION INDEX: {i}")
                                 chosen_element, chosen_xpath, type_list = await get_chosen_element(
                                     self.page,
                                     chosen_indefinite
@@ -425,55 +451,96 @@ class Agent:
                                     type_list
                                 )
                                 if success:
-                                    first_action_success = True
-                                    reflect_action_indices.append(chosen_action_index)
-                            else:
-                                if chosen_action.action_type == Action.Type.STOP:
+                                    most_recent_successful = True
+                                    new_reflect_action_indices.append(chosen_action_index)
+                                else:
+                                    most_recent_successful = False
 
 
+                            elif chosen_action.action_type == Action.Type.STOP:
+                                most_recent_successful = False  # this should generally be the last action anyways
 
-                                    pass  # IGNORE FOR NOW, THINK ABOUT BETTER LOGIC LATER
-                                elif chosen_action.action_type == Action.Type.INPUT_GIVEN_INTENT:
-                                    reflect_action_indices.append(chosen_action_index)
-                                    desired = await call_input_agent(
-                                        self.task, reason_for_action,
-                                        curr_inf_tree.get_input_tree(), self.context_info,
-                                        self.hidden_inputs
+                            elif chosen_action.action_type == Action.Type.INPUT_GIVEN_INTENT:
+                                new_reflect_action_indices.append(chosen_action_index)
+                                desired = await call_input_agent(
+                                    self.task, reason_for_action,
+                                    curr_inf_tree.get_input_tree(), self.context_info,
+                                    self.hidden_inputs
+                                )
+                                if desired.parsed_output is None:
+                                    raise Exception
+                                for (chosen_input_index, input_string) in desired.parsed_output:
+                                    if self.stop_event.is_set():
+                                        break
+
+                                    unhidden_input_string = replace_hidden_inputs(input_string, self.hidden_inputs)
+                                    chosen_indefinite = curr_inf_tree.get_action_from_index(chosen_input_index)
+                                    chosen_action = chosen_indefinite.action
+                                    chosen_element, chosen_xpath, type_list = await get_chosen_element(
+                                        self.page,
+                                        chosen_indefinite
                                     )
-                                    if desired.parsed_output is None:
+                                    chosen_action.set_input_string(unhidden_input_string)
+                                    if self.stop_event.is_set():
+                                        break
+                                    success = await do_action_flow(
+                                        self.page, chosen_action, chosen_element, chosen_xpath,
+                                        type_list
+                                    )
+                                    if success:
+                                        most_recent_successful = True
+                                        new_reflect_action_indices.append(chosen_input_index)
+                                    else:
+                                        most_recent_successful = False
+
+                                    if self.stop_event.is_set():
+                                        break
+
+                            if not most_recent_successful:  # this is in action loop
+                                """
+                                
+
+                                we remove the last item in action mem and just redo the reflect
+                                reflect action indices should still be what was performed (successfully) in the call before this one where it failed,
+                                old_inf_tree should still be what it was performed on
+                                
+                                WE NEED TO THINK HARDER ABOUT REDOING A REFLECT CALL, there is some not sufficiently loaded assumption failsafe
+                                
+                                """
+                                self.action_mem = self.action_mem[:-1]
+                                self.failed_count += 1
+                                if self.failed_count > self.retry_cap:
+                                    self.stop()
+                                break
+                            else:
+                                self.failed_count = 0
+
+                                old_inf_tree = curr_inf_tree  # across multiple intermediate actions this should be called multiple times
+                                reflect_action_indices = new_reflect_action_indices  # we obviously don't do this if it breaks
+
+                                if i != len(action_out_list):
+                                    intermediate_tree = await self.get_light_tree()
+
+
+                                    reflect_response_call = await call_reflect_agent(
+                                        reason_for_action,
+                                        str(curr_inf_tree.get_tree_with_specific_action_effect(new_reflect_action_indices)),
+                                        intermediate_tree, self.task
+                                    )
+                                    self.curr_save_node.reflect_call.append(copy.deepcopy(reflect_response_call))
+
+                                    mem_response = reflect_response_call.parsed_output
+                                    if mem_response is None:
                                         raise Exception
-                                    for (chosen_action_index, input_string) in desired.parsed_output:
-                                        if self.stop_event.is_set():
-                                            break
+                                    old_web_page_purpose, object_and_effect = mem_response[0], mem_response[1]
+                                    new_memory = LinearMemory(object_details=old_web_page_purpose,
+                                                              location_details=object_and_effect)
+                                    self.action_mem.append(new_memory)
 
-                                        unhidden_input_string = replace_hidden_inputs(input_string, self.hidden_inputs)
-                                        chosen_indefinite = curr_inf_tree.get_action_from_index(chosen_action_index)
-                                        chosen_action = chosen_indefinite.action
-                                        chosen_element, chosen_xpath, type_list = await get_chosen_element(
-                                            self.page,
-                                            chosen_indefinite
-                                        )
-                                        chosen_action.set_input_string(unhidden_input_string)
-                                        if self.stop_event.is_set():
-                                            break
-                                        success = await do_action_flow(
-                                            self.page, chosen_action, chosen_element, chosen_xpath,
-                                            type_list
-                                        )
-                                        if success:
-                                            first_action_success = True
-                                            reflect_action_indices.append(chosen_action_index)
 
-                                        if self.stop_event.is_set():
-                                            break
-                        if not first_action_success:
-                            self.action_mem = self.action_mem[:-1]
-                            self.failed_count += 1
-                            if self.failed_count > self.retry_cap:
-                                self.stop()
-                        else:
-                            self.failed_count = 0
-                            old_inf_tree = curr_inf_tree
+
+
+
 
                     else:
                         print("No matched state, why?")
@@ -484,20 +551,7 @@ class Agent:
                     break
                 gc.collect()
 
-                if self.fast_mode:
-                    start_time = time.time()
-                    wait_time = 6
-                    timeout_wait = wait_time + 1
-                    try:
-                        await asyncio.wait_for(self.loop_until_loaded(wait_time=wait_time), timeout=timeout_wait)
-                    except asyncio.TimeoutError:
-                        print("Timeout reached while waiting for text to load.")
 
-                    print(f"Lapsed time: {time.time() - start_time}")
-                else:
-                    await asyncio.sleep(6)
-                if self.stop_event.is_set():
-                    break
         except Exception as e:
             print(f"Agent encountered an exception: {e}")
         finally:

@@ -6,7 +6,7 @@ from inferenceagent import AgentCall
 class SavedTrajectoryNode:
     def __init__(self):
         self.ad_call: AgentCall | None = None
-        self.reflect_call: AgentCall | None = None
+        self.reflect_call: list[AgentCall] = []
         self.world_mem_call: AgentCall | None = None
         self.url: str | None = None
         self.screenshot: bytes | None = None
