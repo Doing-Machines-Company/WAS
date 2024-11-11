@@ -60,11 +60,12 @@ Follow these steps to complete your task:
    - List out what these actions are, as they will be useful in the future
 
 8. Regenerate & Prune action list (MOST IMPORTANT):
-   - Reason step-by-step through each action from the original list. Do the missing actions from step 7 cause any of the actions in your plan to be premature? 
+   - Be hesitant to perform actions that conclude or navigate away from the current action set while there are missing specifications or steps that have yet to appear.
    - Do not add new actions that were not present before. You are constrained to the actions you already generated.
-   - Evaluate your plan step-by-step choosing to discard or keep each action from the original list based on the missing actions.
-   - Provide the action number and action and in a sentence explain whether the missing specifications and intermediate steps cause the action to be premature. Then provide the final decision.
-   
+   - Evaluate your plan step-by-step choosing to discard or keep each action from the original list 
+      - if the action is premature or concludes the current action set before properly addressing all incomplete or missing specifications, discard it
+   - Provide the action number and action and in a complete sentence explain whether the missing specifications cause the action to be premature or conclude the action set too early. 
+
 After completing these steps, provide your final answer as a JSON list of tuples. Each tuple should contain:
 - action_number: An integer representing the chosen action from the accessibility tree.
 - action_reason: A brief sentence explaining why you chose that action.

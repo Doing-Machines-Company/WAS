@@ -369,6 +369,8 @@ async def call_action_agent_multi(
     for i, lin_mem in enumerate(action_memory):
         new_action_memory += f"\n{i + 1}) LOCATION: {lin_mem.object_details}\n{i + 1}) EFFECT: {lin_mem.location_details}"
 
+    print('*' * 80)
+    print(ax_tree)
     if provider == 'openai':
         def read_user_prompt():
             with open('prompts/action_decider/action_decider_multi_user_OAI.txt', 'r') as f:
@@ -390,7 +392,7 @@ async def call_action_agent_multi(
             'context': context
         }
         system_prompt = string.Template(system_prompt_template).substitute(replacements)
-
+        
 
         agent_call = await call_4o_structured_action(system_prompt=system_prompt, user_prompt=user_prompt)
 
@@ -419,7 +421,7 @@ async def call_action_agent_multi(
 
         agent_call = await call_llm(system_prompt=system_prompt, user_prompt=user_prompt)
         output = agent_call.llm_response
-
+        print(output)
         json_pattern = re.compile(
             r'```json\s*(\{.*?}|\[.*?])\s*```',
             re.DOTALL | re.MULTILINE
