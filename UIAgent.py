@@ -441,7 +441,6 @@ class Agent:
 
 
                             if chosen_indefinite.location != IndefiniteAction.Location.SPECIAL:
-                                print(f"ABOUT TO DO NORMAL ACTION INDEX: {i}")
                                 chosen_element, chosen_xpath, type_list = await get_chosen_element(
                                     self.page,
                                     chosen_indefinite
