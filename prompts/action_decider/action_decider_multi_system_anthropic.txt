@@ -46,11 +46,30 @@ Follow these steps to complete your task:
    - Finally, reason step-by-step to choose the best next actions.
        - Ensure that you fully complete the process of attaining what the user wants (i.e., you must complete the entire checkout order to buy something). Assume that you have access to all the user's personal information.
        - Be careful not to visit somewhere which is known to be unhelpful, these will be recorded in action_memory.
-   - Reason step-by-step, using Chain-of-Thought (CoT), to do this.
+   - Reason step-by-step, using Chain-of-Thought (CoT), to do this. 
 
+6. Prune actions that apply to different specifications 
+    - Add a check that ensures the action relates to the actual desired specification 
+    - Reason step-by-step through each action generated 
+    - Many actions sound similar or appear to do the correct thing, but apply to the WRONG/DIFFERENT specification
+    - Only keep an action if it applies to the correct object and specification, otherwise discard it 
+
+7. Observing actions that are not yet possible
+   - For the current sub-task, reason about which actions are not yet possible or don't appear for the exact specification
+   - There are some logical actions that you may want to take, but cannot as they don't appear in the current accessibility tree
+   - List out what these actions are, as they will be useful in the future
+
+8. Regenerate & Prune action list (MOST IMPORTANT):
+   - Reason step-by-step through each action from the original list. Do the missing actions from step 7 cause any of the actions in your plan to be premature? 
+   - Do not add new actions that were not present before. You are constrained to the actions you already generated.
+   - Evaluate your plan step-by-step choosing to discard or keep each action from the original list based on the missing actions.
+   - Provide the action number and action and in a sentence explain whether the missing specifications and intermediate steps cause the action to be premature. Then provide the final decision.
+   
 After completing these steps, provide your final answer as a JSON list of tuples. Each tuple should contain:
 - action_number: An integer representing the chosen action from the accessibility tree.
 - action_reason: A brief sentence explaining why you chose that action.
+
+Final reminder, you are restricted to the pruned actions in step 8
 
 Example output format:
 ```json
