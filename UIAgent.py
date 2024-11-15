@@ -210,7 +210,14 @@ class Agent:
                                                 None,
                                                 IndefiniteAction.Location.SPECIAL)
 
-        self.special_actions = [stop_indefinite, input_all_indefinite]
+        ask_user_action = Action(Action.Type.REQUEST_USER_INPUT, None, None)
+        ask_user_action.set_special_effect(
+            'Request information from user about everything in action_reason. {Requests the user to give you information about what you return as action_reason}')
+        ask_user_indefinite = IndefiniteAction([Action.Type.REQUEST_USER_INPUT], ask_user_action,
+                                                None,
+                                                IndefiniteAction.Location.SPECIAL)
+
+        self.special_actions = [stop_indefinite, input_all_indefinite, ask_user_indefinite]
 
     async def wait_for_network_idle(self, idle_time=0.2, timeout=1.0):
         """
@@ -311,65 +318,37 @@ class Agent:
                 agent_call = await call_unified_question_cleaner(self.task, self.question_answers)
                 if agent_call.parsed_output:
                     self.task = agent_call.parsed_output
-                    self.cleaned_task = self.saved_trajectory.cleaned_task
+                    # self.cleaned_task = self.saved_trajectory.cleaned_task
 
-            base_state = None
-            old_inf_tree = None
+            matched_inference_state = None
+            curr_page_state = None
+            curr_inf_tree = None
 
             # Main action loop
             while not self.stop_event.is_set():
                 self.curr_save_node = SavedTrajectoryNode()
 
-                if self.fast_mode:
-                    start_time = time.time()
-                    wait_time = 6
-                    timeout_wait = wait_time + 1
-                    try:
-                        await asyncio.wait_for(self.loop_until_loaded(wait_time=wait_time), timeout=timeout_wait)
-                    except asyncio.TimeoutError:
-                        print("Timeout reached while waiting for text to load.")
-
-                    print(f"Lapsed time: {time.time() - start_time}")
-                else:
-                    await asyncio.sleep(6)
-
-                if self.stop_event.is_set():
-                    break
-
                 await self.capture_and_send_screenshot(self.curr_save_node)
 
                 async with self.playwright_lock:
-                    curr_page_state = await get_page_state(self.page, self.cdp_session)
-                    if base_state is None:
-                        base_state = curr_page_state
+
+
+
                     self.curr_save_node.url = self.page.url
 
-                    matched_inference_state = match_action_effects(curr_page_state, self.url_state_manager)
+                    if not matched_inference_state and not curr_page_state:  # curr_page_state should always be defined unless it's the first one, so if inference state isn't matched script should be breaking as intended
+                        curr_page_state = await get_page_state(self.page, self.cdp_session)
+                        matched_inference_state = match_action_effects(curr_page_state, self.url_state_manager)
 
                     if matched_inference_state:
 
-                        curr_inf_tree = InferenceAxtree(matched_inference_state, special_actions=self.special_actions,
-                                                        use_scrape=True)
-                        if self.stop_event.is_set():
-                            break
-
-                        if old_inf_tree is not None:  # MAKE THIS LESS BAD
-                            reflect_response_call = await call_reflect_agent(
-                                reason_for_action,
-                                str(old_inf_tree.get_tree_with_specific_action_effect(reflect_action_indices)),
-                                curr_inf_tree.get_unnumbered_tree(), self.task
-                            )
-                            self.curr_save_node.reflect_call.append(copy.deepcopy(reflect_response_call))
-                            mem_response = reflect_response_call.parsed_output
-                            if mem_response is None:
-                                raise Exception
-                            old_web_page_purpose, object_and_effect = mem_response[0], mem_response[1]
-                            new_memory = LinearMemory(object_details=old_web_page_purpose,
-                                                      location_details=object_and_effect)
-                            self.action_mem.append(new_memory)
+                        if not curr_inf_tree:  # should only be used during first iteration
+                            curr_inf_tree = InferenceAxtree(matched_inference_state, special_actions=self.special_actions,
+                                                            use_scrape=True)
 
                         if self.stop_event.is_set():
                             break
+
 
                         start = time.time()
                         # Check stop_event after API call
@@ -382,10 +361,6 @@ class Agent:
                         )
                         action_out_list = [action_out_call.parsed_output]  # a single action
 
-
-                        # TEST
-                        # action_out_call = await call_action_agent_multi(self.task, curr_inf_tree, self.action_mem, self.item_context_pairs, provider='anthropic')
-                        # action_out_list = action_out_call.parsed_output
 
 
                         self.curr_save_node.ad_call = str(action_out_call)
@@ -405,16 +380,20 @@ class Agent:
                         if action_out_list == []:
                             print("NO ACTIONS GIVEN")
 
-                        most_recent_successful = False
 
-                        for (i, action_out) in enumerate(action_out_list):
+                        old_inf_tree = copy.deepcopy(curr_inf_tree)  # do we need to copy this?
+
+                        for (iterating_action_index, action_out) in enumerate(action_out_list):
                             new_reflect_action_indices = []
+                            intermediate_tree = None
+                            most_recent_successful = False
+
                             chosen_action_index, reason_for_action = action_out  # we choose a list of actions in support, everything set up like input
                             reason_for_action = reason_for_action.encode('utf-8').decode('unicode_escape')
                             print(f'reason_for_action: {reason_for_action}')
                             await self.output_queue.put(('only_out', reason_for_action))
 
-                            chosen_indefinite = curr_inf_tree.get_action_from_index(chosen_action_index)
+                            chosen_indefinite = old_inf_tree.get_action_from_index(chosen_action_index)
                             chosen_action = chosen_indefinite.action
 
                             if chosen_action is not None and chosen_action.html is not None and (
@@ -452,8 +431,39 @@ class Agent:
                                 if success:
                                     most_recent_successful = True
                                     new_reflect_action_indices.append(chosen_action_index)
-                                else:
-                                    most_recent_successful = False
+
+
+                            elif chosen_action.action_type == Action.Type.REQUEST_USER_INPUT:
+                                """
+                                
+                                Have some flag to stop reflecting on this, fix the current reflect pruning method.
+                                Reason about this harder.
+                                
+                                Then call an agent, given curr axtree and questions, formulate questions which we ask the user.
+                                
+                                Shove all of these in actionmem. action mem now needs to be more sophisticated, can't remove these QAs from the memory.
+                                
+                                
+                                TODO, SUPPORT SKIPPING OVER ACTIONS WHERE THE LAST ACTION WAS/WASN'T ASKING QUESTIONS, QUESTIONS MAY BE INTERMEDIATE.ETC
+                                """
+                                question_out_call = await call_intermediate_questions_agent(self.task, old_inf_tree.get_raw_tree(), reason_for_action)
+                                intermediate_questions = question_out_call.parsed_output
+
+                                for question in intermediate_questions:
+                                    if self.stop_event.is_set():
+                                        break
+                                    answer = await self.ask_user(question)
+
+                                    # TODO MAKE THIS INTO A MEMORY INJECTION AND ADD IT IN
+                                    new_memory = LinearMemory(object_details=f"Asked the user: {question}\nUser responded with: {answer}",
+                                                              location_details="N/A")
+
+                                    self.action_mem.append(new_memory)
+                                    # Check stop_event after each user response
+                                    if self.stop_event.is_set():
+                                        break
+
+                                most_recent_successful = True
 
 
                             elif chosen_action.action_type == Action.Type.STOP:
@@ -463,7 +473,7 @@ class Agent:
                                 new_reflect_action_indices.append(chosen_action_index)
                                 desired = await call_input_agent(
                                     self.task, reason_for_action,
-                                    curr_inf_tree.get_input_tree(), self.context_info,
+                                    old_inf_tree.get_input_tree(), self.context_info,
                                     self.hidden_inputs
                                 )
                                 if desired.parsed_output is None:
@@ -473,24 +483,23 @@ class Agent:
                                         break
 
                                     unhidden_input_string = replace_hidden_inputs(input_string, self.hidden_inputs)
-                                    chosen_indefinite = curr_inf_tree.get_action_from_index(chosen_input_index)
-                                    chosen_action = chosen_indefinite.action
+                                    chosen_indefinite = old_inf_tree.get_action_from_index(chosen_input_index)
+                                    chosen_input_action = chosen_indefinite.action
                                     chosen_element, chosen_xpath, type_list = await get_chosen_element(
                                         self.page,
                                         chosen_indefinite
                                     )
-                                    chosen_action.set_input_string(unhidden_input_string)
+                                    chosen_input_action.set_input_string(unhidden_input_string)
                                     if self.stop_event.is_set():
                                         break
                                     success = await do_action_flow(
-                                        self.page, chosen_action, chosen_element, chosen_xpath,
+                                        self.page, chosen_input_action, chosen_element, chosen_xpath,
                                         type_list
                                     )
                                     if success:
                                         most_recent_successful = True
                                         new_reflect_action_indices.append(chosen_input_index)
-                                    else:
-                                        most_recent_successful = False
+
 
                                     if self.stop_event.is_set():
                                         break
@@ -506,7 +515,9 @@ class Agent:
                                 WE NEED TO THINK HARDER ABOUT REDOING A REFLECT CALL, there is some not sufficiently loaded assumption failsafe
                                 
                                 """
-                                self.action_mem = self.action_mem[:-1]
+                                # if len(self.action_mem) > 0:
+                                #     self.action_mem = self.action_mem[:-1]  # TODO STOP DOING THIS
+
                                 self.failed_count += 1
                                 if self.failed_count > self.retry_cap:
                                     self.stop()
@@ -514,16 +525,48 @@ class Agent:
                             else:
                                 self.failed_count = 0
 
-                                old_inf_tree = curr_inf_tree  # across multiple intermediate actions this should be called multiple times
-                                reflect_action_indices = new_reflect_action_indices  # we obviously don't do this if it breaks
 
-                                if i != len(action_out_list):
+                                if iterating_action_index == len(action_out_list) - 1:  # if multiple actions, we assume only last action can possibly need load (THIS IS POTENTIALLY BAD)
+                                    #  standard wait for reflect, get full new tree
+                                    if self.fast_mode:
+                                        start_time = time.time()
+                                        wait_time = 6
+                                        timeout_wait = wait_time + 1
+                                        try:
+                                            await asyncio.wait_for(self.loop_until_loaded(wait_time=wait_time),
+                                                                   timeout=timeout_wait)
+                                        except asyncio.TimeoutError:
+                                            print("Timeout reached while waiting for text to load.")
+
+                                        print(f"Lapsed time: {time.time() - start_time}")
+                                    else:
+                                        await asyncio.sleep(6)
+
+                                    curr_page_state = await get_page_state(self.page, self.cdp_session)
+                                    matched_inference_state = match_action_effects(curr_page_state,
+                                                                                   self.url_state_manager)
+                                    if matched_inference_state:
+                                        curr_inf_tree = InferenceAxtree(matched_inference_state,
+                                                                        special_actions=self.special_actions,
+                                                                        use_scrape=True)
+
+                                    intermediate_tree = curr_inf_tree.get_raw_tree()
+
+                                if not intermediate_tree:
                                     intermediate_tree = await self.get_light_tree()
 
+                                # print(intermediate_tree)
+                                #
+                                # input('intermediate tree')
+                                #
+                                # print(str(old_inf_tree.get_tree_with_specific_action_effect(new_reflect_action_indices)))
+                                #
+                                # input('old tree')
 
+                                if chosen_action.action_type != Action.Type.REQUEST_USER_INPUT and chosen_action.action_type != Action.Type.STOP: # add more
                                     reflect_response_call = await call_reflect_agent(
                                         reason_for_action,
-                                        str(curr_inf_tree.get_tree_with_specific_action_effect(new_reflect_action_indices)),
+                                        str(old_inf_tree.get_tree_with_specific_action_effect(new_reflect_action_indices)),
                                         intermediate_tree, self.task
                                     )
                                     self.curr_save_node.reflect_call.append(copy.deepcopy(reflect_response_call))

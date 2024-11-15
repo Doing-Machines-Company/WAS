@@ -153,7 +153,7 @@ class InferenceAxtree:
         # count += 1
 
         for indefinite_action in self.special_actions:
-            self.raw_tree += f"SPECIAL ACTION: {str(indefinite_action.action.special_effect)}\n"
+            # self.raw_tree += f"SPECIAL ACTION: {str(indefinite_action.action.special_effect)}\n"  # SAVE TOKENS
             self.scrape_tree += f"[{count}] SPECIAL ACTION: {str(indefinite_action.action.special_effect)}\n"
             self.debug_tree += f"[{count}] SPECIAL ACTION: {str(indefinite_action.action.special_effect)}\n"
             self.live_actions.append(indefinite_action)
@@ -277,13 +277,13 @@ class InferenceAxtree:
         count = 0
 
         # Iterate over special actions first
-        for i, special_action in enumerate(self.special_actions, start=0):
-            if count in indices:
-                # Include the action effect
-                tree_str += f"[{count} (THIS ACTION WAS JUST CHOSEN)] SPECIAL ACTION: {str(special_action.action.special_effect)}\n"
-            else:
-                # Omit the action effect
-                tree_str += f"[{count}] SPECIAL ACTION: \n"
+        for i, special_action in enumerate(self.special_actions, start=0):  # just to keep indexing consistent, but save tokens
+        #     if count in indices:
+        #         # Include the action effect
+        #         tree_str += f"[{count} (THIS ACTION WAS JUST CHOSEN)] SPECIAL ACTION: {str(special_action.action.special_effect)}\n"
+        #     else:
+        #         # Omit the action effect
+        #         tree_str += f"[{count}] SPECIAL ACTION: \n"
             count += 1
 
         # Iterate over ax_nodes
@@ -297,27 +297,37 @@ class InferenceAxtree:
                     # Include the action effect
                     if Action.Type.INPUT in action.type_list:
                         tree_str += (
-                            f"[{count} (THIS ACTION WAS JUST CHOSEN); INPUT_TEXT] {node['indent']}"
+                            f"[{count} (JUST INPUT)] {node['indent']}"
                             f"{node['role']} {repr(node['name'])} "
                             f"{' '.join(node['properties'])} {{{action_effect}}}\n"
                         )
                     else:
                         tree_str += (
-                            f"[{count} (THIS ACTION WAS JUST CHOSEN)] {node['indent']}"
+                            f"[{count} (JUST CHOSEN)] {node['indent']}"
                             f"{node['role']} {repr(node['name'])} "
                             f"{' '.join(node['properties'])} {{{action_effect}}}\n"
                         )
                 else:
                     # Omit the action effect
                     if Action.Type.INPUT in action.type_list:
+                        # tree_str += (
+                        #     f"[{count}; INPUT_TEXT] {node['indent']}"
+                        #     f"{node['role']} {repr(node['name'])} "
+                        #     f"{' '.join(node['properties'])}\n"
+                        # )
                         tree_str += (
-                            f"[{count}; INPUT_TEXT] {node['indent']}"
+                            f"{node['indent']}"
                             f"{node['role']} {repr(node['name'])} "
                             f"{' '.join(node['properties'])}\n"
                         )
                     else:
+                        # tree_str += (  # SAVE TOKENS
+                        #     f"[{count}] {node['indent']}"
+                        #     f"{node['role']} {repr(node['name'])} "
+                        #     f"{' '.join(node['properties'])}\n"
+                        # )
                         tree_str += (
-                            f"[{count}] {node['indent']}"
+                            f"{node['indent']}"
                             f"{node['role']} {repr(node['name'])} "
                             f"{' '.join(node['properties'])}\n"
                         )
@@ -333,7 +343,7 @@ class InferenceAxtree:
 
         return tree_str
 
-    def get_unnumbered_tree(self):
+    def get_raw_tree(self):
         return self.raw_tree
 
     def get_scrape_tree(self):

@@ -8,7 +8,7 @@ Your task is:
 $task
 </task>
 
-Here's the memory of actions you've taken so far:
+Here's the memory of actions you've taken so far, as well as questions you've asked the user:
 <action_memory>
 $action_memory
 </action_memory>
@@ -24,6 +24,7 @@ Remember:
 - If the user's desired item has multiple default attributes, only modify them if the user specifies that you do so in the task.
 - Some actions require inputting text, these are labelled INPUT_TEXT right after their starting number.
 - You can only input text into the web page (and interact with actions with the INPUT_TEXT label at the start) by calling the associated SPECIAL ACTION to call a different assistant agent, and telling it the intention of your input (e.g., input all information for payment) using action_reason.
+- You can only ask the user questions about their preferences (if there is no default, like for their address) by calling the associated SPECIAL action to call a different assistant agent, and telling it the information that you want to ask about using action_reason. Only use this SPECIAL ACTION to ask about options that aren't preferences but necessary to complete the user's task well (i.e., specific store choice, payment option).
 - Assume that once you see a piece of information the user wants to retrieve, it's automatically given to the user.
 - Ensure that you fully complete the process of attaining what the user wants (i.e., you must complete the ENTIRE CHECKOUT PROCESS for the order to buy something). Assume that you have access to all the user's personal information.
 
