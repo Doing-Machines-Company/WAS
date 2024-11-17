@@ -997,3 +997,58 @@ async def call_action_pruner(
 
 
 
+
+
+async def call_intermediate_questions_agent(
+    user_task: str,
+    ax_tree: str,
+    question_intent: str
+) -> AgentCall:
+
+    def read_user_prompt():
+        with open('prompts/intermediate_questions_prompt.txt', 'r') as f:
+            return f.read()
+
+    user_prompt_template = await asyncio.to_thread(read_user_prompt)
+    replacements = {
+        'ax_tree': ax_tree,
+        'task': user_task,
+        'question_intent': question_intent,
+    }
+    user_prompt = string.Template(user_prompt_template).substitute(replacements)
+
+    # Call the updated call_llm asynchronously
+    agent_call = await call_llm(user_prompt=user_prompt, provider='cerebras', model='llama3.1-70b')
+
+    print("LLM Response:\n", agent_call.llm_response)
+
+    # Step 1 & 2: Find the JSON object in the answer
+    json_match = re.search(r'\{[\s\S]*}', agent_call.llm_response)
+
+    if json_match:
+        json_str = json_match.group(0)
+
+        try:
+            # Step 3: Parse the JSON string
+            parsed_json = json.loads(json_str)
+
+            # Step 4: Extract the new_world_memory
+            questions = parsed_json.get("questions")
+
+            if questions is not None:
+                parsed_output = questions
+            else:
+                print("Error: 'new_world_memory' key not found in JSON")
+                parsed_output = "Error: 'new_world_memory' key not found in JSON"
+
+        except json.JSONDecodeError:
+            print("Error: Invalid JSON format")
+            parsed_output = "Error: Invalid JSON format"
+    else:
+        print("Error: No JSON object found in the answer")
+        parsed_output = "Error: No JSON object found in the answer"
+
+    # Update the parsed_output in AgentCall
+    agent_call.parsed_output = parsed_output
+
+    return agent_call

@@ -17,9 +17,10 @@ class PageObservation(ABC):
     def __eq__(self, other : PageObservation) -> bool:
         pass
 class AxObservation(PageObservation):
-    def __init__(self, axtree, url, processed = True):
+    def __init__(self, axtree, url, processed = True, numbered = True):
         self.axtree = axtree
         self.url = url
+        self.numbered = numbered
         node_id_to_idx = {}
         for idx, node in enumerate(self.axtree):
             node_id_to_idx[node["nodeId"]] = idx  # NOW WE HAVE A NEW ID SYSTEM, GOES UP EASIER FOR BOT
@@ -110,8 +111,12 @@ class AxObservation(PageObservation):
 
     def __str__(self):
         tree_str = ''
-        for node in self.nodes_info:
-            tree_str += f"{node['indent']}[{node['nodeId']}] {node['role']} {repr(node['name'])} " + " ".join(node["properties"]) + "\n"
+        if self.numbered:
+            for node in self.nodes_info:
+                tree_str += f"{node['indent']}[{node['nodeId']}] {node['role']} {repr(node['name'])} " + " ".join(node["properties"]) + "\n"
+        else:
+            for node in self.nodes_info:
+                tree_str += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(node["properties"]) + "\n"
         return tree_str
 
 class InferenceAxtree:
@@ -148,7 +153,7 @@ class InferenceAxtree:
         # count += 1
 
         for indefinite_action in self.special_actions:
-            self.raw_tree += f"[{count}] SPECIAL ACTION: {str(indefinite_action.action.special_effect)}\n"
+            # self.raw_tree += f"SPECIAL ACTION: {str(indefinite_action.action.special_effect)}\n"  # SAVE TOKENS
             self.scrape_tree += f"[{count}] SPECIAL ACTION: {str(indefinite_action.action.special_effect)}\n"
             self.debug_tree += f"[{count}] SPECIAL ACTION: {str(indefinite_action.action.special_effect)}\n"
             self.live_actions.append(indefinite_action)
@@ -184,14 +189,14 @@ class InferenceAxtree:
                     # if self.action_lib[node['nodeId']].location == IndefiniteAction.Location.FOOTER:
                     #     break
                     if Action.Type.INPUT in self.action_lib[node['nodeId']].type_list and self.action_lib[node['nodeId']].location != IndefiniteAction.Location.FOOTER:
-                        self.raw_tree += f"[{count}; INPUT_TEXT] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                        self.raw_tree += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + "\n"
                         self.debug_tree += f"[{count}; INPUT_TEXT] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + "\n"
                         self.input_tree += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                         node["properties"]) + "\n"
                     else:
-                        self.raw_tree += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                        self.raw_tree += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + "\n"
                         self.debug_tree += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + "\n"
@@ -216,7 +221,7 @@ class InferenceAxtree:
                     if Action.Type.INPUT in self.action_lib[node['nodeId']].type_list:
                         self.scrape_tree += f"[{count}; INPUT_TEXT] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + " {" + self.action_effect_lib[node['nodeId']] + "}" + "\n"
-                        self.raw_tree += f"[{count}; INPUT_TEXT] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                        self.raw_tree += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + "\n"
                         self.debug_tree += f"[{count}; INPUT_TEXT] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + " {" + self.action_effect_lib[node['nodeId']] + "}" + f" **MATCHED TO {self.action_number_lib[node['nodeId']]}**" + "\n"
@@ -225,7 +230,7 @@ class InferenceAxtree:
                     else:
                         self.scrape_tree += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + " {" + self.action_effect_lib[node['nodeId']] + "}" + "\n"
-                        self.raw_tree += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                        self.raw_tree += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + "\n"
                         self.debug_tree += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + " {" + self.action_effect_lib[node[
@@ -278,13 +283,13 @@ class InferenceAxtree:
         count = 0
 
         # Iterate over special actions first
-        for i, special_action in enumerate(self.special_actions, start=0):
-            if count in indices:
-                # Include the action effect
-                tree_str += f"[{count} (THIS ACTION WAS JUST CHOSEN)] SPECIAL ACTION: {str(special_action.action.special_effect)}\n"
-            else:
-                # Omit the action effect
-                tree_str += f"[{count}] SPECIAL ACTION: \n"
+        for i, special_action in enumerate(self.special_actions, start=0):  # just to keep indexing consistent, but save tokens
+        #     if count in indices:
+        #         # Include the action effect
+        #         tree_str += f"[{count} (THIS ACTION WAS JUST CHOSEN)] SPECIAL ACTION: {str(special_action.action.special_effect)}\n"
+        #     else:
+        #         # Omit the action effect
+        #         tree_str += f"[{count}] SPECIAL ACTION: \n"
             count += 1
 
         # Iterate over ax_nodes
@@ -298,27 +303,37 @@ class InferenceAxtree:
                     # Include the action effect
                     if Action.Type.INPUT in action.type_list:
                         tree_str += (
-                            f"[{count} (THIS ACTION WAS JUST CHOSEN); INPUT_TEXT] {node['indent']}"
+                            f"[{count} (JUST INPUT)] {node['indent']}"
                             f"{node['role']} {repr(node['name'])} "
                             f"{' '.join(node['properties'])} {{{action_effect}}}\n"
                         )
                     else:
                         tree_str += (
-                            f"[{count} (THIS ACTION WAS JUST CHOSEN)] {node['indent']}"
+                            f"[{count} (JUST CHOSEN)] {node['indent']}"
                             f"{node['role']} {repr(node['name'])} "
                             f"{' '.join(node['properties'])} {{{action_effect}}}\n"
                         )
                 else:
                     # Omit the action effect
                     if Action.Type.INPUT in action.type_list:
+                        # tree_str += (
+                        #     f"[{count}; INPUT_TEXT] {node['indent']}"
+                        #     f"{node['role']} {repr(node['name'])} "
+                        #     f"{' '.join(node['properties'])}\n"
+                        # )
                         tree_str += (
-                            f"[{count}; INPUT_TEXT] {node['indent']}"
+                            f"{node['indent']}"
                             f"{node['role']} {repr(node['name'])} "
                             f"{' '.join(node['properties'])}\n"
                         )
                     else:
+                        # tree_str += (  # SAVE TOKENS
+                        #     f"[{count}] {node['indent']}"
+                        #     f"{node['role']} {repr(node['name'])} "
+                        #     f"{' '.join(node['properties'])}\n"
+                        # )
                         tree_str += (
-                            f"[{count}] {node['indent']}"
+                            f"{node['indent']}"
                             f"{node['role']} {repr(node['name'])} "
                             f"{' '.join(node['properties'])}\n"
                         )
