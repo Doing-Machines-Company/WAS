@@ -260,7 +260,13 @@ class InferenceAxtree:
 
     def get_input_tree(self):
         return self.input_tree
-
+    def get_tree_line(self, index):
+        ax_node_index = self.get_action_from_index(index).ax_node_index 
+        for node in self.scrap_info.ax_nodes:
+            node_id = node['nodeId']
+            if node_id == ax_node_index:
+                tree_line = f"{node['role']} {repr(node['name'])} " + " ".join(node["properties"])
+                return tree_line 
     def get_tree_with_specific_action_effect(self, indices: List[int]) -> str:
 
         target_actions = [self.live_actions[i] for i in indices]

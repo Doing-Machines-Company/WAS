@@ -378,7 +378,18 @@ class Agent:
 
                         if action_out_list == []:
                             print("NO ACTIONS GIVEN")
-
+                        
+                        action_jsons = []
+                        for action_out in action_out_list:
+                            chosen_action_index, reason_for_action = action_out  
+                            action_json = {
+                                'action_index': chosen_action_index,
+                                'reason_for_action' : reason_for_action
+                            }
+                            action_jsons.append(action_json)
+                            print(json.dumps(action_jsons))
+                        pruned_indices = await call_action_pruner(self.task, curr_inf_tree.get_tree_with_specific_action_effect([action[0] for action in action_out_list]), self.action_mem, json.dumps(action_jsons))
+                        print("Print pruned indices", pruned_indices)
                         first_action_success = False
                         reflect_action_indices = []
 

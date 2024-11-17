@@ -226,7 +226,7 @@ async def call_llm(
             }
 
             model_instance = google_client.GenerativeModel(
-                model_name="gemini-1.5-pro-002",
+                model_name="gemini-exp-1114",
                 generation_config=generation_config,
                 system_instruction=system_prompt
             )
@@ -419,7 +419,7 @@ async def call_action_agent_multi(
         }
         system_prompt = string.Template(system_prompt_template).substitute(replacements)
 
-        agent_call = await call_llm(system_prompt=system_prompt, user_prompt=user_prompt)
+        agent_call = await call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider=provider)
         output = agent_call.llm_response
         print(output)
         json_pattern = re.compile(
@@ -942,3 +942,58 @@ async def call_unified_question_cleaner(
     agent_call.parsed_output = new_task
 
     return agent_call
+
+
+
+async def call_action_pruner(
+    user_task: str,
+    ax_tree: str,
+    action_memory: List, 
+    actions,
+    provider: str = "cerebras"
+) -> AgentCall:
+    """
+    Asynchronously calls the action pruner and retrieves a list of actions that should be pruned.
+    """
+    # Read prompt template asynchronously
+    def read_user_prompt():
+        with open('prompts/prune/prune_user.txt', 'r') as f:
+            return f.read()
+    def read_system_prompt():
+        with open('prompts/prune/prune_system.txt', 'r') as f:
+            return f.read()
+
+    user_prompt_template = await asyncio.to_thread(read_user_prompt)
+    system_prompt = await asyncio.to_thread(read_system_prompt)
+    replacements = {
+        'task': user_task,
+        'ax_tree': ax_tree,
+        'action_memory': action_memory,
+        'actions': actions
+    }
+    user_prompt = string.Template(user_prompt_template).substitute(replacements)
+    print("User Prompt:\n", user_prompt)
+    print("System Prompt:\n", system_prompt)
+    # Call the updated call_llm asynchronously
+    agent_call = await call_llm(user_prompt=user_prompt, system_prompt = system_prompt, provider='cerebras', model='llama3.1-70b')
+
+    print("LLM Response:\n", agent_call.llm_response)
+    input()
+    # Find JSON object in the text
+    match = re.search(r'\[\s*(-?\d+\s*(,\s*-?\d+\s*)*)?\]', agent_call.llm_response)
+    if match:
+        # Extract the matched list
+        list_content = match.group(0)
+        # Evaluate the list content safely
+        try:
+            agent_call.parsed_output = eval(list_content)
+        except (SyntaxError, ValueError):
+            agent_call.parsed_output = []  # Fallback to an empty list if evaluation fails
+    agent_call.parsed_output = []  # No valid list found
+    #
+        
+
+    return agent_call
+
+
+
