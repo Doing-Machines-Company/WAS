@@ -148,7 +148,8 @@ async def get_page_state(page: PlaywrightPage, cdpSession: CDPSession, attempts=
             html= await page.content(),
             actions=new_indefinite_actions,
             header_html=header_html,
-            footer_html=footer_html
+            footer_html=footer_html,
+            all_tree_lines=[a.action.tree_line for a in new_indefinite_actions if a.action is not None]
         )
         if len(result.actions) > 0:
             return result

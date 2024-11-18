@@ -27,7 +27,7 @@ class Action:
         INPUT_GIVEN_INTENT = 13
         REQUEST_USER_INPUT = 14
 
-    def __init__(self, action_type: 'Action.Type', xpath: str, html: str, tree_line: str = "", input_string: Optional[str] = None, trajectory: List['Action'] = [], friendly_xpath : Optional[str]= None):
+    def __init__(self, action_type: 'Action.Type', xpath: str, html: str, tree_line: str = "", input_string: Optional[str] = None, trajectory: List['Action'] = [], friendly_xpath : Optional[str]= None, role : Optional[str]=None, name : Optional[str]=None):
         self.action_type = action_type
         self.html = html
         self.xpath = xpath
@@ -37,6 +37,8 @@ class Action:
         self.trajectory = trajectory #added trajectory to show how the action can be 'created', an empty traj indicates existence at base state of url
         self.friendly_xpath = friendly_xpath
         self.special_effect = None # only should be used for special actions we add on like STOP
+        self.name = name
+        self.role = role
 
         # self.action_effect = action_effect
     def set_input_string(self, input_string: str):
@@ -56,6 +58,12 @@ class Action:
 
     def set_tree_line(self, tree_line: str):
         self.tree_line = tree_line
+
+    def set_role(self, role:str):
+        self.role = role
+
+    def set_name(self, name:str):
+        self.name = name
 
     def set_trajectory(self, trajectory: List['Action']):
         self.trajectory = trajectory

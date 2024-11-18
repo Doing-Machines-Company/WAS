@@ -42,7 +42,7 @@ def match_action_effects(curr_page_state: PageState, url_state_manager: URLState
         print("NOTHING FOUND")
         return None
     
-async def get_chosen_element(page, chosen_indefinite):
+async def get_chosen_element(page, chosen_indefinite, role_name_backup = True):
     assert(chosen_indefinite.location != IndefiniteAction.Location.SPECIAL)
     chosen_action = chosen_indefinite.action
     if chosen_action.action_type is not None:
@@ -82,8 +82,29 @@ async def get_chosen_element(page, chosen_indefinite):
                         print('Fifth attempt failed')
                         chosen_element = await get_element(page, chosen_action.xpath)
                         chosen_xpath = chosen_action.xpath
-    return chosen_element, chosen_xpath, type_list
 
+    # If all XPath attempts failed, try locating by role and name
+    if not chosen_element and chosen_action.name and chosen_action.role and role_name_backup:
+    # if chosen_action.name and chosen_action.role and role_name_backup:
+        role, name = chosen_action.role, chosen_action.name
+        print('All XPath attempts failed. Trying to locate by role and name.')
+        elements = page.get_by_role(role, name=name)
+        count = await elements.count()
+
+        if count == 1:
+            chosen_element = elements.first
+            found_xpath = await xpath_from_element(chosen_element)
+            chosen_xpath = make_xpath_friendly(found_xpath)  # MAY BE GOOD OR BAD, NEEDS MORE TESTING
+            print(f'Element found by role and name: role="{role}", name="{name}"')
+        elif count > 1:
+            print(f'Fallback failed: Multiple elements found with role="{role}" and name="{name}".')
+        else:
+            print(f'Fallback failed: No elements found with role="{role}" and name="{name}".')
+
+    if not chosen_element:
+        print('Failed to locate the chosen element using all methods.')
+
+    return chosen_element, chosen_xpath, type_list
 
 def is_different_page(base_state, new_state):  # TODO, put this in some util after finalization
     # TODO JACCARD SIM THESE

@@ -26,6 +26,7 @@ class PageState:
     actions: list[IndefiniteAction]
     header_html: str
     footer_html: str
+    all_tree_lines: list[str]
 
 #represents the union over all possible actions at an exact url
 class URLState:

@@ -34,6 +34,44 @@ async def get_xpath_by_outer_html(page, outer_html):
     xpath = await page.evaluate(js_code, outer_html)
     return xpath
 
+async def xpath_from_element(element):
+    """
+    Derives the XPath of a given Playwright element.
+
+    Args:
+        element: Playwright Locator representing the element.
+
+    Returns:
+        A string representing the XPath of the element.
+    """
+    # JavaScript function to compute XPath
+    js_get_xpath = """
+    (element) => {
+        function getXPath(element) {
+            if (element.id !== '') {
+                return `id("${element.id}")`;
+            }
+            if (element === document.body) {
+                return '/html/body';
+            }
+            var ix = 0;
+            var siblings = element.parentNode.childNodes;
+            for (var i = 0; i < siblings.length; i++) {
+                var sibling = siblings[i];
+                if (sibling === element) {
+                    return getXPath(element.parentNode) + '/' + element.tagName.toLowerCase() + `[${ix + 1}]`;
+                }
+                if (sibling.nodeType === 1 && sibling.tagName === element.tagName) {
+                    ix++;
+                }
+            }
+        }
+        return getXPath(element);
+    }
+    """
+    xpath = await element.evaluate(js_get_xpath)
+    return xpath
+
 
 def remove_last_xpath_item(xpath):
     # Split the string from the right at the last '/'

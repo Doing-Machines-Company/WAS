@@ -388,9 +388,9 @@ class Agent:
                                 'reason_for_action' : reason_for_action
                             }
                             action_jsons.append(action_json)
-                            print(json.dumps(action_jsons))
+                            # print(json.dumps(action_jsons))
                         pruned_indices = await call_action_pruner(self.task, curr_inf_tree.get_tree_with_specific_action_effect([action[0] for action in action_out_list]), self.action_mem, json.dumps(action_jsons))
-                        print("Print pruned indices", pruned_indices)
+                        # print("Print pruned indices", pruned_indices)
 
                         old_inf_tree = copy.deepcopy(curr_inf_tree)  # do we need to copy this?
 
@@ -401,7 +401,7 @@ class Agent:
 
                             chosen_action_index, reason_for_action = action_out  # we choose a list of actions in support, everything set up like input
                             reason_for_action = reason_for_action.encode('utf-8').decode('unicode_escape')
-                            print(f'reason_for_action: {reason_for_action}')
+                            # print(f'reason_for_action: {reason_for_action}')
                             await self.output_queue.put(('only_out', reason_for_action))
 
                             chosen_indefinite = old_inf_tree.get_action_from_index(chosen_action_index)
@@ -431,10 +431,15 @@ class Agent:
 
 
                             if chosen_indefinite.location != IndefiniteAction.Location.SPECIAL:
+
+                                use_role_name_backup = curr_page_state.all_tree_lines.count(chosen_action.tree_line) == 1 and chosen_action.tree_line != ""
+
                                 chosen_element, chosen_xpath, type_list = await get_chosen_element(
                                     self.page,
-                                    chosen_indefinite
+                                    chosen_indefinite,
+                                    use_role_name_backup
                                 )
+
                                 success = await do_action_flow(
                                     self.page, chosen_action, chosen_element, chosen_xpath,
                                     type_list
@@ -494,11 +499,16 @@ class Agent:
                                         break
 
                                     unhidden_input_string = replace_hidden_inputs(input_string, self.hidden_inputs)
-                                    chosen_indefinite = old_inf_tree.get_action_from_index(chosen_input_index)
-                                    chosen_input_action = chosen_indefinite.action
+                                    chosen_input_indefinite = old_inf_tree.get_action_from_index(chosen_input_index)
+                                    chosen_input_action = chosen_input_indefinite.action
+
+                                    use_role_name_backup = curr_page_state.all_tree_lines.count(
+                                        chosen_input_action.tree_line) == 1 and chosen_input_action.tree_line != ""
+
                                     chosen_element, chosen_xpath, type_list = await get_chosen_element(
                                         self.page,
-                                        chosen_indefinite
+                                        chosen_input_indefinite,
+                                        use_role_name_backup
                                     )
                                     chosen_input_action.set_input_string(unhidden_input_string)
                                     if self.stop_event.is_set():

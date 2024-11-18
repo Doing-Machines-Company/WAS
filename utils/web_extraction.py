@@ -208,7 +208,6 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
 
         elif role.strip() == 'radio':
             # action = Action(Action.Type.CLICK_RADIO, xpath, html)
-            # action.set_tree_line(f"{role}: {ax_node['name']}")
             possible_action_types.append(Action.Type.CLICK_RADIO)
 
         elif role.strip() == 'checkbox':
@@ -216,7 +215,6 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
 
         elif role.strip() in general_clickables:
             # action = Action(Action.Type.CLICK_GENERAL, xpath, html)
-            # action.set_tree_line(f"{role}: {ax_node['name']}")
             possible_action_types.append(Action.Type.CLICK_GENERAL)
 
         elif role.strip() in selects:
@@ -249,6 +247,8 @@ def ax_node_to_action(ax_node: AxNode, header_html: str, footer_html: str, url: 
         # input(possible_action_types)
         action = Action(None, xpath, html)
         action.set_tree_line(f"{role}: {ax_node['name']}")
+        action.set_role(ax_node["role"])  # NOTE WE ARE NOW USING THIS FOR ACTION SANITY CHECK IN CASE NOTHING ELSE WORKS
+        action.set_name(ax_node['name'])  # NOTE WE ARE NOW USING THIS FOR ACTION SANITY CHECK IN CASE NOTHING ELSE WORKS
         action.set_desired_option(ax_node['name'])
         # if xpath and xpath == "id(\"tab-Delivery\")":
         #     print("FOUND DELIVERY OPTION")
