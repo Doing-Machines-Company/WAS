@@ -978,7 +978,7 @@ async def call_action_pruner(
     agent_call = await call_llm(user_prompt=user_prompt, system_prompt = system_prompt, provider='cerebras', model='llama3.1-70b')
 
     print("LLM Response:\n", agent_call.llm_response)
-    input()
+    # input()
     # Find JSON object in the text
     match = re.search(r'\[\s*(-?\d+\s*(,\s*-?\d+\s*)*)?\]', agent_call.llm_response)
     if match:

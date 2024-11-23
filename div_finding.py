@@ -1,4 +1,5 @@
-from scrape4 import *
+# from scrape4 import *
+from scrape7 import *
 from bs4 import BeautifulSoup
 from look_at_scrape import load_scraper_state
 from utils.element_utils.element_similarity import element_similarity
