@@ -90,7 +90,7 @@ class ScrapeAction:
     after_screenshot: bytes | str
     url: str
     action_effect: str | None
-    number: str 
+    number: str | None
 
 @dataclass
 class IndefiniteAction:

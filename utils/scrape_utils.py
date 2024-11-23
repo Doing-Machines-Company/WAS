@@ -5,7 +5,7 @@ import asyncio
 async def scroll_into_view(playwright_element):
     await playwright_element.scroll_into_view_if_needed(timeout=10000)
 
-def create_boundingbox(image_bytes, bounding_box):
+async def create_boundingbox(image_bytes, bounding_box):
     if not bounding_box:
         print("NO BOUNDING BOX")
         return image_bytes
