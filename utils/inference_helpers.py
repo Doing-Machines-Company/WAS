@@ -84,7 +84,15 @@ async def get_chosen_element(page, chosen_indefinite, role_name_backup = True):
                         chosen_xpath = chosen_action.xpath
 
     # If all XPath attempts failed, try locating by role and name
-    if not chosen_element and chosen_action.name and chosen_action.role and role_name_backup:
+    if role_name_backup:
+        print("ROLE NAME BACKUP ENABLED")
+        print(f"BACKUP NAME: {chosen_action.name}")
+        print(f"BACKUP ROLE: {chosen_action.role}")
+        if chosen_element is None:
+            print("CHOSEN ELEMENT IS NONE")
+        else:
+            print(f"CURRENT COUNT: {await chosen_element.count()}")
+    if (not chosen_element or (await chosen_element.count()) < 1) and chosen_action.name and chosen_action.role and role_name_backup:
     # if chosen_action.name and chosen_action.role and role_name_backup:
         role, name = chosen_action.role, chosen_action.name
         print('All XPath attempts failed. Trying to locate by role and name.')
