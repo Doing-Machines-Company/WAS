@@ -12,3 +12,5 @@ WAS
 nohup.out
 uvicorn.log
 
+.venv
+.idea

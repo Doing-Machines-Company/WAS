@@ -7,7 +7,6 @@ import base64
 
 
 openai_api_key = os.getenv('OPENAI_API_KEY')
-
 openai_client = OpenAI(api_key=openai_api_key)
 
 def use_gpt_fill_input(memory, website_info, outerHTML, testing_mode=True):

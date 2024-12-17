@@ -1,7 +1,7 @@
 import time
 
 from drivers import AxObservation
-from action import Action
+from action import Action # FIXME: where do we get Action from
 import json
 from pathlib import Path
 from playwright.sync_api import sync_playwright
@@ -67,7 +67,7 @@ class EquivalenceClass:
         self.page_states[normalized_url] = state
 
     def update_unique_actions(self, actions: list[Action], before_html: str, after_html: str, before_screenshot: bytes,
-                              after_screenshot: bytes):
+                              after_screenshot: bytes): # FIXME: not being called anywhere?
         for action in actions:
             action_key = action.html
             if action_key not in self.unique_actions or not self.has_similar_action(action):
@@ -159,6 +159,7 @@ def get_chunks_llm(page_tree: str):
             results.append((string, start, end))
 
     return results
+
 def ax_node_to_action(ax_node: AxNode) -> Optional[Action]:
     important_clickables = [
         'button',
