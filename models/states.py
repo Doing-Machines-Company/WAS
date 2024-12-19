@@ -189,3 +189,4 @@ class InferencePageState:
     matched_actions: list[InferenceAction]
     header_html: str
     footer_html: str
+    matched: bool

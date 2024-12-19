@@ -123,6 +123,12 @@ class InferenceAxtree:
 
     #  we get axnodes which we roll into a pagestate, which we will roll into an InferencePageState, which we will then reroll into a InferenceAxtree
     #  TODO give header and footer actions
+    """
+
+    VERY IMPORTANT: THERE CAN BE NO MATCHED SCRAPE IN scrape_info, i.e., scrape_info.url_state CAN BE NONE.
+
+
+    """
     def __init__(self, scrape_info: InferencePageState, special_actions = None, use_scrape = True):
         self.scrap_info = scrape_info
         self.action_effect_lib = dict()

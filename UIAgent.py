@@ -27,7 +27,7 @@ from inferenceagent import (
 
 
 class Agent:
-    def __init__(self, fast_mode=False, retry_cap=2):
+    def __init__(self, fast_mode=False, retry_cap=10):
         self.stop_event = asyncio.Event()  # Use asyncio.Event for async compatibility
         self.cleaned_up = asyncio.Event()
         self.playwright_lock = asyncio.Lock()
@@ -274,6 +274,7 @@ class Agent:
             self.page.off("requestfailed", on_request_failed)
 
     async def loop_until_loaded(self, wait_time=6):
+        await asyncio.sleep(1)
         start_time = time.time()
         node_count = len(await get_ax_tree_no_extras(self.cdp_session))
         try:
@@ -283,7 +284,7 @@ class Agent:
             pass
         while time.time() - start_time <= wait_time:
             new_node_count = len(await get_ax_tree_no_extras(self.cdp_session))
-            if new_node_count == node_count:
+            if new_node_count == node_count and new_node_count > 0:
                 break
             else:
                 node_count = new_node_count
@@ -324,23 +325,23 @@ class Agent:
 
             # Main action loop
             while not self.stop_event.is_set():
-                self.curr_save_node = SavedTrajectoryNode()
+                try:
+                    self.curr_save_node = SavedTrajectoryNode()
 
-                await self.capture_and_send_screenshot(self.curr_save_node)
-
-
-
-                async with self.playwright_lock:
+                    await self.capture_and_send_screenshot(self.curr_save_node)
 
 
 
-                    self.curr_save_node.url = self.page.url
+                    async with self.playwright_lock:
 
-                    if not matched_inference_state and not curr_page_state:  # curr_page_state should always be defined unless it's the first one, so if inference state isn't matched script should be breaking as intended
-                        curr_page_state = await get_page_state(self.page, self.cdp_session)
-                        matched_inference_state = match_action_effects(curr_page_state, self.url_state_manager)
 
-                    if matched_inference_state:
+
+                        self.curr_save_node.url = self.page.url
+
+                        if not matched_inference_state and not curr_page_state:  # curr_page_state should always be defined unless it's the first one, so if inference state isn't matched script should be breaking as intended
+                            curr_page_state = await get_page_state(self.page, self.cdp_session)
+                            matched_inference_state = match_action_effects(curr_page_state, self.url_state_manager)
+
 
                         if not curr_inf_tree:  # should only be used during first iteration
                             curr_inf_tree = InferenceAxtree(matched_inference_state, special_actions=self.special_actions,
@@ -374,35 +375,36 @@ class Agent:
 
                         if action_out_list is None:
                             # Now as action_out is a list, this may not ever be None due to structured outputs
+                            print("NO ACTION LIST")
                             raise Exception
 
                         if action_out_list == []:
                             print("NO ACTIONS GIVEN")
-                        
-                        action_jsons = []
-                        for action_out in action_out_list:
-                            chosen_action_index, reason_for_action = action_out  
-                            action_json = {
-                                'action_index': chosen_action_index,
-                                'reason_for_action' : reason_for_action
-                            }
-                            action_jsons.append(action_json)
 
+                        # action_jsons = []   # TODO use for storing in node later
+                        # for action_out in action_out_list:
+                        #     chosen_action_index, reason_for_action = action_out
+                        #     action_json = {
+                        #         'action_index': chosen_action_index,
+                        #         'reason_for_action' : reason_for_action
+                        #     }
+                        #     action_jsons.append(action_json)
 
                         old_inf_tree = copy.deepcopy(curr_inf_tree)  # do we need to copy this?
 
                         for (iterating_action_index, action_out) in enumerate(action_out_list):
                             new_reflect_action_indices = []
                             intermediate_tree = None
-                            most_recent_successful = False
+                            something_failed = False
 
                             chosen_action_index, reason_for_action = action_out  # we choose a list of actions in support, everything set up like input
                             reason_for_action = reason_for_action.encode('utf-8').decode('unicode_escape')
-                            # print(f'reason_for_action: {reason_for_action}')
                             await self.output_queue.put(('only_out', reason_for_action))
 
                             chosen_indefinite = old_inf_tree.get_action_from_index(chosen_action_index)
                             chosen_action = chosen_indefinite.action
+
+                            #  HARD STOPS FOR DOMINO'S
 
                             if chosen_action is not None and chosen_action.html is not None and (
                                     'payment-order-now' in chosen_action.html or 'Place Your Order' in chosen_action.html):
@@ -414,7 +416,6 @@ class Agent:
                                     ('exit_message', "Stopping agent to prevent actually buying a Pizza"))
                                 self.stop()
 
-                            # Check stop_event after API call
                             if self.stop_event.is_set():
                                 break
 
@@ -428,6 +429,11 @@ class Agent:
 
 
                             if chosen_indefinite.location != IndefiniteAction.Location.SPECIAL:
+                                """
+                                
+                                This generally does an action
+                                
+                                """
 
                                 use_role_name_backup = curr_page_state.all_tree_lines.count(chosen_action.tree_line) == 1 and chosen_action.tree_line != ""
 
@@ -441,9 +447,11 @@ class Agent:
                                     self.page, chosen_action, chosen_element, chosen_xpath,
                                     type_list
                                 )
+
                                 if success:
-                                    most_recent_successful = True
                                     new_reflect_action_indices.append(chosen_action_index)
+                                else:
+                                    something_failed = True
 
 
                             elif chosen_action.action_type == Action.Type.REQUEST_USER_INPUT:
@@ -476,11 +484,11 @@ class Agent:
                                     if self.stop_event.is_set():
                                         break
 
-                                most_recent_successful = True
 
 
                             elif chosen_action.action_type == Action.Type.STOP:
-                                most_recent_successful = False  # this should generally be the last action anyways
+                                await self.output_queue.put(('exit_message', "Agent has stopped as task is complete. "))
+                                self.stop()
 
                             elif chosen_action.action_type == Action.Type.INPUT_GIVEN_INTENT:
                                 new_reflect_action_indices.append(chosen_action_index)
@@ -489,8 +497,10 @@ class Agent:
                                     old_inf_tree.get_input_tree(), self.context_info,
                                     self.hidden_inputs
                                 )
+
                                 if desired.parsed_output is None:
                                     raise Exception
+
                                 for (chosen_input_index, input_string) in desired.parsed_output:
                                     if self.stop_event.is_set():
                                         break
@@ -502,30 +512,65 @@ class Agent:
                                     use_role_name_backup = curr_page_state.all_tree_lines.count(
                                         chosen_input_action.tree_line) == 1 and chosen_input_action.tree_line != ""
 
+
+                                    # TODO JAMES CHECK WHY LOCATION OF INPUTS ARE SPECIAL
+
                                     chosen_element, chosen_xpath, type_list = await get_chosen_element(
                                         self.page,
                                         chosen_input_indefinite,
                                         use_role_name_backup
                                     )
+
                                     chosen_input_action.set_input_string(unhidden_input_string)
                                     if self.stop_event.is_set():
                                         break
+
                                     success = await do_action_flow(
                                         self.page, chosen_input_action, chosen_element, chosen_xpath,
                                         type_list
                                     )
                                     if success:
-                                        most_recent_successful = True
                                         new_reflect_action_indices.append(chosen_input_index)
+                                    else:
+                                        something_failed = True
 
 
                                     if self.stop_event.is_set():
                                         break
 
-                            if not most_recent_successful:  # this is in action loop
+                            if iterating_action_index == len(
+                                    action_out_list) - 1:  # if multiple actions, we assume only last action can possibly need load (THIS IS POTENTIALLY BAD)
+                                #  standard wait for reflect, get full new tree
+                                #  This is not the most elegant solution as it was patched when we had multi-action emission
+                                if self.fast_mode:
+                                    start_time = time.time()
+                                    wait_time = 6
+                                    timeout_wait = wait_time + 1
+                                    try:
+                                        await asyncio.wait_for(self.loop_until_loaded(wait_time=wait_time),
+                                                               timeout=timeout_wait)
+                                    except asyncio.TimeoutError:
+                                        print("Timeout reached while waiting for text to load.")
+
+                                    print(f"Lapsed time: {time.time() - start_time}")
+                                else:
+                                    await asyncio.sleep(6)
+
+                            curr_page_state = await get_page_state(self.page, self.cdp_session)
+
+                            matched_inference_state = match_action_effects(curr_page_state,
+                                                                           self.url_state_manager)
+
+                            curr_inf_tree = InferenceAxtree(matched_inference_state,
+                                                            special_actions=self.special_actions,
+                                                            use_scrape=True)
+
+                            intermediate_tree = curr_inf_tree.get_raw_tree()
+
+                            if something_failed:  # this is in action loop
                                 """
                                 
-
+    
                                 we remove the last item in action mem and just redo the reflect
                                 reflect action indices should still be what was performed (successfully) in the call before this one where it failed,
                                 old_inf_tree should still be what it was performed on
@@ -533,53 +578,12 @@ class Agent:
                                 WE NEED TO THINK HARDER ABOUT REDOING A REFLECT CALL, there is some not sufficiently loaded assumption failsafe
                                 
                                 """
-                                # if len(self.action_mem) > 0:
-                                #     self.action_mem = self.action_mem[:-1]  # TODO STOP DOING THIS
-
                                 self.failed_count += 1
                                 if self.failed_count > self.retry_cap:
                                     self.stop()
                                 break
                             else:
                                 self.failed_count = 0
-
-
-                                if iterating_action_index == len(action_out_list) - 1:  # if multiple actions, we assume only last action can possibly need load (THIS IS POTENTIALLY BAD)
-                                    #  standard wait for reflect, get full new tree
-                                    if self.fast_mode:
-                                        start_time = time.time()
-                                        wait_time = 6
-                                        timeout_wait = wait_time + 1
-                                        try:
-                                            await asyncio.wait_for(self.loop_until_loaded(wait_time=wait_time),
-                                                                   timeout=timeout_wait)
-                                        except asyncio.TimeoutError:
-                                            print("Timeout reached while waiting for text to load.")
-
-                                        print(f"Lapsed time: {time.time() - start_time}")
-                                    else:
-                                        await asyncio.sleep(6)
-
-                                    curr_page_state = await get_page_state(self.page, self.cdp_session)
-                                    matched_inference_state = match_action_effects(curr_page_state,
-                                                                                   self.url_state_manager)
-                                    if matched_inference_state:
-                                        curr_inf_tree = InferenceAxtree(matched_inference_state,
-                                                                        special_actions=self.special_actions,
-                                                                        use_scrape=True)
-
-                                    intermediate_tree = curr_inf_tree.get_raw_tree()
-
-                                if not intermediate_tree:
-                                    intermediate_tree = await self.get_light_tree()
-
-                                # print(intermediate_tree)
-                                #
-                                # input('intermediate tree')
-                                #
-                                # print(str(old_inf_tree.get_tree_with_specific_action_effect(new_reflect_action_indices)))
-                                #
-                                # input('old tree')
 
                                 if chosen_action.action_type != Action.Type.REQUEST_USER_INPUT and chosen_action.action_type != Action.Type.STOP: # add more
                                     reflect_response_call = await call_reflect_agent(
@@ -591,6 +595,7 @@ class Agent:
 
                                     mem_response = reflect_response_call.parsed_output
                                     if mem_response is None:
+                                        print("NO MEM RESPONSE")
                                         raise Exception
                                     old_web_page_purpose, object_and_effect = mem_response[0], mem_response[1]
                                     new_memory = LinearMemory(object_details=old_web_page_purpose,
@@ -598,18 +603,50 @@ class Agent:
                                     self.action_mem.append(new_memory)
 
 
-
-
-
-
-                    else:
-                        print("No matched state, why?")
-
                     self.saved_trajectory.add_node(copy.deepcopy(self.curr_save_node))
 
-                if self.stop_event.is_set():
-                    break
-                gc.collect()
+                    if self.stop_event.is_set():
+                        break
+                    gc.collect()
+                except Exception as e:
+                    print(f"Agent encountered inner exception: {e}")
+                finally:
+                    if self.stop_event.is_set():  # only set in self.stop()
+                        print("Stop event detected. Initiating cleanup...")
+                        print("CLEANING")
+                        await self.cleanup_browser()
+                        print("FINISHED CLEANING")
+                        print("DONE!")
+                    else:
+                        self.failed_count += 1
+                        if self.failed_count > self.retry_cap:
+                            self.stop()
+                        else:
+                            if self.fast_mode:
+                                start_time = time.time()
+                                wait_time = 6
+                                timeout_wait = wait_time + 1
+                                try:
+                                    await asyncio.wait_for(self.loop_until_loaded(wait_time=wait_time),
+                                                           timeout=timeout_wait)
+                                except asyncio.TimeoutError:
+                                    print("Timeout reached while waiting for text to load.")
+
+                                print(f"Lapsed time: {time.time() - start_time}")
+                            else:
+                                await asyncio.sleep(6)
+
+                            curr_page_state = await get_page_state(self.page, self.cdp_session)
+
+                            matched_inference_state = match_action_effects(curr_page_state,
+                                                                           self.url_state_manager)
+
+                            curr_inf_tree = InferenceAxtree(matched_inference_state,
+                                                            special_actions=self.special_actions,
+                                                            use_scrape=True)
+
+
+
 
 
         except Exception as e:
