@@ -21,7 +21,7 @@ from inferenceagent import (
     call_task_clarifier,
     call_input_agent,
     call_unified_question_cleaner,
-    call_check_load_agent_text,
+    call_load_check_agent_text,
     call_check_load_agent_screenshot
 )
 
@@ -128,7 +128,7 @@ class Agent:
             if self.playwright is None:
                 self.playwright = await async_playwright().start()
             if self.browser is None:
-                self.browser = await self.playwright.chromium.launch(headless=True)
+                self.browser = await self.playwright.chromium.launch(headless=False)
             if self.browser_context is None or self.page is None or self.cdp_session is None:
                 try:
                     self.browser_context, self.page, self.cdp_session, _ = await setup_context(self.browser, None)
@@ -190,9 +190,9 @@ class Agent:
             # cleaned = AxObservation(ax_nodes, self.page.url, numbered=False)
             cleaned = await self.get_light_tree()
             try:
-                is_loaded = await asyncio.wait_for(call_check_load_agent_text(cleaned), timeout=1)
+                is_loaded = await asyncio.wait_for(call_load_check_agent_text(cleaned), timeout=1)
             except asyncio.TimeoutError:
-                print("Timeout: call_check_load_agent_text took too long.")
+                print("Timeout: call_load_check_agent_text took too long.")
                 is_loaded = False
             return is_loaded
 
@@ -274,8 +274,8 @@ class Agent:
             self.page.off("requestfailed", on_request_failed)
 
     async def loop_until_loaded(self, wait_time=6):
-        # await asyncio.sleep(1)
         start_time = time.time()
+        node_count = len(await get_ax_tree_no_extras(self.cdp_session))
         try:
             # await self.page.wait_for_load_state('networkidle', timeout=1000)
             await self.wait_for_network_idle(idle_time=0.2, timeout=1)
@@ -283,14 +283,15 @@ class Agent:
             pass
         is_loaded = False
         while time.time() - start_time <= wait_time // 2:
-            is_loaded = await self.check_if_loaded_text()
-            if is_loaded:
+            new_node_count = len(await get_ax_tree_no_extras(self.cdp_session))
+            if new_node_count == node_count:
                 break
             else:
-                await asyncio.sleep(0.5)
+                node_count = new_node_count
+                await asyncio.sleep(0.2)
         if not is_loaded:
             await asyncio.sleep(wait_time // 2)
-
+# BACKUP NAME:
     async def run(self):
         await self.launch_browser()
         try:
@@ -330,6 +331,8 @@ class Agent:
 
                 await self.capture_and_send_screenshot(self.curr_save_node)
 
+
+
                 async with self.playwright_lock:
 
 
@@ -357,13 +360,12 @@ class Agent:
 
                         action_out_call = await call_action_agent(
                             self.task, curr_inf_tree,
-                            self.action_mem, self.item_context_pairs, provider="anthropic"
+                            self.action_mem, self.item_context_pairs, provider="cerebras", model="llama-3.3-70b"
                         )
                         action_out_list = [action_out_call.parsed_output]  # a single action
 
 
-
-                        self.curr_save_node.ad_call = str(action_out_call)
+                        self.curr_save_node.ad_call = action_out_call
                         # TEST
                         # Check stop_event after API call
                         if self.stop_event.is_set():
@@ -388,9 +390,7 @@ class Agent:
                                 'reason_for_action' : reason_for_action
                             }
                             action_jsons.append(action_json)
-                            # print(json.dumps(action_jsons))
-                        pruned_indices = await call_action_pruner(self.task, curr_inf_tree.get_tree_with_specific_action_effect([action[0] for action in action_out_list]), self.action_mem, json.dumps(action_jsons))
-                        # print("Print pruned indices", pruned_indices)
+
 
                         old_inf_tree = copy.deepcopy(curr_inf_tree)  # do we need to copy this?
 
