@@ -281,17 +281,14 @@ class Agent:
             await self.wait_for_network_idle(idle_time=0.2, timeout=1)
         except:
             pass
-        is_loaded = False
-        while time.time() - start_time <= wait_time // 2:
+        while time.time() - start_time <= wait_time:
             new_node_count = len(await get_ax_tree_no_extras(self.cdp_session))
             if new_node_count == node_count:
                 break
             else:
                 node_count = new_node_count
                 await asyncio.sleep(0.2)
-        if not is_loaded:
-            await asyncio.sleep(wait_time // 2)
-# BACKUP NAME:
+
     async def run(self):
         await self.launch_browser()
         try:
