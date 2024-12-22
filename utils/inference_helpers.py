@@ -30,20 +30,23 @@ def match_tree_to_scrape(page, equiv_class_set):
     curr_page_html = page.content()
     equiv_class_set.get_class(page.url, curr_page_html)
 
-def match_action_effects(curr_page_state: PageState, url_state_manager: URLStateManager) -> InferencePageState | None:  # Needless amounts of unrolling and rerolling
+def match_action_effects(curr_page_state: PageState, url_state_manager: URLStateManager) -> InferencePageState:  # Needless amounts of unrolling and rerolling
     found_state = url_state_manager.get_state(curr_page_state)
     if found_state:
         curr_page_actions = [action for action in curr_page_state.actions]  # (typeList, action)
         new_action_list = found_state.match_actions(curr_page_actions)
-        inference_page_state = InferencePageState(curr_page_state.url, curr_page_state.ax_nodes, curr_page_state.html, found_state, new_action_list, curr_page_state.header_html, curr_page_state.footer_html)
+        inference_page_state = InferencePageState(curr_page_state.url, curr_page_state.ax_nodes, curr_page_state.html, found_state, new_action_list, curr_page_state.header_html, curr_page_state.footer_html, True)
         return inference_page_state
 
     else:
-        print("NOTHING FOUND")
-        return None
-    
+        print("URL STATE NOT FOUND FOR PAGE")
+        curr_page_actions = [InferenceAction(action, None) for action in curr_page_state.actions]
+        inference_page_state = InferencePageState(curr_page_state.url, curr_page_state.ax_nodes, curr_page_state.html,
+                                                  None, curr_page_actions, curr_page_state.header_html,
+                                                  curr_page_state.footer_html, False)
+        return inference_page_state
+
 async def get_chosen_element(page, chosen_indefinite, role_name_backup = True):
-    assert(chosen_indefinite.location != IndefiniteAction.Location.SPECIAL)
     chosen_action = chosen_indefinite.action
     if chosen_action.action_type is not None:
         type_list = [chosen_action.action_type]
@@ -92,8 +95,10 @@ async def get_chosen_element(page, chosen_indefinite, role_name_backup = True):
             print("CHOSEN ELEMENT IS NONE")
         else:
             print(f"CURRENT COUNT: {await chosen_element.count()}")
+    print("GOT HERE INF HELP1")
     if (not chosen_element or (await chosen_element.count()) < 1) and chosen_action.name and chosen_action.role and role_name_backup:
     # if chosen_action.name and chosen_action.role and role_name_backup:
+        print("GOT HERE INF HELP2")
         role, name = chosen_action.role, chosen_action.name
         print('All XPath attempts failed. Trying to locate by role and name.')
         elements = page.get_by_role(role, name=name)
