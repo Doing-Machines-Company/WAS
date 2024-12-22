@@ -4,6 +4,9 @@ from dataclasses import dataclass
 class LinearMemory:
     object_details: str
     location_details: str
+    intent: str
+    action_treelines: list[str]
+    page_url: str
 
     def __repr__(self):
         return f"({self.object_details}, {self.location_details})"

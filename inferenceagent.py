@@ -192,7 +192,7 @@ async def call_llm(
 
         output = await asyncio.to_thread(openai_store_call)
 
-    elif provider == 'cerebras':
+    elif provider == "cerebras":
         def cerebras_call():
             completion = cerebras_client.chat.completions.create(
                 messages=[
@@ -306,18 +306,20 @@ async def call_action_agent(
     ax_tree: str,
     action_memory: List,  # Define the specific type if available
     context: str,
-    provider: str = "openai"
+    provider: str = "openai",
+    model: str = "llama-3.3-70b"
 ) -> AgentCall:
     """
     Asynchronously calls the action agent LLM and processes its response.
     """
-    new_action_memory = ''
+    new_action_memory = '\n***'
     for i, lin_mem in enumerate(action_memory):
-        new_action_memory += f"\n{i + 1}) LOCATION: {lin_mem.object_details}\n{i + 1}) EFFECT: {lin_mem.location_details}"
+        action_lines = '\n'.join(lin_mem.action_treelines)
+        new_action_memory += f"{i + 1})\nLOCATION: {lin_mem.object_details}\nINTENT: {lin_mem.intent}\nEFFECT:\n{lin_mem.location_details}\n***\n"
 
     # Read user prompt template asynchronously
     def read_user_prompt():
-        with open('prompts/action_decider/action_decider_user_v2.txt', 'r') as f:
+        with open('prompts/action_decider/action_decider_llama_user.txt', 'r') as f:
             return f.read()
 
     user_prompt_template = await asyncio.to_thread(read_user_prompt)
@@ -329,7 +331,7 @@ async def call_action_agent(
     user_prompt = string.Template(user_prompt_template).substitute(replacements)
     # Read system prompt template asynchronously
     def read_system_prompt():
-        with open('prompts/action_decider/action_decider_system_v2.txt', 'r') as f:
+        with open('prompts/action_decider/action_decider_llama_system.txt', 'r') as f:
             return f.read()
 
     system_prompt_template = await asyncio.to_thread(read_system_prompt)
@@ -339,7 +341,8 @@ async def call_action_agent(
     system_prompt = string.Template(system_prompt_template).substitute(replacements)
 
     # Call the updated call_llm asynchronously
-    agent_call = await call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider=provider)
+    agent_call = await call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider=provider, model=model)
+    # agent_call = await call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider='anthropic')
 
     print("LLM Response:\n", agent_call.llm_response)
 
@@ -454,7 +457,7 @@ async def call_action_agent_multi(
     return agent_call
 
 
-async def call_check_load_agent_text(
+async def call_load_check_agent_text(
     ax_tree,
 ) -> bool:
     """
@@ -555,7 +558,7 @@ async def call_check_load_agent_screenshot(
 
     print("Screenshot Analysis Response:\n", output)
 
-    # Parse the response similar to call_check_load_agent_text
+    # Parse the response similar to call_load_check_agent_text
     json_match = re.search(r'\{[\s\S]*}', output)
     page_loaded = None
 
@@ -655,7 +658,7 @@ async def call_reflect_agent(
     """
     # Read user prompt template asynchronously
     def read_user_prompt():
-        with open('prompts/reflect_store_prompt_v3.txt', 'r') as f:
+        with open('prompts/reflect_store_prompt_v4.txt', 'r') as f:
             return f.read()
 
     user_prompt_template = await asyncio.to_thread(read_user_prompt)
@@ -668,14 +671,15 @@ async def call_reflect_agent(
     user_prompt = string.Template(user_prompt_template).substitute(replacements)
 
     # Call the updated call_llm asynchronously
-    agent_call = await call_llm(user_prompt=user_prompt, provider='cerebras', model='llama3.1-70b')
+    agent_call = await call_llm(user_prompt=user_prompt, provider='cerebras', model='llama-3.3-70b')
 
     print("LLM Response:\n", agent_call.llm_response)
 
-    json_pattern = r'\{[^{}]*\}'
+    # Updated regex pattern to capture JSON within ```json or ``` code blocks
+    json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
 
-    # Find all matches
-    json_matches = re.findall(json_pattern, agent_call.llm_response)
+    # Use re.DOTALL to allow '.' to match newlines
+    json_matches = re.findall(json_pattern, agent_call.llm_response, re.DOTALL)
     parsed_output: Optional[Tuple[str, str]] = ('', '')
 
     if json_matches:
@@ -688,7 +692,8 @@ async def call_reflect_agent(
                     parsed_output = (old_web_page_purpose, action_effect)
                     print("Parsed Data:", data)
                     break  # Exit after finding the first valid match
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
+                print(f"Reflect Restore Error: JSON decoding failed for a matched block - {e}")
                 continue
     else:
         print("Reflect Restore Error: No JSON object found in the LLM response")
@@ -792,11 +797,17 @@ async def call_input_agent(
     input_ax_tree: str,
     context: str,
     hidden_inputs: List[HiddenInput],
+    runtime_qa: str,
     provider: str = "anthropic"
 ) -> AgentCall:
     """
     Asynchronously calls the input agent LLM and processes its response.
     """
+
+    runtime_qa_string = ''
+    for i, qa in enumerate(runtime_qa):
+        runtime_qa_string += f"{qa}\n"
+
     # Read prompt template asynchronously
     def read_prompt():
         with open('prompts/mass_input_prompt_json.txt', 'r') as f:
@@ -804,22 +815,22 @@ async def call_input_agent(
 
     prompt_template = await asyncio.to_thread(read_prompt)
 
-    formatted_hidden_items = ''
-    for item in hidden_inputs:
-        formatted_hidden_items += f"{item.key.strip()}: {item.description.strip()}\n"
-    formatted_hidden_items = formatted_hidden_items.strip()
+    # formatted_hidden_items = ''
+    # for item in hidden_inputs:
+    #     formatted_hidden_items += f"{item.key.strip()}: {item.description.strip()}\n"
+    # formatted_hidden_items = formatted_hidden_items.strip()
 
     replacements = {
         'user_task': user_task,
         'agent_intent': agent_intent,
         'input_ax_tree': input_ax_tree,
         'context': context,
-        'hidden_items': formatted_hidden_items
+        'runtime_qa': runtime_qa_string
     }
     prompt = string.Template(prompt_template).substitute(replacements)
 
     # Call the updated call_llm asynchronously
-    agent_call = await call_llm(user_prompt=prompt, provider='cerebras', model='llama3.1-70b')
+    agent_call = await call_llm(user_prompt=prompt, provider='cerebras', model='llama-3.3-70b')
 
     print("LLM Response:\n", agent_call.llm_response)
 
@@ -827,6 +838,8 @@ async def call_input_agent(
 
     # Find all matches in the answer
     matches = re.findall(pattern, agent_call.llm_response, re.DOTALL)
+    print(matches)
+    print("MATCHES")
 
     parsed_output = [(int(num), input_text) for num, input_text in matches]
 

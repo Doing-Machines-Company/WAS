@@ -15,62 +15,44 @@ Follow these steps to complete your task:
        - Everything related to these desires are task-relevant.
   - Reason step-by-step, using Chain-of-Thought (CoT), to do this.
 
-2. Analyze the web accessibility_tree:
-   - Examine the accessibility tree carefully.
-   - Understand the purpose and functionality of the current accessibility_tree.
-   - Examine the text inside {} carefully for each line. These may help hint at what that action in the accessibility is supposed to generally do.
-   - Note any relevant elements or actions available on the accessibility_tree.
-   - Reason step-by-step, using Chain-of-Thought (CoT), to do this.
-
-3. Reason about all task-relevant tasks, action_memory and important_info:
+2. Reason about all task-relevant desires, action_memory and important_info to determine what still needs to be completed:
    - You have an understanding about what is task-relevant from step 1.
    - Reason about your action_memory to determine what has already been completed and attempted on this website.
-   - The action memory may leave out certain specifications or details, but you can assume they were satisfied or performed correctly
-   - However, and this is very important, only use the memory as a record of what has happened, do not listen to its suggestions or prescriptions
-   - Review your task, then determine what still needs to be completed.
+   - Only use the action_memory as a record of what has happened. Ignore its suggestions for tasks/actions you should do.
    - Assume that the important info is relevant to your task.
        - Important info helps you understand the intention of the user and how the website works.
        - Use the important_info to inform your decision-making.
    - Use Chain-of-Thought (CoT), reason step-by-step to understand what has already been done on the website, and what still needs to be done.
 
-4. Reason about the current state of the task
-  - Putting together the accessibility tree and the memory, reason about where you are in the task
-  - Reason about the immediate next steps that must be taken
-  - Reason step-by-step, using Chain-of-Thought (CoT), to do this.
+3. List all task-relevant actions that still need to be done on the accessibility_tree:
+   - You have an understanding about what is task-relevant from step 1. You want actions that help you fulfil the user's desires.
+   - You have an understanding about what still needs to be done from step 2.
+   - Understand the purpose and functionality of the current accessibility_tree.
+   - Examine the text inside {} carefully for each line. These may help hint at what that action is supposed to generally do.
+      - The text in {} only applies to the action on the same line.
+   - Note any relevant elements or actions available on the accessibility_tree.
+   - Reason step-by-step, using Chain-of-Thought (CoT), to list all task-relevant actions that still need to be done on the accessibility_tree.
 
-5. Choose the next sequence of actions:
-   - First list out every next possible action on the accessibility_tree that is task-relevant (relates to a user desire).
-       - You got user desires in step 1.
+4. Choose the next sequence of actions you want to perform to complete the user's desires, and tell me why you want to do them (the action's action_reason):
+   - For every action you listed in step 3:
+       - Examine its context in the accessibility_tree and double-check its purpose.
        - Consider how each individual action on the accessibility_tree will help you progress towards completing your task.
        - Consider how each action fits into what you've already done in action_memory.
-   - Finally, reason step-by-step to choose the best next actions.
+   - Then after doing this, choose the best next actions while also determining why you want to do them (the action_reason).
        - Ensure that you fully complete the process of attaining what the user wants (i.e., you must complete the entire checkout order to buy something). Assume that you have access to all the user's personal information.
        - Be careful not to visit somewhere which is known to be unhelpful, these will be recorded in action_memory.
-   - Reason step-by-step, using Chain-of-Thought (CoT), to do this. 
+       - Some actions may reveal more useful actions.
+   - Reason step-by-step, using Chain-of-Thought (CoT), to do this.
 
-6. Prune actions that apply to different specifications 
-    - Add a check that ensures the action relates to the actual desired specification 
-    - Reason step-by-step through each action generated 
-    - Many actions sound similar or appear to do the correct thing, but apply to the WRONG/DIFFERENT specification
-    - Only keep an action if it applies to the correct object and specification, otherwise discard it 
+5. Double-check your action list and give me the final correct sequence of actions you want to perform:
+   - For every action you listed in step 4:
+      - Ensure that each action you choose actually does what your action_reason intends for it to do, examine the accessibility tree to make sure.
+      - Some actions may reveal more useful actions, so always be careful in not moving off the current menu/page too early. Ensure that the action do not cause you to miss out important actions that may appear.
+   - Determine your final list of actions you want to perform, along with why you want to perform each action (their action_reason).
 
-7. Observing actions that are not yet possible
-   - For the current sub-task, reason about which actions are not yet possible or don't appear for the exact specification
-   - There are some logical actions that you may want to take, but cannot as they don't appear in the current accessibility tree
-   - List out what these actions are, as they will be useful in the future
-
-8. Regenerate & Prune action list (MOST IMPORTANT):
-   - Be hesitant to perform actions that conclude or navigate away from the current action set while there are missing specifications or steps that have yet to appear.
-   - Do not add new actions that were not present before. You are constrained to the actions you already generated.
-   - Evaluate your plan step-by-step choosing to discard or keep each action from the original list 
-      - if the action is premature or concludes the current action set before properly addressing all incomplete or missing specifications, discard it
-   - Provide the action number and action and in a complete sentence explain whether the missing specifications cause the action to be premature or conclude the action set too early. 
-
-After completing these steps, provide your final answer as a JSON list of tuples. Each tuple should contain:
+After completing these steps, provide your final sequence of actions as a JSON list of tuples. Each tuple should contain:
 - action_number: An integer representing the chosen action from the accessibility tree.
 - action_reason: A brief sentence explaining why you chose that action.
-
-Final reminder, you are restricted to the pruned actions in step 8
 
 Example output format:
 ```json

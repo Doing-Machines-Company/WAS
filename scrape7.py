@@ -398,7 +398,7 @@ async def explore_page(url_info: tuple, equiv_classes_lock: Lock, eq_class_lock:
 
                 if not final_element or (await final_element.count()) < 1 or not final_xpath:
                     print(f"This element was not found for final {action}")
-                    # await close_resources(cdpSession, page, context)
+                    # await close_resources(cdpSession, page, context) TODO JAMES WHY?
                     # continue
 
 
@@ -667,10 +667,14 @@ async def explore(starting_url: str, cookies: Optional[dict] = None, headless: b
     scraper_state_path = Path(output_dir) / 'scraper_state.pkl'
     checkpoint_path = Path(output_dir) / 'checkpoint.pkl'
     if resume and scraper_state_path.exists() and checkpoint_path.exists():
+        # async with aiofiles.open(scraper_state_path, 'rb') as f:
+        #     equiv_classes = await asyncio.to_thread(pickle.load, f)
+        # async with aiofiles.open(checkpoint_path, 'rb') as f:
+        #     resumed_action_number, urls, seen_urls = await asyncio.to_thread(pickle.load, f)
         async with aiofiles.open(scraper_state_path, 'rb') as f:
-            equiv_classes = await asyncio.to_thread(pickle.load, f)
+            equiv_classes = pickle.loads(await f.read())
         async with aiofiles.open(checkpoint_path, 'rb') as f:
-            resumed_action_number, urls, seen_urls = await asyncio.to_thread(pickle.load, f)
+            resumed_action_number, urls, seen_urls = pickle.loads(await f.read())
         action_number = resumed_action_number
         url_queue = Queue()
         for url_info in urls:
@@ -728,5 +732,5 @@ async def explore(starting_url: str, cookies: Optional[dict] = None, headless: b
     print(seen_urls)
 
 # num_cores = os.cpu_count()
-if __name__ == "__main__":
-    asyncio.run(explore("https://www.dominos.com/", headless=False, root="www.dominos.com", num_threads=1, resume=True))
+# if __name__ == "__main__":
+#     asyncio.run(explore("https://www.dominos.com/", headless=False, root="www.dominos.com", num_threads=1, resume=True))

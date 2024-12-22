@@ -1,0 +1,31 @@
+Here's the accessibility tree of the current web page:
+
+<accessibility_tree>
+$ax_tree
+</accessibility_tree>
+
+Your task is:
+<task>
+$task
+</task>
+
+Here's the memory of actions you've taken so far, as well as questions you've asked the user:
+<action_memory>
+$action_memory
+</action_memory>
+
+Remember:
+- Every action in the accessibility tree is labeled with a number at the start of the line.
+- The action_memory is an enumerated list of tuples in the format:
+   - i)
+     Location: Description of where action was taken
+     Intent: The intention of performing action was
+     Effect: The actual effect of the performed action was
+   - Later items in action_memory happened more recently.
+- Some actions require inputting text, these are labelled INPUT_TEXT right after their starting number. You must use the ENTER INPUT MODE special action for these.
+- ENTER INPUT MODE only relevant for actions with INPUT_TEXT specified.
+- You can only interact with actions with INPUT_TEXT by using ENTER INPUT MODE.
+- If the page seems to missing items, use RELOAD PAGE.
+- Ensure that you fully complete the process of attaining what the user wants (i.e., you must complete the ENTIRE CHECKOUT PROCESS for the order to buy something). Assume that you have access to all the user's personal information.
+
+First, follow all the steps and their instructions carefully. You must reason step-by-step extensively for ALL of these steps. Then, give your final answer inside a Python function as described above.

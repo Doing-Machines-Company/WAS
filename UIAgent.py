@@ -27,12 +27,14 @@ from inferenceagent import (
 
 
 class Agent:
-    def __init__(self, fast_mode=False, retry_cap=10):
+    def __init__(self, fast_mode=False, retry_cap=10, reload_cap=1, call_retries=3):
         self.stop_event = asyncio.Event()  # Use asyncio.Event for async compatibility
         self.cleaned_up = asyncio.Event()
         self.playwright_lock = asyncio.Lock()
         self.fast_mode = fast_mode
         self.retry_cap = retry_cap
+        self.reload_cap = reload_cap
+        self.call_retries = call_retries
         # self.reset() UI resets agent, delete agent after done
         self.initialize_index()
 
@@ -41,6 +43,7 @@ class Agent:
         self.url_state_manager = load_scraper_state(self.scraper_state_file)
         self.task = None
         self.action_mem = []
+        self.runtime_qa = []
         self.world_mem = ""
         self.questions = []
         self.question_answers = []
@@ -60,6 +63,7 @@ class Agent:
         self.cdp_session = None
         self.curr_save_node = None
         self.failed_count = 0
+        self.reload_count = 0
         self.saved_trajectory = SavedTrajectory()
         self.init_special_actions()
 
@@ -131,7 +135,7 @@ class Agent:
                 self.browser = await self.playwright.chromium.launch(headless=False)
             if self.browser_context is None or self.page is None or self.cdp_session is None:
                 try:
-                    self.browser_context, self.page, self.cdp_session, _ = await setup_context(self.browser, None)
+                    self.browser_context, self.page, self.cdp_session, _ = await setup_context(self.browser, cookies=None, logged_in=False)
                 except Exception as e:
                     print(f"Error during setup_context: {e}")
                     await self.cleanup_browser()
@@ -199,25 +203,32 @@ class Agent:
     def init_special_actions(self):
         stop_action = Action(Action.Type.STOP, None, None)
         stop_action.set_special_effect(
-            'Stop trying to perform user task, use if task is impossible or finished. {Stops and give user control}')
+            'STOP')
         stop_indefinite = IndefiniteAction([Action.Type.STOP], stop_action, None,
                                            IndefiniteAction.Location.SPECIAL)
 
         input_all_action = Action(Action.Type.INPUT_GIVEN_INTENT, None, None)
         input_all_action.set_special_effect(
-            'Call an agent to fill in all inputs on the page given some intent. {The intent is action_reason you return in choose}')
+            'ENTER INPUT MODE')
         input_all_indefinite = IndefiniteAction([Action.Type.INPUT_GIVEN_INTENT], input_all_action,
                                                 None,
                                                 IndefiniteAction.Location.SPECIAL)
 
         ask_user_action = Action(Action.Type.REQUEST_USER_INPUT, None, None)
         ask_user_action.set_special_effect(
-            'Request information from user about everything in action_reason. {Requests the user to give you information about what you return as action_reason}')
+            'ASK USER')
         ask_user_indefinite = IndefiniteAction([Action.Type.REQUEST_USER_INPUT], ask_user_action,
                                                 None,
                                                 IndefiniteAction.Location.SPECIAL)
 
-        self.special_actions = [stop_indefinite, input_all_indefinite, ask_user_indefinite]
+        reload_action = Action(Action.Type.RELOAD_PAGE, None, None)
+        reload_action.set_special_effect(
+            'RELOAD PAGE')
+        reload_indefinite = IndefiniteAction([Action.Type.RELOAD_PAGE], reload_action,
+                                               None,
+                                               IndefiniteAction.Location.SPECIAL)
+
+        self.special_actions = [stop_indefinite, input_all_indefinite, ask_user_indefinite, reload_indefinite]
 
     async def wait_for_network_idle(self, idle_time=0.2, timeout=1.0):
         """
@@ -292,6 +303,7 @@ class Agent:
 
     async def run(self):
         await self.launch_browser()
+        await self.page.goto('https://www.dominos.com/')
         try:
             await self.capture_and_send_screenshot()
             if not self.stop_event.is_set():
@@ -345,7 +357,7 @@ class Agent:
 
                         if not curr_inf_tree:  # should only be used during first iteration
                             curr_inf_tree = InferenceAxtree(matched_inference_state, special_actions=self.special_actions,
-                                                            use_scrape=True)
+                                                            use_scrape=True, url=self.page.url)
 
                         if self.stop_event.is_set():
                             break
@@ -360,6 +372,17 @@ class Agent:
                             self.task, curr_inf_tree,
                             self.action_mem, self.item_context_pairs, provider="cerebras", model="llama-3.3-70b"
                         )
+                        if action_out_call.parsed_output is None:
+                            action_out_call = await call_action_agent(
+                                self.task, curr_inf_tree,
+                                self.action_mem, self.item_context_pairs,
+                                provider="anthropic", model="claude-3-5-sonnet-latest"
+                            )
+
+                        if action_out_call.parsed_output is None:
+                            self.failed_count += 1
+                            break
+
                         action_out_list = [action_out_call.parsed_output]  # a single action
 
 
@@ -381,6 +404,8 @@ class Agent:
                         if action_out_list == []:
                             print("NO ACTIONS GIVEN")
 
+                        if action_out_list == [None]:
+                            print("THIS SHOULD BE IMPOSSIBLE, CAN'T HAVE NONE IN LIST")
                         # action_jsons = []   # TODO use for storing in node later
                         # for action_out in action_out_list:
                         #     chosen_action_index, reason_for_action = action_out
@@ -399,7 +424,6 @@ class Agent:
 
                             chosen_action_index, reason_for_action = action_out  # we choose a list of actions in support, everything set up like input
                             reason_for_action = reason_for_action.encode('utf-8').decode('unicode_escape')
-                            await self.output_queue.put(('only_out', reason_for_action))
 
                             chosen_indefinite = old_inf_tree.get_action_from_index(chosen_action_index)
                             chosen_action = chosen_indefinite.action
@@ -449,9 +473,16 @@ class Agent:
                                 )
 
                                 if success:
+                                    await self.output_queue.put(('only_out', reason_for_action))
                                     new_reflect_action_indices.append(chosen_action_index)
                                 else:
                                     something_failed = True
+
+                            elif chosen_action.action_type == Action.Type.RELOAD_PAGE:
+                                self.reload_count += 1
+                                if self.reload_count > self.reload_cap:
+                                    await self.page.reload()
+                                    self.reload_count = 0
 
 
                             elif chosen_action.action_type == Action.Type.REQUEST_USER_INPUT:
@@ -477,9 +508,14 @@ class Agent:
 
                                     # TODO MAKE THIS INTO A MEMORY INJECTION AND ADD IT IN
                                     new_memory = LinearMemory(object_details=f"Asked the user: {question}\nUser responded with: {answer}",
-                                                              location_details="N/A")
+                                                              location_details="",
+                                                              intent="",
+                                                              action_treelines=old_inf_tree.get_action_treelines([chosen_action_index]),
+                                                              page_url=old_inf_tree.url)
 
                                     self.action_mem.append(new_memory)
+
+                                    self.runtime_qa.append(f"Asked the user: {question}\nUser responded with: {answer}")
                                     # Check stop_event after each user response
                                     if self.stop_event.is_set():
                                         break
@@ -492,22 +528,68 @@ class Agent:
 
                             elif chosen_action.action_type == Action.Type.INPUT_GIVEN_INTENT:
                                 new_reflect_action_indices.append(chosen_action_index)
-                                desired = await call_input_agent(
-                                    self.task, reason_for_action,
-                                    old_inf_tree.get_input_tree(), self.context_info,
-                                    self.hidden_inputs
-                                )
+                                count = 0
+                                while True:
+                                    desired = await call_input_agent(
+                                        self.task, reason_for_action,
+                                        old_inf_tree.get_input_tree(), self.context_info,
+                                        self.hidden_inputs, self.runtime_qa
+                                    )
 
-                                if desired.parsed_output is None:
-                                    raise Exception
+                                    if desired.parsed_output is None:
+                                        print("INPUT AGENT PARSED OUTPUT IS NONE")
+                                        raise Exception
+
+                                    if old_inf_tree.get_action_from_index(desired.parsed_output[0][0]).action.action_type != Action.Type.REQUEST_USER_INPUT:
+                                        break
+                                    elif count > 2:
+                                        break
+                                    else:
+                                        for (chosen_input_index, question) in desired.parsed_output:
+                                            if self.stop_event.is_set():
+                                                break
+
+                                            chosen_question_indefinite = old_inf_tree.get_action_from_index(
+                                                chosen_input_index)
+                                            chosen_question_action = chosen_question_indefinite.action
+
+                                            if chosen_question_action.action_type != Action.Type.REQUEST_USER_INPUT:
+                                                print("INPUT GIVEN IN QUESTION PHASE FOR INPUT AGENT")
+                                                raise Exception
+
+                                            if self.stop_event.is_set():
+                                                break
+                                            answer = await self.ask_user(question)
+
+                                            # TODO MAKE THIS INTO A MEMORY INJECTION AND ADD IT IN
+                                            new_memory = LinearMemory(
+                                                object_details=f"Asked the user: {question}\nUser responded with: {answer}",
+                                                location_details="",
+                                                intent="",
+                                                action_treelines=old_inf_tree.get_action_treelines(
+                                                    [chosen_action_index]),
+                                                page_url=old_inf_tree.url)
+
+                                            self.action_mem.append(new_memory)
+
+                                            self.runtime_qa.append(
+                                                f"Asked the user: {question}\nUser responded with: {answer}")
+
+                                            if self.stop_event.is_set():
+                                                break
+
 
                                 for (chosen_input_index, input_string) in desired.parsed_output:
                                     if self.stop_event.is_set():
                                         break
 
-                                    unhidden_input_string = replace_hidden_inputs(input_string, self.hidden_inputs)
+                                    unhidden_input_string = replace_hidden_inputs(input_string, self.hidden_inputs)  # no longer used for now
                                     chosen_input_indefinite = old_inf_tree.get_action_from_index(chosen_input_index)
                                     chosen_input_action = chosen_input_indefinite.action
+
+                                    if chosen_input_action.action_type == Action.Type.REQUEST_USER_INPUT:
+                                        print("QUESTION GIVEN IN INPUT PHASE FOR INPUT AGENT")
+                                        continue
 
                                     use_role_name_backup = curr_page_state.all_tree_lines.count(
                                         chosen_input_action.tree_line) == 1 and chosen_input_action.tree_line != ""
@@ -530,6 +612,7 @@ class Agent:
                                         type_list
                                     )
                                     if success:
+                                        await self.output_queue.put(('only_out', reason_for_action))
                                         new_reflect_action_indices.append(chosen_input_index)
                                     else:
                                         something_failed = True
@@ -563,9 +646,13 @@ class Agent:
 
                             curr_inf_tree = InferenceAxtree(matched_inference_state,
                                                             special_actions=self.special_actions,
-                                                            use_scrape=True)
+                                                            use_scrape=True,
+                                                            url=self.page.url)
 
                             intermediate_tree = curr_inf_tree.get_raw_tree()
+
+                            if chosen_action.action_type != Action.Type.RELOAD_PAGE:
+                                self.reload_count = 0
 
                             if something_failed:  # this is in action loop
                                 """
@@ -585,21 +672,42 @@ class Agent:
                             else:
                                 self.failed_count = 0
 
-                                if chosen_action.action_type != Action.Type.REQUEST_USER_INPUT and chosen_action.action_type != Action.Type.STOP: # add more
-                                    reflect_response_call = await call_reflect_agent(
-                                        reason_for_action,
-                                        str(old_inf_tree.get_tree_with_specific_action_effect(new_reflect_action_indices)),
-                                        intermediate_tree, self.task
-                                    )
-                                    self.curr_save_node.reflect_call.append(copy.deepcopy(reflect_response_call))
+                                skip_types = [Action.Type.RELOAD_PAGE, Action.Type.STOP, Action.Type.REQUEST_USER_INPUT]
 
-                                    mem_response = reflect_response_call.parsed_output
-                                    if mem_response is None:
-                                        print("NO MEM RESPONSE")
-                                        raise Exception
+                                if chosen_action.action_type not in skip_types: # add more
+                                    new_reflect_action_indices = list(set(new_reflect_action_indices))
+                                    successful_reflect = False
+                                    for i in range(self.call_retries):
+                                        reflect_response_call = await call_reflect_agent(
+                                            reason_for_action,
+                                            str(old_inf_tree.get_tree_with_specific_action_effect(new_reflect_action_indices)),
+                                            intermediate_tree, self.task
+                                        )
+
+
+                                        mem_response = reflect_response_call.parsed_output
+                                        if mem_response is None:
+                                            print("NO MEM RESPONSE")
+                                            continue
+
+                                        if mem_response != ('', ''):
+                                            successful_reflect = True
+                                            break
+
                                     old_web_page_purpose, object_and_effect = mem_response[0], mem_response[1]
+                                    if not successful_reflect:
+                                        old_web_page_purpose, object_and_effect = 'N/A', 'N/A'
+
+
+                                    self.curr_save_node.reflect_call.append(copy.deepcopy(reflect_response_call))
+                                    print(mem_response)
+                                    print(len(mem_response))
+
                                     new_memory = LinearMemory(object_details=old_web_page_purpose,
-                                                              location_details=object_and_effect)
+                                                              location_details=object_and_effect,
+                                                              intent=reason_for_action,
+                                                              action_treelines=old_inf_tree.get_action_treelines(new_reflect_action_indices),
+                                                              page_url=old_inf_tree.url)
                                     self.action_mem.append(new_memory)
 
 

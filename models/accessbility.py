@@ -129,15 +129,17 @@ class InferenceAxtree:
 
 
     """
-    def __init__(self, scrape_info: InferencePageState, special_actions = None, use_scrape = True):
+    def __init__(self, scrape_info: InferencePageState, special_actions = None, use_scrape = True, url = ''):
         self.scrap_info = scrape_info
         self.action_effect_lib = dict()
         self.action_lib = dict()
         self.action_number_lib = dict()
+        self.action_tree_lines = []
         self.use_scrape = use_scrape
         self.live_actions = []
         self.live_action_effects = []
         self.special_actions = special_actions if special_actions is not None else []
+        self.url = url
 
         count = 0
         self.raw_tree = ''
@@ -162,6 +164,8 @@ class InferenceAxtree:
             # self.raw_tree += f"SPECIAL ACTION: {str(indefinite_action.action.special_effect)}\n"  # SAVE TOKENS
             self.scrape_tree += f"[{count}] SPECIAL ACTION: {str(indefinite_action.action.special_effect)}\n"
             self.debug_tree += f"[{count}] SPECIAL ACTION: {str(indefinite_action.action.special_effect)}\n"
+            if indefinite_action.action.action_type == Action.Type.REQUEST_USER_INPUT:
+                self.input_tree += f"[{count}] SPECIAL ACTION: {str(indefinite_action.action.special_effect)}\n"
             self.live_actions.append(indefinite_action)
             self.live_action_effects.append("SPECIAL ACTION")
             count += 1
@@ -201,6 +205,8 @@ class InferenceAxtree:
                             node["properties"]) + "\n"
                         self.input_tree += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                         node["properties"]) + "\n"
+                        self.action_tree_lines.append(f"INPUT_TEXT; {node['role']} {repr(node['name'])} " + " ".join(
+                        node["properties"]))
                     else:
                         self.raw_tree += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + "\n"
@@ -208,6 +214,8 @@ class InferenceAxtree:
                             node["properties"]) + "\n"
                         self.input_tree += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                         node["properties"]) + "\n"
+                        self.action_tree_lines.append(f"{node['role']} {repr(node['name'])} " + " ".join(
+                            node["properties"]))
 
                     count += 1
                     self.live_actions.append(self.action_lib[node['nodeId']])
@@ -233,6 +241,8 @@ class InferenceAxtree:
                             node["properties"]) + " {" + self.action_effect_lib[node['nodeId']] + "}" + f" **MATCHED TO {self.action_number_lib[node['nodeId']]}**" + "\n"
                         self.input_tree += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + " {" + self.action_effect_lib[node['nodeId']] + "}" + "\n"
+                        self.action_tree_lines.append(f"INPUT_TEXT; {node['role']} {repr(node['name'])} " + " ".join(
+                            node["properties"]))
                     else:
                         self.scrape_tree += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + " {" + self.action_effect_lib[node['nodeId']] + "}" + "\n"
@@ -243,6 +253,8 @@ class InferenceAxtree:
                             'nodeId']] + "}" + f" **MATCHED TO {self.action_number_lib[node['nodeId']]}**" + "\n"
                         self.input_tree += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + "\n"
+                        self.action_tree_lines.append(f"{node['role']} {repr(node['name'])} " + " ".join(
+                            node["properties"]))
 
                     count += 1
                     self.live_actions.append(self.action_lib[node['nodeId']])
@@ -271,13 +283,8 @@ class InferenceAxtree:
 
     def get_input_tree(self):
         return self.input_tree
-    def get_tree_line(self, index):
-        ax_node_index = self.get_action_from_index(index).ax_node_index 
-        for node in self.scrap_info.ax_nodes:
-            node_id = node['nodeId']
-            if node_id == ax_node_index:
-                tree_line = f"{node['role']} {repr(node['name'])} " + " ".join(node["properties"])
-                return tree_line 
+    def get_action_treelines(self, indices):
+        return [self.action_tree_lines[i] for i in sorted(indices)]
     def get_tree_with_specific_action_effect(self, indices: List[int]) -> str:
 
         target_actions = [self.live_actions[i] for i in indices]
