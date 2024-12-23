@@ -29,9 +29,10 @@ Follow these steps to complete your task, I will give you the inputs at the end:
       - What may need to be done on the website and new_accessibility_tree to achieve the desired intention_for_action.
    - You have the actual effect of the action from step 3.
    - If the actual effect of the action differs from the intention_for_action, especially if there's an unexpected page redirect, the website may require you to complete some subtasks first.
-   - Reason step-by-step using both accessibility trees to determine this, this is your difference_reasoning.
+   - Reason step-by-step using both accessibility trees to determine your difference_reasoning.
       - If the actual effect does not differ from the intention_for_action, your difference_reasoning is the empty string.
       - Your difference_reasoning must include what the website may need you to complete first in order to then proceed with intention_for_action.
+      - Keep the final wording of difference_reasoning concise.
 
 5. Reason step-by-step to formulate your final_answer:
    - Your final_answer is:

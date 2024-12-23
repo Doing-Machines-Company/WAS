@@ -46,7 +46,9 @@ Follow these steps to complete your task:
   - Be very exhaustive.
 
 3. Use action_memory determine if the website wants you to complete some operations first:
-  - Each item in action_memory has REASONING, use these to guide you.
+  - For each item in action_memory:
+      - Reason over their REASONING field or ANSWER field.
+      - Use the REASONING and ANSWER fields to determine if the website wants you to do some subtask first. Do these first.
   - Determine if some subtasks need to be performed first before you are able to fulfill all user intents.
 
 4. Determine all user desires that have been fulfilled, and all information and requests that you have been given by the user from questions, and determine your progress:
