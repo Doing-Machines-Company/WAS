@@ -4,9 +4,11 @@ from dataclasses import dataclass
 class LinearMemory:
     object_details: str
     location_details: str
+    difference_reasoning: str
     intent: str
     action_treelines: list[str]
     page_url: str
+    is_question: bool
 
     def __repr__(self):
         return f"({self.object_details}, {self.location_details})"

@@ -314,8 +314,8 @@ async def call_action_agent(
     """
     new_action_memory = '\n***'
     for i, lin_mem in enumerate(action_memory):
-        action_lines = '\n'.join(lin_mem.action_treelines)
-        new_action_memory += f"{i + 1})\nLOCATION: {lin_mem.object_details}\nINTENT: {lin_mem.intent}\nEFFECT:\n{lin_mem.location_details}\n***\n"
+        # action_lines = '\n'.join(lin_mem.action_treelines)
+        new_action_memory += f"{i + 1})\nLOCATION: {lin_mem.object_details}\nINTENT: {lin_mem.intent}\nEFFECT: {lin_mem.location_details}\nREASONING: {lin_mem.difference_reasoning}\n***\n"
 
     # Read user prompt template asynchronously
     def read_user_prompt():
@@ -339,6 +339,10 @@ async def call_action_agent(
         'context': context
     }
     system_prompt = string.Template(system_prompt_template).substitute(replacements)
+    print("\nACTION CALL BEGIN\n")
+    print(user_prompt)
+    print(system_prompt)
+    print("\nACTION CALL END\n")
 
     # Call the updated call_llm asynchronously
     agent_call = await call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider=provider, model=model)
@@ -658,7 +662,11 @@ async def call_reflect_agent(
     """
     # Read user prompt template asynchronously
     def read_user_prompt():
-        with open('prompts/reflect_store_prompt_v4.txt', 'r') as f:
+        with open('prompts/reflect/reflect_llama_user.txt', 'r') as f:
+            return f.read()
+
+    def read_system_prompt():
+        with open('prompts/reflect/reflect_llama_system.txt', 'r') as f:
             return f.read()
 
     user_prompt_template = await asyncio.to_thread(read_user_prompt)
@@ -670,8 +678,10 @@ async def call_reflect_agent(
     }
     user_prompt = string.Template(user_prompt_template).substitute(replacements)
 
+    system_prompt = read_system_prompt()
+
     # Call the updated call_llm asynchronously
-    agent_call = await call_llm(user_prompt=user_prompt, provider='cerebras', model='llama-3.3-70b')
+    agent_call = await call_llm(user_prompt=user_prompt, system_prompt=system_prompt, provider='cerebras', model='llama-3.3-70b')
 
     print("LLM Response:\n", agent_call.llm_response)
 
@@ -680,7 +690,7 @@ async def call_reflect_agent(
 
     # Use re.DOTALL to allow '.' to match newlines
     json_matches = re.findall(json_pattern, agent_call.llm_response, re.DOTALL)
-    parsed_output: Optional[Tuple[str, str]] = ('', '')
+    parsed_output: Optional[Tuple[str, str, str]] = ('', '', '')
 
     if json_matches:
         for json_str in json_matches:
@@ -689,7 +699,8 @@ async def call_reflect_agent(
                 if 'old_web_page_purpose' in data and 'final_answer' in data:
                     old_web_page_purpose = data.get('old_web_page_purpose', '')
                     action_effect = data.get('final_answer', '')
-                    parsed_output = (old_web_page_purpose, action_effect)
+                    difference_reasoning = data.get('difference_reasoning', '')
+                    parsed_output = (old_web_page_purpose, action_effect, difference_reasoning)
                     print("Parsed Data:", data)
                     break  # Exit after finding the first valid match
             except json.JSONDecodeError as e:

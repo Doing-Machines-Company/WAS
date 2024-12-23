@@ -509,9 +509,11 @@ class Agent:
                                     # TODO MAKE THIS INTO A MEMORY INJECTION AND ADD IT IN
                                     new_memory = LinearMemory(object_details=f"Asked the user: {question}\nUser responded with: {answer}",
                                                               location_details="",
+                                                              difference_reasoning="",
                                                               intent="",
                                                               action_treelines=old_inf_tree.get_action_treelines([chosen_action_index]),
-                                                              page_url=old_inf_tree.url)
+                                                              page_url=old_inf_tree.url,
+                                                              is_question=True)
 
                                     self.action_mem.append(new_memory)
 
@@ -565,10 +567,12 @@ class Agent:
                                             new_memory = LinearMemory(
                                                 object_details=f"Asked the user: {question}\nUser responded with: {answer}",
                                                 location_details="",
+                                                difference_reasoning="",
                                                 intent="",
                                                 action_treelines=old_inf_tree.get_action_treelines(
                                                     [chosen_action_index]),
-                                                page_url=old_inf_tree.url)
+                                                page_url=old_inf_tree.url,
+                                                is_question=True)
 
                                             self.action_mem.append(new_memory)
 
@@ -690,13 +694,13 @@ class Agent:
                                             print("NO MEM RESPONSE")
                                             continue
 
-                                        if mem_response != ('', ''):
+                                        if mem_response != ('', '', ''):
                                             successful_reflect = True
                                             break
 
-                                    old_web_page_purpose, object_and_effect = mem_response[0], mem_response[1]
+                                    old_web_page_purpose, object_and_effect, difference_reasoning = mem_response[0], mem_response[1], mem_response[2]
                                     if not successful_reflect:
-                                        old_web_page_purpose, object_and_effect = 'N/A', 'N/A'
+                                        old_web_page_purpose, object_and_effect, difference_reasoning = 'N/A', 'N/A', 'N/A'
 
 
                                     self.curr_save_node.reflect_call.append(copy.deepcopy(reflect_response_call))
@@ -705,9 +709,11 @@ class Agent:
 
                                     new_memory = LinearMemory(object_details=old_web_page_purpose,
                                                               location_details=object_and_effect,
+                                                              difference_reasoning=difference_reasoning,
                                                               intent=reason_for_action,
                                                               action_treelines=old_inf_tree.get_action_treelines(new_reflect_action_indices),
-                                                              page_url=old_inf_tree.url)
+                                                              page_url=old_inf_tree.url,
+                                                              is_question=False)
                                     self.action_mem.append(new_memory)
 
 

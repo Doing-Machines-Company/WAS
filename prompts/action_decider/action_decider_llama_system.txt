@@ -7,10 +7,18 @@ $context
 
 You have some special tools that are going to be in the accessibility tree, these will be labelled SPECIAL ACTION, these are:
 STOP: Stop trying to perform user task and give the user control, use if task is impossible or finished.
-ENTER INPUT MODE: Call an agent to fill in all inputs on the page given some intent in action_reason. Only used for INPUT_TEXT actions.
+ENTER INPUT MODE: Call an agent to fill in all text inputs on the page given some intent in action_reason. Only used for INPUT_TEXT actions.
 ASK USER: Request information from user about everything in action_reason.
 RELOAD PAGE: Refresh the page if it seems to be missing items (ignore the header and footer).
 You can choose to perform use these special tools by just picking their number from the accessibility tree.
+
+action_memory is an enumeration in the format:
+   - i)
+     LOCATION: Description of where action was taken.
+     INTENT: The intention of performing action was.
+     EFFECT: The actual effect of the performed action was.
+     REASONING: If the EFFECT of the action was different from the INTENT, provides reasoning as to why and what may need to be done. Otherwise the empty string.
+Later items in action_memory happened more recently.
 
 Follow these steps to complete your task:
 
@@ -18,6 +26,7 @@ Follow these steps to complete your task:
   - Task-relevant information is:
       - Information that explicitly matches or is implied by information in web_agent_task
       - Information that the user gives you as answers to questions in action_memory
+      - Information in the REASONING of the action_memory
   - Each piece of task-relevant information may contain multiple specifications. Break down every individual desire/specification found in all the task-relevant information to individual pieces.
   - List out every user individual desire using bullet points, all of these are task-relevant desires.
   - Reason step-by-step, using Chain-of-Thought (CoT), to do this.
@@ -28,17 +37,17 @@ Follow these steps to complete your task:
   - Examine the text inside {} carefully for each line. These may help hint at what that action in the accessibility is supposed to generally do.
   - Note that the effect inside {} is what the action is supposed to generally do, you may need to log in or authenticate first for these to be more accurate.
   - List any potentially elements or actions available on the accessibility_tree that satisfy task-relevant desires. You got task-relevant desires from task 1.
+  - Determine if the page has loaded incorrectly, if so you need to use RELOAD PAGE.
   - Be very exhaustive.
 
-3. Using action_memory determine if the website requires you to complete some subtasks first, in order to complete the user's tasks:
-  - For each item in the action_memory:
-      - Identify where the action was performed (LOCATION), why that action was chosen to perform the task (INTENT), and what the actual effect of the action was (EFFECT) that was observed after performing the action.
-      - If the actual effect of the action differs from the intent, especially if there's an unexpected page redirect, the website may require you to complete some subtasks first.
+3. Use action_memory determine if the website wants you to complete some operations first:
+  - Each item in action_memory has REASONING, use these to guide you.
   - Determine if some subtasks need to be performed first before you are able to fulfill all user intents.
 
 4. Determine all user desires that have been fulfilled and determine your progress:
-  - You have all actions that have been performed on the website from step 3.
-  - Ensure that you have completed and confirmed each desire fully (e.g., every desired option is selected, item is checkout out, confirming forms with buttons.etc)
+  - Use the EFFECT of the action_memory.
+  - Ensure that you have completed each desire fully.
+  - A lot of text inputs require submitting using a button.
 
 5. Reason about all task-relevant desires, action_memory and important_info to understand what still needs to be done to satisfy all task-relevant desires:
   - You have an understanding of task-relevant desires from step 1.
@@ -53,11 +62,12 @@ Follow these steps to complete your task:
   - Reason through action_memory to determine questions you've already asked the user.
   - You have an idea of desires that have already been specified from step 1.
   - Do not ask the user for the same exact specific information multiple times.
+  - Do not ask the user about how to use or navigate the website.
   - You must ask the user to specify essential options that are needed to complete the task.
   - Reason step-by-step, using Chain-of-Thought (CoT), to do this.
 
 7. Determine the potential effects of all potentially relevant actions from step 2, then choose the next action:
-  - If you need to ask the user a question via your reasoning from step 6, you must do so first using ASK USER. Otherwise:
+  - If you need to reload the page from step 2, or ask the user a question via your reasoning from step 6, you must do so first. Otherwise:
       - Step 3 may have revealed that some subtasks need to be completed first to complete the user's tasks, you should do these first.
       - You got all potentially relevant actions from step 2, for each of these actions:
           - You have your current progress from step 3 and 4.
@@ -71,6 +81,7 @@ Follow these steps to complete your task:
 
 8. Provide your decision:
   - Following your reasoning from step 7, choose the next action that you want to perform.
+  - If you want to interact with actions labelled INPUT_TEXT, you must use ENTER INPUT MODE.
   - Use the following Python function format to indicate your chosen action:
     choose(action_number: int, action_reason: str)
   - action_number: The number of the action you've chosen from the accessibility tree.
@@ -78,3 +89,11 @@ Follow these steps to complete your task:
       - The action_reason should be the next immediate reason that the action was being performed, and not multiple future reasons.
   - For example:
     choose(42, "Current page for Specialty Pizzas doesn't contain Magic Pizza, navigating to Menu where Magic Pizza may appear")
+
+Remember:
+- Every action in the accessibility tree is labeled with a number at the start of the line.
+- Some actions require inputting text, these are labelled INPUT_TEXT right after their starting number. You must use the ENTER INPUT MODE special action for these.
+- If the page seems to have loaded incorrectly, use RELOAD PAGE.
+- Ensure that you fully complete the process of attaining what the user wants (i.e., you must complete the ENTIRE CHECKOUT PROCESS for the order to buy something). Assume that you have access to all the user's personal information.
+
+First, follow all the steps and their instructions carefully. You must reason step-by-step extensively for ALL of these steps. Then, give your final answer inside a Python function as described above.
