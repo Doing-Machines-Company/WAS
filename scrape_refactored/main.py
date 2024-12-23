@@ -1,26 +1,20 @@
 from dotenv import load_dotenv
+
+from scrape_refactored.cache import read_from_checkpoint, save_checkpoint
+from scrape_refactored.url import Url
+
 load_dotenv()
 
-
-import asyncio
 from asyncio import Queue
 from asyncio import Lock
 import aiofiles
-import json
-from pathlib import Path
-from playwright.async_api import async_playwright, Page, Dialog, TimeoutError
+from playwright.async_api import async_playwright, Page
 import pickle
-# from typing import Optional, Any
-from urllib.parse import urlparse, urlunparse
-from utils.element_utils.element_similarity import element_similarity
-import re
-import os
+from urllib.parse import urlparse
 import copy as cp
-from scrape_llm import use_gpt_fill_input
 import urllib.parse
-import shutil
-from models import *
 from utils import *
+
 
 """
 there are two relations -- 1. coarse relation 2. fine relation
@@ -163,9 +157,9 @@ async def apply_trajectory(page: Page, trajectory: List[Action]) -> bool:
     return traj_success
 
 async def explore_page(url_info: tuple, equiv_classes_lock: Lock, eq_class_lock: Lock,
-                      page_queue_lock: Lock,
-                      seen_urls_lock: Lock, equiv_classes: URLStateManager, url_queue: Queue, seen_urls: set[str],
-                      browser, cookies, root: str, thread_id: str, idle_flags: dict):
+                       page_queue_lock: Lock,
+                       seen_urls_lock: Lock, equiv_classes: URLStateManager, url_queue: Queue, seen_urls: set[str],
+                       browser, cookies, root_url: str, thread_id: str, idle_flags: dict, output_dir:str):
 
     # context = browser.new_context(
     #     user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36')
@@ -178,24 +172,10 @@ async def explore_page(url_info: tuple, equiv_classes_lock: Lock, eq_class_lock:
     idle_flags[thread_id] = False
 
     url, url_traj, source_url = url_info
-    async with seen_urls_lock:
-        if normalize_url(url) in seen_urls:
-            return
-        seen_urls.add(normalize_url(url))
 
-    # TODO: ROOT MAY TAKE DIFFERENT FORMS, FIX THIS
-    def root_check(url_item, root_item):
-        parsed_url = urlparse(url_item)
-        # return root_item in parsed_url.netloc if parsed_url.netloc else False
-        return root_item == parsed_url.netloc if parsed_url.netloc else False
 
-    try:  # this really shouldn't ever fail
-        is_in_root = root_check(url, root)
-        if not is_in_root:
-            print(f"Skipping page outside of root: {url}")
-            return
-    except:
-        print(f"Root check failed, skipping: {url}")
+    if not Url(root_url).has_same_origin_as(url):
+        print(f"Skipping page outside of root: {url}")
         return
 
     # we use trajectory to track the sequence of actions needed to trigger the
@@ -517,6 +497,7 @@ async def explore_page(url_info: tuple, equiv_classes_lock: Lock, eq_class_lock:
                                         # url_page.close()
                                         # url_context.close()
                                         await close_resources(url_cdpSession, url_page, url_context)
+                                seen_urls.add(normalize_url(url_page.url))
                                 await url_queue.put((page.url, new_url_trajectory, new_source_url))  # TODO, IS THIS LOGICALLY CORRECT?
                                 print(page.url, new_url_trajectory, new_source_url)
                 else:
@@ -605,33 +586,13 @@ async def explore_page(url_info: tuple, equiv_classes_lock: Lock, eq_class_lock:
         # NEED TO ACTUALLY UPDATE THE ACTIONS, THEY ARE ONLY ADDED AT THE BEGINNING - Cem
 
     await explore_actions()
-    output_dir = 'dominos_dep'
-    output_path = Path(output_dir) / 'scraper_state.pkl'
-    checkpoint_path = Path(output_dir) / 'checkpoint.pkl'
+    await save_checkpoint(output_dir,url_queue,seen_urls,equiv_classes,action_number)
 
-    urls = list(url_queue._queue)  # Accessing the protected member _queue
-
-    async with aiofiles.open(output_path, 'wb') as f:
-        await asyncio.to_thread(pickle.dump, equiv_classes, f)  # Run pickle.dump in a thread
-    async with aiofiles.open(checkpoint_path, 'wb') as f:
-        await asyncio.to_thread(pickle.dump, (action_number, urls, seen_urls), f)
-
-    print("Saved checkpoint")
-
-    # special_output_path = Path('special_dominos') / 'special_scraper_state.pkl'
-    # special_checkpoint_path = Path('special_dominos') / 'special_checkpoint.pkl'
-    #
-    # if urls != [] and 'www.dominos.com/en/pages/order/#!/checkout' in urls[0][0]:
-    #     print("Saved special checkpoint")
-    #     with open(special_output_path, 'wb') as f:
-    #         pickle.dump(equiv_classes, f)  # url_queue and current url needed for resume purposes
-    #     with open(special_checkpoint_path, 'wb') as f:
-    #         pickle.dump((action_number, urls, seen_urls), f)
 
     if url_queue.empty() and url_queue.qsize() <= 0:
         idle_flags[thread_id] = True
 
-async def worker(thread_id: str, idle_flags: dict, url_queue: Queue, equiv_classes_lock: Lock, eq_class_lock: Lock, page_queue_lock: Lock, seen_urls_lock: Lock, equiv_classes, seen_urls: set[str], headless: bool, cookies: Optional[dict], root: str, stop_event: asyncio.Event):
+async def worker(thread_id: str, idle_flags: dict, url_queue: Queue, equiv_classes_lock: Lock, eq_class_lock: Lock, page_queue_lock: Lock, seen_urls_lock: Lock, equiv_classes, seen_urls: set[str], headless: bool, cookies: Optional[dict], root: str, stop_event: asyncio.Event, output_dir:str):
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=headless)
         # context = browser.new_context(
@@ -652,7 +613,7 @@ async def worker(thread_id: str, idle_flags: dict, url_queue: Queue, equiv_class
 
             if url_info is not None:
                 await explore_page(url_info, equiv_classes_lock, eq_class_lock, page_queue_lock, seen_urls_lock, equiv_classes,
-                                  url_queue, seen_urls, browser, cookies, root, thread_id, idle_flags)
+                                  url_queue, seen_urls, browser, cookies, root, thread_id, idle_flags,output_dir)
                 await asyncio.sleep(4)
                 url_queue.task_done()
             else:
@@ -668,39 +629,21 @@ async def worker(thread_id: str, idle_flags: dict, url_queue: Queue, equiv_class
 async def explore(starting_url: str, cookies: Optional[dict] = None, headless: bool = False, output_dir: str = 'dominos_dep', root: str = "", num_threads: int = 10, resume: bool = False):
 
     global action_number
-    # Initialize an EquivalenceClassSet to store and manage equivalence classes
-    scraper_state_path = Path(output_dir) / 'scraper_state.pkl'
-    checkpoint_path = Path(output_dir) / 'checkpoint.pkl'
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+    equiv_classes: URLStateManager = URLStateManager()
+    seen_urls = set()
+
+    url_queue = Queue()
+    await url_queue.put((starting_url, [], None))
+
+    if resume:
+        cached_data = read_from_checkpoint(output_dir)
+        if cached_data is not None:
+            url_queue, seen_urls, equiv_classes, resumed_action_number = cached_data
+            action_number = resumed_action_number
 
 
-    if resume and scraper_state_path.exists() and checkpoint_path.exists():
-        async with aiofiles.open(scraper_state_path, 'rb') as f:
-            equiv_classes = pickle.loads(await f.read())
-        async with aiofiles.open(checkpoint_path, 'rb') as f:
-            resumed_action_number, urls, seen_urls = pickle.loads(await f.read())
-        action_number = resumed_action_number
-        url_queue = Queue()
-        for url_info in urls:
-            await url_queue.put(url_info)
-        # remove partially filled urlstate
-        cleaned_url = re.sub(r'^(https?://)?(www\.)?', '', urls[0][0])
-        cleaned_url = cleaned_url.rstrip('/')
-        old_urlstate_path = Path(output_dir) / urllib.parse.quote(cleaned_url, safe='')
-        if old_urlstate_path.exists():
-            shutil.rmtree(old_urlstate_path)
-            print("Removed partially explored urlstate")
-        print("Resuming exploration from ", urls[0][0])
-    else:
-        if resume:
-            print("Couldn't find checkpoint and state files for resume. Starting from scratch")
-        equiv_classes: URLStateManager = URLStateManager()
-
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-        seen_urls = set()
-
-        url_queue = Queue()
-        await url_queue.put((starting_url, [], None))
 
     equiv_classes_lock = Lock()
     eq_class_lock = Lock()
@@ -718,7 +661,7 @@ async def explore(starting_url: str, cookies: Optional[dict] = None, headless: b
         t = asyncio.create_task(worker(
             thread_id, idle_flags, url_queue, equiv_classes_lock, eq_class_lock, page_queue_lock,
             seen_urls_lock, equiv_classes, seen_urls,
-            headless, cookies, root, stop_event))
+            headless, cookies, root, stop_event, output_dir))
         threads.append(t)
 
     while True:

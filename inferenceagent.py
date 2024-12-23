@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import List, Tuple, Optional, Any
 from utils.inference_data import HiddenInput  # Ensure HiddenInput is properly defined in your module
 from groq import Groq
-from together import Together
+# from together import Together
 from openai import OpenAI
 from cerebras.cloud.sdk import Cerebras
 import google.generativeai as google_client
@@ -30,7 +30,7 @@ anthropic_client = anthropic.Anthropic(
 
 groq_client = Groq()
 
-together_client = Together(api_key=os.environ.get('TOGETHER_API_KEY'))
+# together_client = Together(api_key=os.environ.get('TOGETHER_API_KEY'))
 
 openai_client = OpenAI()
 
@@ -97,22 +97,22 @@ async def call_llm(
 
         output = await asyncio.to_thread(groq_call)
 
-    elif provider == "together":
-        def together_call():
-            response = together_client.chat.completions.create(
-                model="meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
-                messages=[{"role": "user", "content": user_prompt}],
-                max_tokens=max_tokens,
-                temperature=0,
-                top_p=1,
-                top_k=50,
-                repetition_penalty=1,
-                stop=["<|eot_id|>"],
-                stream=False,
-            )
-            return response.choices[0].message.content
-
-        output = await asyncio.to_thread(together_call)
+    # elif provider == "together":
+    #     def together_call():
+    #         response = together_client.chat.completions.create(
+    #             model="meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+    #             messages=[{"role": "user", "content": user_prompt}],
+    #             max_tokens=max_tokens,
+    #             temperature=0,
+    #             top_p=1,
+    #             top_k=50,
+    #             repetition_penalty=1,
+    #             stop=["<|eot_id|>"],
+    #             stream=False,
+    #         )
+    #         return response.choices[0].message.content
+    #
+    #     output = await asyncio.to_thread(together_call)
 
     elif provider == 'openai':
         def openai_call():

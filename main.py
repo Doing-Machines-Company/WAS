@@ -1,4 +1,8 @@
 # main.py
+from dotenv import load_dotenv
+load_dotenv()
+
+
 import socketio
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
@@ -10,6 +14,8 @@ import gc
 import time
 import os
 from collections import defaultdict
+
+
 
 # Initialize Socket.IO server with ASGI mode
 # sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
@@ -357,3 +363,6 @@ async def reset_agent_for_key(key, reason="unknown", emit_to_sid=None):
                 'reason': reason
             }, to=key)
     # Do not emit 'agent_reset' for other reasons like 'agent_stopped'
+# actions are tied to equivalence class (equivalence determined based on html of possible actions)
+
+# url+info specific action or specific page
