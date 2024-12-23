@@ -507,11 +507,12 @@ class Agent:
                                     answer = await self.ask_user(question)
 
                                     # TODO MAKE THIS INTO A MEMORY INJECTION AND ADD IT IN
-                                    new_memory = LinearMemory(object_details=f"Asked the user: {question}\nUser responded with: {answer}",
-                                                              location_details="",
+                                    new_memory = LinearMemory(object_details=question,
+                                                              location_details=answer,
                                                               difference_reasoning="",
                                                               intent="",
-                                                              action_treelines=old_inf_tree.get_action_treelines([chosen_action_index]),
+                                                              action_treelines=old_inf_tree.get_action_treelines(
+                                                                  [chosen_action_index]),
                                                               page_url=old_inf_tree.url,
                                                               is_question=True)
 
@@ -538,7 +539,7 @@ class Agent:
                                         self.hidden_inputs, self.runtime_qa
                                     )
 
-                                    if desired.parsed_output is None:
+                                    if desired.parsed_output is None or desired.parsed_output[0] is None or desired.parsed_output[0][0] is None:
                                         print("INPUT AGENT PARSED OUTPUT IS NONE")
                                         raise Exception
 
@@ -565,8 +566,8 @@ class Agent:
 
                                             # TODO MAKE THIS INTO A MEMORY INJECTION AND ADD IT IN
                                             new_memory = LinearMemory(
-                                                object_details=f"Asked the user: {question}\nUser responded with: {answer}",
-                                                location_details="",
+                                                object_details=question,
+                                                location_details=answer,
                                                 difference_reasoning="",
                                                 intent="",
                                                 action_treelines=old_inf_tree.get_action_treelines(
@@ -677,6 +678,8 @@ class Agent:
                                 self.failed_count = 0
 
                                 skip_types = [Action.Type.RELOAD_PAGE, Action.Type.STOP, Action.Type.REQUEST_USER_INPUT]
+
+                                mem_response = ('', '', '')
 
                                 if chosen_action.action_type not in skip_types: # add more
                                     new_reflect_action_indices = list(set(new_reflect_action_indices))

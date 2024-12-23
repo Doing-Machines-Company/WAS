@@ -315,7 +315,10 @@ async def call_action_agent(
     new_action_memory = '\n***'
     for i, lin_mem in enumerate(action_memory):
         # action_lines = '\n'.join(lin_mem.action_treelines)
-        new_action_memory += f"{i + 1})\nLOCATION: {lin_mem.object_details}\nINTENT: {lin_mem.intent}\nEFFECT: {lin_mem.location_details}\nREASONING: {lin_mem.difference_reasoning}\n***\n"
+        if lin_mem.is_question:
+            new_action_memory += f"{i + 1})\nQUESTION: {lin_mem.object_details}\nANSWER: {lin_mem.location_details}\n***\n"
+        else:
+            new_action_memory += f"{i + 1})\nLOCATION: {lin_mem.object_details}\nINTENT: {lin_mem.intent}\nEFFECT: {lin_mem.location_details}\nREASONING: {lin_mem.difference_reasoning}\n***\n"
 
     # Read user prompt template asynchronously
     def read_user_prompt():

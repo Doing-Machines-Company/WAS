@@ -12,7 +12,12 @@ ASK USER: Request information from user about everything in action_reason.
 RELOAD PAGE: Refresh the page if it seems to be missing items (ignore the header and footer).
 You can choose to perform use these special tools by just picking their number from the accessibility tree.
 
-action_memory is an enumeration in the format:
+action_memory is an enumeration in the formats:
+if it was a question:
+   - i)
+     QUESTION: Question asked the user.
+     ANSWER: The exact reply from the user.
+otherwise:
    - i)
      LOCATION: Description of where action was taken.
      INTENT: The intention of performing action was.
@@ -44,8 +49,8 @@ Follow these steps to complete your task:
   - Each item in action_memory has REASONING, use these to guide you.
   - Determine if some subtasks need to be performed first before you are able to fulfill all user intents.
 
-4. Determine all user desires that have been fulfilled and determine your progress:
-  - Use the EFFECT of the action_memory.
+4. Determine all user desires that have been fulfilled, and all information and requests that you have been given by the user from questions, and determine your progress:
+  - Use the EFFECT and ANSWER of the action_memory.
   - Ensure that you have completed each desire fully.
   - A lot of text inputs require submitting using a button.
 
