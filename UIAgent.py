@@ -89,6 +89,7 @@ class Agent:
         print("took", time.time() - start)
 
     async def chained_action_call(self, curr_inf_tree, provider, model):
+        print("CALLING CHAIN")
         summarized_info = await call_action_part1(self.task, curr_inf_tree.get_no_special(), self.action_mem, self.runtime_qa, self.item_context_pairs, provider=provider, model=model)
         print(summarized_info.parsed_output)
         print("STEP 1 DONE")

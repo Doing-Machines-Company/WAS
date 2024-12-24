@@ -352,8 +352,8 @@ async def call_action_part1(
             try:
                 data = json.loads(json_str)
                 if 'grounded_progress_summary' in data:
-                    old_web_page_purpose = data.get('grounded_progress_summary', '')
-                    parsed_output = old_web_page_purpose
+                    grounded_progress_summary = data.get('grounded_progress_summary', '')
+                    parsed_output = grounded_progress_summary
                     print("Parsed Data:", data)
                     break  # Exit after finding the first valid match
             except json.JSONDecodeError as e:
@@ -401,7 +401,11 @@ async def call_action_part2(
 
     agent_call = await call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider=provider, model=model)
     output = agent_call.llm_response
-    print(output)
+    # print("PART 2 CALL BEGIN")
+    # print(system_prompt)
+    # print(user_prompt)
+    # print(output)
+    # print("PART 2 CALL END")
     json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
 
     json_matches = re.findall(json_pattern, agent_call.llm_response, re.DOTALL)
