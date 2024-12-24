@@ -92,7 +92,7 @@ class Agent:
         summarized_info = await call_action_part1(self.task, curr_inf_tree.get_no_special(), self.action_mem, self.runtime_qa, self.item_context_pairs, provider=provider, model=model)
         print(summarized_info.parsed_output)
         print("STEP 1 DONE")
-        action_out_call = await call_action_part2(self.task, summarized_info, curr_inf_tree, self.action_mem)
+        action_out_call = await call_action_part2(self.task, summarized_info.parsed_output, curr_inf_tree, self.action_mem)
         print(action_out_call.parsed_output)
         print("STEP 2 DONE")
         return action_out_call
