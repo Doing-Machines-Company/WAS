@@ -1,0 +1,30 @@
+Here is the current navigation context:
+
+User's initial task:
+<task>
+$task
+</task>
+
+Current page's accessibility tree:
+<accessibility_tree>
+$ax_tree
+</accessibility_tree>
+
+Summary of your progress:
+<progress_summary>
+$first_chain_output
+</progress_summary>
+
+Questions you've asked the user and their responses:
+<user_qa>
+$user_qa
+</user_qa>
+
+Remember:
+- Every standard action in accessibility tree starts with a number
+- You MUST use WRITE TEXT MODE for any WRITE_TEXT actions
+- You must complete entire processes (e.g., full checkout flow)
+- Focus on immediate next step in action_reason
+- Be thorough in your analysis
+
+First, YOU MUST follow ALL OF the steps and their instructions carefully, you MUST reason step-by-step extensively for ALL of these steps. Then, give your final answer inside the JSON format as described in step 6.

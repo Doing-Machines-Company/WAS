@@ -6,11 +6,4 @@ Here's the input data:
   "web_agent_task": "$web_agent_task",
 }
 
-Remember:
-- final_answer and difference_reasoning must be very precise and very detailed.
-- final_answer must describe the actual effect of the chosen_action.
-- final_answer MUST ONLY include information that is explicitly true. DO NOT HALLUCINATE.
-- Read and make sure you understand the 'definitions and notes' labelled IMPORTANT.
-- We have our own special definition of fail/failed/failure, it's in the definitions and notes section. Make sure that you use this definition to treat base_action_effect as specified.
-
-First, follow all the steps and their instructions carefully. You must reason step-by-step extensively for ALL of these steps. Then, give your final result as the JSON object as given above.
+Think VERY HARD using chain-of-thought for EVERY STEP.

@@ -21,8 +21,8 @@ from inferenceagent import (
     call_task_clarifier,
     call_input_agent,
     call_unified_question_cleaner,
-    call_load_check_agent_text,
-    call_check_load_agent_screenshot
+    call_action_part1,
+    call_action_part2
 )
 
 
@@ -87,6 +87,20 @@ class Agent:
         self.retriever = self.index.as_retriever(vector_store_query_mode="mmr",
                                                  vector_store_kwargs={"mmr_threshold": 1})
         print("took", time.time() - start)
+
+    async def chained_action_call(self, curr_inf_tree, provider, model):
+        summarized_info = await call_action_part1(self.task, curr_inf_tree.get_no_special(), self.action_mem, self.runtime_qa, self.item_context_pairs, provider=provider, model=model)
+        print(summarized_info.parsed_output)
+        print("STEP 1 DONE")
+        action_out_call = await call_action_part2(self.task, summarized_info, curr_inf_tree, self.action_mem)
+        print(action_out_call.parsed_output)
+        print("STEP 2 DONE")
+        return action_out_call
+
+    # action_out_call = await call_action_agent(
+    #     self.task, curr_inf_tree,
+    #     self.action_mem, self.item_context_pairs, provider="cerebras", model="llama-3.3-70b"
+    # )
 
     async def formulate_questions(self):
         def autoregressive_retrieve(index, task, k=2):
@@ -209,7 +223,7 @@ class Agent:
 
         input_all_action = Action(Action.Type.INPUT_GIVEN_INTENT, None, None)
         input_all_action.set_special_effect(
-            'ENTER INPUT MODE')
+            'WRITE TEXT MODE')
         input_all_indefinite = IndefiniteAction([Action.Type.INPUT_GIVEN_INTENT], input_all_action,
                                                 None,
                                                 IndefiniteAction.Location.SPECIAL)
@@ -368,16 +382,19 @@ class Agent:
                         if self.stop_event.is_set():
                             break
 
-                        action_out_call = await call_action_agent(
-                            self.task, curr_inf_tree,
-                            self.action_mem, self.item_context_pairs, provider="cerebras", model="llama-3.3-70b"
-                        )
-                        if action_out_call.parsed_output is None:
-                            action_out_call = await call_action_agent(
-                                self.task, curr_inf_tree,
-                                self.action_mem, self.item_context_pairs,
-                                provider="anthropic", model="claude-3-5-sonnet-latest"
-                            )
+                        action_out_call = await self.chained_action_call(curr_inf_tree, "cerebras", model="llama-3.3-70b")
+
+                        # action_out_call = await call_action_agent(
+                        #     self.task, curr_inf_tree,
+                        #     self.action_mem, self.item_context_pairs, provider="cerebras", model="llama-3.3-70b"
+                        # )
+
+                        # if action_out_call.parsed_output is None:
+                        #     action_out_call = await call_action_agent(
+                        #         self.task, curr_inf_tree,
+                        #         self.action_mem, self.item_context_pairs,
+                        #         provider="anthropic", model="claude-3-5-sonnet-latest"
+                        #     )
 
                         if action_out_call.parsed_output is None:
                             self.failed_count += 1
@@ -501,27 +518,31 @@ class Agent:
                                 question_out_call = await call_intermediate_questions_agent(self.task, old_inf_tree.get_raw_tree(), reason_for_action)
                                 intermediate_questions = question_out_call.parsed_output
 
+                                question_string = ''
+
                                 for question in intermediate_questions:
                                     if self.stop_event.is_set():
                                         break
                                     answer = await self.ask_user(question)
 
-                                    # TODO MAKE THIS INTO A MEMORY INJECTION AND ADD IT IN
-                                    new_memory = LinearMemory(object_details=question,
-                                                              location_details=answer,
-                                                              difference_reasoning="",
-                                                              intent="",
-                                                              action_treelines=old_inf_tree.get_action_treelines(
-                                                                  [chosen_action_index]),
-                                                              page_url=old_inf_tree.url,
-                                                              is_question=True)
+                                    question_string += f"Q: {question}\nA: {answer}\n"
 
-                                    self.action_mem.append(new_memory)
-
-                                    self.runtime_qa.append(f"Asked the user: {question}\nUser responded with: {answer}")
+                                    self.runtime_qa.append(f"Q: {question}\nA: {answer}")
                                     # Check stop_event after each user response
                                     if self.stop_event.is_set():
                                         break
+
+                                # TODO MAKE THIS INTO A MEMORY INJECTION AND ADD IT IN
+                                new_memory = LinearMemory(object_details="",
+                                                          location_details=question_string,
+                                                          difference_reasoning="",
+                                                          intent=reason_for_action,
+                                                          action_treelines=old_inf_tree.get_action_treelines(
+                                                              [chosen_action_index]),
+                                                          page_url=old_inf_tree.url,
+                                                          is_question=True)
+
+                                self.action_mem.append(new_memory)
 
 
 
@@ -548,6 +569,7 @@ class Agent:
                                     elif count > 2:
                                         break
                                     else:
+                                        question_string = ''
                                         for (chosen_input_index, question) in desired.parsed_output:
                                             if self.stop_event.is_set():
                                                 break
@@ -563,25 +585,28 @@ class Agent:
                                             if self.stop_event.is_set():
                                                 break
                                             answer = await self.ask_user(question)
+                                            question_string += f"Q: {question}\nA: {answer}\n"
 
-                                            # TODO MAKE THIS INTO A MEMORY INJECTION AND ADD IT IN
-                                            new_memory = LinearMemory(
-                                                object_details=question,
-                                                location_details=answer,
-                                                difference_reasoning="",
-                                                intent="",
-                                                action_treelines=old_inf_tree.get_action_treelines(
-                                                    [chosen_action_index]),
-                                                page_url=old_inf_tree.url,
-                                                is_question=True)
 
-                                            self.action_mem.append(new_memory)
 
                                             self.runtime_qa.append(
-                                                f"Asked the user: {question}\nUser responded with: {answer}")
+                                                f"Q: {question}\nA: {answer}")
 
                                             if self.stop_event.is_set():
                                                 break
+
+                                        # TODO MAKE THIS INTO A MEMORY INJECTION AND ADD IT IN
+                                        new_memory = LinearMemory(
+                                            object_details="",
+                                            location_details=question_string,
+                                            difference_reasoning="",
+                                            intent=reason_for_action,
+                                            action_treelines=old_inf_tree.get_action_treelines(
+                                                [chosen_action_index]),
+                                            page_url=old_inf_tree.url,
+                                            is_question=True)
+
+                                        self.action_mem.append(new_memory)
 
 
                                 for (chosen_input_index, input_string) in desired.parsed_output:
@@ -617,7 +642,6 @@ class Agent:
                                         type_list
                                     )
                                     if success:
-                                        await self.output_queue.put(('only_out', reason_for_action))
                                         new_reflect_action_indices.append(chosen_input_index)
                                     else:
                                         something_failed = True
@@ -625,6 +649,8 @@ class Agent:
 
                                     if self.stop_event.is_set():
                                         break
+
+                                await self.output_queue.put(('only_out', reason_for_action))
 
                             if iterating_action_index == len(
                                     action_out_list) - 1:  # if multiple actions, we assume only last action can possibly need load (THIS IS POTENTIALLY BAD)

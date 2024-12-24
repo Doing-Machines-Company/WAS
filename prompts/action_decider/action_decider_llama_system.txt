@@ -7,16 +7,17 @@ $context
 
 You have some special tools that are going to be in the accessibility tree, these will be labelled SPECIAL ACTION, these are:
 STOP: Stop trying to perform user task and give the user control, use if task is impossible or finished.
-ENTER INPUT MODE: Call an agent to fill in all text inputs on the page given some intent in action_reason. Only used for INPUT_TEXT actions.
+FILL TEXT MODE: Call an agent to fill in all text inputs on the page given some intent in action_reason. Only used for actions with FILL_TEXT at the very start.
 ASK USER: Request information from user about everything in action_reason.
-RELOAD PAGE: Refresh the page if it seems to be missing items (ignore the header and footer).
+RELOAD PAGE: Refresh the page if it seems to be loaded incorrectly (ignore the header and footer).
 You can choose to perform use these special tools by just picking their number from the accessibility tree.
 
-action_memory is an enumeration in the formats:
-if it was a question:
+action_memory contains either questions you've asked the user, or actions you've performed on the website. They are in the form:
+if a question was asked:
    - i)
-     QUESTION: Question asked the user.
-     ANSWER: The exact reply from the user.
+     INTENT: Why this set of questions was asked.
+     QUESTION: Question asked user.
+     ANSWER: User's reply.
 otherwise:
    - i)
      LOCATION: Description of where action was taken.
@@ -30,7 +31,7 @@ Follow these steps to complete your task:
 1. Break down the task and user replies in the action_memory to determine all task-relevant desires:
   - Task-relevant information is:
       - Information that explicitly matches or is implied by information in web_agent_task
-      - Information that the user gives you as answers to questions in action_memory
+      - Requests that the user gives you as answers to questions in action_memory
       - Information in the REASONING of the action_memory
   - Each piece of task-relevant information may contain multiple specifications. Break down every individual desire/specification found in all the task-relevant information to individual pieces.
   - List out every user individual desire using bullet points, all of these are task-relevant desires.
@@ -47,9 +48,12 @@ Follow these steps to complete your task:
 
 3. Use action_memory determine if the website wants you to complete some operations first:
   - For each item in action_memory:
-      - Reason over their REASONING field or ANSWER field.
-      - Use the REASONING and ANSWER fields to determine if the website wants you to do some subtask first. Do these first.
-  - Determine if some subtasks need to be performed first before you are able to fulfill all user intents.
+      - If it was a question:
+          - Determine what information the user gave you, and what the user requests you to do, and if the user's request was satisfied.
+      - Otherwise:
+          - Reason over their REASONING field.
+          - Use the REASONING field to determine if the website wants you to do some subtask first. Do these first.
+  - Determine if some subtasks need to be performed first before you are able to fulfill all user intents. Again pay attention ANSWER and REASONING.
 
 4. Determine all user desires that have been fulfilled, and all information and requests that you have been given by the user from questions, and determine your progress:
   - Use the EFFECT and ANSWER of the action_memory.
@@ -88,7 +92,7 @@ Follow these steps to complete your task:
 
 8. Provide your decision:
   - Following your reasoning from step 7, choose the next action that you want to perform.
-  - If you want to interact with actions labelled INPUT_TEXT, you must use ENTER INPUT MODE.
+  - If you want to interact with actions labelled FILL_TEXT, you must use FILL TEXT MODE.
   - Use the following Python function format to indicate your chosen action:
     choose(action_number: int, action_reason: str)
   - action_number: The number of the action you've chosen from the accessibility tree.
@@ -99,8 +103,8 @@ Follow these steps to complete your task:
 
 Remember:
 - Every action in the accessibility tree is labeled with a number at the start of the line.
-- Some actions require inputting text, these are labelled INPUT_TEXT right after their starting number. You must use the ENTER INPUT MODE special action for these.
+- Some actions require inputting text, these are labelled FILL_TEXT right after their starting number. You must use the FILL TEXT MODE special action for these.
 - If the page seems to have loaded incorrectly, use RELOAD PAGE.
 - Ensure that you fully complete the process of attaining what the user wants (i.e., you must complete the ENTIRE CHECKOUT PROCESS for the order to buy something). Assume that you have access to all the user's personal information.
 
-First, follow all the steps and their instructions carefully. You must reason step-by-step extensively for ALL of these steps. Then, give your final answer inside a Python function as described above.
+First, follow all the steps and their instructions carefully, you MUST reason step-by-step extensively for ALL of these steps. Then, give your final answer inside a Python function as described above.

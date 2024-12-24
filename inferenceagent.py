@@ -44,7 +44,7 @@ async def call_llm(
     user_prompt: str = '',
     provider: str = "anthropic",
     model: str = "claude-3-5-sonnet-latest",
-    max_tokens: int = 4000
+    max_tokens: int = 15000
 ) -> AgentCall:
     """
     Asynchronously calls the specified LLM provider with the given prompts and parameters.
@@ -300,6 +300,137 @@ async def call_4o_structured_action(
         parsed_output=chosen_actions
     )
 
+async def call_action_part1(
+        task: str,
+        scrape_tree_no_special: str,
+        action_memory: List,
+        runtime_qa: List,
+        context: str,
+        provider: str = "cerebras",
+        model: str = "llama-3.3-70b"
+):
+    # new_action_memory, mem_count = '\n***', 1
+    # new_runtime_qa, qa_count = '\n***', 1
+    memory_with_qa = '***\n'
+
+    for i, lin_mem in enumerate(action_memory):
+        if lin_mem.is_question:
+            memory_with_qa += f"{i + 1})\nAsked user these questions and received these replies: \n{lin_mem.location_details}***\n"
+        else:
+            memory_with_qa += f"{i + 1})\nLOCATION: {lin_mem.object_details}\nINTENT: {lin_mem.intent}\nEFFECT: {lin_mem.location_details}\nREASONING: {lin_mem.difference_reasoning}\n***\n"
+
+    def read_system_prompt():
+        with open('prompts/chained_action_decider/chain_part1_system.txt', 'r') as f:
+            return f.read()
+
+    system_prompt_template = await asyncio.to_thread(read_system_prompt)
+    system_prompt = system_prompt_template  # no replacements for now
+
+    def read_user_prompt():
+        with open('prompts/chained_action_decider/chain_part1_user.txt', 'r') as f:
+            return f.read()
+
+    user_prompt_template = await asyncio.to_thread(read_user_prompt)
+    user_replacements = {
+        'ax_tree': scrape_tree_no_special,
+        'task': task,
+        'context': context,
+        'memory': memory_with_qa,
+    }
+    user_prompt = string.Template(user_prompt_template).substitute(user_replacements)
+
+    agent_call = await call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider=provider, model=model)
+    output = agent_call.llm_response
+    print(output)
+    json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
+
+    json_matches = re.findall(json_pattern, agent_call.llm_response, re.DOTALL)
+    parsed_output: Optional[str] = ""
+
+    if json_matches:
+        for json_str in json_matches:
+            try:
+                data = json.loads(json_str)
+                if 'grounded_progress_summary' in data:
+                    old_web_page_purpose = data.get('grounded_progress_summary', '')
+                    parsed_output = old_web_page_purpose
+                    print("Parsed Data:", data)
+                    break  # Exit after finding the first valid match
+            except json.JSONDecodeError as e:
+                print(f"Action Chain 1 Error: JSON decoding failed for a matched block - {e}")
+                continue
+    else:
+        print("Action Chain 1 Error: No JSON object found in the LLM response")
+
+    # Update the parsed_output in AgentCall
+    agent_call.parsed_output = parsed_output
+
+    return agent_call
+
+async def call_action_part2(
+        task: str,
+        summarized_info: str,
+        curr_inf_tree: str,
+        runtime_qa: List,
+        provider: str = "cerebras",
+        model: str = "llama-3.3-70b"
+):
+    runtime_qa_string = ''
+    for i, qa in enumerate(runtime_qa):
+        runtime_qa_string += f"{qa}\n"
+
+    def read_user_prompt():
+        with open('prompts/chained_action_decider/chain_part2_user.txt', 'r') as f:
+            return f.read()
+
+    user_prompt_template = await asyncio.to_thread(read_user_prompt)
+    user_replacements = {
+        'ax_tree': curr_inf_tree,
+        'task': task,
+        'first_chain_output': summarized_info,
+        'user_qa': runtime_qa_string,
+    }
+    user_prompt = string.Template(user_prompt_template).substitute(user_replacements)
+
+    def read_system_prompt():
+        with open('prompts/chained_action_decider/chain_part2_system.txt', 'r') as f:
+            return f.read()
+
+    system_prompt_template = await asyncio.to_thread(read_system_prompt)
+    system_prompt = system_prompt_template  # no replacements for now
+
+    agent_call = await call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider=provider, model=model)
+    output = agent_call.llm_response
+    print(output)
+    json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
+
+    json_matches = re.findall(json_pattern, agent_call.llm_response, re.DOTALL)
+    parsed_output: Tuple[str, str] = ('', '')
+
+    if json_matches:
+        for json_str in json_matches:
+            try:
+                data = json.loads(json_str)
+                if 'action_number' in data and 'action_reason' in data:
+                    action_number = data.get('action_number', '')
+                    action_reason = data.get('action_reason', '')
+                    parsed_output = (action_number, action_reason)
+                    print("Parsed Data:", data)
+                    break  # Exit after finding the first valid match
+            except json.JSONDecodeError as e:
+                print(f"Action Chain 2 Error: JSON decoding failed for a matched block - {e}")
+                continue
+    else:
+        print("Action Chain 2 Error: No JSON object found in the LLM response")
+
+    # Update the parsed_output in AgentCall
+    agent_call.parsed_output = parsed_output
+
+    return agent_call
+
+
+
+    return
 
 async def call_action_agent(
     task: str,
@@ -315,10 +446,21 @@ async def call_action_agent(
     new_action_memory = '\n***'
     for i, lin_mem in enumerate(action_memory):
         # action_lines = '\n'.join(lin_mem.action_treelines)
+        # location_details stores QA string
         if lin_mem.is_question:
-            new_action_memory += f"{i + 1})\nQUESTION: {lin_mem.object_details}\nANSWER: {lin_mem.location_details}\n***\n"
+            new_action_memory += f"{i + 1})\n{lin_mem.location_details}***\n"
         else:
             new_action_memory += f"{i + 1})\nLOCATION: {lin_mem.object_details}\nINTENT: {lin_mem.intent}\nEFFECT: {lin_mem.location_details}\nREASONING: {lin_mem.difference_reasoning}\n***\n"
+
+    def read_system_prompt():
+        with open('prompts/action_decider/action_decider_llama_system.txt', 'r') as f:
+            return f.read()
+
+    system_prompt_template = await asyncio.to_thread(read_system_prompt)
+    replacements = {
+        'context': context
+    }
+    system_prompt = string.Template(system_prompt_template).substitute(replacements)
 
     # Read user prompt template asynchronously
     def read_user_prompt():

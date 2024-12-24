@@ -40,11 +40,12 @@ Follow these steps to complete your task:
    - Review the agent's task, and the agent's intent for entering text into this page, then consider which text areas require entry.
    - Ignore anything in the intent that says that the page is loading. Always attempt to input as much as possible.
    - Determine what needs to be input into those text areas in order to satisfy the agent's intent.
-   - Reason step-by-step to do this.
 
 3. Determine if you need to ask the user questions for more information:
    - All the questions that have been asked the user in chronological order are in runtime_qa.
-   - Reason step-by-step to determine if you have all the necessary information to input everywhere that you need to.
+   - Determine if you have all the necessary information to input everywhere that you need to.
+
+4. If you have sufficient information, identify which text_area_number from the tree you need to input into. If you don't have sufficient information, determine what questions you need to ask the user.
 
 
 4. Provide your decision:
@@ -116,4 +117,4 @@ Remember:
 - You must either ask questions, or specify input. Do not do both.
 - You must only use the json format for your final answer.
 
-Follow the steps carefully and reason step-by-step, then give your final answer as a JSON object as described above.
+First, follow all the steps and their instructions carefully, you MUST reason step-by-step extensively for ALL of these steps. Then, give your grounded progress summary in the JSON format I supplied.
