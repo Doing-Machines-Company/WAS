@@ -10,6 +10,11 @@ The User's Task:
 $task
 </task>
 
+Questions that have already been asked the user:
+<user_qa>
+$user_qa
+</user_qa>
+
 What you need to ask questions about:
 <question_intent>
 $question_intent
@@ -22,22 +27,28 @@ Follow these steps to generate questions:
    - Compare this against the available form fields and options in the accessibility tree
    - Identify any potential choices or decisions the user needs to make
 
-2. For each required piece of information:
+2. Analyze questions that's already been asked the user:
+   - Do not ask the user questions they've already specified they don't have an answer to
+   - Do ask the user questions they needed more information to answer, if you have the information
+
+3. For each required piece of information:
    - If it requires a specific value, create a direct question to obtain it
    - If it involves a preference, create a question that helps understand the user's choice
    - If multiple options are available, create a question to determine the user's preference
 
-3. For task completion requirements:
+4. For task completion requirements:
    - Identify any information gaps needed to complete the task
    - Create questions for any decisions that can't be automatically determined
    - Ask about any preferences that would affect how the task is completed
 
-4. Review and refine:
+5. Review and refine:
    - Ensure each required piece of information from question_intent has a corresponding question
    - Make questions specific and unambiguous
    - The web agent already has all the information you have like the user's task, so don't ask about them
 
 Output format:
+```json
+
 {
     "questions": [
         "Which shipping method do you prefer: standard or express?",
@@ -46,6 +57,7 @@ Output format:
         "What street do you want for your delivery address?"
     ]
 }
+```
 
 Guidelines for questions:
 - Ask only for information not already available to the web agent
@@ -56,3 +68,4 @@ Guidelines for questions:
 - Ask only questions requested by question_intent
 
 Do not include any additional fields or metadata - output only the questions array.
+First, follow all the steps and their instructions carefully, you MUST reason step-by-step extensively for ALL of these steps. Then, give your grounded progress summary in the JSON format I supplied.

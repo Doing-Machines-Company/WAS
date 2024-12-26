@@ -1175,7 +1175,8 @@ async def call_action_pruner(
 async def call_intermediate_questions_agent(
     user_task: str,
     ax_tree: str,
-    question_intent: str
+    question_intent: str,
+    user_qa: str
 ) -> AgentCall:
 
     def read_user_prompt():
@@ -1187,39 +1188,65 @@ async def call_intermediate_questions_agent(
         'ax_tree': ax_tree,
         'task': user_task,
         'question_intent': question_intent,
+        'user_qa': user_qa
     }
     user_prompt = string.Template(user_prompt_template).substitute(replacements)
 
     # Call the updated call_llm asynchronously
-    agent_call = await call_llm(user_prompt=user_prompt, provider='cerebras', model='llama3.1-70b')
+    agent_call = await call_llm(user_prompt=user_prompt, provider='cerebras', model='llama-3.3-70b')
 
     print("LLM Response:\n", agent_call.llm_response)
 
-    # Step 1 & 2: Find the JSON object in the answer
-    json_match = re.search(r'\{[\s\S]*}', agent_call.llm_response)
+    # # Step 1 & 2: Find the JSON object in the answer
+    # json_match = re.search(r'\{[\s\S]*}', agent_call.llm_response)
+    #
+    # if json_match:
+    #     json_str = json_match.group(0)
+    #
+    #     try:
+    #         # Step 3: Parse the JSON string
+    #         parsed_json = json.loads(json_str)
+    #
+    #         # Step 4: Extract the new_world_memory
+    #         questions = parsed_json.get("questions")
+    #
+    #         if questions is not None:
+    #             parsed_output = questions
+    #         else:
+    #             print("Error: 'new_world_memory' key not found in JSON")
+    #             parsed_output = "Error: 'new_world_memory' key not found in JSON"
+    #
+    #     except json.JSONDecodeError:
+    #         print("Error: Invalid JSON format")
+    #         parsed_output = "Error: Invalid JSON format"
+    # else:
+    #     print("Error: No JSON object found in the answer")
+    #     parsed_output = "Error: No JSON object found in the answer"
+    #
+    # # Update the parsed_output in AgentCall
+    # agent_call.parsed_output = parsed_output
+    #
+    # return agent_call
 
-    if json_match:
-        json_str = json_match.group(0)
+    json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
 
-        try:
-            # Step 3: Parse the JSON string
-            parsed_json = json.loads(json_str)
+    json_matches = re.findall(json_pattern, agent_call.llm_response, re.DOTALL)
+    parsed_output: Optional[str] = ""
 
-            # Step 4: Extract the new_world_memory
-            questions = parsed_json.get("questions")
-
-            if questions is not None:
-                parsed_output = questions
-            else:
-                print("Error: 'new_world_memory' key not found in JSON")
-                parsed_output = "Error: 'new_world_memory' key not found in JSON"
-
-        except json.JSONDecodeError:
-            print("Error: Invalid JSON format")
-            parsed_output = "Error: Invalid JSON format"
+    if json_matches:
+        for json_str in json_matches:
+            try:
+                data = json.loads(json_str)
+                if 'questions' in data:
+                    grounded_progress_summary = data.get('questions', [])
+                    parsed_output = grounded_progress_summary
+                    print("Parsed Data:", data)
+                    break  # Exit after finding the first valid match
+            except json.JSONDecodeError as e:
+                print(f"intermediate questions agent error: JSON decoding failed for a matched block - {e}")
+                continue
     else:
-        print("Error: No JSON object found in the answer")
-        parsed_output = "Error: No JSON object found in the answer"
+        print("intermediate questions agent error: No JSON object found in the LLM response")
 
     # Update the parsed_output in AgentCall
     agent_call.parsed_output = parsed_output
