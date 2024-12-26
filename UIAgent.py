@@ -516,7 +516,7 @@ class Agent:
                                 
                                 TODO, SUPPORT SKIPPING OVER ACTIONS WHERE THE LAST ACTION WAS/WASN'T ASKING QUESTIONS, QUESTIONS MAY BE INTERMEDIATE.ETC
                                 """
-                                question_out_call = await call_intermediate_questions_agent(self.task, old_inf_tree.get_raw_tree(), reason_for_action)
+                                question_out_call = await call_intermediate_questions_agent(self.task, old_inf_tree.get_raw_tree(), reason_for_action, self.runtime_qa)
                                 intermediate_questions = question_out_call.parsed_output
 
                                 question_string = ''
