@@ -205,7 +205,7 @@ class InferenceAxtree:
                             node["properties"]) + "\n"
                         self.debug_tree += f"[{count}; WRITE_TEXT] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + "\n"
-                        self.input_tree += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                        self.input_tree += f"{node['indent']}[{count}] {node['role']} {repr(node['name'])} " + " ".join(
                         node["properties"]) + "\n"
                         self.action_tree_lines[count] = f"WRITE_TEXT; {node['role']} {repr(node['name'])} " + " ".join(
                         node["properties"])
@@ -235,22 +235,22 @@ class InferenceAxtree:
                 #     break
                 if node['nodeId'] in self.action_effect_lib and self.action_lib[node['nodeId']].location != IndefiniteAction.Location.FOOTER:
                     if Action.Type.INPUT in self.action_lib[node['nodeId']].type_list:
-                        self.scrape_tree += f"[{count}; WRITE_TEXT] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                        self.scrape_tree += f"{node['indent']}[{count}; WRITE_TEXT] {node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + " {" + self.action_effect_lib[node['nodeId']] + "}" + "\n"
-                        self.scrape_tree_no_special += f"[{count}; WRITE_TEXT] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                        self.scrape_tree_no_special += f"{node['indent']}[{count}; WRITE_TEXT] {node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + " {" + self.action_effect_lib[node['nodeId']] + "}" + "\n"
                         self.raw_tree += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + "\n"
                         self.debug_tree += f"[{count}; WRITE_TEXT] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + " {" + self.action_effect_lib[node['nodeId']] + "}" + f" **MATCHED TO {self.action_number_lib[node['nodeId']]}**" + "\n"
-                        self.input_tree += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                        self.input_tree += f"{node['indent']}[{count}] {node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + " {" + self.action_effect_lib[node['nodeId']] + "}" + "\n"
                         self.action_tree_lines[count] = f"WRITE_TEXT; {node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"])
                     else:
-                        self.scrape_tree += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                        self.scrape_tree += f"{node['indent']}[{count}] {node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + " {" + self.action_effect_lib[node['nodeId']] + "}" + "\n"
-                        self.scrape_tree_no_special += f"[{count}] {node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
+                        self.scrape_tree_no_special += f"{node['indent']}[{count}] {node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + " {" + self.action_effect_lib[node['nodeId']] + "}" + "\n"
                         self.raw_tree += f"{node['indent']}{node['role']} {repr(node['name'])} " + " ".join(
                             node["properties"]) + "\n"

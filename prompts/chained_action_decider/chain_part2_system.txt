@@ -34,7 +34,7 @@ Follow ALL OF THESE steps to complete your task:
 5. Choose next action from these options:
     - Here are special actions you'll find on the accessibility tree and what they do:
         - STOP: Choose if task is impossible or completely finished.
-        - WRITE TEXT MODE: Calls an assistant to fill in all relevant text entries on the current accessibility tree for some intent (action_reason). Must be used for any WRITE_TEXT actions (labelled at the start of action in accessibility tree), provide intent in action_reason.
+        - WRITE TEXT MODE: Calls an assistant to fill in all relevant text entries on the current accessibility tree for some intent (action_reason). Must only be used for any WRITE_TEXT actions and provide intent in action_reason.
         - ASK USER: Choose if essential information needed, specify all needed info in action_reason.
         - RELOAD PAGE: Choose if page loaded incorrectly (ignoring header/footer issues).
     - Choose most appropriate numbered action from accessibility tree, this number is your action_number.
