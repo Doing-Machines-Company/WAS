@@ -317,7 +317,7 @@ async def call_action_part1(
         if lin_mem.is_question:
             memory_with_qa += f"{i + 1})\nAsked user these questions and received these replies: \n{lin_mem.location_details}***\n"
         else:
-            memory_with_qa += f"{i + 1})\nLOCATION: {lin_mem.object_details}\nINTENT: {lin_mem.intent}\nEFFECT: {lin_mem.location_details}\nREASONING: {lin_mem.difference_reasoning}\n***\n"
+            memory_with_qa += f"{i + 1})\nINTENT: {lin_mem.intent}\nEFFECT: {lin_mem.location_details}\nREASONING: {lin_mem.difference_reasoning}\n***\n"
 
     def read_system_prompt():
         with open('prompts/chained_action_decider/chain_part1_system.txt', 'r') as f:
@@ -454,7 +454,7 @@ async def call_action_agent(
         if lin_mem.is_question:
             new_action_memory += f"{i + 1})\n{lin_mem.location_details}***\n"
         else:
-            new_action_memory += f"{i + 1})\nLOCATION: {lin_mem.object_details}\nINTENT: {lin_mem.intent}\nEFFECT: {lin_mem.location_details}\nREASONING: {lin_mem.difference_reasoning}\n***\n"
+            new_action_memory += f"{i + 1})\nINTENT: {lin_mem.intent}\nEFFECT: {lin_mem.location_details}\nREASONING: {lin_mem.difference_reasoning}\n***\n"
 
     def read_system_prompt():
         with open('prompts/action_decider/action_decider_llama_system.txt', 'r') as f:
@@ -523,7 +523,7 @@ async def call_action_agent_multi(
     agent_call = None
     new_action_memory = ''
     for i, lin_mem in enumerate(action_memory):
-        new_action_memory += f"\n{i + 1}) LOCATION: {lin_mem.object_details}\n{i + 1}) EFFECT: {lin_mem.location_details}"
+        new_action_memory += f"\n{i + 1})\n{i + 1}) EFFECT: {lin_mem.location_details}"
 
     print('*' * 80)
     print(ax_tree)
@@ -747,7 +747,7 @@ async def call_memory_agent(
     """
     new_action_memory = ''
     for i, lin_mem in enumerate(action_memory):
-        new_action_memory += f"\n{i + 1}) LOCATION: {lin_mem.object_details}\n{i + 1}) EFFECT: {lin_mem.location_details}"
+        new_action_memory += f"\n{i + 1})\n{i + 1}) EFFECT: {lin_mem.location_details}"
 
     # Read prompt template asynchronously
     def read_prompt():
@@ -845,11 +845,10 @@ async def call_reflect_agent(
         for json_str in json_matches:
             try:
                 data = json.loads(json_str)
-                if 'old_web_page_purpose' in data and 'final_answer' in data:
-                    old_web_page_purpose = data.get('old_web_page_purpose', '')
+                if 'final_answer' in data:
                     action_effect = data.get('final_answer', '')
                     difference_reasoning = data.get('difference_reasoning', '')
-                    parsed_output = (old_web_page_purpose, action_effect, difference_reasoning)
+                    parsed_output = (action_effect, difference_reasoning)
                     print("Parsed Data:", data)
                     break  # Exit after finding the first valid match
             except json.JSONDecodeError as e:

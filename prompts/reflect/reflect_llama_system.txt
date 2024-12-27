@@ -10,14 +10,14 @@ Definitions and notes:
     - base_action_effect is the text in {} after the chosen_action
 - We have our own special definition of a failure, this is the only definition you should use:
     - We ONLY consider the chosen_action failed if no new actions on the new_accessibility_tree can help complete the intention_for_action, or if there is an explicit message/sign saying that the intention_for_action is impossible.
-- The answer is what you will be giving me at the end of your reasoning, along with old_web_page_purpose.
+- The answer is what you will be giving me at the end of your reasoning.
 
 Follow these steps to complete your task, I will give you the inputs at the end:
 
 1. Read and make sure you understand the 'definitions and notes'.
 
 2. Analyze the old_accessibility_tree, and intention_for_action. Identify if there is a base_action_effect for the chosen_action and understand the effects of the chosen_action:
-   - Determine the purpose of the old_accessibility_tree web page, this is the old_web_page_purpose.
+   - Determine the purpose of the old_accessibility_tree web page.
    - Identify the chosen action that was just performed on the old_accessibility_tree, this will be labeled by (JUST CHOSEN) near the start of the action in the old_accessibility_tree, this is the chosen_action.
    - Use the effects of the chosen_action that was performed using the difference between the two accessibility trees and the old_accessibility_tree.
 
@@ -46,18 +46,16 @@ Follow these steps to complete your task, I will give you the inputs at the end:
    - Ensure that you meet the specifications I'm giving you and assuming correctly for the base_action_effect.
 
 6. AFTER completing all of these steps, finally give me the answer:
-   - Provide your entire response as a JSON object with two keys, "old_web_page_purpose" and "final_answer", their values are strings.
+   - Provide your entire response as a JSON object with two keys "final_answer" and "difference_reasoning", their values are strings.
      For example:
     ```json
     {
-      "old_web_page_purpose": "Display the Domino's menu for ordering pizza, pasta, wings, and more online",
       "final_answer": "Navigated to the Specialty Pizzas section of the Domino's menu, displaying options such as ExtravaganZZa, MeatZZa, and others, in pursuit of finding the Meatzza pizza.",
       "difference_reasoning": ""
     }
     ```
     - If there are quotes " within the strings, be sure to escape them, otherwise the JSON will be malformed.
     - The final_answer is your final_answer from step 5.
-    - The old_web_page_purpose is the old_web_page_purpose from step 2.
     - The difference_reasoning is the difference_reasoning from step 4.
 
 Remember:

@@ -534,8 +534,7 @@ class Agent:
                                         break
 
                                 # TODO MAKE THIS INTO A MEMORY INJECTION AND ADD IT IN
-                                new_memory = LinearMemory(object_details="",
-                                                          location_details=question_string,
+                                new_memory = LinearMemory(location_details=question_string,
                                                           difference_reasoning="",
                                                           intent=reason_for_action,
                                                           action_treelines=old_inf_tree.get_action_treelines(
@@ -598,7 +597,6 @@ class Agent:
 
                                         # TODO MAKE THIS INTO A MEMORY INJECTION AND ADD IT IN
                                         new_memory = LinearMemory(
-                                            object_details="",
                                             location_details=question_string,
                                             difference_reasoning="",
                                             intent=reason_for_action,
@@ -724,21 +722,20 @@ class Agent:
                                             print("NO MEM RESPONSE")
                                             continue
 
-                                        if mem_response != ('', '', ''):
+                                        if mem_response != ('', ''):
                                             successful_reflect = True
                                             break
 
-                                    old_web_page_purpose, object_and_effect, difference_reasoning = mem_response[0], mem_response[1], mem_response[2]
+                                    object_and_effect, difference_reasoning = mem_response[0], mem_response[1]
                                     if not successful_reflect:
-                                        old_web_page_purpose, object_and_effect, difference_reasoning = 'N/A', 'N/A', 'N/A'
+                                        object_and_effect, difference_reasoning = 'N/A', 'N/A'
 
 
                                     self.curr_save_node.reflect_call.append(copy.deepcopy(reflect_response_call))
                                     print(mem_response)
                                     print(len(mem_response))
 
-                                    new_memory = LinearMemory(object_details=old_web_page_purpose,
-                                                              location_details=object_and_effect,
+                                    new_memory = LinearMemory(location_details=object_and_effect,
                                                               difference_reasoning=difference_reasoning,
                                                               intent=reason_for_action,
                                                               action_treelines=old_inf_tree.get_action_treelines(new_reflect_action_indices),

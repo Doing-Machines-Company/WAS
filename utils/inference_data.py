@@ -2,7 +2,6 @@ from dataclasses import dataclass
 
 @dataclass
 class LinearMemory:
-    object_details: str
     location_details: str
     difference_reasoning: str
     intent: str
@@ -11,7 +10,7 @@ class LinearMemory:
     is_question: bool
 
     def __repr__(self):
-        return f"({self.object_details}, {self.location_details})"
+        return f"({self.location_details})"
         # return f"{self.action_effect} + {self.location_details} + {self.object_details}"
 
 @dataclass

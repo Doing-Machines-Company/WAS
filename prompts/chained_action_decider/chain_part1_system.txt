@@ -12,7 +12,6 @@ Here's what you will get:
          A: User's reply.
     - otherwise:
         - i)
-         LOCATION: Description of where action was taken.
          INTENT: The intention of performing action was.
          EFFECT: The actual effect of the performed action was.
          REASONING: If the EFFECT of the action was different from the INTENT, provides reasoning as to why and what may need to be done. Otherwise the empty string.
