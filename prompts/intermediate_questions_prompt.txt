@@ -24,30 +24,40 @@ $question_intent
 Follow these steps to generate questions:
 
 1. Analyze the required information:
-   - Review the question_intent to identify what specific preferences or information are needed
-   - Locate the corresponding actions in the accessibility tree
-   - Only consider choices that directly map to selectable options in the tree
+    - Review the question_intent to identify what specific preferences or information are needed
+    - Locate the corresponding actions in the accessibility tree
+    - Only consider choices that directly map to selectable options in the tree
 
 2. Check previous questions:
-   - Skip topics the user has explicitly stated they cannot answer
-   - Only revisit previous questions if new, relevant options are now visible in the tree
+    - Skip topics the user has explicitly stated they cannot answer
+    - Only revisit previous questions if new, relevant options are now visible in the tree
 
-3. Generate targeted questions to ask the user about their preferences:
-   - Create questions ONLY for choices that map directly to numbered actions in the accessibility tree
-   - Each question should correspond to a specific action or group of actions
-   - If a single question allows you to understand the preference of multiple numbered actions, only ask one question about those numbered actions
-   - For grouped elements (like radio buttons), present all available options from the tree
+3. Check for actions that relate to the intent and are major decision points:
+    - Look for fundamental choices that significantly affect the task flow:
+        - These need to be chosen to complete the task
+            - For example: Delivery method (pickup vs delivery), location selection.etc
+        - If such a choice is available and user preference unknown:
+            - Do not ask about minor options
+            - Do not ask about how to use or navigate the website
+            - Do not offer unecessary information
 
-4. Verify actionability:
-   - Each question must lead to selectable actions in the tree
-   - Avoid questions about hypothetical options not present in the interface
-   - Don't ask for details about an option until that option is actually selected
+4. Generate targeted questions to ask the user about their preferences regarding major decision points:
+    - Major decision points are defined in step 3
+    - Create questions ONLY for choices that map directly to numbered actions in the accessibility tree
+    - Each question should correspond to a specific action or group of actions
+    - If a single question allows you to understand the preference of multiple numbered actions, only ask one question about those numbered actions
+    - For grouped elements (like radio buttons), present all available options from the tree
 
-5. Review and refine:
-   - Ensure each question maps to at least one numbered action in the tree
-   - Ensure you are asking about preferences
-   - Remove any questions that ask for information beyond the immediate choices available
-   - Confirm questions only address the specific needs outlined in question_intent
+5. Verify actionability:
+    - Each question must lead to selectable actions in the tree
+    - Avoid questions about hypothetical options not present in the interface
+    - Don't ask for details about an option until that option is actually selected
+
+6. Review and refine:
+    - Ensure each question maps to at least one numbered action in the tree
+    - Ensure you are asking about preferences
+    - Remove any questions that ask for information beyond the immediate choices available
+    - Confirm questions only address the specific needs outlined in question_intent
 
 Output format:
 ```json

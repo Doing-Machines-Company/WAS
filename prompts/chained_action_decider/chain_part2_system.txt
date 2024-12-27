@@ -19,10 +19,11 @@ Follow ALL OF THESE steps to complete your task:
 
 3. Check for major decision points:
     - Look for fundamental choices that significantly affect the task flow:
+        - These need to be chosen to complete the task
         - For example: Delivery method (pickup vs delivery), location selection.etc
     - If such a choice is available and user preference unknown:
-        - Do not ask about minor customization options.
-        - Do not ask about how to use or navigate the website, or specific actions to perform.
+        - Do not ask about minor options
+        - Do not ask about how to use or navigate the website
         - Otherwise, choose ASK USER immediately, do not proceed with assumptions
 
 4. Evaluate potential effects of relevant actions:
