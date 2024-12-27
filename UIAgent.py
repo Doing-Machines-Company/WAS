@@ -93,7 +93,7 @@ class Agent:
         summarized_info = await call_action_part1(self.task, curr_inf_tree.get_no_special(), self.action_mem, self.runtime_qa, self.item_context_pairs, provider=provider, model=model)
         print(summarized_info.parsed_output)
         print("STEP 1 DONE")
-        action_out_call = await call_action_part2(self.task, summarized_info.parsed_output, curr_inf_tree, self.action_mem)
+        action_out_call = await call_action_part2(self.task, summarized_info.parsed_output, curr_inf_tree, self.runtime_qa)
         print(action_out_call.parsed_output)
         print("STEP 2 DONE")
         return action_out_call
@@ -516,7 +516,7 @@ class Agent:
                                 
                                 TODO, SUPPORT SKIPPING OVER ACTIONS WHERE THE LAST ACTION WAS/WASN'T ASKING QUESTIONS, QUESTIONS MAY BE INTERMEDIATE.ETC
                                 """
-                                question_out_call = await call_intermediate_questions_agent(self.task, old_inf_tree.get_raw_tree(), reason_for_action, self.runtime_qa)
+                                question_out_call = await call_intermediate_questions_agent(self.task, old_inf_tree.get_question_tree(), reason_for_action, self.runtime_qa)
                                 intermediate_questions = question_out_call.parsed_output
 
                                 question_string = ''
@@ -553,8 +553,14 @@ class Agent:
 
                             elif chosen_action.action_type == Action.Type.INPUT_GIVEN_INTENT:
                                 new_reflect_action_indices.append(chosen_action_index)
-                                count = 0
+                                await self.output_queue.put(('only_out', reason_for_action))
+                                input_phase_count = 0
+
                                 while True:
+                                    seen_question = False
+                                    question_string = ''
+                                    if input_phase_count > 3:
+                                        break
                                     desired = await call_input_agent(
                                         self.task, reason_for_action,
                                         old_inf_tree.get_input_tree(), self.context_info,
@@ -565,38 +571,68 @@ class Agent:
                                         print("INPUT AGENT PARSED OUTPUT IS NONE")
                                         raise Exception
 
-                                    if old_inf_tree.get_action_from_index(desired.parsed_output[0][0]).action.action_type != Action.Type.REQUEST_USER_INPUT:
-                                        break
-                                    elif count > 2:
-                                        break
-                                    else:
-                                        question_string = ''
-                                        for (chosen_input_index, question) in desired.parsed_output:
+                                    for (chosen_input_index, chosen_text) in desired.parsed_output:
+                                        if self.stop_event.is_set():
+                                            break
+
+                                        chosen_input_indefinite = old_inf_tree.get_action_from_index(
+                                            chosen_input_index)
+                                        chosen_input_action = chosen_input_indefinite.action
+
+                                        if chosen_input_action.action_type == Action.Type.REQUEST_USER_INPUT:
+                                            seen_question = True
+
+
                                             if self.stop_event.is_set():
                                                 break
 
-                                            chosen_question_indefinite = old_inf_tree.get_action_from_index(
-                                                chosen_input_index)
-                                            chosen_question_action = chosen_question_indefinite.action
-
-                                            if chosen_question_action.action_type != Action.Type.REQUEST_USER_INPUT:
-                                                print("INPUT GIVEN IN QUESTION PHASE FOR INPUT AGENT")
-                                                raise Exception
-
-                                            if self.stop_event.is_set():
-                                                break
-                                            answer = await self.ask_user(question)
-                                            question_string += f"Q: {question}\nA: {answer}\n"
-
-
+                                            answer = await self.ask_user(chosen_text)
+                                            question_string += f"Q: {chosen_text}\nA: {answer}\n"
 
                                             self.runtime_qa.append(
-                                                f"Q: {question}\nA: {answer}")
+                                                f"Q: {chosen_text}\nA: {answer}")
 
                                             if self.stop_event.is_set():
                                                 break
 
-                                        # TODO MAKE THIS INTO A MEMORY INJECTION AND ADD IT IN
+
+
+                                        else:
+                                            use_role_name_backup = curr_page_state.all_tree_lines.count(
+                                                chosen_input_action.tree_line) == 1 and chosen_input_action.tree_line != ""
+
+                                            # TODO JAMES CHECK WHY LOCATION OF INPUTS ARE SPECIAL
+
+                                            chosen_element, chosen_xpath, type_list = await get_chosen_element(
+                                                self.page,
+                                                chosen_input_indefinite,
+                                                use_role_name_backup
+                                            )
+
+                                            chosen_input_action.set_input_string(chosen_text)
+                                            if self.stop_event.is_set():
+                                                break
+
+                                            success = await do_action_flow(
+                                                self.page, chosen_input_action, chosen_element, chosen_xpath,
+                                                type_list
+                                            )
+
+                                            if success:
+                                                new_reflect_action_indices.append(chosen_input_index)
+                                            else:
+                                                # something_failed = True
+                                                break
+
+                                            if self.stop_event.is_set():
+                                                break
+
+                                    # TODO MAKE THIS INTO A MEMORY INJECTION AND ADD IT IN
+
+
+                                    if not seen_question:
+                                        break
+                                    else:
                                         new_memory = LinearMemory(
                                             object_details="",
                                             location_details=question_string,
@@ -609,49 +645,10 @@ class Agent:
 
                                         self.action_mem.append(new_memory)
 
-
-                                for (chosen_input_index, input_string) in desired.parsed_output:
-                                    if self.stop_event.is_set():
-                                        break
-
-                                    unhidden_input_string = replace_hidden_inputs(input_string, self.hidden_inputs)  # no longer used for now
-                                    chosen_input_indefinite = old_inf_tree.get_action_from_index(chosen_input_index)
-                                    chosen_input_action = chosen_input_indefinite.action
-
-                                    if chosen_input_action.action_type == Action.Type.REQUEST_USER_INPUT:
-                                        print("QUESTION GIVEN IN INPUT PHASE FOR INPUT AGENT")
-                                        continue
-
-                                    use_role_name_backup = curr_page_state.all_tree_lines.count(
-                                        chosen_input_action.tree_line) == 1 and chosen_input_action.tree_line != ""
+                                    input_phase_count += 1
 
 
-                                    # TODO JAMES CHECK WHY LOCATION OF INPUTS ARE SPECIAL
 
-                                    chosen_element, chosen_xpath, type_list = await get_chosen_element(
-                                        self.page,
-                                        chosen_input_indefinite,
-                                        use_role_name_backup
-                                    )
-
-                                    chosen_input_action.set_input_string(unhidden_input_string)
-                                    if self.stop_event.is_set():
-                                        break
-
-                                    success = await do_action_flow(
-                                        self.page, chosen_input_action, chosen_element, chosen_xpath,
-                                        type_list
-                                    )
-                                    if success:
-                                        new_reflect_action_indices.append(chosen_input_index)
-                                    else:
-                                        something_failed = True
-
-
-                                    if self.stop_event.is_set():
-                                        break
-
-                                await self.output_queue.put(('only_out', reason_for_action))
 
                             if iterating_action_index == len(
                                     action_out_list) - 1:  # if multiple actions, we assume only last action can possibly need load (THIS IS POTENTIALLY BAD)

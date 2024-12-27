@@ -45,12 +45,12 @@ Follow these steps to complete your task:
    - All the questions that have been asked the user in chronological order are in runtime_qa.
    - Determine if you have all the necessary information to input everywhere that you need to.
 
-4. If you have sufficient information, identify which text_area_number from the tree you need to input into. If you don't have sufficient information, determine what questions you need to ask the user.
+4. If you have sufficient information, identify which text_area_number from the tree you need to input into. If you don't have sufficient information, determine what questions you need to ask the user. If nothing needs to be done, choices should be the empty list.
 
-
-4. Provide your decision:
+5. Provide your decision:
    - If you have all the information you need from the user:
        - Use the following JSON format to indicate your chosen actions:
+       ```json
          {
            "choices": [
              {
@@ -60,53 +60,11 @@ Follow these steps to complete your task:
              ...
            ]
          }
+       ```
        - text_area_number: The number of the text area you've chosen from the accessibility tree.
-       - desired_input: What you wish to input into that text area
-       - For example:
-         {
-           "choices": [
-             {
-               "text_area_number": 42,
-               "desired_input": "Pizza"
-             },
-             {
-               "text_area_number": 90,
-               "desired_input": "Hello, I am first_name last_name."
-             },
-             {
-               "text_area_number": 45,
-               "desired_input": "credit_card_number"
-             }
-           ]
-         }
-       - Include as many choices as necessary to fulfill the agent's intent.
-   - If you need to ask the user questions:
-       - Use the following JSON format to indicate your chosen actions:
-         {
-           "choices": [
-             {
-               "text_area_number": int,
-               "desired_input": string
-             },
-             ...
-           ]
-         }
-       - text_area_number: The number of the SPECIAL ACTION, ASK USER, on the accessibility_tree
-       - desired_input: What you wish to ask the user
-       - For example:
-         {
-           "choices": [
-             {
-               "text_area_number": 2,
-               "desired_input": "What is your street address?"
-             },
-             {
-               "text_area_number": 2,
-               "desired_input": "What is your city?"
-             }
-           ]
-         }
-       - Include as many questions as necessary to fulfill the agent's intent.
+       - desired_input:
+            - If you chose ASK USER, it's the question you chose to ask
+            - Otherwise, it's what wish to input into that text area
 
 Remember:
 - Each possible input area in the accessibility tree starts with a number.

@@ -5,6 +5,7 @@ Follow ALL OF THESE steps to complete your task:
 1. Analyze the web accessibility_tree to determine available actions:
     - Examine the accessibility tree carefully
     - Understand the page's general purpose
+    - Understand what's required, and for what purpose they're required
     - Examine text inside {} for action hints
     - List all potentially relevant actions
     - Check if page has loaded incorrectly (ignore header and footer)
@@ -16,13 +17,13 @@ Follow ALL OF THESE steps to complete your task:
     - Determine what still needs to be done
     - Pay attention to any blocking requirements
 
-3. Determine if you need to ask the user questions:
-    - Review user_qa
-        - Check what has already been asked
-    - Identify any missing essential information
-    - Do not ask about website navigation
-    - Do not repeat questions
-    - Only ask when information is truly needed
+3. Check for major decision points:
+    - Look for fundamental choices that significantly affect the task flow:
+        - For example: Delivery method (pickup vs delivery), location selection.etc
+    - If such a choice is available and user preference unknown:
+        - Do not ask about minor customization options.
+        - Do not ask about how to use or navigate the website, or specific actions to perform.
+        - Otherwise, choose ASK USER immediately, do not proceed with assumptions
 
 4. Evaluate potential effects of relevant actions:
     - Consider each action's contribution to pending tasks
@@ -35,10 +36,9 @@ Follow ALL OF THESE steps to complete your task:
     - Here are special actions you'll find on the accessibility tree and what they do:
         - STOP: Choose if task is impossible or completely finished.
         - WRITE TEXT MODE: Calls an assistant to fill in all relevant text entries on the current accessibility tree for some intent (action_reason). Must only be used for any WRITE_TEXT actions and provide intent in action_reason.
-        - ASK USER: Choose if essential information needed, specify all needed info in action_reason.
+        - ASK USER: Choose when encountering major decision points (as defined in step 3) where user preference is unknown. Specify the key decision needed in action_reason.
         - RELOAD PAGE: Choose if page loaded incorrectly (ignoring header/footer issues).
     - Choose most appropriate numbered action from accessibility tree, this number is your action_number.
-
 
 6. Provide your decision:
     - Following your reasoning from step 5, give me your chosen action and why you chose it.
@@ -46,7 +46,7 @@ Follow ALL OF THESE steps to complete your task:
      For example:
     ```json
     {
-        "action_number": 43,
-        "action_reason": "To add one additional balsamic sauce to increase quantity from 3 to 4"
+        "action_number": 1,
+        "action_reason": "Need to know if user wants delivery or carryout before proceeding"
     }
     ```

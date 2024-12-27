@@ -401,11 +401,11 @@ async def call_action_part2(
 
     agent_call = await call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider=provider, model=model)
     output = agent_call.llm_response
-    # print("PART 2 CALL BEGIN")
-    # print(system_prompt)
-    # print(user_prompt)
-    # print(output)
-    # print("PART 2 CALL END")
+    print("PART 2 CALL BEGIN")
+    print(system_prompt)
+    print(user_prompt)
+    print(output)
+    print("PART 2 CALL END")
     json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
 
     json_matches = re.findall(json_pattern, agent_call.llm_response, re.DOTALL)
@@ -844,7 +844,9 @@ async def call_reflect_agent(
     if json_matches:
         for json_str in json_matches:
             try:
-                data = json.loads(json_str)
+                cleaned_json = json_str.replace("\\'", "'")
+                data = json.loads(cleaned_json)
+                # data = json.loads(json_str)
                 if 'old_web_page_purpose' in data and 'final_answer' in data:
                     old_web_page_purpose = data.get('old_web_page_purpose', '')
                     action_effect = data.get('final_answer', '')
@@ -975,11 +977,6 @@ async def call_input_agent(
 
     prompt_template = await asyncio.to_thread(read_prompt)
 
-    # formatted_hidden_items = ''
-    # for item in hidden_inputs:
-    #     formatted_hidden_items += f"{item.key.strip()}: {item.description.strip()}\n"
-    # formatted_hidden_items = formatted_hidden_items.strip()
-
     replacements = {
         'user_task': user_task,
         'agent_intent': agent_intent,
@@ -992,19 +989,34 @@ async def call_input_agent(
     # Call the updated call_llm asynchronously
     agent_call = await call_llm(user_prompt=prompt, provider='cerebras', model='llama-3.3-70b')
 
-    print("LLM Response:\n", agent_call.llm_response)
+    print("INPUT CALL BEGIN")
+    print(prompt)
+    print("INPUT CALL END")
 
-    pattern = r'"text_area_number":\s*(\d+).*?"desired_input":\s*"(.*?)"'
+    # Extract JSON from the response
+    json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
+    json_matches = re.findall(json_pattern, agent_call.llm_response, re.DOTALL)
 
-    # Find all matches in the answer
-    matches = re.findall(pattern, agent_call.llm_response, re.DOTALL)
-    print(matches)
-    print("MATCHES")
+    if not json_matches:
+        raise ValueError("No JSON found in LLM response")
 
-    parsed_output = [(int(num), input_text) for num, input_text in matches]
+    try:
+        # Parse the first JSON match
+        response_data = json.loads(json_matches[0])
 
-    # Update the parsed_output in AgentCall
-    agent_call.parsed_output = parsed_output
+        # Extract and format the choices
+        parsed_output = [
+            (choice['text_area_number'], choice['desired_input'])
+            for choice in response_data.get('choices', [])
+        ]
+
+        # Update the parsed_output in AgentCall
+        agent_call.parsed_output = parsed_output
+
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Mass input error: Invalid JSON in LLM response {e}")
+    except KeyError as e:
+        raise ValueError(f"Mass input error: Missing required key in JSON response {e}")
 
     return agent_call
 
