@@ -22,7 +22,8 @@ $user_qa
 
 Remember:
 - Every standard action in accessibility tree starts with a number
-- You MUST ONLY use WRITE TEXT MODE for any WRITE_TEXT actions
+- You MUST ONLY use WRITE_TEXT MODE for any WRITE_TEXT actions
+- WRITE TEXT MODE is only used for actions with WRITE_TEXT at the start of their line.
 - You must complete entire processes (e.g., full checkout flow)
 - Focus on immediate next step in action_reason
 - Be thorough in your analysis
