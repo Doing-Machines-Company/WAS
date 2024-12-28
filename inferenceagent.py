@@ -953,16 +953,12 @@ async def call_input_agent(
     input_ax_tree: str,
     context: str,
     hidden_inputs: List[HiddenInput],
-    runtime_qa: str,
+    task_notes: str,
     provider: str = "anthropic"
 ) -> AgentCall:
     """
     Asynchronously calls the input agent LLM and processes its response.
     """
-
-    runtime_qa_string = ''
-    for i, qa in enumerate(runtime_qa):
-        runtime_qa_string += f"{qa}\n"
 
     # Read prompt template asynchronously
     def read_prompt():
@@ -976,7 +972,7 @@ async def call_input_agent(
         'agent_intent': agent_intent,
         'input_ax_tree': input_ax_tree,
         'context': context,
-        'runtime_qa': runtime_qa_string
+        'task_notes': task_notes
     }
     prompt = string.Template(prompt_template).substitute(replacements)
 

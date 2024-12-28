@@ -572,7 +572,7 @@ class Agent:
                                     desired = await call_input_agent(
                                         self.task, reason_for_action,
                                         old_inf_tree.get_input_tree(), self.context_info,
-                                        self.hidden_inputs, self.runtime_qa
+                                        self.hidden_inputs, self.task_notes
                                     )
 
                                     if desired.parsed_output is None or desired.parsed_output[0] is None or desired.parsed_output[0][0] is None:

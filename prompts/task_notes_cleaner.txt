@@ -23,9 +23,8 @@ Follow these steps to complete your task:
 3. Give the updated task notes that includes the user preferences and additional information:
    - Do not repeat any information that is already conveyed in the user_task
    - Incorporate old notes (if there are any) from original_task_notes with the new information 
-      - update any notes that are inconsistent with new user answers
-      - keeping other notes and 
-   - You should output notes that are concise, specific and in list format 
+   - Update any notes that are inconsistent with new user answers, keeping other notes
+   - You should output notes that are concise, specific and in list format making sure to escape newlines.
    - Use the following JSON format to indicate your new task: 
    ```json
    {

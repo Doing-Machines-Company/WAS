@@ -22,10 +22,10 @@ What the web agent wants you to input text for:
 $agent_intent
 </agent_intent>
 
-Questions that have been asked the user so far:
-<runtime_qa>
-$runtime_qa
-</runtime_qa>
+Task notes and helpful user information:
+<task_notes>
+$task_notes
+</task_notes>
 
 You have a special tool that is going to be in the accessibility tree, it will be labelled SPECIAL ACTION:
 ASK USER: Request information from user about everything in action_reason.
@@ -42,7 +42,7 @@ Follow these steps to complete your task:
    - Determine what needs to be input into those text areas in order to satisfy the agent's intent.
 
 3. Determine if you need to ask the user questions for more information:
-   - All the questions that have been asked the user in chronological order are in runtime_qa.
+   - Helpful information about the task and user are stored in your task notes.
    - Determine if you have all the necessary information to input everywhere that you need to.
 
 4. If you have sufficient information, identify which text_area_number from the tree you need to input into. If you don't have sufficient information, determine what questions you need to ask the user. If nothing needs to be done, choices should be the empty list.
