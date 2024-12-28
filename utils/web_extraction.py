@@ -20,7 +20,7 @@ async def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
         "Accessibility.getFullAXTree", {}
     )
     accessibility_tree = response["nodes"]
-    print("\tcdp js took", time.time() - start)
+    print("\tNORMAL cdp js took", time.time() - start)
     seen_ids = set()
     _accessibility_tree = []
     for node in accessibility_tree:
@@ -78,7 +78,7 @@ async def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
             )
         return response["outerHTML"]
     
-    async def process_node(node): 
+    async def process_node(node):
         backend_node_id = str(node["backendDOMNodeId"])
         try:
             remote_object = await cdpSession.send(
@@ -99,7 +99,7 @@ async def get_ax_tree(cdpSession: CDPSession) -> list[AxNode]:
                 node['html'] = ''
             return
     start = time.time()
-    tasks = [process_node(node) for node in accessibility_tree if "backendDOMNodeId" in node]
+    tasks = [process_node(node) for node in accessibility_tree if "backendDOMNodeId" in node and "role" in node and node["role"] not in ["StaticText"]]
     print("making list took", time.time() - start)
     start = time.time()
     await asyncio.gather(*tasks)
@@ -113,7 +113,7 @@ async def get_ax_tree_no_extras(cdpSession: CDPSession) -> list[AxNode]:
         "Accessibility.getFullAXTree", {}
     )
     accessibility_tree = response["nodes"]
-    print("\tcdp js took", time.time() - start)
+    print("\tNO EXTRAS cdp js took", time.time() - start)
     seen_ids = set()
     _accessibility_tree = []
     for node in accessibility_tree:

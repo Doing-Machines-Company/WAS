@@ -305,13 +305,18 @@ class Agent:
         start_time = time.time()
         node_count = len(await get_ax_tree_no_extras(self.cdp_session))
         try:
+            network_start = time.time()
             # await self.page.wait_for_load_state('networkidle', timeout=1000)
             await self.wait_for_network_idle(idle_time=0.2, timeout=1)
+            print(f"network idle waited {time.time() - network_start}")
         except:
+            print("network idle timed out")
             pass
+        intermediate_start = time.time()
         while time.time() - start_time <= wait_time:
             new_node_count = len(await get_ax_tree_no_extras(self.cdp_session))
             if new_node_count == node_count and new_node_count > 0:
+                print(f"skipped due to same node length after: {time.time() - intermediate_start}")
                 break
             else:
                 node_count = new_node_count
@@ -536,7 +541,7 @@ class Agent:
                                 if question_string:
                                     notes_out_call = await call_unified_notes_cleaner(self.task, self.task_notes, question_string)
                                     self.task_notes = notes_out_call.parsed_output
-                                    input("*** Updated Task Notes ***" + self.task_notes)
+                                    # input("*** Updated Task Notes ***" + self.task_notes)
                                 # TODO MAKE THIS INTO A MEMORY INJECTION AND ADD IT IN
                                 new_memory = LinearMemory(location_details=question_string,
                                                           difference_reasoning="",
@@ -622,7 +627,6 @@ class Agent:
                                             if success:
                                                 new_reflect_action_indices.append(chosen_input_index)
                                             else:
-                                                # something_failed = True
                                                 break
 
                                             if self.stop_event.is_set():
@@ -631,7 +635,7 @@ class Agent:
                                         # print(question_string)
                                         notes_out_call = await call_unified_notes_cleaner(self.task, self.task_notes, question_string)
                                         self.task_notes = notes_out_call.parsed_output
-                                        input("*** Updated Task Notes ***" + self.task_notes)
+                                        # input("*** Updated Task Notes ***" + self.task_notes)
 
                                     # TODO MAKE THIS INTO A MEMORY INJECTION AND ADD IT IN
 
@@ -669,7 +673,7 @@ class Agent:
                                     except asyncio.TimeoutError:
                                         print("Timeout reached while waiting for text to load.")
 
-                                    print(f"Lapsed time: {time.time() - start_time}")
+                                    print(f"SUCCESS: Fast mode lapsed time: {time.time() - start_time}")
                                 else:
                                     await asyncio.sleep(6)
 
@@ -766,29 +770,6 @@ class Agent:
                         self.failed_count += 1
                         if self.failed_count > self.retry_cap:
                             self.stop()
-                        else:
-                            if self.fast_mode:
-                                start_time = time.time()
-                                wait_time = 6
-                                timeout_wait = wait_time + 1
-                                try:
-                                    await asyncio.wait_for(self.loop_until_loaded(wait_time=wait_time),
-                                                           timeout=timeout_wait)
-                                except asyncio.TimeoutError:
-                                    print("Timeout reached while waiting for text to load.")
-
-                                print(f"Lapsed time: {time.time() - start_time}")
-                            else:
-                                await asyncio.sleep(6)
-
-                            curr_page_state = await get_page_state(self.page, self.cdp_session)
-
-                            matched_inference_state = match_action_effects(curr_page_state,
-                                                                           self.url_state_manager)
-
-                            curr_inf_tree = InferenceAxtree(matched_inference_state,
-                                                            special_actions=self.special_actions,
-                                                            use_scrape=True)
 
 
 
