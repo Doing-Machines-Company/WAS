@@ -302,22 +302,20 @@ async def call_4o_structured_action(
 
 async def call_action_part1(
         task: str,
+        task_notes: str,
         scrape_tree_no_special: str,
         action_memory: List,
-        runtime_qa: List,
         context: str,
         provider: str = "cerebras",
         model: str = "llama-3.3-70b"
 ):
     # new_action_memory, mem_count = '\n***', 1
     # new_runtime_qa, qa_count = '\n***', 1
-    memory_with_qa = '***\n'
+    memory_without_qa = '***\n'
 
     for i, lin_mem in enumerate(action_memory):
-        if lin_mem.is_question:
-            memory_with_qa += f"{i + 1})\nAsked user these questions and received these replies: \n{lin_mem.location_details}***\n"
-        else:
-            memory_with_qa += f"{i + 1})\nINTENT: {lin_mem.intent}\nEFFECT: {lin_mem.location_details}\nREASONING: {lin_mem.difference_reasoning}\n***\n"
+        if not lin_mem.is_question:
+            memory_without_qa += f"{i + 1})\nINTENT: {lin_mem.intent}\nEFFECT: {lin_mem.location_details}\nREASONING: {lin_mem.difference_reasoning}\n***\n"
 
     def read_system_prompt():
         with open('prompts/chained_action_decider/chain_part1_system.txt', 'r') as f:
@@ -334,8 +332,9 @@ async def call_action_part1(
     user_replacements = {
         'ax_tree': scrape_tree_no_special,
         'task': task,
+        'task_notes': task_notes,
         'context': context,
-        'memory': memory_with_qa,
+        'memory': memory_without_qa,
     }
     user_prompt = string.Template(user_prompt_template).substitute(user_replacements)
 
@@ -369,15 +368,13 @@ async def call_action_part1(
 
 async def call_action_part2(
         task: str,
+        task_notes: str,
         summarized_info: str,
         curr_inf_tree: str,
-        runtime_qa: List,
         provider: str = "cerebras",
         model: str = "llama-3.3-70b"
 ):
-    runtime_qa_string = ''
-    for i, qa in enumerate(runtime_qa):
-        runtime_qa_string += f"{qa}\n"
+
 
     def read_user_prompt():
         with open('prompts/chained_action_decider/chain_part2_user.txt', 'r') as f:
@@ -387,8 +384,8 @@ async def call_action_part2(
     user_replacements = {
         'ax_tree': curr_inf_tree,
         'task': task,
+        'task_notes': task_notes,
         'first_chain_output': summarized_info,
-        'user_qa': runtime_qa_string,
     }
     user_prompt = string.Template(user_prompt_template).substitute(user_replacements)
 
@@ -451,9 +448,7 @@ async def call_action_agent(
     for i, lin_mem in enumerate(action_memory):
         # action_lines = '\n'.join(lin_mem.action_treelines)
         # location_details stores QA string
-        if lin_mem.is_question:
-            new_action_memory += f"{i + 1})\n{lin_mem.location_details}***\n"
-        else:
+        if not lin_mem.is_question:
             new_action_memory += f"{i + 1})\nINTENT: {lin_mem.intent}\nEFFECT: {lin_mem.location_details}\nREASONING: {lin_mem.difference_reasoning}\n***\n"
 
     def read_system_prompt():
@@ -1187,7 +1182,7 @@ async def call_intermediate_questions_agent(
     user_task: str,
     ax_tree: str,
     question_intent: str,
-    user_qa: str
+    task_notes: str
 ) -> AgentCall:
 
     def read_user_prompt():
@@ -1199,7 +1194,7 @@ async def call_intermediate_questions_agent(
         'ax_tree': ax_tree,
         'task': user_task,
         'question_intent': question_intent,
-        'user_qa': user_qa
+        'task_notes': task_notes
     }
     user_prompt = string.Template(user_prompt_template).substitute(replacements)
 
@@ -1229,6 +1224,55 @@ async def call_intermediate_questions_agent(
     else:
         print("intermediate questions agent error: No JSON object found in the LLM response")
 
+    # Update the parsed_output in AgentCall
+    agent_call.parsed_output = parsed_output
+
+    return agent_call
+
+
+async def call_unified_notes_cleaner(
+    user_task: str,
+    task_notes: str,
+    user_qa: str
+) -> AgentCall:
+
+    def read_user_prompt():
+        with open('prompts/task_notes_cleaner.txt', 'r') as f:
+            return f.read()
+
+    user_prompt_template = await asyncio.to_thread(read_user_prompt)
+    replacements = {
+        'user_task': user_task,
+        'original_task_notes': task_notes,
+        'new_user_answers': user_qa
+    }
+    user_prompt = string.Template(user_prompt_template).substitute(replacements)
+    # Call the updated call_llm asynchronously
+    print(user_prompt)
+    agent_call = await call_llm(user_prompt=user_prompt, provider='cerebras', model='llama-3.3-70b')
+
+    print("LLM Response:\n", agent_call.llm_response)
+
+
+    json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
+
+    json_matches = re.findall(json_pattern, agent_call.llm_response, re.DOTALL)
+    parsed_output: Optional[str] = ""
+
+    if json_matches:
+        for json_str in json_matches:
+            try:
+                data = json.loads(json_str)
+                if 'new_task_notes' in data:
+                    new_task_notes = data.get('new_task_notes', [])
+                    parsed_output = new_task_notes
+                    print("Parsed Data:", data)
+                    break  # Exit after finding the first valid match
+            except json.JSONDecodeError as e:
+                print(f"task notes cleaner: JSON decoding failed for a matched block - {e}")
+                continue
+    else:
+        print("task notes agent error: No JSON object found in the LLM response")
     # Update the parsed_output in AgentCall
     agent_call.parsed_output = parsed_output
 

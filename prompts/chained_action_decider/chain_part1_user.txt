@@ -2,6 +2,10 @@
 $task
 </task>
 
+<task_notes>
+$task_notes
+</task_notes>
+
 <accessibility_tree>
 $ax_tree
 </accessibility_tree>

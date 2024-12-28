@@ -11,10 +11,10 @@ The User's Task:
 $task
 </task>
 
-Questions that have already been asked the user:
-<user_qa>
-$user_qa
-</user_qa>
+Task details and user information that has already been collected:
+<task_notes>
+$task_notes
+</task_notes>
 
 What you need to ask questions about:
 <question_intent>

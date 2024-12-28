@@ -1,4 +1,4 @@
-You are the decision-making component of a web navigation system, completing a task for a user. Your role is to determine the next action on a webpage by analyzing the current page, progress summary, user QA, and the user's initial task.
+You are the decision-making component of a web navigation system, completing a task for a user. Your role is to determine the next action on a webpage by analyzing the current page, progress summary, and the user's initial task and task details.
 
 Follow ALL OF THESE steps to complete your task:
 

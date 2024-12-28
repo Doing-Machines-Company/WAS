@@ -42,6 +42,7 @@ class Agent:
         self.scraper_state_file = 'dominos/scraper_state.pkl'
         self.url_state_manager = load_scraper_state(self.scraper_state_file)
         self.task = None
+        self.task_notes = ''
         self.action_mem = []
         self.runtime_qa = []
         self.world_mem = ""
@@ -90,10 +91,10 @@ class Agent:
 
     async def chained_action_call(self, curr_inf_tree, provider, model):
         print("CALLING CHAIN")
-        summarized_info = await call_action_part1(self.task, curr_inf_tree.get_no_special(), self.action_mem, self.runtime_qa, self.item_context_pairs, provider=provider, model=model)
+        summarized_info = await call_action_part1(self.task, self.task_notes, curr_inf_tree.get_no_special(), self.action_mem, self.item_context_pairs, provider=provider, model=model)
         print(summarized_info.parsed_output)
         print("STEP 1 DONE")
-        action_out_call = await call_action_part2(self.task, summarized_info.parsed_output, curr_inf_tree, self.runtime_qa)
+        action_out_call = await call_action_part2(self.task, self.task_notes, summarized_info.parsed_output, curr_inf_tree)
         print(action_out_call.parsed_output)
         print("STEP 2 DONE")
         return action_out_call
@@ -516,7 +517,7 @@ class Agent:
                                 
                                 TODO, SUPPORT SKIPPING OVER ACTIONS WHERE THE LAST ACTION WAS/WASN'T ASKING QUESTIONS, QUESTIONS MAY BE INTERMEDIATE.ETC
                                 """
-                                question_out_call = await call_intermediate_questions_agent(self.task, old_inf_tree.get_question_tree(), reason_for_action, self.runtime_qa)
+                                question_out_call = await call_intermediate_questions_agent(self.task, old_inf_tree.get_question_tree(), reason_for_action, self.task_notes)
                                 intermediate_questions = question_out_call.parsed_output
 
                                 question_string = ''
@@ -532,7 +533,10 @@ class Agent:
                                     # Check stop_event after each user response
                                     if self.stop_event.is_set():
                                         break
-
+                                if question_string:
+                                    notes_out_call = await call_unified_notes_cleaner(self.task, self.task_notes, question_string)
+                                    self.task_notes = notes_out_call.parsed_output
+                                    input("*** Updated Task Notes ***" + self.task_notes)
                                 # TODO MAKE THIS INTO A MEMORY INJECTION AND ADD IT IN
                                 new_memory = LinearMemory(location_details=question_string,
                                                           difference_reasoning="",
@@ -594,8 +598,6 @@ class Agent:
                                             if self.stop_event.is_set():
                                                 break
 
-
-
                                         else:
                                             use_role_name_backup = curr_page_state.all_tree_lines.count(
                                                 chosen_input_action.tree_line) == 1 and chosen_input_action.tree_line != ""
@@ -625,6 +627,11 @@ class Agent:
 
                                             if self.stop_event.is_set():
                                                 break
+                                    if question_string:
+                                        # print(question_string)
+                                        notes_out_call = await call_unified_notes_cleaner(self.task, self.task_notes, question_string)
+                                        self.task_notes = notes_out_call.parsed_output
+                                        input("*** Updated Task Notes ***" + self.task_notes)
 
                                     # TODO MAKE THIS INTO A MEMORY INJECTION AND ADD IT IN
 

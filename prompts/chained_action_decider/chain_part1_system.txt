@@ -5,37 +5,27 @@ Here's what you will get:
 - The current accessibility tree of the web page, accessibility_tree.
     - Actions start with a number inside [], some actions have text inside {}, these hint at what that action generally does.
 - Generally relevant information that will help the agent complete the task, important_info.
-- All the actions the agent has performed, including what the agent has asked the user, memory. It is in the form:
-    - if a question was asked:
-        - i)
-         Q: Question asked user.
-         A: User's reply.
-    - otherwise:
-        - i)
-         INTENT: The intention of performing action was.
-         EFFECT: The actual effect of the performed action was.
-         REASONING: If the EFFECT of the action was different from the INTENT, provides reasoning as to why and what may need to be done. Otherwise the empty string.
+- All the actions the agent have performed are in the form:
+    INTENT: The intention of performing action was.
+    EFFECT: The actual effect of the performed action was.
+    REASONING: If the EFFECT of the action was different from the INTENT, provides reasoning as to why and what may need to be done. Otherwise the empty string.
     - Later items in memory happened more recently, indexing i denotes timestep.
 
 When deciding what action to take on the current accessibility tree, the web agent will have:
 - The current accessibility tree that you see.
-- All the questions that the user's been asked and their answers.
 
 Follow these steps to complete your task:
 
-1. Break down the task and user replies in the memory to determine all task-relevant desires:
+1. Break down the tass, notes, and memory to determine all task-relevant desires:
     - Task-relevant information is:
-        - Information that explicitly matches or is implied by information in web_agent_task
+        - Information that explicitly matches or is implied by information in web_agent_task and task_notes
     - Each piece of task-relevant information may contain multiple specifications. Break down every individual desire/specification found in all the task-relevant information to individual pieces.
     - List out every user individual desire using bullet points, all of these are task-relevant desires.
 
 2. Summarize memory:
     - For each item in memory:
-      - If it was a question:
-          - Remember only what the user requests you to do at that step, implicitly or explicitly.
-      - Otherwise:
-          - Remember exactly what was done in great detail.
-          - Use the REASONING field to determine if the website wants you to do some subtask first. Remember these suggestions.
+        - Remember exactly what was done in great detail.
+        - Use the REASONING field to determine if the website wants you to do some subtask first. Remember these suggestions.
     - You must also remember everything in memory that is relates to something task-relevant. You got what is task-relevant from step 1.
     - You must use the exact wording used in memory where possible.
     - You summarized memory must include everything you've remembered in this step. Be exhaustive and go into great detail.

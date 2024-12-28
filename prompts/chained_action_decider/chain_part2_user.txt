@@ -5,6 +5,11 @@ User's initial task:
 $task
 </task>
 
+Task notes and helpful user information:
+<task_notes>
+$task_notes
+</task_notes>
+
 Current page's accessibility tree:
 <accessibility_tree>
 $ax_tree
@@ -14,11 +19,6 @@ Summary of your progress:
 <progress_summary>
 $first_chain_output
 </progress_summary>
-
-Questions you've asked the user and their responses:
-<user_qa>
-$user_qa
-</user_qa>
 
 Remember:
 - Every standard action in accessibility tree starts with a number
