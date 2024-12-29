@@ -12,11 +12,6 @@ The user's task:
 $user_task
 </user_task>
 
-Important info about the website:
-<important_info>
-$context
-<\important_info>
-
 What the web agent wants you to input text for:
 <agent_intent>
 $agent_intent
@@ -36,7 +31,7 @@ Follow these steps to complete your task:
    - Examine the accessibility tree carefully.
    - Understand the purpose and functionality of the current web page.
 
-2. Reason about the agent's task, important info, and agent intent to determine what needs to be input where on the current web page:
+2. Reason about the agent's task, task notes, and agent intent to determine what needs to be input where on the current web page:
    - Review the agent's task, and the agent's intent for entering text into this page, then consider which text areas require entry.
    - Ignore anything in the intent that says that the page is loading. Always attempt to input as much as possible.
    - Determine what needs to be input into those text areas in order to satisfy the agent's intent.
@@ -68,8 +63,7 @@ Follow these steps to complete your task:
 
 Remember:
 - Each possible input area in the accessibility tree starts with a number.
-- The important info may be helpful, it contains information about the entire website.
-- You should follow the specifications inside task when relevant.
+- You should follow the specifications inside task and task notes when relevant.
 - You should only enter into text areas which are needed to satisfy the agent's intent.
 - You must ask the user for information that you don't know, do not guess.
 - You must either ask questions, or specify input. Do not do both.

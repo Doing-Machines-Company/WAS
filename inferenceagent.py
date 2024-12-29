@@ -333,7 +333,6 @@ async def call_action_part1(
         'ax_tree': scrape_tree_no_special,
         'task': task,
         'task_notes': task_notes,
-        'context': context,
         'memory': memory_without_qa,
     }
     user_prompt = string.Template(user_prompt_template).substitute(user_replacements)
@@ -971,7 +970,6 @@ async def call_input_agent(
         'user_task': user_task,
         'agent_intent': agent_intent,
         'input_ax_tree': input_ax_tree,
-        'context': context,
         'task_notes': task_notes
     }
     prompt = string.Template(prompt_template).substitute(replacements)
@@ -1229,7 +1227,8 @@ async def call_intermediate_questions_agent(
 async def call_unified_notes_cleaner(
     user_task: str,
     task_notes: str,
-    user_qa: str
+    user_qa: str,
+    context: str,
 ) -> AgentCall:
 
     def read_user_prompt():
@@ -1240,7 +1239,8 @@ async def call_unified_notes_cleaner(
     replacements = {
         'user_task': user_task,
         'original_task_notes': task_notes,
-        'new_user_answers': user_qa
+        'new_user_answers': user_qa,
+        'context': context
     }
     user_prompt = string.Template(user_prompt_template).substitute(replacements)
     # Call the updated call_llm asynchronously

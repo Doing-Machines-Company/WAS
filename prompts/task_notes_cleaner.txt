@@ -4,6 +4,7 @@ Your job is to update the task notes given the new information.
 
 Here's the input data:
 {
+  "context": "$context"
   "user_task": "$user_task",
   "original_task_notes": "$original_task_notes",
   "new_user_answers": "$new_user_answers"
@@ -25,7 +26,16 @@ Follow these steps to complete your task:
    - Incorporate old notes (if there are any) from original_task_notes with the new information 
    - Update any notes that are inconsistent with new user answers, keeping other notes
    - You should output notes that are concise, specific and in list format making sure to escape newlines.
-   - Use the following JSON format to indicate your new task: 
+
+4. If there is context, incorporate information from context that is relevant to the task
+   - Incorporate information from the context that relates to anything in the task in a concise manner
+   - This information will help provide context on some of the items mentioned in the task 
+   - Do not repeat anything that can already be figured out from the task
+
+5. Reason step-by-step through the new notes you are providing, and why you are including each piece of information.
+   - Remember to not restate any information that is already given in the task. You are supplementing the task with extra information.
+
+   - Use the following JSON format to indicate your new task notes: 
    ```json
    {
       "new_task_notes": "string"
@@ -34,6 +44,6 @@ Follow these steps to complete your task:
 
 Remember:
 - Do not assume anything about the user's preferences. Only give me what you know to be true.
-- Only include additional user preferences that the user explicitly specifies.
+- Only include additional user preferences that the user explicitly specifies and very brief context that is relevant to the task.
 
 Follow the steps carefully and reason step-by-step, then give me the final answer as a JSON objects.

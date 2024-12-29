@@ -350,6 +350,9 @@ class Agent:
                 agent_call = await call_unified_question_cleaner(self.task, self.question_answers)
                 if agent_call.parsed_output:
                     self.task = agent_call.parsed_output
+                    notes_out_call = await call_unified_notes_cleaner(self.task, self.task_notes, '', self.context_info)
+                    self.task_notes = notes_out_call.parsed_output
+                    # input("*** Updated Task Notes ***" + self.task_notes)
                     # self.cleaned_task = self.saved_trajectory.cleaned_task
 
             matched_inference_state = None
@@ -539,7 +542,7 @@ class Agent:
                                     if self.stop_event.is_set():
                                         break
                                 if question_string:
-                                    notes_out_call = await call_unified_notes_cleaner(self.task, self.task_notes, question_string)
+                                    notes_out_call = await call_unified_notes_cleaner(self.task, self.task_notes, question_string, '')
                                     self.task_notes = notes_out_call.parsed_output
                                     # input("*** Updated Task Notes ***" + self.task_notes)
                                 # TODO MAKE THIS INTO A MEMORY INJECTION AND ADD IT IN
@@ -633,7 +636,7 @@ class Agent:
                                                 break
                                     if question_string:
                                         # print(question_string)
-                                        notes_out_call = await call_unified_notes_cleaner(self.task, self.task_notes, question_string)
+                                        notes_out_call = await call_unified_notes_cleaner(self.task, self.task_notes, question_string, '')
                                         self.task_notes = notes_out_call.parsed_output
                                         # input("*** Updated Task Notes ***" + self.task_notes)
 

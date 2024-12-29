@@ -4,7 +4,7 @@ Here's what you will get:
 - The initial task the user wants the agent to do, task.
 - The current accessibility tree of the web page, accessibility_tree.
     - Actions start with a number inside [], some actions have text inside {}, these hint at what that action generally does.
-- Generally relevant information that will help the agent complete the task, important_info.
+- Generally relevant information that will help the agent complete the task, task_notes.
 - All the actions the agent have performed are in the form:
     INTENT: The intention of performing action was.
     EFFECT: The actual effect of the performed action was.
@@ -16,7 +16,7 @@ When deciding what action to take on the current accessibility tree, the web age
 
 Follow these steps to complete your task:
 
-1. Break down the tass, notes, and memory to determine all task-relevant desires:
+1. Break down the task, notes, and memory to determine all task-relevant desires:
     - Task-relevant information is:
         - Information that explicitly matches or is implied by information in web_agent_task and task_notes
     - Each piece of task-relevant information may contain multiple specifications. Break down every individual desire/specification found in all the task-relevant information to individual pieces.

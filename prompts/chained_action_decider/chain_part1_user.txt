@@ -10,10 +10,6 @@ $task_notes
 $ax_tree
 </accessibility_tree>
 
-<important_info>
-$context
-<\important_info>
-
 <memory>
 $memory
 </memory>
