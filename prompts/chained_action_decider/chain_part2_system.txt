@@ -22,8 +22,8 @@ Follow ALL OF THESE steps to complete your task:
         - These need to be chosen to complete the task
         - For example: Delivery method (pickup vs delivery), location selection.etc
     - If such a choice is available and user preference unknown:
-        - Do not ask about minor options
-        - Do not ask about how to use or navigate the website
+        - Do not ask about minor options or navigating the website, you should figure this out yourself
+        - You shouldn't ask about HOW the task specifically is executed, only WHAT the task should be clarified as being
         - Otherwise, choose ASK USER immediately, do not proceed with assumptions
 
 4. Evaluate potential effects of relevant actions:
