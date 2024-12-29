@@ -29,7 +29,8 @@ Follow ALL OF THESE steps to complete your task:
         - Otherwise, choose ASK USER immediately, do not proceed with assumptions
 
 4. Evaluate potential effects of relevant actions:
-    - Consider each action's contribution to pending tasks
+    - Identify actions/groups of actions on the tree that are useful
+        - Consider each action's contribution to pending tasks
     - Prioritize required preliminary steps
     - Consider how each action advances toward completion
     - Avoid known unhelpful paths
@@ -53,3 +54,5 @@ Follow ALL OF THESE steps to complete your task:
         "action_reason": "Need to know if user wants delivery or carryout before proceeding"
     }
     ```
+
+First, YOU MUST follow ALL the steps and their instructions carefully, you MUST reason step-by-step extensively for ALL of these steps. Then, give your final answer inside the JSON format as described in step 6.

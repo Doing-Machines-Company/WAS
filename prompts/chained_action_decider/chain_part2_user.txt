@@ -28,5 +28,4 @@ Remember:
 - You must complete entire processes (e.g., full checkout flow)
 - Focus on immediate next step in action_reason
 - Be thorough in your analysis
-
-First, YOU MUST follow ALL the steps and their instructions carefully, you MUST reason step-by-step extensively for ALL of these steps. Then, give your final answer inside the JSON format as described in step 6.
+- You must think very hard for every step
