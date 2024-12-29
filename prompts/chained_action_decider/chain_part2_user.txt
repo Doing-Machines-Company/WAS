@@ -24,8 +24,9 @@ Remember:
 - Every standard action in accessibility tree starts with a number
 - You MUST ONLY use WRITE_TEXT MODE for any WRITE_TEXT actions
 - WRITE TEXT MODE is only used for actions with WRITE_TEXT at the start of their line.
+- Do NOT use ASK USER to ask the user how to navigate or use the website
 - You must complete entire processes (e.g., full checkout flow)
 - Focus on immediate next step in action_reason
 - Be thorough in your analysis
 
-First, YOU MUST follow ALL OF the steps and their instructions carefully, you MUST reason step-by-step extensively for ALL of these steps. Then, give your final answer inside the JSON format as described in step 6.
+First, YOU MUST follow ALL the steps and their instructions carefully, you MUST reason step-by-step extensively for ALL of these steps. Then, give your final answer inside the JSON format as described in step 6.

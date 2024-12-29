@@ -1076,9 +1076,9 @@ async def call_unified_question_cleaner(
 
     formatted_user_qa = ''
     for question, answer in user_qa:
-        formatted_user_qa += 'Question: \n'
+        formatted_user_qa += 'Question: '
         formatted_user_qa += question.strip() + '\n'
-        formatted_user_qa += 'Answer: \n'
+        formatted_user_qa += 'Answer: '
         formatted_user_qa += answer.strip() + '\n'
 
     replacements = {
@@ -1180,7 +1180,11 @@ async def call_intermediate_questions_agent(
 ) -> AgentCall:
 
     def read_user_prompt():
-        with open('prompts/intermediate_questions_prompt.txt', 'r') as f:
+        with open('prompts/question_agent/user.txt', 'r') as f:
+            return f.read()
+
+    def read_system_prompt():
+        with open('prompts/question_agent/system.txt', 'r') as f:
             return f.read()
 
     user_prompt_template = await asyncio.to_thread(read_user_prompt)
@@ -1192,8 +1196,10 @@ async def call_intermediate_questions_agent(
     }
     user_prompt = string.Template(user_prompt_template).substitute(replacements)
 
+    system_prompt = await asyncio.to_thread(read_system_prompt)
+
     # Call the updated call_llm asynchronously
-    agent_call = await call_llm(user_prompt=user_prompt, provider='cerebras', model='llama-3.3-70b')
+    agent_call = await call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider='cerebras', model='llama-3.3-70b')
 
     print("LLM Response:\n", agent_call.llm_response)
 

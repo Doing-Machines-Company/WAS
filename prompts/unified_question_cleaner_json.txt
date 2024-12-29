@@ -11,7 +11,7 @@ Here's the input data:
 Follow these steps to complete your task:
 
 1. Analyze the questions and their associated answers:
-   - Every question and its associated answer is enclosed in triple quotes (""").
+   - These are given as user_answers.
    - Reason about what the question is asking, and what the user's answers explicitly mean.
    - If the user didn't give an answer for a question, assume that the user prefers the default options for the clarifications asked in that question.
 

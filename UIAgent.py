@@ -90,19 +90,18 @@ class Agent:
         print("took", time.time() - start)
 
     async def chained_action_call(self, curr_inf_tree, provider, model):
+        start_time = time.time()
         print("CALLING CHAIN")
         summarized_info = await call_action_part1(self.task, self.task_notes, curr_inf_tree.get_no_special(), self.action_mem, self.item_context_pairs, provider=provider, model=model)
         print(summarized_info.parsed_output)
+        print(f"ACTION CALL TIME first: {time.time() - start_time}")
         print("STEP 1 DONE")
         action_out_call = await call_action_part2(self.task, self.task_notes, summarized_info.parsed_output, curr_inf_tree)
         print(action_out_call.parsed_output)
         print("STEP 2 DONE")
+        print(f"ACTION CALL TIME all: {time.time() - start_time}")
         return action_out_call
 
-    # action_out_call = await call_action_agent(
-    #     self.task, curr_inf_tree,
-    #     self.action_mem, self.item_context_pairs, provider="cerebras", model="llama-3.3-70b"
-    # )
 
     async def formulate_questions(self):
         def autoregressive_retrieve(index, task, k=2):
@@ -182,13 +181,13 @@ class Agent:
             self.cleaned_up.set()
 
     async def capture_and_send_screenshot(self, save_node=None):
-        async with self.playwright_lock:
-            if self.page:
-                screenshot = await self.page.screenshot(full_page=False)
-                base64_screenshot = base64.b64encode(screenshot).decode('utf-8')
-                if save_node is not None:
-                    save_node.screenshot = base64_screenshot
-                await self.output_queue.put(('screenshot', base64_screenshot))
+        # async with self.playwright_lock:
+        if self.page:
+            screenshot = await self.page.screenshot(full_page=False)
+            base64_screenshot = base64.b64encode(screenshot).decode('utf-8')
+            if save_node is not None:
+                save_node.screenshot = base64_screenshot
+            await self.output_queue.put(('screenshot', base64_screenshot))
 
     async def check_if_loaded_screenshot(self):
         async with self.playwright_lock:
@@ -659,8 +658,7 @@ class Agent:
 
                                     input_phase_count += 1
 
-
-
+                            await self.capture_and_send_screenshot(self.curr_save_node)
 
                             if iterating_action_index == len(
                                     action_out_list) - 1:  # if multiple actions, we assume only last action can possibly need load (THIS IS POTENTIALLY BAD)
@@ -679,6 +677,8 @@ class Agent:
                                     print(f"SUCCESS: Fast mode lapsed time: {time.time() - start_time}")
                                 else:
                                     await asyncio.sleep(6)
+
+                            await self.capture_and_send_screenshot(self.curr_save_node)
 
                             curr_page_state = await get_page_state(self.page, self.cdp_session)
 

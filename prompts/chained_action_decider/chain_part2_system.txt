@@ -12,6 +12,7 @@ Follow ALL OF THESE steps to complete your task:
     - Be exhaustive in your analysis
 
 2. Review progress_summary to determine outstanding tasks:
+    - Understand task_notes, it gives you the user's preferences
     - Identify what steps have been completed
     - Note any website requirements (login, etc.)
     - Determine what still needs to be done
@@ -20,7 +21,8 @@ Follow ALL OF THESE steps to complete your task:
 3. Check for major decision points:
     - Look for fundamental choices that significantly affect the task flow:
         - These need to be chosen to complete the task
-        - For example: Delivery method (pickup vs delivery), location selection.etc
+        - NOT about how to navigate or use the website
+        - For example: Delivery method (pickup vs delivery), store location selection.etc
     - If such a choice is available and user preference unknown:
         - Do not ask about minor options or navigating the website, you should figure this out yourself
         - You shouldn't ask about HOW the task specifically is executed, only WHAT the task should be clarified as being
