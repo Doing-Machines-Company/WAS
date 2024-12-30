@@ -42,17 +42,20 @@ class SavedTrajectory:
             if decision == '1':
                 if node.ad_call:
                     print("\n--- AD Call ---")
-                    if node.ad_call.system_prompt:
-                        print("System Prompt:")
-                        print(node.ad_call.system_prompt)
-                    else:
-                        print("No system prompt available.")
+                    # if node.ad_call.system_prompt:
+                    #     print("System Prompt:")
+                    #     print(node.ad_call.system_prompt)
+                    # else:
+                    #     print("No system prompt available.")
+                    #
+                    # if node.ad_call.user_prompt:
+                    #     print("\nUser Prompt:")
+                    #     print(node.ad_call.user_prompt)
+                    # else:
+                    #     print("No user prompt available.")
 
-                    if node.ad_call.user_prompt:
-                        print("\nUser Prompt:")
-                        print(node.ad_call.user_prompt)
-                    else:
-                        print("No user prompt available.")
+                    for message in node.ad_call.messages:
+                        print(message)
 
                     if node.ad_call.llm_response:
                         print("\nLLM Response:")
@@ -67,17 +70,19 @@ class SavedTrajectory:
             elif decision == '2':
                 if node.reflect_call:
                     print("\n--- Reflect Call ---")
-                    if node.reflect_call.system_prompt:
-                        print("System Prompt:")
-                        print(node.reflect_call.system_prompt)
-                    else:
-                        print("No system prompt available.")
-
-                    if node.reflect_call.user_prompt:
-                        print("\nUser Prompt:")
-                        print(node.reflect_call.user_prompt)
-                    else:
-                        print("No user prompt available.")
+                    for message in node.ad_call.messages:
+                        print(message)
+                    # if node.reflect_call.system_prompt:
+                    #     print("System Prompt:")
+                    #     print(node.reflect_call.system_prompt)
+                    # else:
+                    #     print("No system prompt available.")
+                    #
+                    # if node.reflect_call.user_prompt:
+                    #     print("\nUser Prompt:")
+                    #     print(node.reflect_call.user_prompt)
+                    # else:
+                    #     print("No user prompt available.")
 
                     if node.reflect_call.llm_response:
                         print("\nLLM Response:")

@@ -14,14 +14,47 @@ from cerebras.cloud.sdk import Cerebras
 import google.generativeai as google_client
 from pydantic import BaseModel
 
+###############################################################################
+# GLOBAL CONSTANTS
+###############################################################################
+
+# Maximum number of times we'll retry JSON decoding with the same model before fallback
+MAX_JSON_DECODE_RETRIES = 2
+
+# For provider calls. If the call to LLM fails at a network/SDK level, we fallback to Claude Sonnet
+FALLBACK_MODEL = "claude-3-5-sonnet-latest"
+
+###############################################################################
+# DATACLASSES
+###############################################################################
+
+@dataclass
+class LLMMessage:
+    """
+    Data class representing a single message input for an LLM call.
+    message_role: "system" or "user"
+    content: The text content for that role.
+    """
+    message_role: str
+    content: str
+
 
 @dataclass
 class AgentCall:
-    system_prompt: str
-    user_prompt: str
+    """
+    Data class representing the result of an LLM call.
+    - messages: The list of messages that formed the prompt for this call.
+    - llm_response: Raw response from the LLM.
+    - parsed_output: Any structured result we parse from llm_response (optional).
+    """
+    messages: List[LLMMessage]           # UPDATED: store the entire list of messages
     llm_response: Any
     parsed_output: Optional[Any] = None
 
+
+###############################################################################
+# INITIALIZE CLIENTS
+###############################################################################
 
 # Initialize API clients outside of functions to avoid re-initialization
 anthropic_client = anthropic.Anthropic(
@@ -38,222 +71,300 @@ cerebras_client = Cerebras(api_key=os.environ.get("CEREBRAS_API_KEY"))
 
 google_client.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
 
+###############################################################################
+# LLM CALL FUNCTION WITH ERROR/FALLBACK LOGIC
+###############################################################################
 
 async def call_llm(
-    system_prompt: str = '',
-    user_prompt: str = '',
+    messages: List[LLMMessage],
     provider: str = "anthropic",
     model: str = "claude-3-5-sonnet-latest",
-    max_tokens: int = 15000
+    max_tokens: int = 15000,
 ) -> AgentCall:
     """
-    Asynchronously calls the specified LLM provider with the given prompts and parameters.
+    Asynchronously calls the specified LLM provider with the given messages (a list of LLMMessage),
+    with fallback logic:
+      (1) If the LLM call fails at the API level, fallback to Anthropic Sonnet.
+      (2) Return an AgentCall containing the raw response plus the original messages.
     """
-    if provider == "anthropic":
-        def anthropic_call():
-            message = anthropic_client.messages.create(
-                model=model,
-                max_tokens=max_tokens,
-                temperature=0,
-                system=[
-                    {
-                        "type": "text",
-                        "text": system_prompt,
-                    }
-                ],
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": user_prompt
-                            }
-                        ]
-                    }
-                ]
-            )
-            return message.content[0].text
 
-        output = await asyncio.to_thread(anthropic_call)
+    # --- 1) Attempt primary call, if fail => fallback
+    try:
+        output = await _provider_llm_call(messages, provider, model, max_tokens)
+    except Exception as e:
+        print(f"[call_llm] Error with provider={provider}, model={model} => Fallback to Anthropic Sonnet.\nError: {e}")
+        # Fallback call with Anthropic's claude sonnet
+        fallback_provider = "anthropic"
+        fallback_model = FALLBACK_MODEL
+        output = await _provider_llm_call(messages, fallback_provider, fallback_model, max_tokens)
 
-    elif provider == "groq":
-        def groq_call():
-            completion = groq_client.chat.completions.create(
-                model=model,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": user_prompt
-                    }
-                ],
-                temperature=0,
-                max_tokens=max_tokens,
-                top_p=1,
-                stream=False,
-                stop=None,
-            )
-            return completion.choices[0].message.content
-
-        output = await asyncio.to_thread(groq_call)
-
-    elif provider == "together":
-        def together_call():
-            response = together_client.chat.completions.create(
-                model="meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
-                messages=[{"role": "user", "content": user_prompt}],
-                max_tokens=max_tokens,
-                temperature=0,
-                top_p=1,
-                top_k=50,
-                repetition_penalty=1,
-                stop=["<|eot_id|>"],
-                stream=False,
-            )
-            return response.choices[0].message.content
-
-        output = await asyncio.to_thread(together_call)
-
-    elif provider == 'openai':
-        def openai_call():
-            completion = openai_client.chat.completions.create(
-                model="gpt-4o",
-                temperature=0,
-                max_tokens=max_tokens,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": system_prompt
-                    },
-                    {
-                        "role": "user",
-                        "content": user_prompt
-                    }
-                ]
-            )
-            return completion.choices[0].message.content
-
-        output = await asyncio.to_thread(openai_call)
-
-    elif provider == 'openai-o1-preview-store':
-        def openai_o1_preview_store_call():
-            completion = openai_client.chat.completions.create(
-                model="o1-preview",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": user_prompt
-                    }
-                ],
-                store=True,
-                metadata={"agent": "action", "testing": "testing"}
-            )
-            return completion.choices[0].message.content
-
-        output = await asyncio.to_thread(openai_o1_preview_store_call)
-
-    elif provider == 'openai-o1-mini-store':
-        def openai_o1_mini_store_call():
-            completion = openai_client.chat.completions.create(
-                model="o1-mini",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": user_prompt
-                    },
-                ],
-                store=True,
-                metadata={"agent": "action", "testing": "testing"}
-            )
-            return completion.choices[0].message.content
-
-        output = await asyncio.to_thread(openai_o1_mini_store_call)
-
-    elif provider == 'openai-store':
-        def openai_store_call():
-            completion = openai_client.chat.completions.create(
-                model="gpt-4o",
-                temperature=0,
-                max_tokens=max_tokens,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": system_prompt
-                    },
-                    {
-                        "role": "user",
-                        "content": user_prompt
-                    }
-                ],
-                store=True,
-                metadata={"agent": "action", "testing": "testing"}
-            )
-            return completion.choices[0].message.content
-
-        output = await asyncio.to_thread(openai_store_call)
-
-    elif provider == "cerebras":
-        def cerebras_call():
-            completion = cerebras_client.chat.completions.create(
-                messages=[
-                    {
-                        "role": "system",
-                        "content": system_prompt
-                    },
-                    {
-                        "role": "user",
-                        "content": user_prompt
-                    }
-                ],
-                model=model,
-                stream=False,
-                max_tokens=max_tokens,
-                temperature=0,
-                top_p=1
-            )
-            return completion.choices[0].message.content
-
-        output = await asyncio.to_thread(cerebras_call)
-
-    elif provider == "google":
-        def google_call():
-            generation_config = {
-                "temperature": 0,
-                "top_p": 1,
-                "top_k": 40,
-                "max_output_tokens": 8192,
-                "response_mime_type": "text/plain",
-            }
-
-            model_instance = google_client.GenerativeModel(
-                model_name="gemini-exp-1114",
-                generation_config=generation_config,
-                system_instruction=system_prompt
-            )
-
-            chat_session = model_instance.start_chat(
-                history=[]
-            )
-
-            return chat_session.send_message(user_prompt).text
-
-        output = await asyncio.to_thread(google_call)
-
-    else:
-        raise ValueError("Invalid provider. Choose 'anthropic', 'groq', 'together', 'openai', or 'cerebras'.")
-
+    # Return an AgentCall for consistency
     return AgentCall(
-        system_prompt=system_prompt,
-        user_prompt=user_prompt,
-        llm_response=output
+        messages=messages,        # UPDATED
+        llm_response=output,
+        parsed_output=None,
     )
+
+
+async def _provider_llm_call(
+    messages: List[LLMMessage],
+    provider: str,
+    model: str,
+    max_tokens: int,
+) -> str:
+    """
+    Internal helper that performs the actual call to each provider's API.
+    Called by call_llm. Raises an exception if something goes wrong.
+    """
+
+    def anthropic_call() -> str:
+        system_segments = []
+        user_segments = []
+
+        for msg in messages:
+            if msg.message_role == "system":
+                system_segments.append({"type": "text", "text": msg.content})
+            elif msg.message_role == "user":
+                user_segments.append({
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": msg.content}
+                    ]
+                })
+
+        # Combine system text
+        system_messages_list = []
+        if system_segments:
+            system_messages_list = [
+                {
+                    "type": "text",
+                    "text": "\n".join([seg["text"] for seg in system_segments])
+                }
+            ]
+
+        # Combine user text
+        user_messages_list = []
+        if user_segments:
+            combined_user_text = ""
+            for seg in user_segments:
+                for c in seg["content"]:
+                    combined_user_text += c["text"] + "\n"
+            user_messages_list = [
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": combined_user_text.strip()}]
+                }
+            ]
+
+        message = anthropic_client.messages.create(
+            model=model,
+            max_tokens=8192, # PRESET FOR SONNET AS OF DEC 2024
+            temperature=0,
+            system=system_messages_list,
+            messages=user_messages_list
+        )
+        return message.content[0].text
+
+    def groq_call() -> str:
+        final_messages = []
+        for msg in messages:
+            final_messages.append({
+                "role": msg.message_role,
+                "content": msg.content
+            })
+
+        completion = groq_client.chat.completions.create(
+            model=model,
+            messages=final_messages,
+            temperature=0,
+            max_tokens=max_tokens,
+            top_p=1,
+            stream=False,
+            stop=None,
+        )
+        return completion.choices[0].message.content
+
+    def together_call() -> str:
+        final_messages = []
+        for msg in messages:
+            if msg.message_role == "user":
+                final_messages.append({
+                    "role": "user",
+                    "content": msg.content
+                })
+
+        response = together_client.chat.completions.create(
+            model="meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+            messages=final_messages,
+            max_tokens=max_tokens,
+            temperature=0,
+            top_p=1,
+            top_k=50,
+            repetition_penalty=1,
+            stop=["<|eot_id|>"],
+            stream=False,
+        )
+        return response.choices[0].message.content
+
+    def openai_call(openai_model: str = "gpt-4o", store: bool = False) -> str:
+        openai_msgs = []
+        for msg in messages:
+            openai_msgs.append({
+                "role": msg.message_role,
+                "content": msg.content
+            })
+
+        completion = openai_client.chat.completions.create(
+            model=openai_model,
+            temperature=0,
+            max_tokens=max_tokens,
+            messages=openai_msgs,
+            store=store,
+            metadata={"agent": "action", "testing": "testing"} if store else None
+        )
+        return completion.choices[0].message.content
+
+    def cerebras_call() -> str:
+        c_msgs = []
+        for msg in messages:
+            c_msgs.append({
+                "role": msg.message_role,
+                "content": msg.content
+            })
+
+        completion = cerebras_client.chat.completions.create(
+            messages=c_msgs,
+            model=model,
+            stream=False,
+            max_tokens=max_tokens,
+            temperature=0,
+            top_p=1
+        )
+        return completion.choices[0].message.content
+
+    def google_call() -> str:
+        system_text = ""
+        user_text = ""
+        for msg in messages:
+            if msg.message_role == "system":
+                system_text += msg.content + "\n"
+            else:
+                user_text += msg.content + "\n"
+
+        generation_config = {
+            "temperature": 0,
+            "top_p": 1,
+            "top_k": 40,
+            "max_output_tokens": 8192,
+            "response_mime_type": "text/plain",
+        }
+
+        model_instance = google_client.GenerativeModel(
+            model_name="gemini-exp-1114",
+            generation_config=generation_config,
+            system_instruction=system_text.strip()
+        )
+
+        chat_session = model_instance.start_chat(history=[])
+        return chat_session.send_message(user_text.strip()).text
+
+    if provider == "anthropic":
+        return await asyncio.to_thread(anthropic_call)
+    elif provider == "groq":
+        return await asyncio.to_thread(groq_call)
+    elif provider == "together":
+        return await asyncio.to_thread(together_call)
+    elif provider == "openai":
+        return await asyncio.to_thread(lambda: openai_call(openai_model="gpt-4o", store=False))
+    elif provider == 'openai-o1-preview-store':
+        return await asyncio.to_thread(lambda: openai_call(openai_model="o1-preview", store=True))
+    elif provider == 'openai-o1-mini-store':
+        return await asyncio.to_thread(lambda: openai_call(openai_model="o1-mini", store=True))
+    elif provider == 'openai-store':
+        return await asyncio.to_thread(lambda: openai_call(openai_model="gpt-4o", store=True))
+    elif provider == "cerebras":
+        return await asyncio.to_thread(cerebras_call)
+    elif provider == "google":
+        return await asyncio.to_thread(google_call)
+    else:
+        raise ValueError("Invalid provider. Choose among 'anthropic', 'groq', 'together', 'openai', 'cerebras', 'google'.")
+
+
+###############################################################################
+# HELPER FUNCTION: TRY DECODING JSON, ELSE RETRY OR FALLBACK
+###############################################################################
+
+async def try_json_parse(
+    llm_response: str,
+    parse_func,
+    messages: List[LLMMessage],
+    provider: str,
+    model: str,
+    parse_error_message: str,
+    max_retries: int = MAX_JSON_DECODE_RETRIES,
+) -> Any:
+    """
+    Attempt to parse JSON from llm_response with parse_func.
+    If it fails up to `max_retries` times, we fallback to Anthropic Sonnet using the same messages,
+    then parse again. If still fails, raise an error.
+    """
+    # 1) Try parse once
+    try:
+        return parse_func(llm_response)
+    except Exception as e:
+        print(f"{parse_error_message} => JSON parsing error: {e}")
+
+    # 2) If parse fails, attempt up to `max_retries` more calls with the *same provider & model*
+    for i in range(max_retries):
+        print(f"Retrying JSON parse with the same model/provider (Attempt {i+1}/{max_retries})...")
+        agent_call = await call_llm(
+            messages=messages,
+            provider=provider,
+            model=model
+        )
+        llm_response = agent_call.llm_response
+        try:
+            return parse_func(llm_response)
+        except Exception as e:
+            print(f"{parse_error_message} => JSON parsing error (attempt {i+1}): {e}")
+
+    # 3) If still failing, fallback to anthropic sonnet
+    print(f"{parse_error_message} => Falling back to Anthropic Sonnet model.")
+    fallback_messages = messages
+    fallback_provider = "anthropic"
+    fallback_model = FALLBACK_MODEL
+
+    fallback_call = await call_llm(
+        messages=fallback_messages,
+        provider=fallback_provider,
+        model=fallback_model
+    )
+    llm_response = fallback_call.llm_response
+    try:
+        return parse_func(llm_response)
+    except Exception as e:
+        # If STILL fails, raise an error
+        raise ValueError(f"{parse_error_message} => Even fallback failed to provide valid JSON. Last error: {e}")
+
+###############################################################################
+# STRUCTURED CALL EXAMPLE (call_4o_structured_action)
+###############################################################################
 
 async def call_4o_structured_action(
     system_prompt: str = '',
     user_prompt: str = '',
     max_tokens: int = 10000
 ) -> AgentCall:
+    """
+    Example of a structured call to OpenAI's Beta parse method.
+    We'll keep a single system & user message for demonstration.
+    """
 
+    # Build our messages
+    messages = [
+        LLMMessage(message_role="system", content=system_prompt),
+        LLMMessage(message_role="user", content=user_prompt),
+    ]
 
     def call_structured_4o():
         class ReasoningStep(BaseModel):
@@ -274,31 +385,32 @@ async def call_4o_structured_action(
             temperature=0,
             max_tokens=max_tokens,
             messages=[
-                {
-                    "role": "system",
-                    "content": system_prompt
-                },
-                {
-                    "role": "user",
-                    "content": user_prompt
-                }
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
             ],
             response_format=ChainOfThought
         )
         return completion
 
-    # completion = call_structured_4o()
-
     completion = await asyncio.to_thread(call_structured_4o)
 
-    chosen_actions = [(chosen.action_number, chosen.action_reason) for chosen in completion.choices[0].message.parsed.chosen_action_sequence]
+    chosen_actions = [
+        (
+            chosen.action_number,
+            chosen.action_reason
+        ) for chosen in completion.choices[0].message.parsed.chosen_action_sequence
+    ]
 
     return AgentCall(
-        system_prompt=system_prompt,
-        user_prompt=user_prompt,
+        messages=messages,   # UPDATED
         llm_response=completion.choices[0].message,
         parsed_output=chosen_actions
     )
+
+
+###############################################################################
+# BELOW: EXAMPLES OF AGENT CALLS, UPDATED TO USE THE NEW call_llm MESSAGES
+###############################################################################
 
 async def call_action_part1(
         task: str,
@@ -309,10 +421,7 @@ async def call_action_part1(
         provider: str = "cerebras",
         model: str = "llama-3.3-70b"
 ):
-    # new_action_memory, mem_count = '\n***', 1
-    # new_runtime_qa, qa_count = '\n***', 1
     memory_without_qa = '***\n'
-
     for i, lin_mem in enumerate(action_memory):
         if not lin_mem.is_question:
             memory_without_qa += f"{i + 1})\nINTENT: {lin_mem.intent}\nEFFECT: {lin_mem.location_details}\nREASONING: {lin_mem.difference_reasoning}\n***\n"
@@ -322,7 +431,7 @@ async def call_action_part1(
             return f.read()
 
     system_prompt_template = await asyncio.to_thread(read_system_prompt)
-    system_prompt = system_prompt_template  # no replacements for now
+    system_prompt = system_prompt_template
 
     def read_user_prompt():
         with open('prompts/chained_action_decider/chain_part1_user.txt', 'r') as f:
@@ -337,33 +446,50 @@ async def call_action_part1(
     }
     user_prompt = string.Template(user_prompt_template).substitute(user_replacements)
 
-    agent_call = await call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider=provider, model=model)
+    # Build LLM messages
+    messages = [
+        LLMMessage("system", system_prompt),
+        LLMMessage("user", user_prompt),
+    ]
+
+    agent_call = await call_llm(
+        messages=messages,
+        provider=provider,
+        model=model
+    )
     output = agent_call.llm_response
+
+    print("PART 1 CALL BEGIN")
+    print(system_prompt)
+    print(user_prompt)
     print(output)
-    json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
+    print("PART 1 CALL END")
 
-    json_matches = re.findall(json_pattern, agent_call.llm_response, re.DOTALL)
-    parsed_output: Optional[str] = ""
+    def parse_grounded_progress_summary(response_text: str) -> str:
+        json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
+        json_matches = re.findall(json_pattern, response_text, re.DOTALL)
+        if json_matches:
+            for json_str in json_matches:
+                try:
+                    data = json.loads(json_str)
+                    if 'grounded_progress_summary' in data:
+                        return data.get('grounded_progress_summary', '')
+                except json.JSONDecodeError as e:
+                    raise ValueError(f"Action Chain 1: JSON decoding failed - {e}")
+        raise ValueError("Action Chain 1: No valid JSON block found or missing 'grounded_progress_summary' key.")
 
-    if json_matches:
-        for json_str in json_matches:
-            try:
-                data = json.loads(json_str)
-                if 'grounded_progress_summary' in data:
-                    grounded_progress_summary = data.get('grounded_progress_summary', '')
-                    parsed_output = grounded_progress_summary
-                    print("Parsed Data:", data)
-                    break  # Exit after finding the first valid match
-            except json.JSONDecodeError as e:
-                print(f"Action Chain 1 Error: JSON decoding failed for a matched block - {e}")
-                continue
-    else:
-        print("Action Chain 1 Error: No JSON object found in the LLM response")
+    parsed_output = await try_json_parse(
+        llm_response=agent_call.llm_response,
+        parse_func=parse_grounded_progress_summary,
+        messages=messages,
+        provider=provider,
+        model=model,
+        parse_error_message="Action Chain 1"
+    )
 
-    # Update the parsed_output in AgentCall
     agent_call.parsed_output = parsed_output
-
     return agent_call
+
 
 async def call_action_part2(
         task: str,
@@ -373,8 +499,6 @@ async def call_action_part2(
         provider: str = "cerebras",
         model: str = "llama-3.3-70b"
 ):
-
-
     def read_user_prompt():
         with open('prompts/chained_action_decider/chain_part2_user.txt', 'r') as f:
             return f.read()
@@ -393,60 +517,61 @@ async def call_action_part2(
             return f.read()
 
     system_prompt_template = await asyncio.to_thread(read_system_prompt)
-    system_prompt = system_prompt_template  # no replacements for now
+    system_prompt = system_prompt_template
 
-    agent_call = await call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider=provider, model=model)
+    messages = [
+        LLMMessage("system", system_prompt),
+        LLMMessage("user", user_prompt)
+    ]
+
+    agent_call = await call_llm(
+        messages=messages,
+        provider=provider,
+        model=model
+    )
     output = agent_call.llm_response
     print("PART 2 CALL BEGIN")
     print(system_prompt)
     print(user_prompt)
     print(output)
     print("PART 2 CALL END")
-    json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
 
-    json_matches = re.findall(json_pattern, agent_call.llm_response, re.DOTALL)
-    parsed_output: Tuple[str, str] = ('', '')
+    def parse_action_number_reason(response_text: str) -> Tuple[str, str]:
+        json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
+        json_matches = re.findall(json_pattern, response_text, re.DOTALL)
+        if json_matches:
+            for json_str in json_matches:
+                try:
+                    data = json.loads(json_str)
+                    if 'action_number' in data and 'action_reason' in data:
+                        return (data['action_number'], data['action_reason'])
+                except json.JSONDecodeError as e:
+                    raise ValueError(f"Action Chain 2: JSON decoding failed - {e}")
+        raise ValueError("Action Chain 2: No valid JSON block found or missing keys 'action_number', 'action_reason'.")
 
-    if json_matches:
-        for json_str in json_matches:
-            try:
-                data = json.loads(json_str)
-                if 'action_number' in data and 'action_reason' in data:
-                    action_number = data.get('action_number', '')
-                    action_reason = data.get('action_reason', '')
-                    parsed_output = (action_number, action_reason)
-                    print("Parsed Data:", data)
-                    break  # Exit after finding the first valid match
-            except json.JSONDecodeError as e:
-                print(f"Action Chain 2 Error: JSON decoding failed for a matched block - {e}")
-                continue
-    else:
-        print("Action Chain 2 Error: No JSON object found in the LLM response")
+    parsed_output = await try_json_parse(
+        llm_response=agent_call.llm_response,
+        parse_func=parse_action_number_reason,
+        messages=messages,
+        provider=provider,
+        model=model,
+        parse_error_message="Action Chain 2"
+    )
 
-    # Update the parsed_output in AgentCall
     agent_call.parsed_output = parsed_output
-
     return agent_call
 
-
-
-    return
 
 async def call_action_agent(
     task: str,
     ax_tree: str,
-    action_memory: List,  # Define the specific type if available
+    action_memory: List,
     context: str,
     provider: str = "openai",
     model: str = "llama-3.3-70b"
 ) -> AgentCall:
-    """
-    Asynchronously calls the action agent LLM and processes its response.
-    """
     new_action_memory = '\n***'
     for i, lin_mem in enumerate(action_memory):
-        # action_lines = '\n'.join(lin_mem.action_treelines)
-        # location_details stores QA string
         if not lin_mem.is_question:
             new_action_memory += f"{i + 1})\nINTENT: {lin_mem.intent}\nEFFECT: {lin_mem.location_details}\nREASONING: {lin_mem.difference_reasoning}\n***\n"
 
@@ -460,7 +585,6 @@ async def call_action_agent(
     }
     system_prompt = string.Template(system_prompt_template).substitute(replacements)
 
-    # Read user prompt template asynchronously
     def read_user_prompt():
         with open('prompts/action_decider/action_decider_llama_user.txt', 'r') as f:
             return f.read()
@@ -472,48 +596,41 @@ async def call_action_agent(
         'action_memory': new_action_memory,
     }
     user_prompt = string.Template(user_prompt_template).substitute(replacements)
-    # Read system prompt template asynchronously
-    def read_system_prompt():
-        with open('prompts/action_decider/action_decider_llama_system.txt', 'r') as f:
-            return f.read()
 
-    system_prompt_template = await asyncio.to_thread(read_system_prompt)
-    replacements = {
-        'context': context
-    }
-    system_prompt = string.Template(system_prompt_template).substitute(replacements)
+    messages = [
+        LLMMessage("system", system_prompt),
+        LLMMessage("user", user_prompt),
+    ]
     print("\nACTION CALL BEGIN\n")
     print(user_prompt)
     print(system_prompt)
     print("\nACTION CALL END\n")
 
-    # Call the updated call_llm asynchronously
-    agent_call = await call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider=provider, model=model)
-    # agent_call = await call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider='anthropic')
-
+    agent_call = await call_llm(
+        messages=messages,
+        provider=provider,
+        model=model
+    )
     print("LLM Response:\n", agent_call.llm_response)
 
-    # Proceed with processing the llm_response
     pattern = r'choose\(\s*(\d+),\s*"(.*)"\)'
     match = re.search(pattern, agent_call.llm_response)
 
-    parsed_output: Optional[Tuple[int, str]] = (int(match.group(1)), match.group(2)) if match else None
+    parsed_output: Optional[Tuple[int, str]] = None
+    if match:
+        parsed_output = (int(match.group(1)), match.group(2))
 
-    # Update the parsed_output in AgentCall
     agent_call.parsed_output = parsed_output
-
     return agent_call
+
 
 async def call_action_agent_multi(
     task: str,
     ax_tree: str,
-    action_memory: List,  # Define the specific type if available
+    action_memory: List,
     context: str,
-    provider:str = 'openai'
+    provider: str = 'openai'
 ) -> AgentCall:
-    """
-    Asynchronously calls the action agent LLM and processes its response.
-    """
     agent_call = None
     new_action_memory = ''
     for i, lin_mem in enumerate(action_memory):
@@ -521,6 +638,7 @@ async def call_action_agent_multi(
 
     print('*' * 80)
     print(ax_tree)
+
     if provider == 'openai':
         def read_user_prompt():
             with open('prompts/action_decider/action_decider_multi_user_OAI.txt', 'r') as f:
@@ -533,6 +651,7 @@ async def call_action_agent_multi(
             'action_memory': new_action_memory,
         }
         user_prompt = string.Template(user_prompt_template).substitute(replacements)
+
         def read_system_prompt():
             with open('prompts/action_decider/action_decider_multi_system_OAI.txt', 'r') as f:
                 return f.read()
@@ -542,9 +661,13 @@ async def call_action_agent_multi(
             'context': context
         }
         system_prompt = string.Template(system_prompt_template).substitute(replacements)
-        
 
-        agent_call = await call_4o_structured_action(system_prompt=system_prompt, user_prompt=user_prompt)
+        messages = [
+            LLMMessage("system", system_prompt),
+            LLMMessage("user", user_prompt),
+        ]
+        # We'll keep calling call_4o_structured_action for demonstration
+        agent_call = await call_4o_structured_action(system_prompt, user_prompt)
 
     elif provider == 'anthropic':
         def read_user_prompt():
@@ -569,35 +692,32 @@ async def call_action_agent_multi(
         }
         system_prompt = string.Template(system_prompt_template).substitute(replacements)
 
-        agent_call = await call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider=provider)
+        messages = [
+            LLMMessage("system", system_prompt),
+            LLMMessage("user", user_prompt),
+        ]
+        agent_call = await call_llm(messages=messages, provider=provider)
+
         output = agent_call.llm_response
         print(output)
-        json_pattern = re.compile(
-            r'```json\s*(\{.*?}|\[.*?])\s*```',
-            re.DOTALL | re.MULTILINE
-        )
-
+        json_pattern = re.compile(r'```json\s*(\{.*?}|\[.*?])\s*```', re.DOTALL | re.MULTILINE)
         match = json_pattern.search(output)
         action_tuples = []
 
-        if match:
-            json_str = match.group(1)
-        else:
+        if not match:
             raise ValueError("No JSON block found in the LLM output.")
 
+        json_str = match.group(1)
         try:
             actions = json.loads(json_str)
-
             for action in actions:
                 if 'action_number' in action and 'action_reason' in action:
                     tuple_entry = (action['action_number'], action['action_reason'])
                     action_tuples.append(tuple_entry)
-
         except json.JSONDecodeError as jde:
             print(f"JSON Decode Error: {jde}")
         except KeyError as ke:
             print(f"Key Error: {ke}")
-
 
         agent_call.parsed_output = action_tuples
 
@@ -607,10 +727,6 @@ async def call_action_agent_multi(
 async def call_load_check_agent_text(
     ax_tree,
 ) -> bool:
-    """
-    Asynchronously checks if the page has loaded by analyzing the accessibility tree.
-    """
-    # Read user prompt template asynchronously
     def read_user_prompt():
         with open('prompts/check_load_text/check_load_user.txt', 'r') as f:
             return f.read()
@@ -621,34 +737,34 @@ async def call_load_check_agent_text(
     }
     user_prompt = string.Template(user_prompt_template).substitute(replacements)
 
-    # Read system prompt template asynchronously
     def read_system_prompt():
         with open('prompts/check_load_text/check_load_system.txt', 'r') as f:
             return f.read()
 
     system_prompt = await asyncio.to_thread(read_system_prompt)
 
-    agent_call = await call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider="cerebras", model='llama3.1-70b')
+    messages = [
+        LLMMessage("system", system_prompt),
+        LLMMessage("user", user_prompt),
+    ]
+    agent_call = await call_llm(
+        messages=messages,
+        provider="cerebras",
+        model='llama-3.3-70b'
+    )
 
-    json_match = re.search(r'\{[\s\S]*}', agent_call.llm_response)
-    page_loaded = None
-
+    llm_response = agent_call.llm_response
+    json_match = re.search(r'\{[\s\S]*}', llm_response)
     if json_match:
         json_str = json_match.group(0)
-
         try:
-            # Step 3: Parse the JSON string
             parsed_json = json.loads(json_str)
-
-            # Step 4: Extract the pageLoaded value
             page_loaded = parsed_json.get("pageLoaded")
-
             if page_loaded is not None:
                 return page_loaded
             else:
                 print("Error: 'pageLoaded' key not found in JSON")
                 return False
-
         except json.JSONDecodeError:
             print("Error: Invalid JSON format")
             return False
@@ -661,9 +777,6 @@ async def call_check_load_agent_screenshot(
     screenshot,
     provider: str = 'groq'
 ) -> bool:
-    """
-    Asynchronously checks if the page has loaded by analyzing the screenshot.
-    """
     def groq_screenshot_call():
         completion = groq_client.chat.completions.create(
             model="llama-3.2-11b-vision-preview",
@@ -671,16 +784,8 @@ async def call_check_load_agent_screenshot(
                 {
                     "role": "user",
                     "content": [
-                        {
-                            "type": "text",
-                            "text": ""
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": screenshot
-                            }
-                        }
+                        {"type": "text", "text": ""},
+                        {"type": "image_url", "image_url": {"url": screenshot}}
                     ]
                 },
                 {
@@ -688,7 +793,9 @@ async def call_check_load_agent_screenshot(
                     "content": [
                         {
                             "type": "text",
-                            "text": "You are an expert at analyzing webpage screenshots to determine if a webpage has fully loaded or if there are errors. I will provide you with a screenshot of a webpage, and your task will be reasoning to answer a set of indicator questions to determine if the page has successfully loaded, then giving me your final answer in a JSON format I will specify.\n\nFirst, reason step-by-step and answer these indicator questions:\n\n1) Are there any loading spinners or progress indicators visible?\n2) Is the page content fully rendered, with readable text, images, and interactive elements appearing in their correct places?\n3) Are there any missing sections, placeholders, or broken images that suggest incomplete loading?\n\nThen finally reason step-by-step, based on the screenshot and your answers to the indicator questions, provide your answer in the following JSON format:\n{\n  \"pageLoaded\": true | false\n}\nIf the page did not load correctly, choose false. If the page is loaded choose true. Ensure your output is formatted strictly as JSON."
+                            "text": (
+                                "You are an expert at analyzing webpage screenshots..."
+                            )
                         }
                     ]
                 }
@@ -702,26 +809,19 @@ async def call_check_load_agent_screenshot(
         return completion.choices[0].message.content
 
     output = await asyncio.to_thread(groq_screenshot_call)
-
     print("Screenshot Analysis Response:\n", output)
 
-    # Parse the response similar to call_load_check_agent_text
     json_match = re.search(r'\{[\s\S]*}', output)
-    page_loaded = None
-
     if json_match:
         json_str = json_match.group(0)
-
         try:
             parsed_json = json.loads(json_str)
             page_loaded = parsed_json.get("pageLoaded")
-
             if page_loaded is not None:
                 return page_loaded
             else:
                 print("Error: 'pageLoaded' key not found in JSON")
                 return False
-
         except json.JSONDecodeError:
             print("Error: Invalid JSON format")
             return False
@@ -732,18 +832,14 @@ async def call_check_load_agent_screenshot(
 
 async def call_memory_agent(
     web_agent_task: str,
-    action_memory: List,  # Define the specific type if available
+    action_memory: List,
     world_memory: str,
     provider: str = "anthropic"
 ) -> AgentCall:
-    """
-    Asynchronously calls the memory agent LLM and processes its response.
-    """
     new_action_memory = ''
     for i, lin_mem in enumerate(action_memory):
         new_action_memory += f"\n{i + 1})\n{i + 1}) EFFECT: {lin_mem.location_details}"
 
-    # Read prompt template asynchronously
     def read_prompt():
         with open('prompts/world_mem_prompt_v2.txt', 'r') as f:
             return f.read()
@@ -756,40 +852,33 @@ async def call_memory_agent(
     }
     prompt = string.Template(prompt_template).substitute(replacements)
 
-    # Call the updated call_llm asynchronously
-    agent_call = await call_llm(user_prompt=prompt, provider='cerebras', model='llama3.1-70b')
+    messages = [LLMMessage("user", prompt)]
+    agent_call = await call_llm(
+        messages=messages,
+        provider='cerebras',
+        model='llama-3.3-70b'
+    )
 
     print("LLM Response:\n", agent_call.llm_response)
 
-    # Step 1 & 2: Find the JSON object in the answer
     json_match = re.search(r'\{[\s\S]*}', agent_call.llm_response)
+    parsed_output = "Error: No JSON object found in the answer"
 
     if json_match:
         json_str = json_match.group(0)
-
         try:
-            # Step 3: Parse the JSON string
             parsed_json = json.loads(json_str)
-
-            # Step 4: Extract the new_world_memory
             new_world_memory = parsed_json.get("new_world_memory")
-
             if new_world_memory is not None:
                 parsed_output = new_world_memory
             else:
                 print("Error: 'new_world_memory' key not found in JSON")
                 parsed_output = "Error: 'new_world_memory' key not found in JSON"
-
         except json.JSONDecodeError:
             print("Error: Invalid JSON format")
             parsed_output = "Error: Invalid JSON format"
-    else:
-        print("Error: No JSON object found in the answer")
-        parsed_output = "Error: No JSON object found in the answer"
 
-    # Update the parsed_output in AgentCall
     agent_call.parsed_output = parsed_output
-
     return agent_call
 
 
@@ -800,10 +889,6 @@ async def call_reflect_agent(
     web_agent_task: str,
     provider: str = "openai"
 ) -> AgentCall:
-    """
-    Asynchronously calls the reflect agent LLM and processes its response.
-    """
-    # Read user prompt template asynchronously
     def read_user_prompt():
         with open('prompts/reflect/reflect_llama_user.txt', 'r') as f:
             return f.read()
@@ -821,41 +906,47 @@ async def call_reflect_agent(
     }
     user_prompt = string.Template(user_prompt_template).substitute(replacements)
 
-    system_prompt = read_system_prompt()
+    system_prompt_str = await asyncio.to_thread(read_system_prompt)
 
-    # Call the updated call_llm asynchronously
-    agent_call = await call_llm(user_prompt=user_prompt, system_prompt=system_prompt, provider='cerebras', model='llama-3.3-70b')
+    messages = [
+        LLMMessage("system", system_prompt_str),
+        LLMMessage("user", user_prompt),
+    ]
+
+    agent_call = await call_llm(
+        messages=messages,
+        provider='cerebras',
+        model='llama-3.3-70b'
+    )
 
     print("LLM Response:\n", agent_call.llm_response)
 
-    # Updated regex pattern to capture JSON within ```json or ``` code blocks
-    json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
+    def parse_reflect_json(response_text: str) -> Tuple[str, str]:
+        json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
+        json_matches = re.findall(json_pattern, response_text, re.DOTALL)
+        if json_matches:
+            for json_str in json_matches:
+                try:
+                    cleaned_json = json_str.replace("\\'", "'")
+                    data = json.loads(cleaned_json)
+                    if 'final_answer' in data:
+                        action_effect = data.get('final_answer', '')
+                        difference_reasoning = data.get('difference_reasoning', '')
+                        return (action_effect, difference_reasoning)
+                except json.JSONDecodeError as e:
+                    raise ValueError(f"Reflect Restore Error: JSON decoding failed - {e}")
+        raise ValueError("Reflect Restore Error: No valid JSON block or missing 'final_answer' key in the response.")
 
-    # Use re.DOTALL to allow '.' to match newlines
-    json_matches = re.findall(json_pattern, agent_call.llm_response, re.DOTALL)
-    parsed_output: Optional[Tuple[str, str, str]] = ('', '', '')
+    parsed_output = await try_json_parse(
+        llm_response=agent_call.llm_response,
+        parse_func=parse_reflect_json,
+        messages=messages,
+        provider='cerebras',
+        model='llama-3.3-70b',
+        parse_error_message="Reflect Restore"
+    )
 
-    if json_matches:
-        for json_str in json_matches:
-            try:
-                cleaned_json = json_str.replace("\\'", "'")
-                data = json.loads(cleaned_json)
-                # data = json.loads(json_str)
-                if 'final_answer' in data:
-                    action_effect = data.get('final_answer', '')
-                    difference_reasoning = data.get('difference_reasoning', '')
-                    parsed_output = (action_effect, difference_reasoning)
-                    print("Parsed Data:", data)
-                    break  # Exit after finding the first valid match
-            except json.JSONDecodeError as e:
-                print(f"Reflect Restore Error: JSON decoding failed for a matched block - {e}")
-                continue
-    else:
-        print("Reflect Restore Error: No JSON object found in the LLM response")
-
-    # Update the parsed_output in AgentCall
     agent_call.parsed_output = parsed_output
-
     return agent_call
 
 
@@ -863,10 +954,6 @@ async def call_task_separator(
     web_agent_task: str,
     provider: str = "anthropic"
 ) -> AgentCall:
-    """
-    Asynchronously calls the task separator LLM and processes its response.
-    """
-    # Read prompt template asynchronously
     def read_prompt():
         with open('prompts/task_separator_prompt_json.txt', 'r') as f:
             return f.read()
@@ -877,34 +964,35 @@ async def call_task_separator(
     }
     prompt = string.Template(prompt_template).substitute(replacements)
 
-    # Call the updated call_llm asynchronously
-    agent_call = await call_llm(user_prompt=prompt, provider='cerebras', model='llama3.1-70b')
+    messages = [LLMMessage("user", prompt)]
+    agent_call = await call_llm(
+        messages=messages,
+        provider='cerebras',
+        model='llama-3.3-70b'
+    )
+
     answer = agent_call.llm_response.strip()
     print("LLM Response:\n", answer)
 
-    # Step 1: Use regex to find the JSON object
-    json_pattern = r'\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}'
-    match = re.search(json_pattern, answer)
-
-    if match:
-        # Step 2: Extract the JSON string
-        json_str = match.group(0)
-        try:
-            # Step 3: Parse the extracted JSON string
+    def parse_task_separator_json(response_text: str) -> Optional[List[Any]]:
+        json_pattern = r'\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}'
+        match = re.search(json_pattern, response_text)
+        if match:
+            json_str = match.group(0)
             parsed_json = json.loads(json_str)
-            # Step 4: Extract the required information
-            items = parsed_json.get('items', [])
-            parsed_output = items
-        except json.JSONDecodeError:
-            print("Task Separator: Failed to parse JSON.")
-            parsed_output = None
-    else:
-        print("Task Separator: No JSON object found in the output.")
-        parsed_output = None
+            return parsed_json.get('items', [])
+        raise ValueError("Task Separator: No valid JSON object found or 'items' key missing.")
 
-    # Update the parsed_output in AgentCall
+    parsed_output = await try_json_parse(
+        llm_response=answer,
+        parse_func=parse_task_separator_json,
+        messages=messages,
+        provider='cerebras',
+        model='llama-3.3-70b',
+        parse_error_message="Task Separator parse"
+    )
+
     agent_call.parsed_output = parsed_output
-
     return agent_call
 
 
@@ -914,10 +1002,6 @@ async def call_task_clarifier(  # NO LONGER USED
     context: str,
     provider: str = "anthropic"
 ) -> AgentCall:
-    """
-    Asynchronously calls the task clarifier LLM and processes its response.
-    """
-    # Read prompt template asynchronously
     def read_prompt():
         with open('prompts/task_parser_prompt.txt', 'r') as f:
             return f.read()
@@ -930,19 +1014,15 @@ async def call_task_clarifier(  # NO LONGER USED
     }
     prompt = string.Template(prompt_template).substitute(replacements)
 
-    # Call the updated call_llm asynchronously
-    agent_call = await call_llm(user_prompt=prompt, provider='groq')
-
+    messages = [LLMMessage("user", prompt)]
+    agent_call = await call_llm(messages=messages, provider='groq')
     print("LLM Response:\n", agent_call.llm_response)
 
     pattern = r'"""([\s\S]*?)"""'
     match = re.search(pattern, agent_call.llm_response)
-
     parsed_output = match.group(1).strip() if match else ""
 
-    # Update the parsed_output in AgentCall
     agent_call.parsed_output = parsed_output
-
     return agent_call
 
 
@@ -955,17 +1035,11 @@ async def call_input_agent(
     task_notes: str,
     provider: str = "anthropic"
 ) -> AgentCall:
-    """
-    Asynchronously calls the input agent LLM and processes its response.
-    """
-
-    # Read prompt template asynchronously
     def read_prompt():
         with open('prompts/mass_input_prompt_json.txt', 'r') as f:
             return f.read()
 
     prompt_template = await asyncio.to_thread(read_prompt)
-
     replacements = {
         'user_task': user_task,
         'agent_intent': agent_intent,
@@ -974,38 +1048,39 @@ async def call_input_agent(
     }
     prompt = string.Template(prompt_template).substitute(replacements)
 
-    # Call the updated call_llm asynchronously
-    agent_call = await call_llm(user_prompt=prompt, provider='cerebras', model='llama-3.3-70b')
+    messages = [LLMMessage("user", prompt)]
+    agent_call = await call_llm(
+        messages=messages,
+        provider='cerebras',
+        model='llama-3.3-70b'
+    )
 
     print("INPUT CALL BEGIN")
     print(prompt)
     print("INPUT CALL END")
 
-    # Extract JSON from the response
-    json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
-    json_matches = re.findall(json_pattern, agent_call.llm_response, re.DOTALL)
+    def parse_input_json(response_text: str) -> List[Tuple[int, str]]:
+        json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
+        json_matches = re.findall(json_pattern, response_text, re.DOTALL)
+        if not json_matches:
+            raise ValueError("No JSON found in LLM response")
 
-    if not json_matches:
-        raise ValueError("No JSON found in LLM response")
-
-    try:
-        # Parse the first JSON match
-        response_data = json.loads(json_matches[0])
-
-        # Extract and format the choices
-        parsed_output = [
+        data = json.loads(json_matches[0])
+        return [
             (choice['text_area_number'], choice['desired_input'])
-            for choice in response_data.get('choices', [])
+            for choice in data.get('choices', [])
         ]
 
-        # Update the parsed_output in AgentCall
-        agent_call.parsed_output = parsed_output
+    parsed_output = await try_json_parse(
+        llm_response=agent_call.llm_response,
+        parse_func=parse_input_json,
+        messages=messages,
+        provider='cerebras',
+        model='llama-3.3-70b',
+        parse_error_message="Mass input parse"
+    )
 
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Mass input error: Invalid JSON in LLM response {e}")
-    except KeyError as e:
-        raise ValueError(f"Mass input error: Missing required key in JSON response {e}")
-
+    agent_call.parsed_output = parsed_output
     return agent_call
 
 
@@ -1014,10 +1089,6 @@ async def call_unified_task_clarifier(
     context: str,
     provider: str = "anthropic"
 ) -> AgentCall:
-    """
-    Asynchronously calls the unified task clarifier LLM and processes its response.
-    """
-    # Read prompt template asynchronously
     def read_prompt():
         with open('prompts/unified_task_clarifier_json.txt', 'r') as f:
             return f.read()
@@ -1029,33 +1100,33 @@ async def call_unified_task_clarifier(
     }
     prompt = string.Template(prompt_template).substitute(replacements)
 
-    # Call the updated call_llm asynchronously
-    agent_call = await call_llm(user_prompt=prompt, provider='cerebras', model='llama3.1-70b')
+    messages = [LLMMessage("user", prompt)]
+    agent_call = await call_llm(
+        messages=messages,
+        provider='cerebras',
+        model='llama-3.3-70b'
+    )
 
     print("LLM Response:\n", agent_call.llm_response)
 
-    # Use regex to find the JSON array in the output
-    json_matches = re.findall(r'\[.*?\]', agent_call.llm_response, re.DOTALL)
-
-    questions: List[str] = []
-    if json_matches:
+    def parse_unified_task_clarifier(response_text: str) -> List[str]:
+        json_matches = re.findall(r'\[.*?\]', response_text, re.DOTALL)
         for json_str in json_matches:
-            try:
-                parsed_json = json.loads(json_str)
-                # Verify that we have a list of strings
-                if isinstance(parsed_json, list) and all(isinstance(q, str) for q in parsed_json):
-                    questions = parsed_json
-                    break  # Exit after finding the first valid match
-            except json.JSONDecodeError:
-                continue
-        else:
-            print("Unified Task Clarifier Error: Invalid JSON format")
-    else:
-        print("Unified Task Clarifier Error: No JSON array found in the output")
+            parsed_json = json.loads(json_str)
+            if isinstance(parsed_json, list) and all(isinstance(q, str) for q in parsed_json):
+                return parsed_json
+        raise ValueError("Unified Task Clarifier Error: No valid JSON array found in the output.")
 
-    # Update the parsed_output in AgentCall
-    agent_call.parsed_output = questions
+    parsed_output = await try_json_parse(
+        llm_response=agent_call.llm_response,
+        parse_func=parse_unified_task_clarifier,
+        messages=messages,
+        provider='cerebras',
+        model='llama-3.3-70b',
+        parse_error_message="Unified Task Clarifier parse"
+    )
 
+    agent_call.parsed_output = parsed_output
     return agent_call
 
 
@@ -1064,10 +1135,6 @@ async def call_unified_question_cleaner(
     user_qa: List[Tuple[str, str]],
     provider: str = "anthropic"
 ) -> AgentCall:
-    """
-    Asynchronously calls the unified question cleaner LLM and processes its response.
-    """
-    # Read prompt template asynchronously
     def read_prompt():
         with open('prompts/unified_question_cleaner_json.txt', 'r') as f:
             return f.read()
@@ -1076,10 +1143,7 @@ async def call_unified_question_cleaner(
 
     formatted_user_qa = ''
     for question, answer in user_qa:
-        formatted_user_qa += 'Question: '
-        formatted_user_qa += question.strip() + '\n'
-        formatted_user_qa += 'Answer: '
-        formatted_user_qa += answer.strip() + '\n'
+        formatted_user_qa += f'Question: {question.strip()}\nAnswer: {answer.strip()}\n'
 
     replacements = {
         'formatted_user_qa': formatted_user_qa,
@@ -1088,56 +1152,55 @@ async def call_unified_question_cleaner(
     prompt = string.Template(prompt_template).substitute(replacements)
     print("User Prompt:\n", prompt)
 
-    # Call the updated call_llm asynchronously
-    agent_call = await call_llm(user_prompt=prompt, provider='cerebras', model='llama3.1-70b')
-
+    messages = [LLMMessage("user", prompt)]
+    agent_call = await call_llm(
+        messages=messages,
+        provider='cerebras',
+        model='llama-3.3-70b'
+    )
     print("LLM Response:\n", agent_call.llm_response)
 
-    # Find JSON object in the text
-    json_pattern = r'\{[^{}]*\}'
-    json_matches = re.findall(json_pattern, agent_call.llm_response)
-
-    new_task: Optional[str] = ''
-    if json_matches:
-        for json_str in json_matches:
-            try:
+    def parse_unified_question_cleaner(response_text: str) -> str:
+        json_pattern = r'\{[^{}]*\}'
+        json_matches = re.findall(json_pattern, response_text)
+        if json_matches:
+            for json_str in json_matches:
                 data = json.loads(json_str)
                 if 'new_task' in data:
-                    new_task = data.get('new_task', '')
-                    print("Parsed Data:", data)
-                    break  # Exit after finding the first valid match
-            except json.JSONDecodeError:
-                continue
-    else:
-        print("Question Cleaner Error: No JSON object found in the LLM response")
+                    return data.get('new_task', '')
+        raise ValueError("Question Cleaner Error: No valid JSON or missing 'new_task' key in the LLM response.")
 
-    # Update the parsed_output in AgentCall
-    agent_call.parsed_output = new_task
+    parsed_output = await try_json_parse(
+        llm_response=agent_call.llm_response,
+        parse_func=parse_unified_question_cleaner,
+        messages=messages,
+        provider='cerebras',
+        model='llama-3.3-70b',
+        parse_error_message="Unified Question Cleaner parse"
+    )
 
+    agent_call.parsed_output = parsed_output
     return agent_call
-
 
 
 async def call_action_pruner(
     user_task: str,
     ax_tree: str,
-    action_memory: List, 
+    action_memory: List,
     actions,
     provider: str = "cerebras"
 ) -> AgentCall:
-    """
-    Asynchronously calls the action pruner and retrieves a list of actions that should be pruned.
-    """
-    # Read prompt template asynchronously
     def read_user_prompt():
         with open('prompts/prune/prune_user.txt', 'r') as f:
             return f.read()
+
     def read_system_prompt():
         with open('prompts/prune/prune_system.txt', 'r') as f:
             return f.read()
 
     user_prompt_template = await asyncio.to_thread(read_user_prompt)
-    system_prompt = await asyncio.to_thread(read_system_prompt)
+    system_prompt_template = await asyncio.to_thread(read_system_prompt)
+
     replacements = {
         'task': user_task,
         'ax_tree': ax_tree,
@@ -1145,31 +1208,35 @@ async def call_action_pruner(
         'actions': actions
     }
     user_prompt = string.Template(user_prompt_template).substitute(replacements)
+    system_prompt = system_prompt_template
+
     print("User Prompt:\n", user_prompt)
     print("System Prompt:\n", system_prompt)
-    # Call the updated call_llm asynchronously
-    agent_call = await call_llm(user_prompt=user_prompt, system_prompt = system_prompt, provider='cerebras', model='llama3.1-70b')
+
+    messages = [
+        LLMMessage("system", system_prompt),
+        LLMMessage("user", user_prompt),
+    ]
+    agent_call = await call_llm(
+        messages=messages,
+        provider='cerebras',
+        model='llama-3.3-70b'
+    )
 
     print("LLM Response:\n", agent_call.llm_response)
-    # input()
-    # Find JSON object in the text
+
     match = re.search(r'\[\s*(-?\d+\s*(,\s*-?\d+\s*)*)?\]', agent_call.llm_response)
     if match:
-        # Extract the matched list
         list_content = match.group(0)
-        # Evaluate the list content safely
         try:
-            agent_call.parsed_output = eval(list_content)
+            parsed = eval(list_content)
+            agent_call.parsed_output = parsed
+            return agent_call
         except (SyntaxError, ValueError):
-            agent_call.parsed_output = []  # Fallback to an empty list if evaluation fails
-    agent_call.parsed_output = []  # No valid list found
-    #
-        
+            pass
 
+    agent_call.parsed_output = []
     return agent_call
-
-
-
 
 
 async def call_intermediate_questions_agent(
@@ -1178,7 +1245,6 @@ async def call_intermediate_questions_agent(
     question_intent: str,
     task_notes: str
 ) -> AgentCall:
-
     def read_user_prompt():
         with open('prompts/question_agent/user.txt', 'r') as f:
             return f.read()
@@ -1188,6 +1254,8 @@ async def call_intermediate_questions_agent(
             return f.read()
 
     user_prompt_template = await asyncio.to_thread(read_user_prompt)
+    system_prompt_template = await asyncio.to_thread(read_system_prompt)
+
     replacements = {
         'ax_tree': ax_tree,
         'task': user_task,
@@ -1195,38 +1263,41 @@ async def call_intermediate_questions_agent(
         'task_notes': task_notes
     }
     user_prompt = string.Template(user_prompt_template).substitute(replacements)
+    system_prompt = system_prompt_template
 
-    system_prompt = await asyncio.to_thread(read_system_prompt)
+    messages = [
+        LLMMessage("system", system_prompt),
+        LLMMessage("user", user_prompt),
+    ]
 
-    # Call the updated call_llm asynchronously
-    agent_call = await call_llm(system_prompt=system_prompt, user_prompt=user_prompt, provider='cerebras', model='llama-3.3-70b')
+    agent_call = await call_llm(
+        messages=messages,
+        provider='cerebras',
+        model='llama-3.3-70b'
+    )
 
     print("LLM Response:\n", agent_call.llm_response)
 
-
-    json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
-
-    json_matches = re.findall(json_pattern, agent_call.llm_response, re.DOTALL)
-    parsed_output: Optional[str] = ""
-
-    if json_matches:
-        for json_str in json_matches:
-            try:
+    def parse_intermediate_questions(response_text: str) -> List[str]:
+        json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
+        json_matches = re.findall(json_pattern, response_text, re.DOTALL)
+        if json_matches:
+            for json_str in json_matches:
                 data = json.loads(json_str)
                 if 'questions' in data:
-                    grounded_progress_summary = data.get('questions', [])
-                    parsed_output = grounded_progress_summary
-                    print("Parsed Data:", data)
-                    break  # Exit after finding the first valid match
-            except json.JSONDecodeError as e:
-                print(f"intermediate questions agent error: JSON decoding failed for a matched block - {e}")
-                continue
-    else:
-        print("intermediate questions agent error: No JSON object found in the LLM response")
+                    return data.get('questions', [])
+        raise ValueError("intermediate questions agent error: No valid JSON or missing 'questions' key.")
 
-    # Update the parsed_output in AgentCall
+    parsed_output = await try_json_parse(
+        llm_response=agent_call.llm_response,
+        parse_func=parse_intermediate_questions,
+        messages=messages,
+        provider='cerebras',
+        model='llama-3.3-70b',
+        parse_error_message="Intermediate Questions"
+    )
+
     agent_call.parsed_output = parsed_output
-
     return agent_call
 
 
@@ -1236,7 +1307,6 @@ async def call_unified_notes_cleaner(
     user_qa: str,
     context: str,
 ) -> AgentCall:
-
     def read_user_prompt():
         with open('prompts/task_notes_cleaner.txt', 'r') as f:
             return f.read()
@@ -1249,33 +1319,35 @@ async def call_unified_notes_cleaner(
         'context': context
     }
     user_prompt = string.Template(user_prompt_template).substitute(replacements)
-    # Call the updated call_llm asynchronously
     print(user_prompt)
-    agent_call = await call_llm(user_prompt=user_prompt, provider='cerebras', model='llama-3.3-70b')
+
+    messages = [LLMMessage("user", user_prompt)]
+    agent_call = await call_llm(
+        messages=messages,
+        provider='cerebras',
+        model='llama-3.3-70b'
+    )
 
     print("LLM Response:\n", agent_call.llm_response)
 
-
-    json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
-
-    json_matches = re.findall(json_pattern, agent_call.llm_response, re.DOTALL)
-    parsed_output: Optional[str] = ""
-
-    if json_matches:
-        for json_str in json_matches:
-            try:
+    def parse_unified_notes_cleaner(response_text: str) -> str:
+        json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
+        json_matches = re.findall(json_pattern, response_text, re.DOTALL)
+        if json_matches:
+            for json_str in json_matches:
                 data = json.loads(json_str)
                 if 'new_task_notes' in data:
-                    new_task_notes = data.get('new_task_notes', [])
-                    parsed_output = new_task_notes
-                    print("Parsed Data:", data)
-                    break  # Exit after finding the first valid match
-            except json.JSONDecodeError as e:
-                print(f"task notes cleaner: JSON decoding failed for a matched block - {e}")
-                continue
-    else:
-        print("task notes agent error: No JSON object found in the LLM response")
-    # Update the parsed_output in AgentCall
-    agent_call.parsed_output = parsed_output
+                    return data.get('new_task_notes', "")
+        raise ValueError("task notes cleaner: No valid JSON or missing 'new_task_notes' key.")
 
+    parsed_output = await try_json_parse(
+        llm_response=agent_call.llm_response,
+        parse_func=parse_unified_notes_cleaner,
+        messages=messages,
+        provider='cerebras',
+        model='llama-3.3-70b',
+        parse_error_message="Task Notes Cleaner"
+    )
+
+    agent_call.parsed_output = parsed_output
     return agent_call

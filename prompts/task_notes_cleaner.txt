@@ -34,11 +34,10 @@ Follow these steps to complete your task:
 
 5. Reason step-by-step through the new notes you are providing, and why you are including each piece of information.
    - Remember to not restate any information that is already given in the task. You are supplementing the task with extra information.
-
    - Use the following JSON format to indicate your new task notes: 
    ```json
    {
-      "new_task_notes": "string"
+      "new_task_notes": "User prefers blue for backpack"
    }
    ```
 
@@ -46,4 +45,4 @@ Remember:
 - Do not assume anything about the user's preferences. Only give me what you know to be true.
 - Only include additional user preferences that the user explicitly specifies and very brief context that is relevant to the task.
 
-Follow the steps carefully and reason step-by-step, then give me the final answer as a JSON objects.
+Follow the steps carefully and reason step-by-step, then give me the final new_task_notes following the example I gave you in step 5.
