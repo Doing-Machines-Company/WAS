@@ -42,7 +42,7 @@ class Agent:
         self.scraper_state_file = 'dominos/scraper_state.pkl'
         self.url_state_manager = load_scraper_state(self.scraper_state_file)
         self.task = None
-        self.task_notes = 'Delivery to 245 Shady Lane Walnut Creek, CA 94597'
+        self.task_notes = ''
         self.action_mem = []
         self.runtime_qa = []
         self.world_mem = ""
