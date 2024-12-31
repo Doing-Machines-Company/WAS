@@ -360,6 +360,7 @@ class Agent:
 
             # Main action loop
             while not self.stop_event.is_set():
+                updated_page_state = False
                 try:
                     self.curr_save_node = SavedTrajectoryNode()
 
@@ -376,6 +377,7 @@ class Agent:
                         if not matched_inference_state and not curr_page_state:  # curr_page_state should always be defined unless it's the first one, so if inference state isn't matched script should be breaking as intended
                             curr_page_state = await get_page_state(self.page, self.cdp_session)
                             matched_inference_state = match_action_effects(curr_page_state, self.url_state_manager)
+                            updated_page_state = True
 
 
                         if not curr_inf_tree:  # should only be used during first iteration
@@ -685,6 +687,8 @@ class Agent:
                             matched_inference_state = match_action_effects(curr_page_state,
                                                                            self.url_state_manager)
 
+                            updated_page_state = True
+
                             curr_inf_tree = InferenceAxtree(matched_inference_state,
                                                             special_actions=self.special_actions,
                                                             use_scrape=True,
@@ -763,6 +767,15 @@ class Agent:
                 except Exception as e:
                     print(f"Agent encountered inner exception: {e}")
                 finally:
+                    if not updated_page_state:
+                        matched_inference_state = match_action_effects(curr_page_state,
+                                                                       self.url_state_manager)
+
+                        curr_inf_tree = InferenceAxtree(matched_inference_state,
+                                                        special_actions=self.special_actions,
+                                                        use_scrape=True,
+                                                        url=self.page.url)
+
                     if self.stop_event.is_set():  # only set in self.stop()
                         print("Stop event detected. Initiating cleanup...")
                         print("CLEANING")
