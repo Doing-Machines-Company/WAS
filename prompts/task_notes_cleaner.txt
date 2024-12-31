@@ -45,4 +45,4 @@ Remember:
 - Do not assume anything about the user's preferences. Only give me what you know to be true.
 - Only include additional user preferences that the user explicitly specifies and very brief context that is relevant to the task.
 
-Follow the steps carefully and reason step-by-step, then give me the final new_task_notes following the example I gave you in step 5.
+Follow the steps carefully and reason step-by-step, then give me the final new_task_notes following the JSON formatting using ``` I gave you in step 5.

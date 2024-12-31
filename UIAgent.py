@@ -360,6 +360,7 @@ class Agent:
 
             # Main action loop
             while not self.stop_event.is_set():
+                updated_page_state = False
                 try:
                     self.curr_save_node = SavedTrajectoryNode()
 
@@ -376,6 +377,7 @@ class Agent:
                         if not matched_inference_state and not curr_page_state:  # curr_page_state should always be defined unless it's the first one, so if inference state isn't matched script should be breaking as intended
                             curr_page_state = await get_page_state(self.page, self.cdp_session)
                             matched_inference_state = match_action_effects(curr_page_state, self.url_state_manager)
+                            updated_page_state = True
 
 
                         if not curr_inf_tree:  # should only be used during first iteration
@@ -685,6 +687,8 @@ class Agent:
                             matched_inference_state = match_action_effects(curr_page_state,
                                                                            self.url_state_manager)
 
+                            updated_page_state = True
+
                             curr_inf_tree = InferenceAxtree(matched_inference_state,
                                                             special_actions=self.special_actions,
                                                             use_scrape=True,
@@ -770,6 +774,12 @@ class Agent:
                         print("FINISHED CLEANING")
                         print("DONE!")
                     else:
+                        if not updated_page_state:
+                            curr_page_state = await get_page_state(self.page, self.cdp_session)
+
+                            matched_inference_state = match_action_effects(curr_page_state,
+                                                                           self.url_state_manager)
+
                         self.failed_count += 1
                         if self.failed_count > self.retry_cap:
                             self.stop()

@@ -18,23 +18,23 @@ Follow ALL OF THESE steps to complete your task:
     - Determine what still needs to be done
     - Pay attention to any blocking requirements
 
-3. Check for major decision points:
+3. Check for major decision points to determine if you need to use ASK USER:
+    - Do not ask about minor options or navigating the website
     - Look for fundamental choices that significantly affect the task flow:
         - These need to be chosen to complete the task
         - NOT about how to navigate or use the website
         - For example: Delivery method (pickup vs delivery), store location selection.etc
     - If such a choice is available and user preference unknown:
-        - Do not ask about minor options or navigating the website, you should figure this out yourself
         - You shouldn't ask about HOW the task specifically is executed, only WHAT the task should be clarified as being
         - Otherwise, choose ASK USER immediately, do not proceed with assumptions
 
 4. Evaluate potential effects of relevant actions:
     - Identify actions/groups of actions on the tree that are useful
         - Consider each action's contribution to pending tasks
-    - Prioritize required preliminary steps
-    - Consider how each action advances toward completion
-    - Avoid known unhelpful paths
-    - Ensure complete process flows
+        - Use the text inside {} and other text in the line for that action to guide you
+        - Understand the action's effects
+    - Prioritize the very next step
+    - Reason VERY hard for this step
 
 5. Choose next action from these options:
     - Here are special actions you'll find on the accessibility tree and what they do:

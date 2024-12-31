@@ -50,7 +50,6 @@ Follow these steps to generate questions:
     ```json
     {
         "questions": [
-            "Would you like delivery or carryout?",
             "Which location would you prefer: Main Street or Downtown?"
         ]
     }
