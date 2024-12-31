@@ -2,14 +2,14 @@ Here's the accessibility tree of the current web page:
 <accessibility_tree>
 $ax_tree
 </accessibility_tree>
-Actions in the tree are marked with numbers inside [] at the start of their lines.
+Actions in the tree are marked with "[x]", x being an integer, at the start of their lines.
 
 The User's Task:
 <task>
 $task
 </task>
 
-Task details and user information that has already been collected:
+Information that has already been collected:
 <task_notes>
 $task_notes
 </task_notes>
