@@ -18,31 +18,47 @@ Follow ALL OF THESE steps to complete your task:
     - Determine what still needs to be done
     - Pay attention to any blocking requirements
 
-3. Check for major decision points to determine if you need to use ASK USER:
-    - Do not ask about minor options or navigating the website
-    - Look for fundamental choices that significantly affect the task flow:
-        - These need to be chosen to complete the task
-        - NOT about how to navigate or use the website
-        - For example: Delivery method (pickup vs delivery), store location selection.etc
-    - If such a choice is available and user preference unknown:
-        - You shouldn't ask about HOW the task specifically is executed, only WHAT the task should be clarified as being
-        - Otherwise, choose ASK USER immediately, do not proceed with assumptions
+3. Determine if you need to use ASK USER:
+    - ASK USER asks the users a question given some intent
+    - Only look for fundamental choices that affect task completion:
+        - These are major decisions required to complete the task
+        - Examples include: delivery vs pickup, store location, service type
+        - They must significantly impact how the task proceeds
+        - They cannot be about website navigation or usage
+    - Do not use ASK USER for:
+        - Questions about how to use the website
+        - Questions about website navigation
+        - Questions about minor options or preferences
+        - Questions about website functionality
+    - Otherwise:
+        - If you find a fundamental choice and the user preference is unknown:
+            - Choose ASK USER immediately
+            - Do not make assumptions
+            - Include the specific choice needed in action_reason
+            - Remember: Ask about WHAT needs to be done, not HOW to do it
+        - If no fundamental choices exist or all preferences are known:
+            - Continue to step 4
 
-4. Evaluate potential effects of relevant actions:
-    - Identify actions/groups of actions on the tree that are useful
-        - Consider each action's contribution to pending tasks
-        - Use the text inside {} and other text in the line for that action to guide you
+4. Determine effects of relevant actions to identify useful actions:
+    - Identify and evaluate actions on the tree to determine useful actions
         - Understand the action's effects
-    - Prioritize the very next step
+            - Use the text inside {} and other text in the line for that action to guide you
+        - Consider each action's contribution to pending tasks
+        - Some actions may reveal helpful actions to choose/allow for further discovery, these are useful actions
+        - Relevant actions with effects that may potentially help you with your task (directly or via exploration) are useful actions
+    - Actions that are noted as explicitly unhelpful in task_notes are not useful actions
+    - If there are no useful actions, use STOP
     - Reason VERY hard for this step
 
-5. Choose next action from these options:
+5. Choose next action from these potential actions:
     - Here are special actions you'll find on the accessibility tree and what they do:
-        - STOP: Choose if task is impossible or completely finished.
+        - STOP: Choose if there are no useful actions (via step 4), or completely finished.
         - WRITE TEXT MODE: Calls an assistant to fill in all relevant text entries on the current accessibility tree for some intent (action_reason). Must only be used for any WRITE_TEXT actions and provide intent in action_reason.
-        - ASK USER: Choose when encountering major decision points (as defined in step 3) where user preference is unknown. Specify the key decision needed in action_reason.
+        - ASK USER: Follow your reasoning from step 3. Specify the key decision needed in action_reason.
         - RELOAD PAGE: Choose if page loaded incorrectly (ignoring header/footer issues).
+    - Prioritize the very next step
     - Choose most appropriate numbered action from accessibility tree, this number is your action_number.
+    - Reason VERY hard for this step
 
 6. Provide your decision:
     - Following your reasoning from step 5, give me your chosen action and why you chose it.
