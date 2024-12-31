@@ -3,7 +3,6 @@ You are an assistant to a web agent, which is tasked with completing a task for 
 Here's what you will get:
 - The initial task the user wants the agent to do, task.
 - The current accessibility tree of the web page, accessibility_tree.
-    - Actions start with a number inside [], some actions have text inside {}, these hint at what that action generally does.
 - Generally relevant information that will help the agent complete the task, task_notes.
 - All the actions the agent have performed are in the form:
     INTENT: The intention of performing action was.
@@ -32,7 +31,7 @@ Follow these steps to complete your task:
 
 3. Analyze the web accessibility_tree and determine the page's general purpose given you summarized memory from step 2 to formulate your grounded progress summary:
     - Given your summarized memory from step 2, determine your task progress, and how the current accessibility tree relates to your task progress.
-        - Carefully examine the current accessibility tree, and the text in {} at the end of some lines.
+        - Carefully examine the current accessibility tree, noting specific items from the task and task notes that relate
     - Your grounded progress summary is the summarized memory from step 2, combined with how the current accessibility tree fits into the task progress.
 
 4. Provide your summary:
