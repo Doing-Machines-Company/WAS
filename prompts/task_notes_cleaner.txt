@@ -24,7 +24,7 @@ Follow these steps to complete your task:
    - Do not repeat any information that is already conveyed in the user_task
    - Incorporate old notes (if there are any) from original_task_notes with the new information 
    - Update any notes that are inconsistent with new user answers, keeping other notes
-   - You should output notes that are concise, specific and in list format making sure to escape newlines.
+   - You should output notes that are concise, specific and in list format.
 
 4. Reason step-by-step through the new notes you are providing, and why you are including each piece of information.
    - Remember to not restate any information that is already given in the task. You are supplementing the task with extra information.
