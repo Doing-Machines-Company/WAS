@@ -92,7 +92,7 @@ class Agent:
     async def chained_action_call(self, curr_inf_tree, provider, model):
         start_time = time.time()
         print("CALLING CHAIN")
-        summarized_info = await call_action_part1(self.task, self.task_notes, curr_inf_tree.get_no_special(), self.action_mem, self.item_context_pairs, provider=provider, model=model)
+        summarized_info = await call_action_part1(self.task, self.task_notes, curr_inf_tree.get_raw_tree(), self.action_mem, self.item_context_pairs, provider=provider, model=model)
         print(summarized_info.parsed_output)
         print(f"ACTION CALL TIME first: {time.time() - start_time}")
         print("STEP 1 DONE")
@@ -349,7 +349,7 @@ class Agent:
                 agent_call = await call_unified_question_cleaner(self.task, self.question_answers)
                 if agent_call.parsed_output:
                     self.task = agent_call.parsed_output
-                    notes_out_call = await call_unified_notes_cleaner(self.task, self.task_notes, '', self.context_info)
+                    notes_out_call = await call_unified_context_cleaner(self.task, self.task_notes, self.context_info)
                     self.task_notes = notes_out_call.parsed_output
                     # input("*** Updated Task Notes ***" + self.task_notes)
                     # self.cleaned_task = self.saved_trajectory.cleaned_task
@@ -543,7 +543,7 @@ class Agent:
                                     if self.stop_event.is_set():
                                         break
                                 if question_string:
-                                    notes_out_call = await call_unified_notes_cleaner(self.task, self.task_notes, question_string, '')
+                                    notes_out_call = await call_unified_notes_cleaner(self.task, self.task_notes, question_string)
                                     self.task_notes = notes_out_call.parsed_output
                                     # input("*** Updated Task Notes ***" + self.task_notes)
                                 # TODO MAKE THIS INTO A MEMORY INJECTION AND ADD IT IN
@@ -637,7 +637,7 @@ class Agent:
                                                 break
                                     if question_string:
                                         # print(question_string)
-                                        notes_out_call = await call_unified_notes_cleaner(self.task, self.task_notes, question_string, '')
+                                        notes_out_call = await call_unified_notes_cleaner(self.task, self.task_notes, question_string)
                                         self.task_notes = notes_out_call.parsed_output
                                         # input("*** Updated Task Notes ***" + self.task_notes)
 
@@ -767,6 +767,15 @@ class Agent:
                 except Exception as e:
                     print(f"Agent encountered inner exception: {e}")
                 finally:
+                    if not updated_page_state:
+                        matched_inference_state = match_action_effects(curr_page_state,
+                                                                       self.url_state_manager)
+
+                        curr_inf_tree = InferenceAxtree(matched_inference_state,
+                                                        special_actions=self.special_actions,
+                                                        use_scrape=True,
+                                                        url=self.page.url)
+
                     if self.stop_event.is_set():  # only set in self.stop()
                         print("Stop event detected. Initiating cleanup...")
                         print("CLEANING")

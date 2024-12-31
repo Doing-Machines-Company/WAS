@@ -1305,7 +1305,6 @@ async def call_unified_notes_cleaner(
     user_task: str,
     task_notes: str,
     user_qa: str,
-    context: str,
 ) -> AgentCall:
     def read_user_prompt():
         with open('prompts/task_notes_cleaner.txt', 'r') as f:
@@ -1316,7 +1315,6 @@ async def call_unified_notes_cleaner(
         'user_task': user_task,
         'original_task_notes': task_notes,
         'new_user_answers': user_qa,
-        'context': context
     }
     user_prompt = string.Template(user_prompt_template).substitute(replacements)
     print(user_prompt)
@@ -1350,4 +1348,64 @@ async def call_unified_notes_cleaner(
     )
 
     agent_call.parsed_output = parsed_output
+    return agent_call
+
+
+async def call_unified_context_cleaner(
+    user_task: str,
+    task_notes: str,
+    context: str,
+) -> AgentCall:
+
+    def read_user_prompt():
+        with open('prompts/context_cleaner.txt', 'r') as f:
+            return f.read()
+
+    user_prompt_template = await asyncio.to_thread(read_user_prompt)
+    replacements = {
+        'user_task': user_task,
+        'original_task_notes': task_notes,
+        'context': context,
+    }
+    user_prompt = string.Template(user_prompt_template).substitute(replacements)
+    # Call the updated call_llm asynchronously
+    print(user_prompt)
+    messages = [LLMMessage("user", user_prompt)]
+    agent_call = await call_llm(
+        messages=messages,
+        provider='cerebras',
+        model='llama-3.3-70b'
+    )
+
+    print("LLM Response:\n", agent_call.llm_response)
+
+    def parse_unified_context_cleaner(response_text: str) -> str:
+        json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
+
+        json_matches = re.findall(json_pattern, agent_call.llm_response, re.DOTALL)
+        parsed_output: Optional[str] = ""
+
+        if json_matches:
+            for json_str in json_matches:
+                try:
+                    data = json.loads(json_str)
+                    if 'new_task_notes' in data:
+                        return data.get('new_task_notes', [])
+                except json.JSONDecodeError as e:
+                    print(f"context agent cleaner: JSON decoding failed for a matched block - {e}")
+                    continue
+        else:
+            print("context agent error: No JSON object found in the LLM response")
+    # Update the parsed_output in AgentCall
+    parsed_output = await try_json_parse(
+        llm_response=agent_call.llm_response,
+        parse_func=parse_unified_context_cleaner,
+        messages=messages,
+        provider='cerebras',
+        model='llama-3.3-70b',
+        parse_error_message="Task Notes Cleaner"
+    )
+
+    agent_call.parsed_output = parsed_output
+
     return agent_call
