@@ -163,7 +163,7 @@ class ApiAgent:
         clarifier_call = await call_unified_task_clarifier(self.task, question_text)
         self.questions = clarifier_call.parsed_output if clarifier_call.parsed_output else []
 
-    async def action_call(self, provider, model) -> AgentCall:
+    async def call_action(self, provider, model) -> AgentCall:
         """
         WILL USE task_notes and action_mem
         """
@@ -234,7 +234,7 @@ class ApiAgent:
                 self.curr_save_node = SavedTrajectoryNode()
 
                 # a) Call chain-of-thought to determine an action
-                action_out_call = await self.action_call(provider="cerebras", model="llama-3.3-70b")
+                action_out_call = await self.call_action(provider="cerebras", model="llama-3.3-70b")
                 if action_out_call.parsed_output is None:
                     self.failed_count += 1
                     break
