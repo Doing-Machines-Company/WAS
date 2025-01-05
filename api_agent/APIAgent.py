@@ -1,3 +1,5 @@
+# api_agent.py
+
 import os
 import pickle
 import time
@@ -10,8 +12,8 @@ from llama_index.core.schema import TextNode
 from llama_index.core import VectorStoreIndex
 
 from utils.trajectory_saves import SavedTrajectory, SavedTrajectoryNode
-from utils.inference_data import Action, IndefiniteAction
-from inferenceagent import (
+from utils.inference_data import AgentCall  # or however you call your LLM
+from inferenceagent import (  # TODO, implement API versions of all of this
     call_task_separator,
     call_unified_task_clarifier,
     call_unified_question_cleaner,
@@ -20,44 +22,23 @@ from inferenceagent import (
     call_intermediate_questions_agent,
     call_input_agent,
     call_action_part1,
-    call_action_part2,
-    AgentCall
+    call_action_part2
 )
 from api_agent_classes import (
     APILinearMemory,
-    APIType
+    APIType,
+    APIAction,
+    APIActionType
 )
-
-'''
-
-class APIType(Enum):
-    SPECIAL = "special"
-    GMAIL = "gmail"
-    GOOGLE_CALENDAR = "google_calendar"
-
-@dataclass
-class APILinearMemory:
-    api_type: APIType
-    call: str
-    received: str
-
-'''
+from api_functions import GmailAPIHandler, GoogleCalendarAPIHandler
 
 
-    
-
-
-'''
-
-Used for a single website's API, perhaps we can just do *all* APIs, but may degrade performance too much.
-I.e., one ApiAgent for gmail, one for Canvas.etc
-
-(should?) We should persist this agent until it's no longer needed
-
-'''
-class ApiAgent:
-    def __init__(self, fast_mode=False, retry_cap=10):
+class APIAgent:
+    def __init__(self, fast_mode=False, api="gmail", retry_cap=10):
         """Initialize an API-based LLM agent."""
+        self.api = APIType.from_string(api)
+
+        # Control events
         self.stop_event = asyncio.Event()
         self.cleaned_up = asyncio.Event()
 
@@ -65,37 +46,49 @@ class ApiAgent:
         self.retry_cap = retry_cap
 
         # Inputs or prompts
-        self.task = None  # API SPECIFIC TASK
-        self.task_notes = ''
+        self.task = None  # The main user request
+        self.task_notes = ''  # Additional context
 
         # For LLM question/answer flows
         self.questions = []
         self.question_answers = []
 
-        # For memory, lossless
+        # For memory, record all calls
         self.action_mem = []
 
-        # If you want hidden or default fields for the user:
+        # Hidden or default fields for user
         self.hidden_inputs = []
 
         # Queues for user I/O
         self.input_queue = asyncio.Queue()
         self.output_queue = asyncio.Queue()
 
-        # Track attempts and partial results
+        # Track attempts
         self.failed_count = 0
         self.reload_count = 0
 
-        # For storing entire conversation or process
+        # For storing entire conversation
         self.saved_trajectory = SavedTrajectory()
         self.curr_save_node = None
 
-        # Additional context from a knowledge base
+        # Additional context from knowledge base
         self.context_info = ""
         self.item_context_pairs = ""
 
+        # Initialize the LLM index
         self.initialize_index()
-        self.init_special_actions()
+
+        # Initialize the correct API handler
+        if self.api == APIType.GMAIL:
+            self.api_handler = GmailAPIHandler()
+        elif self.api == APIType.GOOGLE_CALENDAR:
+            self.api_handler = GoogleCalendarAPIHandler()
+        else:
+            # Possibly a fallback or special
+            self.api_handler = None
+            print("NO API HANDLER FOR THIS")
+            # In some cases you might raise an error:
+            raise ValueError(f"No handler available for API: {api}")
 
     def initialize_index(self):
         """Create an LLM-based index over some reference text (for clarifications, etc.)."""
@@ -123,22 +116,21 @@ class ApiAgent:
         raise InterruptedError("Agent stopped")
 
     async def formulate_questions(self):
-        """Use your LLM calls to figure out what clarifying questions to ask about the user's API task."""
-        # Retrieve context
+        """Use LLM calls to figure out clarifying questions about the user's task."""
+        # 1) Retrieve context
         retrieved = self.retriever.retrieve(self.task)
         self.context_info = "\n".join([node.get_content() for node in retrieved])
 
-        # Identify interesting items
+        # 2) Identify interesting items
         sep_call = await call_task_separator(self.task)
         interesting_items = sep_call.parsed_output if sep_call.parsed_output else []
 
-        # Build item-context pairs
+        # 3) Build item-context pairs
         def autoregressive_retrieve(query, k=2):
             new_task = query
             nodes = []
             for i in range(k):
                 sub_retriever = self.index.as_retriever(similarity_top_k=i + 1)
-                # last retrieved node
                 new_node = sub_retriever.retrieve(new_task)[-1]
                 new_task += new_node.get_content()
                 nodes.append(new_node)
@@ -153,56 +145,40 @@ class ApiAgent:
 
         self.saved_trajectory.important_info = self.item_context_pairs
 
-        # Load a known set of clarifying questions from disk
+        # 4) Optionally load a known set of clarifying questions
         def read_questions():
             with open('data/questions.txt', 'r') as f:
                 return f.read()
         question_text = await asyncio.to_thread(read_questions)
 
-        # Let an LLM unify and figure out the best clarifying questions
+        # 5) Let an LLM unify and figure out the best clarifying questions
         clarifier_call = await call_unified_task_clarifier(self.task, question_text)
         self.questions = clarifier_call.parsed_output if clarifier_call.parsed_output else []
 
     async def call_action(self, provider, model) -> AgentCall:
         """
-        WILL USE task_notes and action_mem
+        If your LLM logic produces an action plan, it will come back as an `APIAction`.
+        e.g., something like:
+           action = APIAction(
+               action_type=APIActionType.GMAIL_LIST_MESSAGES,
+               reason="Need to see what's in the inbox",
+               parameters={"label": "INBOX"}
+           )
+        This is just a placeholder returning STOP for demonstration.
         """
-        start_time = time.time()
-        # TODO for APIs
-        print("Chained action call total time:", time.time() - start_time)
-        return None
-
-    def init_special_actions(self):
-        """Define special action types like STOP, RELOAD, ASK_USER, etc."""
-        stop_action = Action(Action.Type.STOP, None, None)
-        stop_action.set_special_effect('STOP')
-        stop_indefinite = IndefiniteAction(
-            [Action.Type.STOP], stop_action, None, IndefiniteAction.Location.SPECIAL
+        fake_call = AgentCall()
+        # Return a single APIAction object
+        fake_call.parsed_output = APIAction(
+            action_type=APIActionType.STOP,
+            reason="All done.",
+            parameters=None
         )
-
-        input_action = Action(Action.Type.INPUT_GIVEN_INTENT, None, None)
-        input_action.set_special_effect('WRITE TEXT MODE')
-        input_indefinite = IndefiniteAction(
-            [Action.Type.INPUT_GIVEN_INTENT], input_action, None, IndefiniteAction.Location.SPECIAL
-        )
-
-        ask_action = Action(Action.Type.REQUEST_USER_INPUT, None, None)
-        ask_action.set_special_effect('ASK USER')
-        ask_indefinite = IndefiniteAction(
-            [Action.Type.REQUEST_USER_INPUT], ask_action, None, IndefiniteAction.Location.SPECIAL
-        )
-
-
-        # You could store them if you want custom logic around them
-        self.special_actions = [
-            stop_indefinite,
-            input_indefinite,
-            ask_indefinite,
-        ]
+        return fake_call
 
     async def run(self):
         """Main execution loop for the agent."""
-        # 1) If no task is set, ask the user
+
+        # 1) If no task is set, ask user
         if self.task is None:
             self.task = await self.ask_user("What do you want to do with the API(s)?")
             self.saved_trajectory.user_input_task = self.task
@@ -224,77 +200,104 @@ class ApiAgent:
             if qclean_call.parsed_output:
                 self.task = qclean_call.parsed_output
 
-            context_call = await call_unified_context_cleaner(self.task, self.task_notes, self.context_info)
+            context_call = await call_unified_context_cleaner(
+                self.task, self.task_notes, self.context_info
+            )
             if context_call.parsed_output:
                 self.task_notes = context_call.parsed_output
 
-        # 4) Action loop
+        # 4) Loop to process chosen actions from LLM
         while not self.stop_event.is_set():
             try:
                 self.curr_save_node = SavedTrajectoryNode()
 
-                # a) Call chain-of-thought to determine an action
+                # a) LLM decides on next action => we get an `APIAction`
                 action_out_call = await self.call_action(provider="cerebras", model="llama-3.3-70b")
-                if action_out_call.parsed_output is None:
+                chosen_action = action_out_call.parsed_output  # This is an APIAction
+                if not chosen_action:
+                    # If it's None or empty, we don't know what to do, treat as failure
                     self.failed_count += 1
+                    if self.failed_count > self.retry_cap:
+                        self.stop()
                     break
 
-                # b) Action is typically a tuple or dict. For example: (Action.Type, "some reason")
-                action_out = action_out_call.parsed_output
                 self.curr_save_node.ad_call = action_out_call
 
-                # c) If the action is empty or None, break
-                if not action_out:
-                    break
+                action_type = chosen_action.action_type
+                action_reason = chosen_action.reason
+                action_params = chosen_action.parameters or {}
 
-                chosen_action_type, reason_for_action = action_out
+                print(f"Chosen APIAction: {action_type} | Reason: {action_reason}")
 
-                # d) Handle special or normal actions
-                if chosen_action_type == Action.Type.STOP:  # TODO, different action typing for APIs, ignore for now
+                # b) Handle special vs. API action
+                if action_type == APIActionType.STOP:
+                    # End agent
                     await self.output_queue.put(('exit_message', "Agent has stopped."))
                     self.stop()
+                    break
 
-                elif chosen_action_type == Action.Type.REQUEST_USER_INPUT:
-                    # The agent wants the user to provide more info
-                    inter_call = await call_intermediate_questions_agent(
-                        self.task, "", reason_for_action, self.task_notes
+                elif action_type == APIActionType.REQUEST_USER_INPUT:
+                    # The agent wants additional user input
+                    intermediate_call = await call_intermediate_questions_agent(
+                        self.task,
+                        "",   # optionally pass partial context
+                        action_reason,
+                        self.task_notes
                     )
-                    inter_questions = inter_call.parsed_output or []
-                    results = []
+                    inter_questions = intermediate_call.parsed_output or []
                     for qq in inter_questions:
                         if self.stop_event.is_set():
                             break
-                        resp = await self.ask_user(qq)
-                        results += f"Q: {qq}\nA: {resp}\n"
+                        _ = await self.ask_user(qq)
 
-                    self.task_notes = self.task_notes # TODO integrate QA into task_notes using a LLM?
-                    
-                    new_memory = APILinearMemory() # TODO, fill out some logic to record what was requested and returned
-                    
-                    self.action_mem.append(new_memory) # TODO, integrate fact that questions were asked
+                    # Record that we asked the user for input
+                    new_memory = APILinearMemory(
+                        self.api,
+                        call="request_user_input",
+                        received="Collected user input"
+                    )
+                    self.action_mem.append(new_memory)
 
                 else:
-                    # e) Perform a generic API action
-                    success = await self.perform_api_action(chosen_action_type, reason_for_action)
+                    # c) Perform an API action
+                    if not self.api_handler:
+                        print("No valid API handler found.")
+                        self.failed_count += 1
+                        if self.failed_count > self.retry_cap:
+                            self.stop()
+                        continue
+                    result = "result didn't update"
+
+                    try:
+                        # Perform the call using the chosen action type & parameters
+                        result = self.api_handler.perform_action(action_type, action_params)
+                        success = True
+                        print(f"API call result: {result}")
+                    except Exception as e:
+                        print(f"API call failed: {e}")
+                        success = False
+
                     if not success:
                         self.failed_count += 1
                         if self.failed_count > self.retry_cap:
                             self.stop()
                     else:
                         self.failed_count = 0
-                        new_memory = APILinearMemory()  # TODO fill to understand
-                        self.action_mem.append(new_memory)  # TODO, integrate the call requested and received
+                        # Store the action in memory
+                        new_memory = APILinearMemory(
+                            self.api,
+                            call=action_type.value,
+                            received=str(result)
+                        )
+                        self.action_mem.append(new_memory)
 
-
-
-                # g) Save your step
+                # d) Save step
                 self.saved_trajectory.add_node(copy.deepcopy(self.curr_save_node))
 
                 gc.collect()
 
             except Exception as e:
                 print(f"Agent encountered exception: {e}")
-            finally:
                 # If a stop is triggered, do final cleanup
                 if self.stop_event.is_set():
                     await self.cleanup()
@@ -302,15 +305,9 @@ class ApiAgent:
                     self.failed_count += 1
                     if self.failed_count > self.retry_cap:
                         self.stop()
-
-    async def perform_api_action(self, action_type, reason_for_action):
-        """
-        Actually perform the action on your chosen API (Gmail, Calendar, etc.).
-        Return True on success, False on failure.
-        """
-        print(f"Performing API action: {action_type} | Reason: {reason_for_action}")
-        # Insert real API logic here
-        return True
+            finally:
+                if self.stop_event.is_set():
+                    await self.cleanup()
 
     async def cleanup(self):
         """Cleanup any resources if needed."""
