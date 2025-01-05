@@ -1,16 +1,26 @@
+# api_functions.py
 import os
 import pickle
 import base64
 from email.mime.text import MIMEText
-from typing import Optional, Any
+from typing import Any
 
 from googleapiclient.discovery import build
-from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
 
 from datetime import datetime, timedelta
 
-from api_agent_classes import APIType, APIActionType
+from api_agent_classes import APIAction, APIActionType
+# Import your param classes
+from api_type_classes.api_actions_params_gmail import (
+    GmailListMessagesParams, GmailGetMessageParams, GmailSendEmailParams, GmailListLabelsParams
+)
+from api_type_classes.api_actions_params_gcal import (
+    CalendarListCalendarsParams, CalendarCreateEventParams, CalendarListEventsParams,
+    CalendarUpdateEventParams, CalendarDeleteEventParams
+)
+
 
 SCOPES = [
     'https://www.googleapis.com/auth/gmail.readonly',
@@ -22,12 +32,7 @@ SCOPES = [
     'https://www.googleapis.com/auth/calendar.events.readonly'
 ]
 
-
 def authenticate():
-    """
-    Shared authentication flow for Gmail and Calendar.
-    Persists credentials to token.pickle.
-    """
     creds = None
     if os.path.exists('token.pickle'):
         with open('token.pickle', 'rb') as token:
@@ -46,170 +51,163 @@ def authenticate():
 
 
 class GmailAPIHandler:
-    """
-    Encapsulates all Gmail-specific methods and an action dispatcher.
-    """
     def __init__(self):
         self.creds = authenticate()
         self.service = build('gmail', 'v1', credentials=self.creds)
 
-        # Map from APIActionType -> method
-        self.action_map = {
-            APIActionType.GMAIL_LIST_MESSAGES: self.list_messages,
-            APIActionType.GMAIL_GET_MESSAGE: self.get_message,
-            APIActionType.GMAIL_SEND_EMAIL: self.send_email,
-            APIActionType.GMAIL_LIST_LABELS: self.list_labels
-        }
+    def perform_action(self, action: APIAction) -> Any:
+        """
+        Route based on action.action_type to call the correct method with strongly typed parameters.
+        """
+        if action.action_type == APIActionType.GMAIL_LIST_MESSAGES:
+            params = GmailListMessagesParams(**(action.parameters or {}))
+            return self.list_messages(params)
 
-    def perform_action(self, action_type: APIActionType, parameters: Optional[Any] = None) -> Any:
-        if action_type not in self.action_map:
-            raise ValueError(f"Gmail: Unsupported action type: {action_type}")
-        return self.action_map[action_type](parameters)
+        elif action.action_type == APIActionType.GMAIL_GET_MESSAGE:
+            params = GmailGetMessageParams(**(action.parameters or {}))
+            return self.get_message(params)
 
-    def list_messages(self, params: Optional[Any] = None):
-        """
-        Lists Gmail messages (simplified).
-        """
-        results = self.service.users().messages().list(userId='me').execute()
-        messages = results.get('messages', [])
-        return messages
+        elif action.action_type == APIActionType.GMAIL_SEND_EMAIL:
+            params = GmailSendEmailParams(**(action.parameters or {}))
+            return self.send_email(params)
 
-    def get_message(self, params: dict):
-        """
-        Retrieve a specific message by ID.
-        """
-        message_id = params.get("message_id")
-        if not message_id:
-            raise ValueError("Gmail: 'message_id' parameter is required for get_message")
-        message = self.service.users().messages().get(userId='me', id=message_id).execute()
-        return message
+        elif action.action_type == APIActionType.GMAIL_LIST_LABELS:
+            params = GmailListLabelsParams(**(action.parameters or {}))
+            return self.list_labels(params)
 
-    def send_email(self, params: dict):
-        """
-        Send an email. 
-        params might include: {"to": "...", "subject": "...", "body": "..."}
-        """
-        to_addr = params.get("to", "recipient@example.com")
-        subject = params.get("subject", "Test Email")
-        body_text = params.get("body", "This is a test email.")
+        else:
+            raise ValueError(f"Gmail: Unsupported action type: {action.action_type}")
 
-        message = MIMEText(body_text)
-        message['to'] = to_addr
+    def list_messages(self, params: GmailListMessagesParams) -> Any:
+        """
+        Example method using typed parameters.
+        """
+        label_ids = [params.labelId] if params.labelId else None
+        result = self.service.users().messages().list(
+            userId=params.userId,
+            labelIds=label_ids
+        ).execute()
+        return result.get('messages', [])
+
+    def get_message(self, params: GmailGetMessageParams) -> Any:
+        """
+        Retrieve a message with given ID and optional format.
+        """
+        response = self.service.users().messages().get(
+            userId=params.userId,
+            id=params.messageId,
+            format=params.format
+        ).execute()
+        return response
+
+    def send_email(self, params: GmailSendEmailParams) -> Any:
+        """
+        Example of sending an email with typed parameters.
+        """
+        message = MIMEText(params.body)
+        message['to'] = params.to
         message['from'] = 'your-email@gmail.com'
-        message['subject'] = subject
+        message['subject'] = params.subject
 
-        raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+        raw = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
         body = {'raw': raw}
-
-        result = self.service.users().messages().send(userId='me', body=body).execute()
+        result = self.service.users().messages().send(
+            userId=params.userId,
+            body=body
+        ).execute()
         return result
 
-    def list_labels(self, params: Optional[Any] = None):
+    def list_labels(self, params: GmailListLabelsParams) -> Any:
         """
-        List all labels for the user.
+        List all labels for a user.
         """
-        labels = self.service.users().labels().list(userId='me').execute()
+        labels = self.service.users().labels().list(userId=params.userId).execute()
         return labels.get('labels', [])
 
 
 class GoogleCalendarAPIHandler:
-    """
-    Encapsulates all Google Calendar-specific methods and an action dispatcher.
-    """
     def __init__(self):
         self.creds = authenticate()
         self.service = build('calendar', 'v3', credentials=self.creds)
 
-        self.action_map = {
-            APIActionType.CALENDAR_LIST_CALENDARS: self.list_calendars,
-            APIActionType.CALENDAR_CREATE_EVENT: self.create_event,
-            APIActionType.CALENDAR_LIST_EVENTS: self.list_events,
-            APIActionType.CALENDAR_UPDATE_EVENT: self.update_event,
-            APIActionType.CALENDAR_DELETE_EVENT: self.delete_event
-        }
+    def perform_action(self, action: APIAction) -> Any:
+        if action.action_type == APIActionType.CALENDAR_LIST_CALENDARS:
+            params = CalendarListCalendarsParams(**(action.parameters or {}))
+            return self.list_calendars(params)
 
-    def perform_action(self, action_type: APIActionType, parameters: Optional[Any] = None) -> Any:
-        if parameters is None:
-            raise ValueError(f"Parameters shouldn't be NoneType")
-        if action_type not in self.action_map:
-            raise ValueError(f"Calendar: Unsupported action type: {action_type}")
-        return self.action_map[action_type](parameters)
+        elif action.action_type == APIActionType.CALENDAR_CREATE_EVENT:
+            params = CalendarCreateEventParams(**(action.parameters or {}))
+            return self.create_event(params)
 
-    def list_calendars(self, params: Optional[Any] = None):
-        """
-        List user calendars.
-        """
-        calendars = self.service.calendarList().list().execute()
-        return calendars['items']
+        elif action.action_type == APIActionType.CALENDAR_LIST_EVENTS:
+            params = CalendarListEventsParams(**(action.parameters or {}))
+            return self.list_events(params)
 
-    def create_event(self, params: dict):
-        """
-        Create a calendar event. 
-        Example params might include 'summary', 'description', 'start', 'end', etc.
-        """
-        summary = params.get("summary", "Test Event")
-        description = params.get("description", "This is a test event.")
-        location = params.get("location", "123 Main St.")
-        start_time = params.get("start", datetime.now().isoformat())
-        end_time = params.get("end", (datetime.now() + timedelta(hours=1)).isoformat())
-        timezone = params.get("timeZone", "America/New_York")
+        elif action.action_type == APIActionType.CALENDAR_UPDATE_EVENT:
+            params = CalendarUpdateEventParams(**(action.parameters or {}))
+            return self.update_event(params)
 
+        elif action.action_type == APIActionType.CALENDAR_DELETE_EVENT:
+            params = CalendarDeleteEventParams(**(action.parameters or {}))
+            return self.delete_event(params)
+
+        else:
+            raise ValueError(f"Calendar: Unsupported action type: {action.action_type}")
+
+    def list_calendars(self, params: CalendarListCalendarsParams) -> Any:
+        """
+        No parameters, but typed for consistency if we add them later.
+        """
+        response = self.service.calendarList().list().execute()
+        return response.get('items', [])
+
+    def create_event(self, params: CalendarCreateEventParams) -> Any:
         event = {
-            'summary': summary,
-            'location': location,
-            'description': description,
+            'summary': params.summary,
+            'location': params.location,
+            'description': params.description,
             'start': {
-                'dateTime': start_time,
-                'timeZone': timezone,
+                'dateTime': params.start.isoformat(),
+                'timeZone': params.timeZone,
             },
             'end': {
-                'dateTime': end_time,
-                'timeZone': timezone,
+                'dateTime': params.end.isoformat(),
+                'timeZone': params.timeZone,
             },
         }
+        created = self.service.events().insert(calendarId='primary', body=event).execute()
+        return created
 
-        event_result = self.service.events().insert(calendarId='primary', body=event).execute()
-        return event_result
-
-    def list_events(self, params: Optional[Any] = None):
-        """
-        List upcoming events from primary calendar.
-        """
-        now = datetime.utcnow().isoformat() + 'Z'  # 'Z' indicates UTC time
-        events_result = self.service.events().list(
-            calendarId='primary', timeMin=now,
-            maxResults=10, singleEvents=True,
-            orderBy='startTime'
+    def list_events(self, params: CalendarListEventsParams) -> Any:
+        now = (params.timeMin or datetime.utcnow()).isoformat() + 'Z'
+        response = self.service.events().list(
+            calendarId='primary',
+            timeMin=now,
+            maxResults=params.maxResults,
+            singleEvents=params.singleEvents,
+            orderBy=params.orderBy
         ).execute()
-        return events_result.get('items', [])
+        return response.get('items', [])
 
-    def update_event(self, params: dict):
-        """
-        Update a specific event. 
-        params should include: {"event_id": "...", "fields_to_update": {...}}
-        """
-        event_id = params.get("event_id")
-        if not event_id:
-            raise ValueError("Calendar: 'event_id' is required for update_event")
-
-        event = self.service.events().get(calendarId='primary', eventId=event_id).execute()
-        fields_to_update = params.get("fields_to_update", {})
-
-        for k, v in fields_to_update.items():
-            event[k] = v  # e.g., event['summary'] = 'New Title'
-
-        updated_event = self.service.events().update(
-            calendarId='primary', eventId=event_id, body=event
+    def update_event(self, params: CalendarUpdateEventParams) -> Any:
+        event = self.service.events().get(
+            calendarId='primary',
+            eventId=params.event_id
         ).execute()
-        return updated_event
 
-    def delete_event(self, params: dict):
-        """
-        Delete a specific calendar event by its ID.
-        """
-        event_id = params.get("event_id")
-        if not event_id:
-            raise ValueError("Calendar: 'event_id' is required for delete_event")
+        for key, val in params.fields_to_update.items():
+            event[key] = val
 
-        self.service.events().delete(calendarId='primary', eventId=event_id).execute()
-        return {"status": "deleted", "event_id": event_id}
+        updated = self.service.events().update(
+            calendarId='primary',
+            eventId=params.event_id,
+            body=event
+        ).execute()
+        return updated
+
+    def delete_event(self, params: CalendarDeleteEventParams) -> Any:
+        self.service.events().delete(
+            calendarId='primary',
+            eventId=params.event_id
+        ).execute()
+        return {"status": "deleted", "event_id": params.event_id}

@@ -30,8 +30,8 @@ from api_agent_classes import (
     APIAction,
     APIActionType
 )
-from api_functions import GmailAPIHandler, GoogleCalendarAPIHandler
 
+from api_functions import GmailAPIHandler, GoogleCalendarAPIHandler
 
 class APIAgent:
     def __init__(self, fast_mode=False, api="gmail", retry_cap=10):
@@ -213,7 +213,8 @@ class APIAgent:
 
                 # a) LLM decides on next action => we get an `APIAction`
                 action_out_call = await self.call_action(provider="cerebras", model="llama-3.3-70b")
-                chosen_action = action_out_call.parsed_output  # This is an APIAction
+                chosen_action: APIAction = action_out_call.parsed_output  # This is an APIAction or perhaps a list of APIActions
+                # TODO, think about the result of the action_call being a list of APIActions
                 if not chosen_action:
                     # If it's None or empty, we don't know what to do, treat as failure
                     self.failed_count += 1
@@ -225,7 +226,6 @@ class APIAgent:
 
                 action_type = chosen_action.action_type
                 action_reason = chosen_action.reason
-                action_params = chosen_action.parameters or {}
 
                 print(f"Chosen APIAction: {action_type} | Reason: {action_reason}")
 
@@ -259,23 +259,19 @@ class APIAgent:
                     self.action_mem.append(new_memory)
 
                 else:
-                    # c) Perform an API action
-                    if not self.api_handler:
-                        print("No valid API handler found.")
-                        self.failed_count += 1
-                        if self.failed_count > self.retry_cap:
-                            self.stop()
-                        continue
+                    # THERE IS NO REASON FOR self.api_handler to NOT EXIST HERE
                     result = "result didn't update"
 
                     try:
                         # Perform the call using the chosen action type & parameters
-                        result = self.api_handler.perform_action(action_type, action_params)
+                        result = self.api_handler.perform_action(chosen_action)
                         success = True
                         print(f"API call result: {result}")
                     except Exception as e:
                         print(f"API call failed: {e}")
                         success = False
+
+                    # Can an API call even fail?
 
                     if not success:
                         self.failed_count += 1
