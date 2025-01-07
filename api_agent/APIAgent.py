@@ -12,17 +12,13 @@ from llama_index.core.schema import TextNode
 from llama_index.core import VectorStoreIndex
 
 from utils.trajectory_saves import SavedTrajectory, SavedTrajectoryNode
-from utils.inference_data import AgentCall  # or however you call your LLM
-from inferenceagent import (  # TODO, implement API versions of all of this
+from api_llm_handling import AgentCall
+from inferenceagent import (
     call_task_separator,
     call_unified_task_clarifier,
     call_unified_question_cleaner,
     call_unified_context_cleaner,
-    call_unified_notes_cleaner,
     call_intermediate_questions_agent,
-    call_input_agent,
-    call_action_part1,
-    call_action_part2
 )
 from api_agent_classes import (
     APILinearMemory,
@@ -84,10 +80,6 @@ class APIAgent:
         elif self.api == APIType.GOOGLE_CALENDAR:
             self.api_handler = GoogleCalendarAPIHandler()
         else:
-            # Possibly a fallback or special
-            self.api_handler = None
-            print("NO API HANDLER FOR THIS")
-            # In some cases you might raise an error:
             raise ValueError(f"No handler available for API: {api}")
 
     def initialize_index(self):
@@ -145,35 +137,24 @@ class APIAgent:
 
         self.saved_trajectory.important_info = self.item_context_pairs
 
-        # 4) Optionally load a known set of clarifying questions
+        # Possibly load a known set of clarifying questions
         def read_questions():
             with open('data/questions.txt', 'r') as f:
                 return f.read()
         question_text = await asyncio.to_thread(read_questions)
 
-        # 5) Let an LLM unify and figure out the best clarifying questions
+        # Let an LLM unify and figure out the best clarifying questions
         clarifier_call = await call_unified_task_clarifier(self.task, question_text)
         self.questions = clarifier_call.parsed_output if clarifier_call.parsed_output else []
 
     async def call_action(self, provider, model) -> AgentCall:
         """
-        If your LLM logic produces an action plan, it will come back as an `APIAction`.
-        e.g., something like:
-           action = APIAction(
-               action_type=APIActionType.GMAIL_LIST_MESSAGES,
-               reason="Need to see what's in the inbox",
-               parameters={"label": "INBOX"}
-           )
-        This is just a placeholder returning STOP for demonstration.
+        This is intentionally left as a placeholder now, because each specialized
+        agent (Gmail or Google Calendar) will override it.
+
+        If called here directly, raise a NotImplementedError.
         """
-        fake_call = AgentCall()
-        # Return a single APIAction object
-        fake_call.parsed_output = APIAction(
-            action_type=APIActionType.STOP,
-            reason="All done.",
-            parameters=None
-        )
-        return fake_call
+        raise NotImplementedError("Use a specialized agent subclass that implements call_action().")
 
     async def run(self):
         """Main execution loop for the agent."""
@@ -212,9 +193,10 @@ class APIAgent:
                 self.curr_save_node = SavedTrajectoryNode()
 
                 # a) LLM decides on next action => we get an `APIAction`
+                # NOTE: specialized classes override call_action(...)
                 action_out_call = await self.call_action(provider="cerebras", model="llama-3.3-70b")
-                chosen_action: APIAction = action_out_call.parsed_output  # This is an APIAction or perhaps a list of APIActions
-                # TODO, think about the result of the action_call being a list of APIActions
+                chosen_action: APIAction = action_out_call.parsed_output
+
                 if not chosen_action:
                     # If it's None or empty, we don't know what to do, treat as failure
                     self.failed_count += 1
@@ -223,7 +205,6 @@ class APIAgent:
                     break
 
                 self.curr_save_node.ad_call = action_out_call
-
                 action_type = chosen_action.action_type
                 action_reason = chosen_action.reason
 
@@ -259,19 +240,15 @@ class APIAgent:
                     self.action_mem.append(new_memory)
 
                 else:
-                    # THERE IS NO REASON FOR self.api_handler to NOT EXIST HERE
+                    # Perform the call using the chosen action type & parameters
                     result = "result didn't update"
-
                     try:
-                        # Perform the call using the chosen action type & parameters
                         result = self.api_handler.perform_action(chosen_action)
                         success = True
                         print(f"API call result: {result}")
                     except Exception as e:
                         print(f"API call failed: {e}")
                         success = False
-
-                    # Can an API call even fail?
 
                     if not success:
                         self.failed_count += 1
