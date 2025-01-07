@@ -43,8 +43,7 @@ class GoogleCalendarAPIAgent(APIAgent):
         user_replacements = {
             'memory': memory_text.strip(),
             'task': self.task if self.task else "",
-            'task_notes': self.task_notes if self.task_notes else "",
-            'ax_tree': "[No AX Tree Provided]"
+            'task_notes': self.task_notes if self.task_notes else ""
         }
 
         # Substitute placeholders in the user prompt
