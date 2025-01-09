@@ -23,18 +23,7 @@ Follow these steps to complete your task, I will give you the inputs at the end:
 
 3. Reason about the action, base_action_effect of the chosen_action, and two accessibility trees. Determine if the chosen_action failed.
 
-4. If the action's effect was different from intention_for_action (including if it failed via step 3), determine why this is to formulate your difference_reasoning:
-   - If the effect was different from the intent, your difference_reasoning is:
-      - Why and how the actual effect was different.
-      - What may need to be done on the website and new_accessibility_tree to achieve the desired intention_for_action.
-   - You have the actual effect of the action from step 3.
-   - If the actual effect of the action differs from the intention_for_action, especially if there's an unexpected page redirect, the website may require you to complete some subtasks first.
-   - Reason step-by-step using both accessibility trees to determine your difference_reasoning.
-      - If the actual effect does not differ from the intention_for_action, your difference_reasoning is the empty string.
-      - Your difference_reasoning must include what the website may need you to complete first in order to then proceed with intention_for_action.
-      - Keep the final wording of difference_reasoning concise.
-
-5. Reason step-by-step to formulate your final_answer:
+4. Reason step-by-step to formulate your final_answer:
    - Your final_answer is:
       - All effects of the chosen_action from step 2. This must be detailed.
       - Actions on the old_accessibility_tree that were chosen.
@@ -45,21 +34,19 @@ Follow these steps to complete your task, I will give you the inputs at the end:
    - Do not plan or include what needs to be done in final_answer.
    - Ensure that you meet the specifications I'm giving you and assuming correctly for the base_action_effect.
 
-6. AFTER completing all of these steps, finally give me the answer:
-   - Provide your entire response as a JSON object with two keys "final_answer" and "difference_reasoning", their values are strings.
+5. AFTER completing all of these steps, finally give me the answer:
+   - Provide your entire response as a JSON object with one key "final_answer", the values is a string.
      For example:
     ```json
     {
-      "final_answer": "Navigated to the Specialty Pizzas section of the Domino's menu, displaying options such as ExtravaganZZa, MeatZZa, and others, in pursuit of finding the Meatzza pizza.",
-      "difference_reasoning": ""
+      "final_answer": "Navigated to the Specialty Pizzas section of the Domino's menu, displaying options such as ExtravaganZZa, MeatZZa, and others, in pursuit of finding the Meatzza pizza."
     }
     ```
     - If there are quotes " within the strings, be sure to escape them, otherwise the JSON will be malformed.
-    - The final_answer is your final_answer from step 5.
-    - The difference_reasoning is the difference_reasoning from step 4.
+    - The final_answer is your final_answer from step 4.
 
 Remember:
-- final_answer and difference_reasoning must be very precise and very detailed.
+- final_answer must be very precise and very detailed.
 - final_answer must describe the actual effect of the chosen_action.
 - final_answer MUST ONLY include information that is explicitly true. DO NOT HALLUCINATE.
 - Read and make sure you understand the 'definitions and notes' labelled IMPORTANT.

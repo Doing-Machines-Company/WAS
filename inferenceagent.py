@@ -417,15 +417,20 @@ async def call_action_part1(
         task_notes: str,
         scrape_tree_no_special: str,
         action_memory: List,
-        context: str,
+        previous_world_memory,
         provider: str = "cerebras",
         model: str = "llama-3.3-70b"
 ):
     memory_without_qa = '***\n'
-    for i, lin_mem in enumerate(action_memory):
-        if not lin_mem.is_question:
-            memory_without_qa += f"{i + 1})\nINTENT: {lin_mem.intent}\nEFFECT: {lin_mem.location_details}\nREASONING: {lin_mem.difference_reasoning}\n***\n"
-
+    if action_memory:
+        for i, lin_mem in enumerate(action_memory[:len(action_memory)-1]):
+            if not lin_mem.is_question:
+                memory_without_qa += f"{i + 1})\nINTENT: {lin_mem.intent}\nEFFECT: {lin_mem.location_details}\n***\n"
+    if action_memory:
+        last_action = f"INTENT: {action_memory[-1].intent}\nEFFECT: {action_memory[-1].location_details}"
+    else:
+        last_action = ''
+        previous_world_memory = '' #don't need this if nothing's happened
     def read_system_prompt():
         with open('prompts/chained_action_decider/chain_part1_system.txt', 'r') as f:
             return f.read()
@@ -438,11 +443,14 @@ async def call_action_part1(
             return f.read()
 
     user_prompt_template = await asyncio.to_thread(read_user_prompt)
+    
     user_replacements = {
         'ax_tree': scrape_tree_no_special,
         'task': task,
         'task_notes': task_notes,
         'memory': memory_without_qa,
+        'summary': previous_world_memory,
+        'new_action': last_action
     }
     user_prompt = string.Template(user_prompt_template).substitute(user_replacements)
 
@@ -460,7 +468,7 @@ async def call_action_part1(
     output = agent_call.llm_response
 
     print("PART 1 CALL BEGIN")
-    print(system_prompt)
+    # print(system_prompt)
     print(user_prompt)
     print(output)
     print("PART 1 CALL END")
@@ -511,30 +519,100 @@ async def call_action_part2(
         'first_chain_output': summarized_info,
     }
     user_prompt = string.Template(user_prompt_template).substitute(user_replacements)
-
+    
     def read_system_prompt():
         with open('prompts/chained_action_decider/chain_part2_system.txt', 'r') as f:
             return f.read()
-
-    system_prompt_template = await asyncio.to_thread(read_system_prompt)
-    system_prompt = system_prompt_template
-
+    system_prompt = await asyncio.to_thread(read_system_prompt)
     messages = [
         LLMMessage("system", system_prompt),
         LLMMessage("user", user_prompt)
     ]
-
     agent_call = await call_llm(
         messages=messages,
         provider=provider,
         model=model
     )
-    output = agent_call.llm_response
+    output2 = agent_call.llm_response
     print("PART 2 CALL BEGIN")
-    print(system_prompt)
+    # print(system_prompt)
     print(user_prompt)
-    print(output)
+    print(output2)
     print("PART 2 CALL END")
+
+    def parse_candidates(response_text: str) -> List[Tuple[str, str]]:
+        json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
+        json_matches = re.findall(json_pattern, response_text, re.DOTALL)
+        actions = []
+        seen_numbers = set()
+        if json_matches:
+            for json_str in json_matches:
+                try:
+                    data = json.loads(json_str)
+                    if 'candidate_actions' in data:
+                        for action in data['candidate_actions']:
+                            if 'action_number' in action and 'action_reason' in action and action['action_number'] not in seen_numbers:
+                                actions.append((action['action_number'], action['action_reason']))
+                                seen_numbers.add(action['action_number'])
+                except json.JSONDecodeError as e:
+                    raise ValueError(f"Action Chain 2: JSON decoding failed - {e}")
+        if actions:
+            return actions
+        else:
+            raise ValueError("Action Chain 2: No valid JSON block found or missing keys 'action_number', 'action_reason'.")
+    parsed_candidates = await try_json_parse(
+        llm_response=agent_call.llm_response,
+        parse_func=parse_candidates,
+        messages=messages,
+        provider=provider,
+        model=model,
+        parse_error_message="Action Chain 2v2"
+    )
+    
+
+    agent_call.parsed_output = parsed_candidates
+    return agent_call
+
+async def call_action_part3(
+        task: str,
+        task_notes: str,
+        summarized_info: str,
+        candidate_actions: str,
+        provider: str = "cerebras",
+        model: str = "llama-3.3-70b"
+):
+    def read_user_prompt():
+        with open('prompts/chained_action_decider/chain_part3_user.txt', 'r') as f:
+            return f.read()
+
+    user_prompt_template = await asyncio.to_thread(read_user_prompt)
+    user_replacements = {
+        'candidate_actions': candidate_actions,
+        'task': task,
+        'task_notes': task_notes,
+        'first_chain_output': summarized_info,
+    }
+    user_prompt = string.Template(user_prompt_template).substitute(user_replacements)
+    
+    def read_system_prompt():
+        with open('prompts/chained_action_decider/chain_part3_system.txt', 'r') as f:
+            return f.read()
+    system_prompt = await asyncio.to_thread(read_system_prompt)
+    messages = [
+        LLMMessage("system", system_prompt),
+        LLMMessage("user", user_prompt)
+    ]
+    agent_call = await call_llm(
+        messages=messages,
+        provider=provider,
+        model=model
+    )
+    output2 = agent_call.llm_response
+    print("PART 3 CALL BEGIN")
+    # print(system_prompt)
+    print(user_prompt)
+    print(output2)
+    print("PART 3 CALL END")
 
     def parse_action_number_reason(response_text: str) -> Tuple[str, str]:
         json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
@@ -546,21 +624,20 @@ async def call_action_part2(
                     if 'action_number' in data and 'action_reason' in data:
                         return (data['action_number'], data['action_reason'])
                 except json.JSONDecodeError as e:
-                    raise ValueError(f"Action Chain 2: JSON decoding failed - {e}")
-        raise ValueError("Action Chain 2: No valid JSON block found or missing keys 'action_number', 'action_reason'.")
-
-    parsed_output = await try_json_parse(
+                    raise ValueError(f"Action Chain 3: JSON decoding failed - {e}")
+        raise ValueError("Action Chain 3: No valid JSON block found or missing keys 'action_number', 'action_reason'.")
+    parsed_candidates = await try_json_parse(
         llm_response=agent_call.llm_response,
         parse_func=parse_action_number_reason,
         messages=messages,
         provider=provider,
         model=model,
-        parse_error_message="Action Chain 2"
+        parse_error_message="Action Chain 3"
     )
+    
 
-    agent_call.parsed_output = parsed_output
+    agent_call.parsed_output = parsed_candidates
     return agent_call
-
 
 async def call_action_agent(
     task: str,
@@ -573,7 +650,7 @@ async def call_action_agent(
     new_action_memory = '\n***'
     for i, lin_mem in enumerate(action_memory):
         if not lin_mem.is_question:
-            new_action_memory += f"{i + 1})\nINTENT: {lin_mem.intent}\nEFFECT: {lin_mem.location_details}\nREASONING: {lin_mem.difference_reasoning}\n***\n"
+            new_action_memory += f"{i + 1})\nINTENT: {lin_mem.intent}\nEFFECT: {lin_mem.location_details}\n***\n"
 
     def read_system_prompt():
         with open('prompts/action_decider/action_decider_llama_system.txt', 'r') as f:
@@ -921,7 +998,7 @@ async def call_reflect_agent(
 
     print("LLM Response:\n", agent_call.llm_response)
 
-    def parse_reflect_json(response_text: str) -> Tuple[str, str]:
+    def parse_reflect_json(response_text: str) -> str:
         json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
         json_matches = re.findall(json_pattern, response_text, re.DOTALL)
         if json_matches:
@@ -931,8 +1008,7 @@ async def call_reflect_agent(
                     data = json.loads(cleaned_json)
                     if 'final_answer' in data:
                         action_effect = data.get('final_answer', '')
-                        difference_reasoning = data.get('difference_reasoning', '')
-                        return (action_effect, difference_reasoning)
+                        return action_effect
                 except json.JSONDecodeError as e:
                     raise ValueError(f"Reflect Restore Error: JSON decoding failed - {e}")
         raise ValueError("Reflect Restore Error: No valid JSON block or missing 'final_answer' key in the response.")
@@ -1060,6 +1136,7 @@ async def call_input_agent(
     print("INPUT CALL END")
 
     def parse_input_json(response_text: str) -> List[Tuple[int, str]]:
+        print(response_text)
         json_pattern = r'```(?:json)?\s*(\{.*?\})\s*```'
         json_matches = re.findall(json_pattern, response_text, re.DOTALL)
         if not json_matches:

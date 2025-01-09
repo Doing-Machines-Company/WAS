@@ -3,7 +3,6 @@ from dataclasses import dataclass
 @dataclass
 class LinearMemory:
     location_details: str
-    difference_reasoning: str
     intent: str
     action_treelines: list[str]
     page_url: str

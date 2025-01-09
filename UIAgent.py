@@ -42,8 +42,9 @@ class Agent:
         self.scraper_state_file = 'dominos/scraper_state.pkl'
         self.url_state_manager = load_scraper_state(self.scraper_state_file)
         self.task = None
-        self.task_notes = ''
+        self.task_notes = 'delivery to 934 Keeamoku Street Honolulu, HI 96814. MeatZZa is a specialty pizza, pepperoni pizza is not.'
         self.action_mem = []
+        self.world_mem = ''
         self.runtime_qa = []
         self.world_mem = ""
         self.questions = []
@@ -92,14 +93,24 @@ class Agent:
     async def chained_action_call(self, curr_inf_tree, provider, model):
         start_time = time.time()
         print("CALLING CHAIN")
-        summarized_info = await call_action_part1(self.task, self.task_notes, curr_inf_tree.get_raw_tree(), self.action_mem, self.item_context_pairs, provider=provider, model=model)
-        print(summarized_info.parsed_output)
+        summarized_info = await call_action_part1(self.task, self.task_notes, curr_inf_tree.get_raw_tree(), self.action_mem, self.world_mem, provider=provider, model=model)
+        self.world_mem = summarized_info.parsed_output
+        input(self.world_mem)
         print(f"ACTION CALL TIME first: {time.time() - start_time}")
         print("STEP 1 DONE")
-        action_out_call = await call_action_part2(self.task, self.task_notes, summarized_info.parsed_output, curr_inf_tree)
+        action_out_call = await call_action_part2(self.task, self.task_notes, self.world_mem, curr_inf_tree)
         print(action_out_call.parsed_output)
         print("STEP 2 DONE")
         print(f"ACTION CALL TIME all: {time.time() - start_time}")
+        if len(action_out_call.parsed_output) > 1:
+            print("CALLING STEP 3")
+            candidate_str = ''
+            for action_number, action_reason in action_out_call.parsed_output:
+                if action_number > 2: #exclude special actions that may have accidentally made their way in
+                    candidate_str += f"[{action_number}] {curr_inf_tree.get_action_treelines([action_number])} Possible use: {action_reason}\n\n"
+            action_out_call = await call_action_part3(self.task, self.task_notes, self.world_mem, candidate_str)
+        else:
+            action_out_call.parsed_output = action_out_call.parsed_output[0] #since we bypassed the third chain in this case, this is a singleton list
         return action_out_call
 
 
@@ -229,12 +240,12 @@ class Agent:
                                                 None,
                                                 IndefiniteAction.Location.SPECIAL)
 
-        ask_user_action = Action(Action.Type.REQUEST_USER_INPUT, None, None)
-        ask_user_action.set_special_effect(
-            'ASK USER')
-        ask_user_indefinite = IndefiniteAction([Action.Type.REQUEST_USER_INPUT], ask_user_action,
-                                                None,
-                                                IndefiniteAction.Location.SPECIAL)
+        # ask_user_action = Action(Action.Type.REQUEST_USER_INPUT, None, None)
+        # ask_user_action.set_special_effect(
+        #     'ASK USER')
+        # ask_user_indefinite = IndefiniteAction([Action.Type.REQUEST_USER_INPUT], ask_user_action,
+        #                                         None,
+        #                                         IndefiniteAction.Location.SPECIAL)
 
         reload_action = Action(Action.Type.RELOAD_PAGE, None, None)
         reload_action.set_special_effect(
@@ -243,7 +254,7 @@ class Agent:
                                                None,
                                                IndefiniteAction.Location.SPECIAL)
 
-        self.special_actions = [stop_indefinite, input_all_indefinite, ask_user_indefinite, reload_indefinite]
+        self.special_actions = [stop_indefinite, input_all_indefinite, reload_indefinite]
 
     async def wait_for_network_idle(self, idle_time=0.2, timeout=1.0):
         """
@@ -349,8 +360,8 @@ class Agent:
                 agent_call = await call_unified_question_cleaner(self.task, self.question_answers)
                 if agent_call.parsed_output:
                     self.task = agent_call.parsed_output
-                    notes_out_call = await call_unified_context_cleaner(self.task, self.task_notes, self.context_info)
-                    self.task_notes = notes_out_call.parsed_output
+                    # notes_out_call = await call_unified_context_cleaner(self.task, self.task_notes, self.context_info)
+                    # self.task_notes = notes_out_call.parsed_output
                     # input("*** Updated Task Notes ***" + self.task_notes)
                     # self.cleaned_task = self.saved_trajectory.cleaned_task
 
@@ -548,7 +559,6 @@ class Agent:
                                     # input("*** Updated Task Notes ***" + self.task_notes)
                                 # TODO MAKE THIS INTO A MEMORY INJECTION AND ADD IT IN
                                 new_memory = LinearMemory(location_details=question_string,
-                                                          difference_reasoning="",
                                                           intent=reason_for_action,
                                                           action_treelines=old_inf_tree.get_action_treelines(
                                                               [chosen_action_index]),
@@ -649,7 +659,6 @@ class Agent:
                                     else:
                                         new_memory = LinearMemory(
                                             location_details=question_string,
-                                            difference_reasoning="",
                                             intent=reason_for_action,
                                             action_treelines=old_inf_tree.get_action_treelines(
                                                 [chosen_action_index]),
@@ -741,9 +750,9 @@ class Agent:
                                             successful_reflect = True
                                             break
 
-                                    object_and_effect, difference_reasoning = mem_response[0], mem_response[1]
+                                    object_and_effect = mem_response
                                     if not successful_reflect:
-                                        object_and_effect, difference_reasoning = 'N/A', 'N/A'
+                                        object_and_effect= 'N/A'
 
 
                                     self.curr_save_node.reflect_call.append(copy.deepcopy(reflect_response_call))
@@ -751,7 +760,6 @@ class Agent:
                                     print(len(mem_response))
 
                                     new_memory = LinearMemory(location_details=object_and_effect,
-                                                              difference_reasoning=difference_reasoning,
                                                               intent=reason_for_action,
                                                               action_treelines=old_inf_tree.get_action_treelines(new_reflect_action_indices),
                                                               page_url=old_inf_tree.url,

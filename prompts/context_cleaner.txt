@@ -16,7 +16,7 @@ Follow these steps to complete your task:
    - Reason step-by-step about any information that may be relevant to the agent in completing the task
    
 3. Give the updated task notes that includes the user preferences and additional information:
-   - Do not repeat any information that is already conveyed in the user_task
+   - Do not repeat any information that is already conveyed in the user_task, but make sure to name the items in the task that the retrieved information applies to
    - Incorporate old notes (if there are any) from original_task_notes with the new information 
    - You should output notes that are concise, specific and in list format making sure to escape newlines.
 

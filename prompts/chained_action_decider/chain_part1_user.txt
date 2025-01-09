@@ -13,3 +13,11 @@ $ax_tree
 <memory>
 $memory
 </memory>
+
+<summary_of_memory>
+$summary
+</summary_of_memory> 
+
+<new_action>
+$new_action
+</new_action>
