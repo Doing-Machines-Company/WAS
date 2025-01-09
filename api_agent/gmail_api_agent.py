@@ -1,13 +1,11 @@
 # gmail_api_agent.py
 
-import json
-import re
 import os
 import string
 
 from api_agent_classes import APIAction, APIActionType
 from api_agent import APIAgent
-from api_llm_handling import AgentCall
+from api_llm_handling import AgentCall, LLMMessage
 from call_llm import call_llm
 
 class GmailAPIAgent(APIAgent):
@@ -29,19 +27,23 @@ class GmailAPIAgent(APIAgent):
         with open(file_path, "r", encoding="utf-8") as f:
             return f.read()
 
-    async def call_action(self, provider="cerebras", model="llama-3.3-70b") -> AgentCall:
+    async def call_action(self, provider: str = "cerebras", model: str = "llama-3.3-70b") -> AgentCall:
         """
-        Overridden to produce a specialized prompt for Gmail actions.
-        """
+        Produces a specialized prompt for Gmail actions and processes the LLM response.
 
+        Args:
+            provider (str): The LLM provider to use.
+            model (str): The model name to use.
+
+        Returns:
+            AgentCall: The result of the LLM call, including the chosen action.
+        """
         # Summarize the current memory of actions
         memory_text = ""
         for i, mem in enumerate(self.action_mem):
-            memory_text += f"- Step {i+1} => Called: {mem.call} | Received: {mem.received}\n"
+            memory_text += f"- Step {i + 1} => Called: {mem.call} | Received: {mem.received}\n"
 
-        # The user request or final goal is in self.task, plus any self.task_notes
-        # In your usage, you might have an AX tree or other placeholders.
-        # We'll demonstrate an example with 'ax_tree' placeholder.
+        # Prepare user prompt replacements
         user_replacements = {
             'memory': memory_text.strip(),
             'task': self.task if self.task else "",
@@ -49,52 +51,65 @@ class GmailAPIAgent(APIAgent):
         }
 
         # Perform string template substitution on the user prompt
-        # e.g. if the text file references $memory, $task, etc.
         user_prompt_str = string.Template(self.gmail_user_prompt_template).substitute(user_replacements)
 
-        # Call the LLM
-        action_out_call = call_llm(
-            system_content=self.gmail_system_prompt,
-            user_content=user_prompt_str,
-            model=model
+        # Build LLM messages
+        messages = [
+            LLMMessage(message_role="system", content=self.gmail_system_prompt),
+            LLMMessage(message_role="user", content=user_prompt_str),
+        ]
+
+        # Call the LLM asynchronously
+        agent_call = await call_llm(
+            messages=messages,
+            provider=provider,
+            model=model,
+            max_tokens=512  # Adjust as needed
         )
 
-        # Convert LLM response -> APIAction
         chosen_action = None
-        if action_out_call.parsed_output:
-            try:
-                ao = action_out_call.parsed_output
-                action_type_str = ao.get("action_type", "").upper()
 
-                if action_type_str == "STOP":
-                    action_type = APIActionType.STOP
-                elif action_type_str == "REQUEST_USER_INPUT":
-                    action_type = APIActionType.REQUEST_USER_INPUT
-                elif action_type_str == "GMAIL_LIST_MESSAGES":
-                    action_type = APIActionType.GMAIL_LIST_MESSAGES
-                elif action_type_str == "GMAIL_GET_MESSAGE":
-                    action_type = APIActionType.GMAIL_GET_MESSAGE
-                elif action_type_str == "GMAIL_SEND_EMAIL":
-                    action_type = APIActionType.GMAIL_SEND_EMAIL
-                elif action_type_str == "GMAIL_LIST_LABELS":
-                    action_type = APIActionType.GMAIL_LIST_LABELS
-                else:
-                    action_type = APIActionType.STOP  # fallback
+        # Process parsed_output
+        if agent_call.parsed_output:
+            # Iterate through all parsed JSON blocks
+            for parsed in agent_call.parsed_output:
+                if isinstance(parsed, dict) and "action_type" in parsed:
+                    try:
+                        action_type_str = parsed.get("action_type", "").upper()
 
-                chosen_action = APIAction(
-                    action_type=action_type,
-                    reason=ao.get("reason", "No reason provided"),
-                    parameters=ao.get("parameters", None)
-                )
-            except Exception as e:
-                print("Error extracting Gmail action from LLM:", e)
+                        # Map action_type_str to APIActionType Enum
+                        action_type_mapping = {
+                            "STOP": APIActionType.STOP,
+                            "REQUEST_USER_INPUT": APIActionType.REQUEST_USER_INPUT,
+                            "GMAIL_LIST_MESSAGES": APIActionType.GMAIL_LIST_MESSAGES,
+                            "GMAIL_GET_MESSAGE": APIActionType.GMAIL_GET_MESSAGE,
+                            "GMAIL_SEND_EMAIL": APIActionType.GMAIL_SEND_EMAIL,
+                            "GMAIL_LIST_LABELS": APIActionType.GMAIL_LIST_LABELS,
+                        }
 
-        # If we failed to parse or no valid action, default to STOP
+                        action_type = action_type_mapping.get(action_type_str, APIActionType.STOP)  # Fallback to STOP
+
+                        chosen_action = APIAction(
+                            action_type=action_type,
+                            reason=parsed.get("reason", "No reason provided"),
+                            parameters=parsed.get("parameters", None)
+                        )
+                        break  # Exit after finding the first valid action
+                    except Exception as e:
+                        print("Error mapping Gmail action type:", e)
+                        continue  # Try the next parsed JSON block
+
+        # If no valid action was parsed, default to STOP ?????
         if not chosen_action:
             chosen_action = APIAction(
                 action_type=APIActionType.STOP,
-                reason="Failed to parse LLM action or no valid action returned."
+                reason="Failed to parse LLM action or no valid action returned.",
+                parameters=None
             )
 
-        action_out_call.parsed_output = chosen_action
-        return action_out_call
+        # Update the parsed_output with the chosen_action
+        agent_call.parsed_output = chosen_action
+
+        return agent_call
+
+

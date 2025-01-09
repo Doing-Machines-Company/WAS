@@ -159,33 +159,37 @@ class APIAgent:
     async def run(self):
         """Main execution loop for the agent."""
 
-        # 1) If no task is set, ask user
-        if self.task is None:
-            self.task = await self.ask_user("What do you want to do with the API(s)?")
-            self.saved_trajectory.user_input_task = self.task
+        self.task = "What emails did I get today (Jan 8 2025)?"
+        self.task_notes = ""
 
-        # 2) Formulate clarifying questions
-        if not self.stop_event.is_set():
-            await self.formulate_questions()
-            for q in self.questions:
-                if self.stop_event.is_set():
-                    break
-                ans = await self.ask_user(q)
-                self.question_answers.append((q, ans))
+        # # 1) If no task is set, ask user
+        # if self.task is None:
+        #     self.task = await self.ask_user("What do you want to do with the API(s)?")
+        #     self.saved_trajectory.user_input_task = self.task
+        #
+        # # 2) Formulate clarifying questions
+        # if not self.stop_event.is_set():
+        #     await self.formulate_questions()
+        #     for q in self.questions:
+        #         if self.stop_event.is_set():
+        #             break
+        #         ans = await self.ask_user(q)
+        #         self.question_answers.append((q, ans))
+        #
+        # self.saved_trajectory.question_answers = self.question_answers
+        #
+        # # 3) Clean up user queries and build final self.task
+        # if not self.stop_event.is_set():
+        #     qclean_call = await call_unified_question_cleaner(self.task, self.question_answers)
+        #     if qclean_call.parsed_output:
+        #         self.task = qclean_call.parsed_output
+        #
+        #     context_call = await call_unified_context_cleaner(
+        #         self.task, self.task_notes, self.context_info
+        #     )
+        #     if context_call.parsed_output:
+        #         self.task_notes = context_call.parsed_output
 
-        self.saved_trajectory.question_answers = self.question_answers
-
-        # 3) Clean up user queries and build final self.task
-        if not self.stop_event.is_set():
-            qclean_call = await call_unified_question_cleaner(self.task, self.question_answers)
-            if qclean_call.parsed_output:
-                self.task = qclean_call.parsed_output
-
-            context_call = await call_unified_context_cleaner(
-                self.task, self.task_notes, self.context_info
-            )
-            if context_call.parsed_output:
-                self.task_notes = context_call.parsed_output
 
         # 4) Loop to process chosen actions from LLM
         while not self.stop_event.is_set():

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Tuple, Optional, Any
+from typing import List, Tuple, Optional, Any, Union
 
 @dataclass
 class LLMMessage:
@@ -22,4 +22,4 @@ class AgentCall:
     """
     messages: List[LLMMessage]           # UPDATED: store the entire list of messages
     llm_response: Any
-    parsed_output: Optional[Any] = None
+    parsed_output: Optional[List[Union[dict, list, str]]] = None
