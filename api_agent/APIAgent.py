@@ -1,33 +1,26 @@
 # api_agent.py
 
+import asyncio
+import copy
+import datetime
+import gc
 import os
 import pickle
 import time
-import copy
-import asyncio
-import gc
-import datetime
 
-from llama_index.core.schema import TextNode
-from llama_index.core import VectorStoreIndex
-
-from utils.trajectory_saves import SavedTrajectory, SavedTrajectoryNode
+from api_agent_classes import APIAction, APIActionType, APILinearMemory, APIType
+from api_functions import CanvasAPIHandler, GmailAPIHandler, GoogleCalendarAPIHandler
 from api_llm_handling import AgentCall
+from llama_index.core import VectorStoreIndex
+from llama_index.core.schema import TextNode
+
 from inferenceagent import (
+    call_intermediate_questions_agent,
     call_task_separator,
     call_unified_task_clarifier,
-    call_unified_question_cleaner,
-    call_unified_context_cleaner,
-    call_intermediate_questions_agent,
 )
-from api_agent_classes import (
-    APILinearMemory,
-    APIType,
-    APIAction,
-    APIActionType
-)
+from utils.trajectory_saves import SavedTrajectory, SavedTrajectoryNode
 
-from api_functions import GmailAPIHandler, GoogleCalendarAPIHandler
 
 class APIAgent:
     def __init__(self, fast_mode=False, api="gmail", retry_cap=10):
@@ -43,7 +36,7 @@ class APIAgent:
 
         # Inputs or prompts
         self.task = None  # The main user request
-        self.task_notes = ''  # Additional context
+        self.task_notes = ""  # Additional context
 
         # For LLM question/answer flows
         self.questions = []
@@ -79,27 +72,28 @@ class APIAgent:
             self.api_handler = GmailAPIHandler()
         elif self.api == APIType.GOOGLE_CALENDAR:
             self.api_handler = GoogleCalendarAPIHandler()
+        elif self.api == APIType.CANVAS:
+            self.api_handler = CanvasAPIHandler()
         else:
             raise ValueError(f"No handler available for API: {api}")
 
     def initialize_index(self):
         """Create an LLM-based index over some reference text (for clarifications, etc.)."""
         start = time.time()
-        with open('./data/factsNEW.txt', 'r') as f:
+        with open("./data/factsNEW.txt", "r") as f:
             doc = f.read()
 
-        chunks = doc.split('***')
+        chunks = doc.split("***")
         nodes = [TextNode(text=chunk, id_=i) for i, chunk in enumerate(chunks)]
         self.index = VectorStoreIndex(nodes)
         self.retriever = self.index.as_retriever(
-            vector_store_query_mode="mmr",
-            vector_store_kwargs={"mmr_threshold": 1}
+            vector_store_query_mode="mmr", vector_store_kwargs={"mmr_threshold": 1}
         )
         print("Index created in", time.time() - start, "seconds.")
 
     async def ask_user(self, question):
         """Ask the user a question asynchronously; wait for a response."""
-        await self.output_queue.put(('question', question))
+        await self.output_queue.put(("question", question))
         while not self.stop_event.is_set():
             try:
                 return await asyncio.wait_for(self.input_queue.get(), timeout=0.1)
@@ -139,13 +133,16 @@ class APIAgent:
 
         # Possibly load a known set of clarifying questions
         def read_questions():
-            with open('data/questions.txt', 'r') as f:
+            with open("data/questions.txt", "r") as f:
                 return f.read()
+
         question_text = await asyncio.to_thread(read_questions)
 
         # Let an LLM unify and figure out the best clarifying questions
         clarifier_call = await call_unified_task_clarifier(self.task, question_text)
-        self.questions = clarifier_call.parsed_output if clarifier_call.parsed_output else []
+        self.questions = (
+            clarifier_call.parsed_output if clarifier_call.parsed_output else []
+        )
 
     async def call_action(self, provider, model) -> AgentCall:
         """
@@ -154,7 +151,9 @@ class APIAgent:
 
         If called here directly, raise a NotImplementedError.
         """
-        raise NotImplementedError("Use a specialized agent subclass that implements call_action().")
+        raise NotImplementedError(
+            "Use a specialized agent subclass that implements call_action()."
+        )
 
     async def run(self):
         """Main execution loop for the agent."""
@@ -190,7 +189,6 @@ class APIAgent:
         #     if context_call.parsed_output:
         #         self.task_notes = context_call.parsed_output
 
-
         # 4) Loop to process chosen actions from LLM
         while not self.stop_event.is_set():
             try:
@@ -198,7 +196,9 @@ class APIAgent:
 
                 # a) LLM decides on next action => we get an `APIAction`
                 # NOTE: specialized classes override call_action(...)
-                action_out_call = await self.call_action(provider="cerebras", model="llama-3.3-70b")
+                action_out_call = await self.call_action(
+                    provider="cerebras", model="llama-3.3-70b"
+                )
                 chosen_action: APIAction = action_out_call.parsed_output
 
                 if not chosen_action:
@@ -217,7 +217,7 @@ class APIAgent:
                 # b) Handle special vs. API action
                 if action_type == APIActionType.STOP:
                     # End agent
-                    await self.output_queue.put(('exit_message', "Agent has stopped."))
+                    await self.output_queue.put(("exit_message", "Agent has stopped."))
                     self.stop()
                     break
 
@@ -225,9 +225,9 @@ class APIAgent:
                     # The agent wants additional user input
                     intermediate_call = await call_intermediate_questions_agent(
                         self.task,
-                        "",   # optionally pass partial context
+                        "",  # optionally pass partial context
                         action_reason,
-                        self.task_notes
+                        self.task_notes,
                     )
                     inter_questions = intermediate_call.parsed_output or []
                     for qq in inter_questions:
@@ -239,7 +239,7 @@ class APIAgent:
                     new_memory = APILinearMemory(
                         self.api,
                         call="request_user_input",
-                        received="Collected user input"
+                        received="Collected user input",
                     )
                     self.action_mem.append(new_memory)
 
@@ -262,9 +262,7 @@ class APIAgent:
                         self.failed_count = 0
                         # Store the action in memory
                         new_memory = APILinearMemory(
-                            self.api,
-                            call=action_type.value,
-                            received=str(result)
+                            self.api, call=action_type.value, received=str(result)
                         )
                         self.action_mem.append(new_memory)
 
@@ -294,10 +292,12 @@ class APIAgent:
     def stop(self):
         """Stop execution and save the trajectory to disk."""
         now = datetime.datetime.now()
-        filename = f"{self.saved_trajectory.user_input_task}_{now.strftime('%Y%m%d_%H%M')}.pkl"
-        directory = 'saved_trajectories'
+        filename = (
+            f"{self.saved_trajectory.user_input_task}_{now.strftime('%Y%m%d_%H%M')}.pkl"
+        )
+        directory = "saved_trajectories"
         if not os.path.exists(directory):
             os.makedirs(directory)
-        with open(os.path.join(directory, filename), 'wb') as f:
+        with open(os.path.join(directory, filename), "wb") as f:
             pickle.dump(self.saved_trajectory, f)
         self.stop_event.set()
