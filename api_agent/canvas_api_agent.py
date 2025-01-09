@@ -4,7 +4,7 @@ import os
 import string
 
 from api_agent_classes import APIAction, APIActionType
-from api_llm_handling import AgentCall
+from api_llm_handling import AgentCall, LLMMessage
 from call_llm import call_llm
 
 from api_agent import APIAgent
@@ -33,73 +33,94 @@ class CanvasAPIAgent(APIAgent):
         self, provider="cerebras", model="llama-3.3-70b"
     ) -> AgentCall:
         """
-        Overridden to produce a specialized prompt for Canvas actions.
+        Produces a specialized prompt for Canvas actions and processes the LLM response.
+
+        Args:
+            provider (str): The LLM provider to use.
+            model (str): The model name to use.
+
+        Returns:
+            AgentCall: The result of the LLM call, including the chosen action.
         """
 
         # Summarize the current memory of actions
         memory_text = ""
         for i, mem in enumerate(self.action_mem):
             memory_text += (
-                f"- Step {i+1} => Called: {mem.call} | Received: {mem.received}\n"
+                f"- Step {i + 1} => Called: {mem.call} | Received: {mem.received}\n"
             )
 
-        # The user request or final goal is in self.task, plus any self.task_notes
+        # Prepare user prompt replacements
         user_replacements = {
             "memory": memory_text.strip(),
             "task": self.task if self.task else "",
             "task_notes": self.task_notes if self.task_notes else "",
         }
 
-        # Substitute placeholders in the user prompt
+        # Perform string template substitution on the user prompt
         user_prompt_str = string.Template(self.canvas_user_prompt_template).substitute(
             user_replacements
         )
 
-        # Call the LLM
-        action_out_call = call_llm(
-            system_content=self.canvas_system_prompt,
-            user_content=user_prompt_str,
+        # Build LLM messages
+        messages = [
+            LLMMessage(message_role="system", content=self.canvas_system_prompt),
+            LLMMessage(message_role="user", content=user_prompt_str),
+        ]
+
+        # Call the LLM asynchronously
+        agent_call = await call_llm(
+            messages=messages,
+            provider=provider,
             model=model,
+            max_tokens=512,  # Adjust as needed
         )
 
         chosen_action = None
-        if action_out_call.parsed_output:
-            try:
-                ao = action_out_call.parsed_output
-                action_type_str = ao.get("action_type", "").upper()
 
-                if action_type_str == "STOP":
-                    action_type = APIActionType.STOP
-                elif action_type_str == "REQUEST_USER_INPUT":
-                    action_type = APIActionType.REQUEST_USER_INPUT
-                elif action_type_str == "CANVAS_LIST_ASSIGNMENTS":
-                    action_type = APIActionType.CANVAS_LIST_ASSIGNMENTS
-                elif action_type_str == "CANVAS_GET_ASSIGNMENT_DETAILS":
-                    action_type = APIActionType.CANVAS_GET_ASSIGNMENT_DETAILS
-                elif action_type_str == "CANVAS_LIST_MODULES":
-                    action_type = APIActionType.CANVAS_LIST_MODULES
-                elif action_type_str == "CANVAS_GET_MODULE_ITEMS":
-                    action_type = APIActionType.CANVAS_GET_MODULE_ITEMS
-                elif action_type_str == "CANVAS_GET_GRADES":
-                    action_type = APIActionType.CANVAS_GET_GRADES
-                elif action_type_str == "CANVAS_GET_SUBMISSION_HISTORY":
-                    action_type = APIActionType.CANVAS_GET_SUBMISSION_HISTORY
-                else:
-                    action_type = APIActionType.STOP
+        # Process parsed_output
+        if agent_call.parsed_output:
+            # Iterate through all parsed JSON blocks
+            for parsed in agent_call.parsed_output:
+                if isinstance(parsed, dict) and "action_type" in parsed:
+                    try:
+                        action_type_str = parsed.get("action_type", "").upper()
 
-                chosen_action = APIAction(
-                    action_type=action_type,
-                    reason=ao.get("reason", "No reason provided"),
-                    parameters=ao.get("parameters", None),
-                )
-            except Exception as e:
-                print("Error extracting Canvas action from LLM:", e)
+                        # Map action_type_str to APIActionType Enum
+                        action_type_mapping = {
+                            "STOP": APIActionType.STOP,
+                            "REQUEST_USER_INPUT": APIActionType.REQUEST_USER_INPUT,
+                            "CANVAS_LIST_ASSIGNMENTS": APIActionType.CANVAS_LIST_ASSIGNMENTS,
+                            "CANVAS_GET_ASSIGNMENT_DETAILS": APIActionType.CANVAS_GET_ASSIGNMENT_DETAILS,
+                            "CANVAS_LIST_MODULES": APIActionType.CANVAS_LIST_MODULES,
+                            "CANVAS_GET_MODULE_ITEMS": APIActionType.CANVAS_GET_MODULE_ITEMS,
+                            "CANVAS_GET_GRADES": APIActionType.CANVAS_GET_GRADES,
+                            "CANVAS_GET_SUBMISSION_HISTORY": APIActionType.CANVAS_GET_SUBMISSION_HISTORY,
+                        }
 
+                        action_type = action_type_mapping.get(
+                            action_type_str, APIActionType.STOP
+                        )  # Fallback to STOP
+
+                        chosen_action = APIAction(
+                            action_type=action_type,
+                            reason=parsed.get("reason", "No reason provided"),
+                            parameters=parsed.get("parameters", None),
+                        )
+                        break  # Exit after finding the first valid action
+                    except Exception as e:
+                        print("Error mapping Canvas action type:", e)
+                        continue  # Try the next parsed JSON block
+
+        # If no valid action was parsed, default to STOP ????
         if not chosen_action:
             chosen_action = APIAction(
                 action_type=APIActionType.STOP,
                 reason="Failed to parse LLM action or no valid action returned.",
+                parameters=None,
             )
 
-        action_out_call.parsed_output = chosen_action
-        return action_out_call
+        # Update the parsed_output with the chosen_action
+        agent_call.parsed_output = chosen_action
+
+        return agent_call
