@@ -11,15 +11,15 @@ import datetime
 from llama_index.core.schema import TextNode
 from llama_index.core import VectorStoreIndex
 
-from utils.trajectory_saves import SavedTrajectory, SavedTrajectoryNode
+# from utils.trajectory_saves import SavedTrajectory, SavedTrajectoryNode
 from api_llm_handling import AgentCall
-from inferenceagent import (
-    call_task_separator,
-    call_unified_task_clarifier,
-    call_unified_question_cleaner,
-    call_unified_context_cleaner,
-    call_intermediate_questions_agent,
-)
+# from inferenceagent import (
+#     call_task_separator,
+#     call_unified_task_clarifier,
+#     call_unified_question_cleaner,
+#     call_unified_context_cleaner,
+#     call_intermediate_questions_agent,
+# )
 from api_agent_classes import (
     APILinearMemory,
     APIType,
@@ -63,16 +63,13 @@ class APIAgent:
         self.failed_count = 0
         self.reload_count = 0
 
-        # For storing entire conversation
-        self.saved_trajectory = SavedTrajectory()
-        self.curr_save_node = None
 
         # Additional context from knowledge base
         self.context_info = ""
         self.item_context_pairs = ""
 
-        # Initialize the LLM index
-        self.initialize_index()
+        # # Initialize the LLM index
+        # self.initialize_index()
 
         # Initialize the correct API handler
         if self.api == APIType.GMAIL:
@@ -107,45 +104,45 @@ class APIAgent:
                 continue
         raise InterruptedError("Agent stopped")
 
-    async def formulate_questions(self):
-        """Use LLM calls to figure out clarifying questions about the user's task."""
-        # 1) Retrieve context
-        retrieved = self.retriever.retrieve(self.task)
-        self.context_info = "\n".join([node.get_content() for node in retrieved])
-
-        # 2) Identify interesting items
-        sep_call = await call_task_separator(self.task)
-        interesting_items = sep_call.parsed_output if sep_call.parsed_output else []
-
-        # 3) Build item-context pairs
-        def autoregressive_retrieve(query, k=2):
-            new_task = query
-            nodes = []
-            for i in range(k):
-                sub_retriever = self.index.as_retriever(similarity_top_k=i + 1)
-                new_node = sub_retriever.retrieve(new_task)[-1]
-                new_task += new_node.get_content()
-                nodes.append(new_node)
-            return nodes
-
-        pairs = []
-        for item in interesting_items:
-            sub_nodes = autoregressive_retrieve(item, k=2)
-            context_str = "".join(n.get_content() for n in sub_nodes)
-            pairs.append(f"Item: {item}\nContext: {context_str}")
-        self.item_context_pairs = "\n\n".join(pairs)
-
-        self.saved_trajectory.important_info = self.item_context_pairs
-
-        # Possibly load a known set of clarifying questions
-        def read_questions():
-            with open('data/questions.txt', 'r') as f:
-                return f.read()
-        question_text = await asyncio.to_thread(read_questions)
-
-        # Let an LLM unify and figure out the best clarifying questions
-        clarifier_call = await call_unified_task_clarifier(self.task, question_text)
-        self.questions = clarifier_call.parsed_output if clarifier_call.parsed_output else []
+    # async def formulate_questions(self):
+    #     """Use LLM calls to figure out clarifying questions about the user's task."""
+    #     # 1) Retrieve context
+    #     retrieved = self.retriever.retrieve(self.task)
+    #     self.context_info = "\n".join([node.get_content() for node in retrieved])
+    #
+    #     # 2) Identify interesting items
+    #     sep_call = await call_task_separator(self.task)
+    #     interesting_items = sep_call.parsed_output if sep_call.parsed_output else []
+    #
+    #     # 3) Build item-context pairs
+    #     def autoregressive_retrieve(query, k=2):
+    #         new_task = query
+    #         nodes = []
+    #         for i in range(k):
+    #             sub_retriever = self.index.as_retriever(similarity_top_k=i + 1)
+    #             new_node = sub_retriever.retrieve(new_task)[-1]
+    #             new_task += new_node.get_content()
+    #             nodes.append(new_node)
+    #         return nodes
+    #
+    #     pairs = []
+    #     for item in interesting_items:
+    #         sub_nodes = autoregressive_retrieve(item, k=2)
+    #         context_str = "".join(n.get_content() for n in sub_nodes)
+    #         pairs.append(f"Item: {item}\nContext: {context_str}")
+    #     self.item_context_pairs = "\n\n".join(pairs)
+    #
+    #     self.saved_trajectory.important_info = self.item_context_pairs
+    #
+    #     # Possibly load a known set of clarifying questions
+    #     def read_questions():
+    #         with open('data/questions.txt', 'r') as f:
+    #             return f.read()
+    #     question_text = await asyncio.to_thread(read_questions)
+    #
+    #     # Let an LLM unify and figure out the best clarifying questions
+    #     clarifier_call = await call_unified_task_clarifier(self.task, question_text)
+    #     self.questions = clarifier_call.parsed_output if clarifier_call.parsed_output else []
 
     async def call_action(self, provider, model) -> AgentCall:
         """
@@ -194,7 +191,6 @@ class APIAgent:
         # 4) Loop to process chosen actions from LLM
         while not self.stop_event.is_set():
             try:
-                self.curr_save_node = SavedTrajectoryNode()
 
                 # a) LLM decides on next action => we get an `APIAction`
                 # NOTE: specialized classes override call_action(...)
@@ -208,7 +204,6 @@ class APIAgent:
                         self.stop()
                     break
 
-                self.curr_save_node.ad_call = action_out_call
                 action_type = chosen_action.action_type
                 action_reason = chosen_action.reason
 
@@ -223,25 +218,26 @@ class APIAgent:
 
                 elif action_type == APIActionType.REQUEST_USER_INPUT:
                     # The agent wants additional user input
-                    intermediate_call = await call_intermediate_questions_agent(
-                        self.task,
-                        "",   # optionally pass partial context
-                        action_reason,
-                        self.task_notes
-                    )
-                    inter_questions = intermediate_call.parsed_output or []
-                    for qq in inter_questions:
-                        if self.stop_event.is_set():
-                            break
-                        _ = await self.ask_user(qq)
-
-                    # Record that we asked the user for input
-                    new_memory = APILinearMemory(
-                        self.api,
-                        call="request_user_input",
-                        received="Collected user input"
-                    )
-                    self.action_mem.append(new_memory)
+                    # intermediate_call = await call_intermediate_questions_agent(
+                    #     self.task,
+                    #     "",   # optionally pass partial context
+                    #     action_reason,
+                    #     self.task_notes
+                    # )
+                    # inter_questions = intermediate_call.parsed_output or []
+                    # for qq in inter_questions:
+                    #     if self.stop_event.is_set():
+                    #         break
+                    #     _ = await self.ask_user(qq)
+                    #
+                    # # Record that we asked the user for input
+                    # new_memory = APILinearMemory(
+                    #     self.api,
+                    #     call="request_user_input",
+                    #     received="Collected user input"
+                    # )
+                    # self.action_mem.append(new_memory)
+                    self.ask_user('bonk')
 
                 else:
                     # Perform the call using the chosen action type & parameters
@@ -268,9 +264,6 @@ class APIAgent:
                         )
                         self.action_mem.append(new_memory)
 
-                # d) Save step
-                self.saved_trajectory.add_node(copy.deepcopy(self.curr_save_node))
-
                 gc.collect()
 
             except Exception as e:
@@ -293,11 +286,11 @@ class APIAgent:
 
     def stop(self):
         """Stop execution and save the trajectory to disk."""
-        now = datetime.datetime.now()
-        filename = f"{self.saved_trajectory.user_input_task}_{now.strftime('%Y%m%d_%H%M')}.pkl"
-        directory = 'saved_trajectories'
-        if not os.path.exists(directory):
-            os.makedirs(directory)
-        with open(os.path.join(directory, filename), 'wb') as f:
-            pickle.dump(self.saved_trajectory, f)
+        # now = datetime.datetime.now()
+        # filename = f"{self.saved_trajectory.user_input_task}_{now.strftime('%Y%m%d_%H%M')}.pkl"
+        # directory = 'saved_trajectories'
+        # if not os.path.exists(directory):
+        #     os.makedirs(directory)
+        # with open(os.path.join(directory, filename), 'wb') as f:
+        #     pickle.dump(self.saved_trajectory, f)
         self.stop_event.set()

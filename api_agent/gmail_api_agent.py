@@ -59,6 +59,8 @@ class GmailAPIAgent(APIAgent):
             LLMMessage(message_role="user", content=user_prompt_str),
         ]
 
+        print("GOT HERE 1")
+
         # Call the LLM asynchronously
         agent_call = await call_llm(
             messages=messages,
@@ -67,8 +69,10 @@ class GmailAPIAgent(APIAgent):
             max_tokens=512  # Adjust as needed
         )
 
-        chosen_action = None
+        print(agent_call.llm_response)
 
+        chosen_action = None
+# Chosen APIAction:
         # Process parsed_output
         if agent_call.parsed_output:
             # Iterate through all parsed JSON blocks
@@ -113,3 +117,11 @@ class GmailAPIAgent(APIAgent):
         return agent_call
 
 
+if __name__ == "__main__":
+    import asyncio
+
+    # Instantiate an agent for Gmail
+    agent = GmailAPIAgent()
+
+    # Actually run the agent’s async loop
+    asyncio.run(agent.run())
