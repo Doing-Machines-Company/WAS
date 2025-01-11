@@ -14,8 +14,14 @@ from datetime import datetime, timedelta
 from api_agent_classes import APIAction, APIActionType
 # Import your param classes
 from api_type_classes.api_actions_params_gmail import (
-    GmailListMessagesParams, GmailGetMessageParams, GmailSendEmailParams, GmailListLabelsParams
+    GmailListMessagesParams,
+    GmailGetMessageParams,
+    GmailSendEmailParams,
+    GmailListLabelsParams,
+    GmailDeleteMessageParams,
+    GmailModifyMessageParams
 )
+
 from api_type_classes.api_actions_params_gcal import (
     CalendarListCalendarsParams, CalendarCreateEventParams, CalendarListEventsParams,
     CalendarUpdateEventParams, CalendarDeleteEventParams
@@ -57,7 +63,8 @@ class GmailAPIHandler:
 
     def perform_action(self, action: APIAction) -> Any:
         """
-        Route based on action.action_type to call the correct method with strongly typed parameters.
+        Central dispatcher that routes to the correct Gmail method
+        based on the action_type.
         """
         if action.action_type == APIActionType.GMAIL_LIST_MESSAGES:
             params = GmailListMessagesParams(**(action.parameters or {}))
@@ -75,13 +82,18 @@ class GmailAPIHandler:
             params = GmailListLabelsParams(**(action.parameters or {}))
             return self.list_labels(params)
 
+        elif action.action_type == APIActionType.GMAIL_DELETE_MESSAGE:
+            params = GmailDeleteMessageParams(**(action.parameters or {}))
+            return self.delete_message(params)
+
+        elif action.action_type == APIActionType.GMAIL_MODIFY_MESSAGE:
+            params = GmailModifyMessageParams(**(action.parameters or {}))
+            return self.modify_message(params)
+
         else:
             raise ValueError(f"Gmail: Unsupported action type: {action.action_type}")
 
     def list_messages(self, params: GmailListMessagesParams) -> Any:
-        """
-        Example method using typed parameters.
-        """
         label_ids = [params.labelId] if params.labelId else None
         result = self.service.users().messages().list(
             userId=params.userId,
@@ -118,11 +130,39 @@ class GmailAPIHandler:
         return result
 
     def list_labels(self, params: GmailListLabelsParams) -> Any:
-        """
-        List all labels for a user.
-        """
-        labels = self.service.users().labels().list(userId=params.userId).execute()
+        labels = self.service.users().labels().list(
+            userId=params.userId
+        ).execute()
         return labels.get('labels', [])
+
+    def delete_message(self, params: GmailDeleteMessageParams) -> Any:
+        """
+        Deletes the specified message (moves it to Trash, after which it may
+        eventually be removed permanently by Gmail).
+        """
+        self.service.users().messages().delete(
+            userId=params.userId,
+            id=params.messageId
+        ).execute()
+        return {"deleted_message_id": params.messageId, "status": "success"}
+
+    def modify_message(self, params: GmailModifyMessageParams) -> Any:
+        """
+        Apply or remove labels from a message.
+        For example, to mark spam or to apply a custom label.
+        """
+        body = {}
+        if params.addLabelIds:
+            body['addLabelIds'] = params.addLabelIds
+        if params.removeLabelIds:
+            body['removeLabelIds'] = params.removeLabelIds
+
+        response = self.service.users().messages().modify(
+            userId=params.userId,
+            id=params.messageId,
+            body=body
+        ).execute()
+        return response
 
 
 class GoogleCalendarAPIHandler:

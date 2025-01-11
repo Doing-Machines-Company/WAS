@@ -72,7 +72,6 @@ class GmailAPIAgent(APIAgent):
         print(agent_call.llm_response)
 
         chosen_action = None
-# Chosen APIAction:
         # Process parsed_output
         if agent_call.parsed_output:
             # Iterate through all parsed JSON blocks
@@ -89,6 +88,8 @@ class GmailAPIAgent(APIAgent):
                             "GMAIL_GET_MESSAGE": APIActionType.GMAIL_GET_MESSAGE,
                             "GMAIL_SEND_EMAIL": APIActionType.GMAIL_SEND_EMAIL,
                             "GMAIL_LIST_LABELS": APIActionType.GMAIL_LIST_LABELS,
+                            "GMAIL_DELETE_MESSAGE": APIActionType.GMAIL_DELETE_MESSAGE, # isn't in prompt
+                            "GMAIL_MODIFY_MESSAGE": APIActionType.GMAIL_MODIFY_MESSAGE # isn't in prompt
                         }
 
                         action_type = action_type_mapping.get(action_type_str, APIActionType.STOP)  # Fallback to STOP
@@ -98,6 +99,7 @@ class GmailAPIAgent(APIAgent):
                             reason=parsed.get("reason", "No reason provided"),
                             parameters=parsed.get("parameters", None)
                         )
+                        print(f"API ACTION SAFETY: {chosen_action.is_safe}")
                         break  # Exit after finding the first valid action
                     except Exception as e:
                         print("Error mapping Gmail action type:", e)

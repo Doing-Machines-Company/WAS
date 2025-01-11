@@ -1,12 +1,12 @@
 # api_actions_params_gmail.py
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List
 
 @dataclass
 class GmailListMessagesParams:
     """
     Parameters for the GMAIL_LIST_MESSAGES action.
-    e.g., only 'userId' and an optional 'labelId' to filter messages.
+    e.g., 'userId' and an optional 'labelId' to filter messages.
     """
     userId: str = "me"
     labelId: Optional[str] = None
@@ -29,7 +29,6 @@ class GmailSendEmailParams:
     to: str = "recipient@example.com"
     subject: str = "Test Email"
     body: str = "This is a test email."
-    # Optionally add cc, bcc, attachments, etc.
 
 @dataclass
 class GmailListLabelsParams:
@@ -37,3 +36,21 @@ class GmailListLabelsParams:
     Parameters for the GMAIL_LIST_LABELS action.
     """
     userId: str = "me"
+
+@dataclass
+class GmailDeleteMessageParams:
+    """
+    Parameters for the GMAIL_DELETE_MESSAGE action.
+    """
+    userId: str = "me"
+    messageId: str = ""
+
+@dataclass
+class GmailModifyMessageParams:
+    """
+    Parameters for the GMAIL_MODIFY_MESSAGE action, e.g. to label or unlabel a message.
+    """
+    userId: str = "me"
+    messageId: str = ""
+    addLabelIds: Optional[List[str]] = None
+    removeLabelIds: Optional[List[str]] = None
