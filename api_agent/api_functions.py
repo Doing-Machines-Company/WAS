@@ -12,14 +12,22 @@ from google.auth.transport.requests import Request
 from datetime import datetime, timedelta
 
 from api_agent_classes import APIAction, APIActionType
-# Import your param classes
+
 from api_type_classes.api_actions_params_gmail import (
+    # messages
     GmailListMessagesParams,
     GmailGetMessageParams,
     GmailSendEmailParams,
     GmailListLabelsParams,
     GmailDeleteMessageParams,
-    GmailModifyMessageParams
+    GmailModifyMessageParams,
+    # drafts
+    GmailListDraftsParams,
+    GmailGetDraftParams,
+    GmailCreateDraftParams,
+    GmailUpdateDraftParams,
+    GmailDeleteDraftParams,
+    GmailSendDraftParams
 )
 
 from api_type_classes.api_actions_params_gcal import (
@@ -63,83 +71,79 @@ class GmailAPIHandler:
 
     def perform_action(self, action: APIAction) -> Any:
         """
-        Central dispatcher that routes to the correct Gmail method
-        based on the action_type.
+        Dispatcher that calls the correct method based on the action_type.
         """
+        # Messages
         if action.action_type == APIActionType.GMAIL_LIST_MESSAGES:
-            params = GmailListMessagesParams(**(action.parameters or {}))
-            return self.list_messages(params)
-
+            return self.list_messages(GmailListMessagesParams(**action.parameters))
         elif action.action_type == APIActionType.GMAIL_GET_MESSAGE:
-            params = GmailGetMessageParams(**(action.parameters or {}))
-            return self.get_message(params)
-
+            return self.get_message(GmailGetMessageParams(**action.parameters))
         elif action.action_type == APIActionType.GMAIL_SEND_EMAIL:
-            params = GmailSendEmailParams(**(action.parameters or {}))
-            return self.send_email(params)
-
+            return self.send_email(GmailSendEmailParams(**action.parameters))
         elif action.action_type == APIActionType.GMAIL_LIST_LABELS:
-            params = GmailListLabelsParams(**(action.parameters or {}))
-            return self.list_labels(params)
-
+            return self.list_labels(GmailListLabelsParams(**action.parameters))
         elif action.action_type == APIActionType.GMAIL_DELETE_MESSAGE:
-            params = GmailDeleteMessageParams(**(action.parameters or {}))
-            return self.delete_message(params)
-
+            return self.delete_message(GmailDeleteMessageParams(**action.parameters))
         elif action.action_type == APIActionType.GMAIL_MODIFY_MESSAGE:
-            params = GmailModifyMessageParams(**(action.parameters or {}))
-            return self.modify_message(params)
+            return self.modify_message(GmailModifyMessageParams(**action.parameters))
+
+        # Drafts
+        elif action.action_type == APIActionType.GMAIL_LIST_DRAFTS:
+            return self.list_drafts(GmailListDraftsParams(**action.parameters))
+        elif action.action_type == APIActionType.GMAIL_GET_DRAFT:
+            return self.get_draft(GmailGetDraftParams(**action.parameters))
+        elif action.action_type == APIActionType.GMAIL_CREATE_DRAFT:
+            return self.create_draft(GmailCreateDraftParams(**action.parameters))
+        elif action.action_type == APIActionType.GMAIL_UPDATE_DRAFT:
+            return self.update_draft(GmailUpdateDraftParams(**action.parameters))
+        elif action.action_type == APIActionType.GMAIL_DELETE_DRAFT:
+            return self.delete_draft(GmailDeleteDraftParams(**action.parameters))
+        elif action.action_type == APIActionType.GMAIL_SEND_DRAFT:
+            return self.send_draft(GmailSendDraftParams(**action.parameters))
 
         else:
-            raise ValueError(f"Gmail: Unsupported action type: {action.action_type}")
+            raise ValueError(f"Unsupported Gmail action type: {action.action_type}")
 
+    # --------------------
+    # MESSAGES
+    # --------------------
     def list_messages(self, params: GmailListMessagesParams) -> Any:
         label_ids = [params.labelId] if params.labelId else None
-        result = self.service.users().messages().list(
+        resp = self.service.users().messages().list(
             userId=params.userId,
             labelIds=label_ids
         ).execute()
-        return result.get('messages', [])
+        return resp.get('messages', [])
 
     def get_message(self, params: GmailGetMessageParams) -> Any:
-        """
-        Retrieve a message with given ID and optional format.
-        """
-        response = self.service.users().messages().get(
+        resp = self.service.users().messages().get(
             userId=params.userId,
             id=params.messageId,
             format=params.format
         ).execute()
-        return response
+        return resp
 
     def send_email(self, params: GmailSendEmailParams) -> Any:
-        """
-        Example of sending an email with typed parameters.
-        """
-        message = MIMEText(params.body)
-        message['to'] = params.to
-        message['from'] = 'your-email@gmail.com'
-        message['subject'] = params.subject
+        msg = MIMEText(params.body)
+        msg['to'] = params.to
+        msg['from'] = 'your-email@gmail.com'
+        msg['subject'] = params.subject
 
-        raw = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode('utf-8')
         body = {'raw': raw}
-        result = self.service.users().messages().send(
+        resp = self.service.users().messages().send(
             userId=params.userId,
             body=body
         ).execute()
-        return result
+        return resp
 
     def list_labels(self, params: GmailListLabelsParams) -> Any:
-        labels = self.service.users().labels().list(
+        resp = self.service.users().labels().list(
             userId=params.userId
         ).execute()
-        return labels.get('labels', [])
+        return resp.get('labels', [])
 
     def delete_message(self, params: GmailDeleteMessageParams) -> Any:
-        """
-        Deletes the specified message (moves it to Trash, after which it may
-        eventually be removed permanently by Gmail).
-        """
         self.service.users().messages().delete(
             userId=params.userId,
             id=params.messageId
@@ -147,22 +151,115 @@ class GmailAPIHandler:
         return {"deleted_message_id": params.messageId, "status": "success"}
 
     def modify_message(self, params: GmailModifyMessageParams) -> Any:
-        """
-        Apply or remove labels from a message.
-        For example, to mark spam or to apply a custom label.
-        """
         body = {}
         if params.addLabelIds:
             body['addLabelIds'] = params.addLabelIds
         if params.removeLabelIds:
             body['removeLabelIds'] = params.removeLabelIds
 
-        response = self.service.users().messages().modify(
+        resp = self.service.users().messages().modify(
             userId=params.userId,
             id=params.messageId,
             body=body
         ).execute()
-        return response
+        return resp
+
+    # --------------------
+    # DRAFTS
+    # --------------------
+    def list_drafts(self, params: GmailListDraftsParams) -> Any:
+        resp = self.service.users().drafts().list(
+            userId=params.userId
+        ).execute()
+        return resp.get('drafts', [])
+
+    def get_draft(self, params: GmailGetDraftParams) -> Any:
+        resp = self.service.users().drafts().get(
+            userId=params.userId,
+            id=params.draftId,
+            format=params.format  # Some clients accept the 'format' param
+        ).execute()
+        return resp
+
+    def create_draft(self, params: GmailCreateDraftParams) -> Any:
+        msg = MIMEText(params.body)
+        msg['to'] = params.to
+        msg['from'] = 'your-email@gmail.com'
+        msg['subject'] = params.subject
+
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode('utf-8')
+        request_body = {"message": {"raw": raw}}
+
+        resp = self.service.users().drafts().create(
+            userId=params.userId,
+            body=request_body
+        ).execute()
+        return resp
+
+    def update_draft(self, params: GmailUpdateDraftParams) -> Any:
+        """
+
+        NEEDS TO BE BETTER, but we aren't supporting writing/editing for MVP
+
+        :param params:
+        :return:
+        """
+        # 1) Fetch existing draft
+        old_draft = self.service.users().drafts().get(
+            userId=params.userId,
+            id=params.draftId
+        ).execute()
+
+        old_msg = old_draft.get("message", {})
+        headers = old_msg.get("payload", {}).get("headers", [])
+
+        # 2) Determine new fields or fallback to old
+        new_to = params.new_to or self._extract_header(headers, "to") or "someone@example.com"
+        new_subject = params.new_subject or self._extract_header(headers, "subject") or "No Subject"
+        new_body = params.new_body or "(empty body)"
+
+        # 3) Build new MIME
+        mime_msg = MIMEText(new_body)
+        mime_msg['to'] = new_to
+        mime_msg['from'] = 'your-email@gmail.com'
+        mime_msg['subject'] = new_subject
+
+        raw = base64.urlsafe_b64encode(mime_msg.as_bytes()).decode('utf-8')
+        request_body = {
+            "id": params.draftId,
+            "message": {"raw": raw}
+        }
+
+        # 4) Update
+        updated = self.service.users().drafts().update(
+            userId=params.userId,
+            id=params.draftId,
+            body=request_body
+        ).execute()
+        return updated
+
+    def delete_draft(self, params: GmailDeleteDraftParams) -> Any:
+        self.service.users().drafts().delete(
+            userId=params.userId,
+            id=params.draftId
+        ).execute()
+        return {"deleted_draft_id": params.draftId, "status": "success"}
+
+    def send_draft(self, params: GmailSendDraftParams) -> Any:
+        resp = self.service.users().drafts().send(
+            userId=params.userId,
+            body={"id": params.draftId}
+        ).execute()
+        return resp
+
+    def _extract_header(self, headers, name):
+        """
+        Helper to find a particular header in a message payload
+        """
+        for h in headers:
+            if h.get("name", "").lower() == name.lower():
+                return h.get("value", "")
+        return ""
 
 
 class GoogleCalendarAPIHandler:

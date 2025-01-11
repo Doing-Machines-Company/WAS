@@ -1,26 +1,25 @@
-import time
+# gmail_new_mail_agent.py
+
 import logging
-from typing import Optional, List, Callable
+from typing import Optional, List, Callable, Tuple
+
+from googleapiclient.errors import HttpError
 
 from passive_api_agent import PassiveAPIAgent
-from api_functions import GmailAPIHandler
 from api_agent_classes import APIAction, APIActionType
-from api_type_classes.api_actions_params_gmail import GmailGetMessageParams
-from googleapiclient.errors import HttpError
+from api_functions import GmailAPIHandler
+from api_type_classes.api_actions_params_gmail import (
+    GmailGetMessageParams,
+    GmailGetDraftParams
+)
 
 logger = logging.getLogger(__name__)
 
 class GmailNewMailAgent(PassiveAPIAgent):
     """
-    A passive agent that:
-      1) Periodically checks the Gmail History API for newly 'messageAdded' events
-         restricted to one or more Gmail labels,
-      2) Optionally starts from a user-provided last_history_id (else ignores older mail on first run),
-      3) For each new message, retrieves it and applies a user-supplied criteria_func,
-      4) Stores matching messages, and can invoke an on_new_mails callback for immediate access.
-
-    This version avoids the "Invalid label value in query" by making a separate History API call
-    for each label and merging the results.
+    A 'passive' agent that polls Gmail's History API for newly added messages/drafts
+    in specified labels.
+    If label set includes "DRAFT", we call GMAIL_GET_DRAFT; otherwise GMAIL_GET_MESSAGE.
     """
 
     def __init__(
@@ -31,155 +30,140 @@ class GmailNewMailAgent(PassiveAPIAgent):
         label_ids: Optional[List[str]] = None,
         last_history_id: Optional[str] = None
     ):
-        """
-        :param check_interval_seconds: Interval (in seconds) to poll for new mail.
-        :param gmail_handler: A GmailAPIHandler instance (if None, create a new one).
-        :param criteria_func: A function taking a message dict -> bool for matching criteria.
-        :param label_ids: One or more Gmail label IDs. Defaults to ["INBOX"] if not specified.
-        :param last_history_id: If provided, the agent starts from this history ID 
-                                rather than ignoring older mail.
-        """
-        super().__init__(check_interval_seconds=check_interval_seconds)
+        super().__init__(check_interval_seconds)
         self.gmail_handler = gmail_handler or GmailAPIHandler()
         self.criteria_func = criteria_func
         self.label_ids = label_ids or ["INBOX"]
-        self.last_history_id: Optional[str] = last_history_id  # If None, we get it on first run
+        self.last_history_id = last_history_id
+        self._matching_mails: List[dict] = []
+        self.on_new_mails: Optional[Callable[[List[dict]], None]] = None
 
-        self._matching_mails: List[dict] = []  # All matched messages so far
-        self.on_new_mails: Optional[Callable[[List[dict]], None]] = None  # Callback for new matches
-
-    async def check_condition(self) -> bool:
+    async def handle_polling(self):
         """
-        Called every X seconds:
-          - Fetch the current historyId from getProfile().
-          - If self.last_history_id is None, store the current ID and ignore older mail (first run).
-          - Else, if new_history != old_history => condition is True (new mail or changes).
+        Combines the logic of:
+          - checking if historyId changed,
+          - if so, fetching new items,
+          - retrieving them as message or draft,
+          - applying criteria_func,
+          - storing matches.
         """
-        new_history_id = self._fetch_current_history_id()
-        if not new_history_id:
-            logger.warning("GmailNewMailAgent => Could not fetch current historyId.")
-            return False
-
-        # If we have no saved historyId, set it now (ignore older mail)
-        if not self.last_history_id:
-            self.last_history_id = new_history_id
-            logger.info("GmailNewMailAgent => first run, ignoring older mail.")
-            return False
-
-        # If the historyId changed => new mail or label changes
-        if new_history_id != self.last_history_id:
-            logger.info(f"GmailNewMailAgent => new mail detected. old={self.last_history_id}, new={new_history_id}")
-            return True
-
-        logger.info("GmailNewMailAgent => no new mail.")
-        return False
-
-    async def perform_actions(self):
-        """
-        If condition is True => fetch newly 'messageAdded' between old_history_id and new_history_id
-        for each label in label_ids, combine unique message IDs, retrieve them, and apply criteria_func.
-        """
-        old_history = self.last_history_id
-        new_history = self._fetch_current_history_id()
-        if not old_history or not new_history:
+        new_hid = self._fetch_current_history_id()
+        if not new_hid:
+            logger.warning("GmailNewMailAgent => could not fetch current historyId.")
             return
 
-        changed_msg_ids = self._fetch_changed_message_ids(old_history, new_history)
-        logger.info(
-            f"GmailNewMailAgent => Found {len(changed_msg_ids)} new message(s) since historyId={old_history}."
-        )
+        # If we never had a last_history_id, skip older mail
+        if not self.last_history_id:
+            self.last_history_id = new_hid
+            logger.info("GmailNewMailAgent => first run, ignoring older mail.")
+            return
 
-        iteration_new_matches = []
-        for msg_id in changed_msg_ids:
-            get_msg_action = APIAction(
-                action_type=APIActionType.GMAIL_GET_MESSAGE,
-                parameters=GmailGetMessageParams(
-                    userId="me",
-                    messageId=msg_id,
-                    format="full"
-                ).__dict__
-            )
+        if new_hid != self.last_history_id:
+            logger.info(f"GmailNewMailAgent => history change detected. old={self.last_history_id}, new={new_hid}")
+            changed_items = self._fetch_changed_ids_for_labels(self.last_history_id, new_hid)
+            logger.info(f"GmailNewMailAgent => found {len(changed_items)} new item(s).")
 
-            # Attempt to retrieve the message
-            try:
-                msg_details = self.gmail_handler.perform_action(get_msg_action)
-            except HttpError as http_err:
-                status_code = http_err.resp.status
-                if status_code == 404:
-                    logger.warning(f"Message {msg_id} not found (404). Possibly deleted or moved.")
-                    continue
+            iteration_new = []
+            for msg_id, label_list in changed_items:
+                if "DRAFT" in label_list:
+                    # It's a draft
+                    action = APIAction(
+                        action_type=APIActionType.GMAIL_GET_DRAFT,
+                        parameters=GmailGetDraftParams(draftId=msg_id).__dict__
+                    )
+                    logger.info(f"GmailNewMailAgent => DRAFT detected with {msg_id}")
                 else:
-                    logger.error(f"Error retrieving message {msg_id}: {http_err}")
-                    continue
+                    # It's a normal message
+                    action = APIAction(
+                        action_type=APIActionType.GMAIL_GET_MESSAGE,
+                        parameters=GmailGetMessageParams(messageId=msg_id).__dict__
+                    )
 
-            # Check if this message meets user criteria
-            if msg_details and self.criteria_func(msg_details):
-                logger.info(f"Message {msg_id} met criteria. Storing.")
-                iteration_new_matches.append(msg_details)
+                # ---- NEW: Catch ephemeral or missing items
+                # NEEDS TO BE THOUGHT ABOUT BETTER, though it won't matter for MVP
+                # I have no clue why we would ever need to check info about an ephemeral draft anyways
+                try:
+                    result = self.gmail_handler.perform_action(action)
+                except HttpError as e:
+                    if e.resp.status == 404:
+                        logger.warning(
+                            f"Item {msg_id} could not be retrieved (404). "
+                            "Likely an ephemeral or removed draft/message. Skipping."
+                        )
+                        continue
+                    else:
+                        raise e
+                # ---- end new logic
 
-        self._matching_mails.extend(iteration_new_matches)
+                # If we did retrieve it, check if it meets criteria
+                if result and self.criteria_func(result):
+                    iteration_new.append(result)
 
-        # If new matches AND we have a callback => notify the main loop immediately
-        if iteration_new_matches and self.on_new_mails:
-            self.on_new_mails(iteration_new_matches)
+            self._matching_mails.extend(iteration_new)
+            if iteration_new and self.on_new_mails:
+                self.on_new_mails(iteration_new)
 
-        self.last_history_id = new_history
+            self.last_history_id = new_hid
+        else:
+            logger.info("GmailNewMailAgent => no new mail/drafts.")
 
     def _fetch_current_history_id(self) -> Optional[str]:
         """
-        Retrieves the latest 'historyId' via getProfile. Returns None if error.
+        Retrieve the latest historyId from getProfile().
         """
         try:
-            profile = self.gmail_handler.service.users().getProfile(userId='me').execute()
-            return profile.get('historyId')
+            prof = self.gmail_handler.service.users().getProfile(userId='me').execute()
+            return prof.get('historyId')
         except Exception as e:
             logger.error(f"Failed to fetch current historyId: {e}")
             return None
 
-    def _fetch_changed_message_ids(self, old_history_id: str, new_history_id: str) -> List[str]:
+    def _fetch_changed_ids_for_labels(self, old_hid: str, new_hid: str) -> List[Tuple[str, List[str]]]:
         """
-        Calls the Gmail History API for each label in self.label_ids (one call per labelId) 
-        to find newly 'messageAdded' between old_history_id and new_history_id.
-        Then merges the resulting message IDs into a set (avoids duplicates if a message 
-        has multiple labels).
+        We do one call per label in self.label_ids, each time specifying:
+          - startHistoryId=old_hid
+          - historyTypes=["messageAdded"]
+          - labelId=the label
+        We gather all items in a dict: msg_id -> set of labelIds
+        Then convert to a list of (msg_id, label_list).
         """
-        all_msg_ids = set()
 
-        for label in self.label_ids:
+        all_map = {}  # msg_id => set(labelIds)
+
+        for lbl in self.label_ids:
             page_token = None
-
-            try:
-                while True:
-                    response = self.gmail_handler.service.users().history().list(
+            while True:
+                try:
+                    resp = self.gmail_handler.service.users().history().list(
                         userId='me',
-                        startHistoryId=old_history_id,
+                        startHistoryId=old_hid,
                         historyTypes=["messageAdded"],
-                        labelId=label,  # single labelId param => no bracketed list
+                        labelId=lbl,
                         pageToken=page_token
                     ).execute()
 
-                    history_list = response.get('history', [])
-                    for history_item in history_list:
-                        for added_obj in history_item.get('messagesAdded', []):
-                            msg_obj = added_obj.get('message')
-                            if msg_obj and 'id' in msg_obj:
-                                all_msg_ids.add(msg_obj['id'])
+                    logger.info(f"GmailNewMailAgent => Here is the response {resp}")
 
-                    page_token = response.get('nextPageToken')
+                    # Parse
+                    for record in resp.get('history', []):
+                        for added in record.get('messagesAdded', []):
+                            msg_obj = added.get('message', {})
+                            mid = msg_obj.get('id')
+                            labs = msg_obj.get('labelIds', [])
+                            if mid:
+                                if mid not in all_map:
+                                    all_map[mid] = set()
+                                all_map[mid].update(labs)
+
+                    page_token = resp.get('nextPageToken')
                     if not page_token:
                         break
+                except HttpError as e:
+                    logger.error(f"Error calling history API for label={lbl}: {e}")
+                    break
 
-            except HttpError as e:
-                logger.error(
-                    "Error while fetching changed message IDs via Gmail History API. "
-                    "Possibly startHistoryId is invalid or too old.\n"
-                    f"Exception: {e}"
-                )
-
-        return list(all_msg_ids)
+        # Return as list of (msg_id, label_list)
+        return [(mid, list(labels)) for mid, labels in all_map.items()]
 
     def get_matching_mails(self) -> List[dict]:
-        """
-        Return all messages that have matched so far (for all time).
-        """
         return self._matching_mails

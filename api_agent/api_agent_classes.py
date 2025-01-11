@@ -23,37 +23,48 @@ class APIType(enum.Enum):
                 f"Valid options are: {[e.value for e in cls]}"
             )
 
+
 class APIActionType(enum.Enum):
     """
-    An Enum storing both a string value and a boolean 'is_safe' to indicate
-    irreversible (or destructive) actions.
+    We store (string_value, is_safe):
+      - 'is_safe' = True  => not destructive
+      - 'is_safe' = False => destructive / irreversible
     Override __new__ to attach the extra 'is_safe' field.
     """
 
     def __new__(cls, value: str, is_safe: bool):
         obj = object.__new__(cls)
-        obj._value_ = value      # Store the string (e.g., "gmail_delete_message") as the enum value
-        obj.is_safe = is_safe    # Custom attribute
+        obj._value_ = value
+        obj.is_safe = is_safe
         return obj
 
     # Special (non-API) actions
-    STOP = ("stop", False)
-    REQUEST_USER_INPUT = ("request_user_input", False)
+    STOP = ("stop", True)
+    REQUEST_USER_INPUT = ("request_user_input", True)
 
-    # Gmail actions
-    GMAIL_LIST_MESSAGES = ("gmail_list_messages", False)
-    GMAIL_GET_MESSAGE = ("gmail_get_message", False)
-    GMAIL_SEND_EMAIL = ("gmail_send_email", True)       # Irreversible: sends mail
-    GMAIL_LIST_LABELS = ("gmail_list_labels", False)
-    GMAIL_DELETE_MESSAGE = ("gmail_delete_message", True)  # Destructive
-    GMAIL_MODIFY_MESSAGE = ("gmail_modify_message", False) # E.g. labeling isn't destructive
+    # Gmail: messages
+    GMAIL_LIST_MESSAGES = ("gmail_list_messages", True)
+    GMAIL_GET_MESSAGE = ("gmail_get_message", True)
+    GMAIL_SEND_EMAIL = ("gmail_send_email", False)  # Irreversible: actually sends mail
+    GMAIL_LIST_LABELS = ("gmail_list_labels", True)
+    GMAIL_DELETE_MESSAGE = ("gmail_delete_message", False)  # Destructive
+    GMAIL_MODIFY_MESSAGE = ("gmail_modify_message", True)
 
-    # Google Calendar actions
-    CALENDAR_LIST_CALENDARS = ("calendar_list_calendars", False)
-    CALENDAR_CREATE_EVENT = ("calendar_create_event", True)
-    CALENDAR_LIST_EVENTS = ("calendar_list_events", False)
-    CALENDAR_UPDATE_EVENT = ("calendar_update_event", False)
-    CALENDAR_DELETE_EVENT = ("calendar_delete_event", True)
+    # Gmail: drafts
+    GMAIL_LIST_DRAFTS = ("gmail_list_drafts", True)
+    GMAIL_GET_DRAFT = ("gmail_get_draft", True)
+    GMAIL_CREATE_DRAFT = ("gmail_create_draft", True)
+    GMAIL_UPDATE_DRAFT = ("gmail_update_draft", True)
+    GMAIL_DELETE_DRAFT = ("gmail_delete_draft", False)  # destructive for the draft
+    GMAIL_SEND_DRAFT = ("gmail_send_draft", False)  # sends the draft => irreversible
+
+    # Google Calendar
+    CALENDAR_LIST_CALENDARS = ("calendar_list_calendars", True)
+    CALENDAR_CREATE_EVENT = ("calendar_create_event", False)
+    CALENDAR_LIST_EVENTS = ("calendar_list_events", True)
+    CALENDAR_UPDATE_EVENT = ("calendar_update_event", True)
+    CALENDAR_DELETE_EVENT = ("calendar_delete_event", False)
+
 
 @dataclass
 class APILinearMemory:
@@ -64,6 +75,7 @@ class APILinearMemory:
     api_type: APIType
     call: str          # e.g., the API action name or details
     received: str      # e.g., the response from the API call
+
 
 @dataclass
 class APIAction:
@@ -80,7 +92,7 @@ class APIAction:
     @property
     def is_safe(self) -> bool:
         """
-        Shortcut property to reveal whether this action is potentially destructive
-        (true if the enum's is_safe == True).
+        If the action is not destructive => True
+        If destructive => False
         """
         return self.action_type.is_safe

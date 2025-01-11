@@ -1,6 +1,11 @@
-# api_actions_params_gmail.py
+# api_type_classes/api_actions_params_gmail.py
+
 from dataclasses import dataclass
 from typing import Optional, List
+
+# -------------------------------------
+# Messages
+# -------------------------------------
 
 @dataclass
 class GmailListMessagesParams:
@@ -17,8 +22,8 @@ class GmailGetMessageParams:
     Parameters for the GMAIL_GET_MESSAGE action.
     """
     userId: str = "me"
-    messageId: str = "-1"
-    format: Optional[str] = None  # e.g., 'full', 'raw', etc.
+    messageId: str = ""
+    format: Optional[str] = "full"
 
 @dataclass
 class GmailSendEmailParams:
@@ -54,3 +59,42 @@ class GmailModifyMessageParams:
     messageId: str = ""
     addLabelIds: Optional[List[str]] = None
     removeLabelIds: Optional[List[str]] = None
+
+# -------------------------------------
+# Drafts
+# -------------------------------------
+
+@dataclass
+class GmailListDraftsParams:
+    userId: str = "me"
+
+@dataclass
+class GmailGetDraftParams:
+    userId: str = "me"
+    draftId: str = ""
+    format: Optional[str] = "full"
+
+@dataclass
+class GmailCreateDraftParams:
+    userId: str = "me"
+    to: str = "recipient@example.com"
+    subject: str = "Draft Subject"
+    body: str = "Draft body..."
+
+@dataclass
+class GmailUpdateDraftParams:
+    userId: str = "me"
+    draftId: str = ""
+    new_to: Optional[str] = None
+    new_subject: Optional[str] = None
+    new_body: Optional[str] = None
+
+@dataclass
+class GmailDeleteDraftParams:
+    userId: str = "me"
+    draftId: str = ""
+
+@dataclass
+class GmailSendDraftParams:
+    userId: str = "me"
+    draftId: str = ""
