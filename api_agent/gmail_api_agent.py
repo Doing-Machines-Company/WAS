@@ -2,22 +2,26 @@
 
 import os
 import string
+import asyncio
 
-from api_agent_classes import APIAction, APIActionType
+from api_agent_classes import APIAction, APIActionType, APILinearMemory
 from api_agent import APIAgent
 from api_llm_handling import AgentCall, LLMMessage
 from call_llm import call_llm
+from api_functions import GmailAPIHandler
 
 class GmailAPIAgent(APIAgent):
-    def __init__(self, fast_mode=False, retry_cap=10):
+    def __init__(self, task="", fast_mode=False, retry_cap=10):
         super().__init__(fast_mode=fast_mode, api="gmail", retry_cap=retry_cap)
 
+        self.task = "what are my emails"
+
         # Load the system prompt from a dedicated file
-        system_prompt_path = os.path.join("api_prompts", "gmail_system.txt")
+        system_prompt_path = os.path.join("api_prompts/gmail", "gmail_system.txt")
         self.gmail_system_prompt = self.load_file(system_prompt_path)
 
         # Load the user prompt template from another file
-        user_prompt_path = os.path.join("api_prompts", "gmail_user.txt")
+        user_prompt_path = os.path.join("api_prompts/gmail", "gmail_user.txt")
         self.gmail_user_prompt_template = self.load_file(user_prompt_path)
 
     def load_file(self, file_path: str) -> str:
@@ -26,6 +30,20 @@ class GmailAPIAgent(APIAgent):
             raise FileNotFoundError(f"Prompt file not found: {file_path}")
         with open(file_path, "r", encoding="utf-8") as f:
             return f.read()
+
+    def initialize_api_handler(self):
+        """Initialize the Gmail API handler."""
+        return GmailAPIHandler()
+
+    async def setup(self):
+        """Setup tasks specific to GmailAPIAgent."""
+        pass
+
+    def initialize_index(self):
+        """Create an LLM-based index over some reference text (for clarifications, etc.)."""
+        # Implementation specific to Gmail, e.g., indexing emails or labels
+        # Placeholder for actual indexing logic
+        pass
 
     async def call_action(self, provider: str = "cerebras", model: str = "llama-3.3-70b") -> AgentCall:
         """
@@ -59,7 +77,7 @@ class GmailAPIAgent(APIAgent):
             LLMMessage(message_role="user", content=user_prompt_str),
         ]
 
-        print("GOT HERE 1")
+        print("Preparing to call LLM for action determination.")
 
         # Call the LLM asynchronously
         agent_call = await call_llm(
@@ -69,7 +87,7 @@ class GmailAPIAgent(APIAgent):
             max_tokens=512  # Adjust as needed
         )
 
-        print(agent_call.llm_response)
+        print(f"LLM Response: {agent_call.llm_response}")
 
         chosen_action = None
         # Process parsed_output
@@ -88,8 +106,8 @@ class GmailAPIAgent(APIAgent):
                             "GMAIL_GET_MESSAGE": APIActionType.GMAIL_GET_MESSAGE,
                             "GMAIL_SEND_EMAIL": APIActionType.GMAIL_SEND_EMAIL,
                             "GMAIL_LIST_LABELS": APIActionType.GMAIL_LIST_LABELS,
-                            "GMAIL_DELETE_MESSAGE": APIActionType.GMAIL_DELETE_MESSAGE, # isn't in prompt
-                            "GMAIL_MODIFY_MESSAGE": APIActionType.GMAIL_MODIFY_MESSAGE # isn't in prompt
+                            "GMAIL_DELETE_MESSAGE": APIActionType.GMAIL_DELETE_MESSAGE,
+                            "GMAIL_MODIFY_MESSAGE": APIActionType.GMAIL_MODIFY_MESSAGE
                         }
 
                         action_type = action_type_mapping.get(action_type_str, APIActionType.STOP)  # Fallback to STOP
@@ -99,13 +117,13 @@ class GmailAPIAgent(APIAgent):
                             reason=parsed.get("reason", "No reason provided"),
                             parameters=parsed.get("parameters", None)
                         )
-                        print(f"API ACTION SAFETY: {chosen_action.is_safe}")
+                        print(f"Chosen APIAction: {chosen_action.action_type} | Reason: {chosen_action.reason}")
                         break  # Exit after finding the first valid action
                     except Exception as e:
                         print("Error mapping Gmail action type:", e)
                         continue  # Try the next parsed JSON block
 
-        # If no valid action was parsed, default to STOP ?????
+        # If no valid action was parsed, default to STOP
         if not chosen_action:
             chosen_action = APIAction(
                 action_type=APIActionType.STOP,
@@ -118,9 +136,66 @@ class GmailAPIAgent(APIAgent):
 
         return agent_call
 
+    async def handle_actions(self, action: APIAction):
+        """
+        Handle the given APIAction. This includes executing the action using the API handler,
+        managing user interactions, and updating memory.
+
+        Args:
+            action (APIAction): The action to handle.
+        """
+        action_type = action.action_type
+        action_reason = action.reason
+
+        print(f"Handling APIAction: {action_type} | Reason: {action_reason}")
+
+        if action_type == APIActionType.STOP:
+            # End agent
+            await self.output_queue.put(('exit_message', "Gmail Agent has stopped."))
+            self.stop()
+
+        elif action_type == APIActionType.REQUEST_USER_INPUT:
+            # Ask user for specific input
+            question = action.parameters.get("question", "Please provide additional information.")
+            user_input = await self.ask_user(question)
+
+            # Store the response in context
+            self.context_info += f"User input: {user_input}\n"
+            self.question_answers.append((question, user_input))
+
+            # Record the action in memory
+            new_memory = APILinearMemory(
+                self.api,
+                call="REQUEST_USER_INPUT",
+                received=user_input
+            )
+            self.action_mem.append(new_memory)
+
+        else:
+            # Perform the API action using the API handler
+            try:
+                result = self.api_handler.perform_action(action)
+                success = True
+                print(f"API call result: {result}")
+            except Exception as e:
+                print(f"API call failed: {e}")
+                success = False
+
+            if not success:
+                self.failed_count += 1
+                if self.failed_count > self.retry_cap:
+                    self.stop()
+            else:
+                self.failed_count = 0
+                # Store the action in memory
+                new_memory = APILinearMemory(
+                    self.api,
+                    call=action_type.value,
+                    received=str(result)
+                )
+                self.action_mem.append(new_memory)
 
 if __name__ == "__main__":
-    import asyncio
 
     # Instantiate an agent for Gmail
     agent = GmailAPIAgent()

@@ -24,7 +24,7 @@ You can choose exactly one action from the following list for each step:
 
 4) GMAIL_LIST_LABELS
    parameters: {
-       "userId": "me"
+       "question": "Which days would you like to check?"
    }
 
 5) REQUEST_USER_INPUT
