@@ -6,7 +6,7 @@ import pickle
 from datetime import datetime
 from email.mime.text import MIMEText
 from typing import Any
-
+import requests
 from api_agent_classes import APIAction, APIActionType
 from api_type_classes.api_actions_params_canvas import (
     CanvasGetAssignmentDetailsParams,
@@ -15,6 +15,12 @@ from api_type_classes.api_actions_params_canvas import (
     CanvasGetSubmissionHistoryParams,
     CanvasListAssignmentsParams,
     CanvasListModulesParams,
+    CanvasListPagesParams,
+    CanvasGetPageParams,
+    CanvasListCoursesParams,
+    CanvasGetSyllabusParams,
+    CanvasListFilesParams,
+    CanvasGetFileParams
 )
 from api_type_classes.api_actions_params_gcal import (
     CalendarCreateEventParams,
@@ -243,7 +249,7 @@ class CanvasAPIHandler:
 
     def create_service(self) -> Canvas:
         credentials = None
-
+        print(os.getcwd())
         if os.path.exists("canvas.json"):
             with open("canvas.json", "r") as credentials_file:
                 # `credentials` is a dictionary with two keys: `url` and `token`
@@ -281,9 +287,39 @@ class CanvasAPIHandler:
         elif action.action_type == APIActionType.CANVAS_GET_SUBMISSION_HISTORY:
             params = CanvasGetSubmissionHistoryParams(**(action.parameters or {}))
             return self.get_submission_history(params)
+        
+        elif action.action_type == APIActionType.CANVAS_LIST_COURSES:
+            params = CanvasListCoursesParams(**(action.parameters or {}))
+            return self.list_courses(params)
+
+        elif action.action_type == APIActionType.CANVAS_GET_SYLLABUS:
+            params = CanvasGetSyllabusParams(**(action.parameters or {}))
+            return self.get_syllabus(params)
+
+        elif action.action_type == APIActionType.CANVAS_LIST_PAGES:
+            params = CanvasListPagesParams(**(action.parameters or {}))
+            return self.list_pages(params)
+
+        elif action.action_type == APIActionType.CANVAS_GET_PAGE:
+            params = CanvasGetPageParams(**(action.parameters or {}))
+            return self.get_page(params)
+
+        elif action.action_type == APIActionType.CANVAS_LIST_FILES:
+            params = CanvasListFilesParams(**(action.parameters or {}))
+            return self.list_files(params)
+        
+        elif action.action_type == APIActionType.CANVAS_GET_FILE:
+            params = CanvasGetFileParams(**(action.parameters or {}))
+            return self.get_file(params)
 
         else:
             raise ValueError(f"Canvas: Unsupported action type: {action.action_type}")
+    def list_courses(self, params: CanvasListCoursesParams) -> Any:
+        """
+        Lists active courses for a given user
+
+        """
+        return list(self.service.get_courses(enrollment_state=['active']))
 
     def list_assignments(self, params: CanvasListAssignmentsParams) -> Any:
         """
@@ -331,3 +367,78 @@ class CanvasAPIHandler:
         return assignment.get_submission(
             self.service.get_current_user().id, include=params.include
         )
+    def get_syllabus(self, params: CanvasGetSyllabusParams) -> Any:
+        """
+        Get the syllabus content from the dedicated syllabus page of a course.
+        
+        Args:
+            params: CanvasGetSyllabusParams containing course_id
+            
+        Returns:
+            dict: Contains syllabus_body (HTML content) and usage data
+        """
+        course = self.service.get_course(params.course_id)
+        return {
+            'syllabus_body': course.syllabus_body,
+            'syllabus_usage': course.syllabus_usage
+        }
+    def list_pages(self, params: CanvasListPagesParams) -> Any:
+        """
+        List all wiki pages in a course.
+        
+        Args:
+            params: CanvasListPagesParams containing course_id and optional search parameters
+            
+        Returns:
+            list: All pages in the course
+        """
+        course = self.service.get_course(params.course_id)
+        return list(course.get_pages())
+    def get_page(self, params: CanvasGetPageParams) -> Any:
+        """
+        Get a specific page by URL or ID.
+        
+        Args:
+            params: CanvasGetPageParams containing course_id and page_url/page_id
+            
+        Returns:
+            Page: The requested page object
+        """
+        course = self.service.get_course(params.course_id)
+        return course.get_page(params.page_url)
+
+    def list_files(self, params: CanvasListFilesParams) -> Any:
+        """
+        List files in a course.
+        
+        Args:
+            params: CanvasListFilesParams containing course_id and optional search parameters
+            
+        Returns:
+            list: Files in the course matching search criteria
+        """
+        course = self.service.get_course(params.course_id)
+        return list(course.get_files())
+    
+    def get_file(self, params: CanvasGetFileParams) -> bytes:
+        """
+        Download a file from Canvas and return its raw bytes.
+        Suitable for passing directly to LLMs or other processors.
+        
+        Args:
+            params: CanvasGetFileParams containing course_id and file_id
+            
+        Returns:
+            bytes: Raw file content
+            
+        Raises:
+            Exception: If file download fails
+        """
+        course = self.service.get_course(params.course_id)
+        file = course.get_file(params.file_id)
+        
+        response = requests.get(file.url)
+        if response.status_code != 200:
+            raise Exception(f"Failed to download file: {response.status_code}")
+        
+        return response.content

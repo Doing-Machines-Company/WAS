@@ -14,12 +14,12 @@ from api_llm_handling import AgentCall
 from llama_index.core import VectorStoreIndex
 from llama_index.core.schema import TextNode
 
-from inferenceagent import (
-    call_intermediate_questions_agent,
-    call_task_separator,
-    call_unified_task_clarifier,
-)
-from utils.trajectory_saves import SavedTrajectory, SavedTrajectoryNode
+# from inferenceagent import (
+#     call_intermediate_questions_agent,
+#     call_task_separator,
+#     call_unified_task_clarifier,
+# )
+# from utils.trajectory_saves import SavedTrajectory, SavedTrajectoryNode
 
 
 class APIAgent:
@@ -55,10 +55,6 @@ class APIAgent:
         # Track attempts
         self.failed_count = 0
         self.reload_count = 0
-
-        # For storing entire conversation
-        self.saved_trajectory = SavedTrajectory()
-        self.curr_save_node = None
 
         # Additional context from knowledge base
         self.context_info = ""
@@ -158,7 +154,7 @@ class APIAgent:
     async def run(self):
         """Main execution loop for the agent."""
 
-        self.task = "What emails did I get today (Jan 8 2025)?"
+        self.task = "What courses do I have"
         self.task_notes = ""
 
         # # 1) If no task is set, ask user

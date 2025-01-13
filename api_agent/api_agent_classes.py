@@ -43,14 +43,18 @@ class APIActionType(enum.Enum):
     CALENDAR_DELETE_EVENT = "calendar_delete_event"
 
     # Canvas
+    CANVAS_LIST_COURSES = "canvas_list_courses"
     CANVAS_LIST_ASSIGNMENTS = "canvas_list_assignments"
     CANVAS_GET_ASSIGNMENT_DETAILS = "canvas_get_assignment_details"
     CANVAS_LIST_MODULES = "canvas_list_modules"
     CANVAS_GET_MODULE_ITEMS = "canvas_get_module_items"
     CANVAS_GET_GRADES = "canvas_get_grades"
     CANVAS_GET_SUBMISSION_HISTORY = "canvas_get_submission_history"
-
-
+    CANVAS_LIST_PAGES = "canvas_list_pages"
+    CANVAS_GET_PAGE = "canvas_get_page"
+    CANVAS_GET_SYLLABUS = "canvas_get_syllabus"
+    CANVAS_LIST_FILES = "canvas_list_files"
+    CANVAS_GET_FILE = "canvas_get_file"
 @dataclass
 class APILinearMemory:
     """

@@ -90,12 +90,18 @@ class CanvasAPIAgent(APIAgent):
                         action_type_mapping = {
                             "STOP": APIActionType.STOP,
                             "REQUEST_USER_INPUT": APIActionType.REQUEST_USER_INPUT,
+                            "CANVAS_LIST_COURSES": APIActionType.CANVAS_LIST_COURSES,
                             "CANVAS_LIST_ASSIGNMENTS": APIActionType.CANVAS_LIST_ASSIGNMENTS,
                             "CANVAS_GET_ASSIGNMENT_DETAILS": APIActionType.CANVAS_GET_ASSIGNMENT_DETAILS,
                             "CANVAS_LIST_MODULES": APIActionType.CANVAS_LIST_MODULES,
                             "CANVAS_GET_MODULE_ITEMS": APIActionType.CANVAS_GET_MODULE_ITEMS,
                             "CANVAS_GET_GRADES": APIActionType.CANVAS_GET_GRADES,
                             "CANVAS_GET_SUBMISSION_HISTORY": APIActionType.CANVAS_GET_SUBMISSION_HISTORY,
+                            "CANVAS_GET_FILE": APIActionType.CANVAS_GET_FILE,
+                            "CANVAS_GET_SYLLABUS": APIActionType.CANVAS_GET_SYLLABUS,
+                            "CANVAS_LIST_PAGES": APIActionType.CANVAS_LIST_PAGES,
+                            "CANVAS_GET_PAGE": APIActionType.CANVAS_GET_PAGE,
+                            "CANVAS_LIST_FILES": APIActionType.CANVAS_LIST_FILES,
                         }
 
                         action_type = action_type_mapping.get(

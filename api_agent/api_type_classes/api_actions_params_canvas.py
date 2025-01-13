@@ -5,6 +5,13 @@ from typing import List, Optional
 
 
 @dataclass
+class CanvasListCoursesParams:
+    """
+    Parameters for the CANVAS_LIST_COURSES action.
+    Lists all ACTIVE courses visible to the student in a course.
+    """
+    pass
+@dataclass
 class CanvasListAssignmentsParams:
     """
     Parameters for the CANVAS_LIST_ASSIGNMENTS action.
@@ -76,3 +83,47 @@ class CanvasGetSubmissionHistoryParams:
     include: Optional[List[str]] = (
         None  # ['submission_comments', 'grade', 'rubric_assessment']
     )
+
+@dataclass
+class CanvasGetSyllabusParams:
+    """
+    Parameters for the CANVAS_GET_SYLLABUS action.
+    Gets the syllabus from the dedicated syllabus page of a course if it exists.
+    """
+
+    course_id: int
+
+@dataclass
+class CanvasListPagesParams:
+    """
+    Parameters for the CANVAS_LIST_PAGES action.
+    Lists all the pages in a course.
+    """
+    
+    course_id: int
+
+@dataclass
+class CanvasGetPageParams:
+    """
+    Parameters for the CANVAS_GET_PAGE action
+    Returns the contents of a canvas page
+    """
+    course_id: int
+    page_url: str
+
+@dataclass
+class CanvasListFilesParams:
+    """
+    Parameters for the CANVAS_LIST_FILES action
+    Lists all the files in a course.
+    """
+    course_id: int
+
+@dataclass
+class CanvasGetFileParams:
+    """
+    Parameters for the CANVAS_GET_FILE action
+    Gets the raw bytes from a canvas file.
+    """
+    course_id: int
+    file_id: int
