@@ -14,7 +14,7 @@ class GmailAPIAgent(APIAgent):
     def __init__(self, task="", fast_mode=False, retry_cap=10):
         super().__init__(fast_mode=fast_mode, api="gmail", retry_cap=retry_cap)
 
-        self.task = "what are my emails"
+        self.task = task
 
         # Load the system prompt from a dedicated file
         system_prompt_path = os.path.join("api_prompts/gmail", "gmail_system.txt")
@@ -198,7 +198,7 @@ class GmailAPIAgent(APIAgent):
 if __name__ == "__main__":
 
     # Instantiate an agent for Gmail
-    agent = GmailAPIAgent()
+    agent = GmailAPIAgent(task="what are my emails")
 
     # Actually run the agent’s async loop
     asyncio.run(agent.run())

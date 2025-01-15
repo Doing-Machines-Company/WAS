@@ -1,4 +1,4 @@
-# main.py
+# passivegmailtest.py
 
 import asyncio
 import logging
