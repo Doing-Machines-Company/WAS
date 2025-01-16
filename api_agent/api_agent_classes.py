@@ -65,6 +65,23 @@ class APIActionType(enum.Enum):
     CALENDAR_UPDATE_EVENT = ("calendar_update_event", True)
     CALENDAR_DELETE_EVENT = ("calendar_delete_event", False)
 
+    # Google Tasks
+    # Tasklists
+    TASKS_LIST_TASKLISTS = ("tasks_list_tasklists", True)
+    TASKS_GET_TASKLIST = ("tasks_get_tasklist", True)
+    TASKS_CREATE_TASKLIST = ("tasks_create_tasklist", False)
+    TASKS_UPDATE_TASKLIST = ("tasks_update_tasklist", True)
+    TASKS_DELETE_TASKLIST = ("tasks_delete_tasklist", False)
+
+    # Tasks
+    TASKS_LIST_TASKS = ("tasks_list_tasks", True)
+    TASKS_GET_TASK = ("tasks_get_task", True)
+    TASKS_CREATE_TASK = ("tasks_create_task", False)
+    TASKS_UPDATE_TASK = ("tasks_update_task", True)
+    TASKS_DELETE_TASK = ("tasks_delete_task", False)
+    TASKS_CLEAR_COMPLETED_TASKS = ("tasks_clear_completed_tasks", False)
+    TASKS_MOVE_TASK = ("tasks_move_task", True)
+
 
 @dataclass
 class APILinearMemory:

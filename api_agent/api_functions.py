@@ -43,7 +43,9 @@ SCOPES = [
     'https://www.googleapis.com/auth/gmail.send',
     'https://www.googleapis.com/auth/calendar',
     'https://www.googleapis.com/auth/calendar.events',
-    'https://www.googleapis.com/auth/calendar.events.readonly'
+    'https://www.googleapis.com/auth/calendar.events.readonly',
+    'https://www.googleapis.com/auth/tasks',
+    'https://www.googleapis.com/auth/tasks.readonly'
 ]
 
 def authenticate():
@@ -348,3 +350,137 @@ class GoogleCalendarAPIHandler:
             eventId=params.event_id
         ).execute()
         return {"status": "deleted", "event_id": params.event_id}
+
+class GoogleTasksAPIHandler:
+    def __init__(self):
+        self.creds = authenticate()
+        self.service = build('tasks', 'v1', credentials=self.creds)
+
+    def list_tasklists(self) -> Any:
+        """
+        Lists all the user's task lists.
+        """
+        resp = self.service.tasklists().list().execute()
+        return resp.get("items", [])
+
+    def get_tasklist(self, tasklist_id: str) -> Any:
+        """
+        Retrieves a single task list by ID.
+        """
+        return self.service.tasklists().get(tasklist=tasklist_id).execute()
+
+    def create_tasklist(self, title: str) -> Any:
+        """
+        Creates a new task list with the given title.
+        """
+        body = {"title": title}
+        return self.service.tasklists().insert(body=body).execute()
+
+    def update_tasklist(self, tasklist_id: str, new_title: str) -> Any:
+        """
+        Updates the title of a task list.
+        """
+        body = {"title": new_title}
+        return self.service.tasklists().update(tasklist=tasklist_id, body=body).execute()
+
+    def delete_tasklist(self, tasklist_id: str) -> Any:
+        """
+        Deletes a task list.
+        """
+        self.service.tasklists().delete(tasklist=tasklist_id).execute()
+        return {"status": "deleted", "tasklist_id": tasklist_id}
+
+    # --------------------------------------------------------
+    # Task methods
+    # --------------------------------------------------------
+
+    def list_tasks(
+        self,
+        tasklist_id: str,
+        show_completed: bool = True,
+        show_deleted: bool = False,
+        show_hidden: bool = False,
+        updated_min: str = None
+    ) -> Any:
+        """
+        Retrieves tasks in a specified task list, optionally filtering by updatedMin
+        and whether to show completed/deleted/hidden tasks.
+        """
+        params = {
+            "tasklist": tasklist_id,
+            "showCompleted": show_completed,
+            "showDeleted": show_deleted,
+            "showHidden": show_hidden,
+        }
+        if updated_min:
+            params["updatedMin"] = updated_min
+
+        resp = self.service.tasks().list(**params).execute()
+        return resp.get("items", [])
+
+    def get_task(self, tasklist_id: str, task_id: str) -> Any:
+        """
+        Retrieves a specific task by ID from the specified task list.
+        """
+        return self.service.tasks().get(
+            tasklist=tasklist_id,
+            task=task_id
+        ).execute()
+
+    def create_task(self, tasklist_id: str, title: str, notes: str = None, due: str = None) -> Any:
+        """
+        Creates a new task in the specified task list.
+        """
+        body = {"title": title}
+        if notes:
+            body["notes"] = notes
+        if due:
+            body["due"] = due  # must be RFC3339 date/time
+
+        return self.service.tasks().insert(tasklist=tasklist_id, body=body).execute()
+
+    def update_task(self, tasklist_id: str, task_id: str, fields_to_update: dict) -> Any:
+        """
+        Updates an existing task. fields_to_update can contain any valid task fields:
+          - title, notes, due, status, etc.
+        """
+        task = self.service.tasks().get(tasklist=tasklist_id, task=task_id).execute()
+        for key, val in fields_to_update.items():
+            task[key] = val
+
+        return self.service.tasks().update(
+            tasklist=tasklist_id,
+            task=task_id,
+            body=task
+        ).execute()
+
+    def delete_task(self, tasklist_id: str, task_id: str) -> Any:
+        """
+        Deletes a task from the specified task list.
+        """
+        self.service.tasks().delete(tasklist=tasklist_id, task=task_id).execute()
+        return {"status": "deleted", "task_id": task_id}
+
+    def clear_completed_tasks(self, tasklist_id: str) -> Any:
+        """
+        Clears all completed tasks from the specified task list.
+        """
+        self.service.tasks().clear(tasklist=tasklist_id).execute()
+        return {"status": "cleared_completed", "tasklist_id": tasklist_id}
+
+    def move_task(self, tasklist_id: str, task_id: str, parent: str = None, previous: str = None) -> Any:
+        """
+        Moves the specified task to another position.
+        'parent' can be a task ID to make it a subtask,
+        'previous' can be a task ID to place it immediately after that sibling.
+        """
+        params = {
+            "tasklist": tasklist_id,
+            "task": task_id,
+        }
+        if parent:
+            params["parent"] = parent
+        if previous:
+            params["previous"] = previous
+
+        return self.service.tasks().move(**params).execute()
