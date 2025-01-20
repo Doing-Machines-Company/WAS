@@ -17,16 +17,11 @@ class GCalEventChangeAgent(PassiveAPIAgent):
     """
     A 'passive' agent that polls Google Calendar for changes to events.
 
-    Features:
-      - We do either a full fetch if no sync token or an incremental fetch if we have a sync token.
-      - Locally, we maintain a time window [now - X hours, now + Y hours].
-      - We keep an event cache of items that are currently in-window (or are still tracked if previously in-window).
-      - We keep an _active_tracking_set for events that have ever passed criteria_func while in-window.
-        Once in the active set, they remain until the event is:
-          (1) pruned for being outside the time window, OR
-          (2) actually deleted from the user’s calendar (status="cancelled").
-      - We log details about how many events are added/removed from the cache and active set.
-      - We print out event_cache size and active_tracking_set size at every poll.
+    Updates per your requests:
+      1) Each event in _event_cache now maintains a 'current' snapshot
+         plus a 'versions' list to track all historical changes.
+      2) If an event in the active set is deleted (status=cancelled),
+         a callback is fired.
     """
 
     def __init__(
@@ -48,14 +43,30 @@ class GCalEventChangeAgent(PassiveAPIAgent):
         self.time_window_past_hours = time_window_past_hours
         self.time_window_future_hours = time_window_future_hours
 
-        # Where we store event data
+        # Where we store event data (including historical versions).
+        #
+        # Structure:
+        #   _event_cache[event_id] = {
+        #       "current": <dict> the current snapshot of the event,
+        #       "versions": [    # list of snapshots (dict) representing historical changes
+        #           {
+        #               "timestamp": <datetime of the poll when change was seen>,
+        #               "event": <the event data at that point in time>
+        #           },
+        #           ...
+        #       ]
+        #   }
+        #
         self._event_cache: Dict[str, dict] = {}
+
         # Events that have met criteria while in-window (remain unless pruned or deleted)
         self._active_tracking_set: set = set()
-        # Chronological record of changes
+
+        # Chronological record of changes (lightweight "change_type + diffs" log)
         self._all_changes: List[dict] = []
 
-        # Optional callback for changes to events in _active_tracking_set
+        # Optional callback for changes to events *in* _active_tracking_set
+        # or if a tracked event is deleted.
         self.on_tracked_event_changed: Optional[Callable[[dict], None]] = None
 
         # We track if we've done a first fetch yet (for logging)
@@ -68,7 +79,7 @@ class GCalEventChangeAgent(PassiveAPIAgent):
         and log a summary of how many items are in our cache and active set.
         """
         for cal_id in self.calendar_ids:
-            # We track how many items we add/remove in this poll
+            # Keep counters for logging
             self._added_to_cache = 0
             self._removed_from_cache = 0
             self._added_to_active_set = 0
@@ -77,10 +88,10 @@ class GCalEventChangeAgent(PassiveAPIAgent):
             if not self._last_sync_token:
                 # No sync token => full fetch
                 if not self._did_initial_fetch:
-                    logger.info(f"[GCalEventChangeAgent] No syncToken => doing FIRST-RUN full fetch for {cal_id}.")
+                    logger.info(f"[GCalEventChangeAgent] No syncToken => FIRST-RUN full fetch for {cal_id}.")
                     self._did_initial_fetch = True
                 else:
-                    logger.info(f"[GCalEventChangeAgent] No syncToken => doing normal full fetch for {cal_id}.")
+                    logger.info(f"[GCalEventChangeAgent] No syncToken => normal full fetch for {cal_id}.")
                 await self._handle_full_fetch(cal_id)
             else:
                 # We have a sync token => incremental fetch
@@ -181,80 +192,102 @@ class GCalEventChangeAgent(PassiveAPIAgent):
     def _process_incremental_change(self, ev: dict) -> bool:
         """
         Compare event vs our cache => figure out 'created','updated','deleted','no-change'.
-        If it's in window, keep/update in cache; if out of window, remove from cache.
-        If it's in active set, we do a callback on real changes (not 'no-change').
+        If in the time window, keep/update in the cache. If out of window, remove from cache.
+        If it's in the active set, we do a callback on real changes. Also, if an active item
+        is deleted, we trigger the callback.
 
-        Return True if the final result is that the event is in the time window, else False.
+        Returns True if the final result is that the event is in the time window, else False.
         """
-        # Default to out_of_timeframe
-        in_timeframe = False
-
         ev_id = ev.get("id", "")
+        # figure out the type of change
         change_description = self._describe_change(ev)
+        change_type = change_description["change_type"]
         self._all_changes.append(change_description)
 
+        # were we tracking this event before?
         old_in_cache = (ev_id in self._event_cache)
         old_in_active = (ev_id in self._active_tracking_set)
 
-        change_type = change_description["change_type"]
         if change_type == "deleted":
-            # The user has deleted/cancelled the event.
-            # According to your new rule:
-            #   => Remove it from the active set, because it's truly removed from the calendar
+            # The user has deleted/cancelled the event from the calendar
+            #
+            # 1) If it was in the active set, trigger callback, then remove from active
+            if old_in_active and self.on_tracked_event_changed:
+                self.on_tracked_event_changed(change_description)
             if old_in_active:
                 self._active_tracking_set.remove(ev_id)
                 self._removed_from_active_set += 1
-            # Keep it in cache if still in timeframe?
-            # If you want to keep 'cancelled' events in the window until they pass:
-            if self._within_time_window(ev):
-                # If it was never in the cache, we add it
-                if not old_in_cache:
-                    self._event_cache[ev_id] = ev
+
+            # 2) Possibly update or remove it in the cache:
+            #    If still within window, we keep a final "deleted" version
+            #    so that the historical record is there if needed.
+            in_timeframe = self._within_time_window(ev)
+            if in_timeframe:
+                # If it wasn't in the cache, create a record
+                rec = self._event_cache.get(ev_id)
+                if not rec:
+                    rec = {"current": None, "versions": []}
+                    self._event_cache[ev_id] = rec
                     self._added_to_cache += 1
-                else:
-                    # Just update the cache
-                    self._event_cache[ev_id] = ev
-                in_timeframe = True
+
+                # add this new version to the history
+                if change_type != "no-change":
+                    rec["versions"].append({
+                        "timestamp": datetime.utcnow(),
+                        "event": ev.copy()
+                    })
+                # mark current
+                rec["current"] = ev
+
             else:
-                # It's out of the window => remove from cache if present
+                # if it was in the cache, remove it entirely
                 if old_in_cache:
                     del self._event_cache[ev_id]
                     self._removed_from_cache += 1
-        else:
-            # Not deleted => check if in time window
-            if self._within_time_window(ev):
-                in_timeframe = True
-                if not old_in_cache:
-                    self._event_cache[ev_id] = ev
-                    self._added_to_cache += 1
-                else:
-                    # it was in the cache, just update it
-                    self._event_cache[ev_id] = ev
 
-                # If it EVER meets criteria while in-window, we add to the active set.
-                # We do NOT remove it from active set if it fails the criteria now
-                # (the new #2 requirement).
+        else:
+            # It's not deleted => normal event
+            in_timeframe = self._within_time_window(ev)
+            if in_timeframe:
+                # update or create in cache
+                rec = self._event_cache.get(ev_id)
+                if not rec:
+                    rec = {"current": None, "versions": []}
+                    self._event_cache[ev_id] = rec
+                    self._added_to_cache += 1
+
+                # If there's an actual change (created or updated), store a snapshot in versions
+                if change_type != "no-change":
+                    rec["versions"].append({
+                        "timestamp": datetime.utcnow(),
+                        "event": ev.copy()
+                    })
+
+                # Update current event
+                rec["current"] = ev
+
+                # If it meets criteria and wasn't previously in active => add
                 if self.criteria_func(ev) and not old_in_active:
                     self._active_tracking_set.add(ev_id)
                     self._added_to_active_set += 1
+
             else:
-                # out of timeframe => remove from cache if it was there
+                # Out of timeframe => prune from cache if present
                 if old_in_cache:
                     del self._event_cache[ev_id]
                     self._removed_from_cache += 1
-                # If it was in the active set, it remains there only if we wanted to keep out-of-window items.
-                # But typically, once out of timeframe, we prune it from active as well.
-                # So let's remove it from active set:
+
+                # Also remove it from active set
                 if old_in_active:
                     self._active_tracking_set.remove(ev_id)
                     self._removed_from_active_set += 1
 
-        # If it's in the active set now and the change_type != no-change => callback
-        new_in_active = (ev_id in self._active_tracking_set)
-        if new_in_active and change_type != "no-change" and self.on_tracked_event_changed:
-            self.on_tracked_event_changed(change_description)
+            # If new_in_active and there's a real change => callback
+            new_in_active = (ev_id in self._active_tracking_set)
+            if new_in_active and change_type != "no-change" and self.on_tracked_event_changed:
+                self.on_tracked_event_changed(change_description)
 
-        return in_timeframe
+        return self._within_time_window(ev)
 
     def _describe_change(self, ev: dict) -> dict:
         """
@@ -265,7 +298,8 @@ class GCalEventChangeAgent(PassiveAPIAgent):
         """
         ev_id = ev.get("id", "")
         status = ev.get("status", "")
-        old_event = self._event_cache.get(ev_id, {})
+        rec = self._event_cache.get(ev_id)
+        old_event = rec["current"] if rec else {}
 
         if status == "cancelled":
             change_type = "deleted"
@@ -357,8 +391,13 @@ class GCalEventChangeAgent(PassiveAPIAgent):
         Also remove them from active set if they get pruned.
         """
         to_remove = []
-        for ev_id, ev in self._event_cache.items():
-            if not self._within_time_window(ev):
+        for ev_id, rec in self._event_cache.items():
+            current_event = rec["current"]
+            if not current_event:
+                # If there's no actual event data, remove
+                to_remove.append(ev_id)
+                continue
+            if not self._within_time_window(current_event):
                 to_remove.append(ev_id)
 
         for ev_id in to_remove:
@@ -372,8 +411,7 @@ class GCalEventChangeAgent(PassiveAPIAgent):
         """
         Poll immediately (full or incremental), then recalc _active_tracking_set
         with the new criteria, but don't remove items from it if they fail the new criteria
-        (since once tracked, we keep them unless deleted or out-of-window).
-        Then prune out-of-window again, and log final sizes.
+        (once tracked, we keep them unless deleted or out-of-window).
         """
         self.criteria_func = new_criteria_func
 
@@ -391,8 +429,8 @@ class GCalEventChangeAgent(PassiveAPIAgent):
                 logger.info(f"[GCalEventChangeAgent] new_criteria_reset => incremental fetch for {cal_id}.")
                 await self._handle_incremental_fetch(cal_id)
 
-        # At this point we do NOT remove anything from active set if it fails the new criteria,
-        # because once tracked, we keep it until pruned or deleted.
+        # Don't forcibly remove anything from the active set if they fail the new criteria now.
+        # We only remove them if they go out of window or are deleted.
 
         # Then prune out-of-window
         self.prune_out_of_window_events()
@@ -408,23 +446,29 @@ class GCalEventChangeAgent(PassiveAPIAgent):
 
     def get_all_changes(self) -> List[dict]:
         """
-        Chronological list of all changes observed so far.
+        Chronological list of all changes observed so far (lightweight).
         """
         return self._all_changes
 
     def get_active_tracked_events(self) -> List[dict]:
         """
-        Return the list of actual event objects for all IDs in the active set
-        (that remain in the cache).
+        Return the list of *current* event objects for all IDs in the active set
+        that remain in the cache.
         """
-        return [
-            self._event_cache[eid]
-            for eid in self._active_tracking_set
-            if eid in self._event_cache
-        ]
+        results = []
+        for ev_id in self._active_tracking_set:
+            if ev_id in self._event_cache:
+                rec = self._event_cache[ev_id]
+                if rec["current"]:
+                    results.append(rec["current"])
+        return results
 
     def get_in_window_events(self) -> List[dict]:
         """
-        Return all events currently in our local in-window cache.
+        Return all *current* events in our local in-window cache.
         """
-        return list(self._event_cache.values())
+        return [
+            rec["current"]
+            for rec in self._event_cache.values()
+            if rec["current"] is not None
+        ]
