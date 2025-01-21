@@ -88,7 +88,7 @@ async def main():
         label_ids=["INBOX"],                      # watch changes for threads that appear in INBOX
         last_history_id=None                      # if None, will set it at start
     )
-    agent.on_new_matching_threads = on_new_threads_callback
+    agent.on_tracked_change = on_new_threads_callback
 
     # Start the agent in the background
     task = asyncio.create_task(agent.start())

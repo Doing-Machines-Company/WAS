@@ -67,7 +67,7 @@ class GCalEventChangeAgent(PassiveAPIAgent):
 
         # Optional callback for changes to events *in* _active_tracking_set
         # or if a tracked event is deleted.
-        self.on_tracked_event_changed: Optional[Callable[[dict], None]] = None
+        self.on_tracked_change: Optional[Callable[[dict], None]] = None
 
         # We track if we've done a first fetch yet (for logging)
         self._did_initial_fetch = False
@@ -212,8 +212,8 @@ class GCalEventChangeAgent(PassiveAPIAgent):
             # The user has deleted/cancelled the event from the calendar
             #
             # 1) If it was in the active set, trigger callback, then remove from active
-            if old_in_active and self.on_tracked_event_changed:
-                self.on_tracked_event_changed(change_description)
+            if old_in_active and self.on_tracked_change:
+                self.on_tracked_change(change_description)
             if old_in_active:
                 self._active_tracking_set.remove(ev_id)
                 self._removed_from_active_set += 1
@@ -284,8 +284,8 @@ class GCalEventChangeAgent(PassiveAPIAgent):
 
             # If new_in_active and there's a real change => callback
             new_in_active = (ev_id in self._active_tracking_set)
-            if new_in_active and change_type != "no-change" and self.on_tracked_event_changed:
-                self.on_tracked_event_changed(change_description)
+            if new_in_active and change_type != "no-change" and self.on_tracked_change:
+                self.on_tracked_change(change_description)
 
         return self._within_time_window(ev)
 

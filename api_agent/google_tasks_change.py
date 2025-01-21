@@ -62,7 +62,7 @@ class GTasksChangeAgent(PassiveAPIAgent):
 
         # Callback to be fired on newly relevant tasks OR changes/deletions
         # of tasks already in the set
-        self.on_new_tasks: Optional[Callable[[List[dict]], None]] = None
+        self.on_tracked_change: Optional[Callable[[List[dict]], None]] = None
 
     # -------------------------
     # Public utility methods
@@ -112,9 +112,9 @@ class GTasksChangeAgent(PassiveAPIAgent):
                 if self.criteria_func(data):
                     self._active_tracking_set.add(tid)
                     newly_added.append(data)
-        if newly_added and self.on_new_tasks:
+        if newly_added and self.on_tracked_change:
             # If you want to treat them as newly relevant, do so
-            self.on_new_tasks(newly_added)
+            self.on_tracked_change(newly_added)
 
         logger.info(
             f"[new_criteria_reset] After re-checking cache of size {len(self._task_cache)}, "
@@ -149,8 +149,8 @@ class GTasksChangeAgent(PassiveAPIAgent):
                 new_items = await self._handle_incremental_run(tlist_id)
                 # If we found newly relevant items or changes to existing
                 # tracked items, we call the callback
-                if new_items and self.on_new_tasks:
-                    self.on_new_tasks(new_items)
+                if new_items and self.on_tracked_change:
+                    self.on_tracked_change(new_items)
 
         logger.info("Polling Cycle Complete for all lists.")
 
@@ -193,8 +193,8 @@ class GTasksChangeAgent(PassiveAPIAgent):
                 max_updated = t_updated
 
         # If we found tasks that meet the criteria, callback
-        if newly_relevant and self.on_new_tasks:
-            self.on_new_tasks(newly_relevant)
+        if newly_relevant and self.on_tracked_change:
+            self.on_tracked_change(newly_relevant)
 
         if max_updated:
             self._last_updated_time[tlist_id] = max_updated

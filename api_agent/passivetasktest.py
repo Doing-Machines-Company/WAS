@@ -37,7 +37,7 @@ async def main():
     )
 
     # Register a callback for newly matching tasks
-    agent.on_new_tasks = on_new_tasks_callback
+    agent.on_tracked_change = on_new_tasks_callback
 
     # Start agent in background
     task = asyncio.create_task(agent.start())

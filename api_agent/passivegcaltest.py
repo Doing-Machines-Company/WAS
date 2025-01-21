@@ -41,7 +41,7 @@ async def main():
     )
 
     # This callback fires whenever a tracked event is created/updated/deleted
-    agent.on_tracked_event_changed = on_tracked_event_changed
+    agent.on_tracked_change = on_tracked_event_changed
 
     # Start agent in background
     task = asyncio.create_task(agent.start())

@@ -66,7 +66,7 @@ class GmailNewMailAgent(PassiveAPIAgent):
         self._active_tracking_set: set[str] = set()
 
         # Optional callback for "new or updated" threads
-        self.on_new_matching_threads: Optional[Callable[[List[dict]], None]] = None
+        self.on_tracked_change: Optional[Callable[[List[dict]], None]] = None
 
     async def start(self):
         """
@@ -90,9 +90,9 @@ class GmailNewMailAgent(PassiveAPIAgent):
                     self._active_tracking_set.add(thread_id)
                     newly_matched.append(thread_data)
 
-        if newly_matched and self.on_new_matching_threads:
+        if newly_matched and self.on_tracked_change:
             logger.info(f"Firing callback for {len(newly_matched)} newly matched thread(s) on startup.")
-            self.on_new_matching_threads(newly_matched)
+            self.on_tracked_change(newly_matched)
 
         # If we don't have a baseline, fetch a current historyId so we skip older mail
         if not self.last_history_id:
@@ -205,9 +205,9 @@ class GmailNewMailAgent(PassiveAPIAgent):
 
         # Combine sets => trigger callback
         all_updated_ids = changed_tracked_thread_ids.union(newly_matched_thread_ids)
-        if all_updated_ids and self.on_new_matching_threads:
+        if all_updated_ids and self.on_tracked_change:
             updated_list = [self._thread_cache[tid] for tid in all_updated_ids]
-            self.on_new_matching_threads(updated_list)
+            self.on_tracked_change(updated_list)
 
         # Update last_history_id
         self.last_history_id = new_hid
@@ -240,12 +240,12 @@ class GmailNewMailAgent(PassiveAPIAgent):
                     self._active_tracking_set.add(thread_id)
                     newly_matched_thread_ids.add(thread_id)
 
-        if newly_matched_thread_ids and self.on_new_matching_threads:
+        if newly_matched_thread_ids and self.on_tracked_change:
             updated_list = [self._thread_cache[tid] for tid in newly_matched_thread_ids]
             logger.info(
                 f"new_criteria_reset => Found {len(updated_list)} thread(s) matching the new criteria. Firing callback."
             )
-            self.on_new_matching_threads(updated_list)
+            self.on_tracked_change(updated_list)
 
     # ------------------------------------------------
     # Internal helpers
