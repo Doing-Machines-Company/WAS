@@ -2,60 +2,131 @@
 
 import asyncio
 import logging
-from typing import Optional, Callable, List, Dict, Any
-from datetime import datetime, timedelta
+from typing import Optional, Callable, List, Dict, Any, Set
+from datetime import datetime
+from dateutil import parser
 
 from passive_api_agent import PassiveAPIAgent
 from api_functions import GoogleTasksAPIHandler
 
 logger = logging.getLogger(__name__)
 
+
 class GTasksChangeAgent(PassiveAPIAgent):
     """
     A passive agent that polls Google Tasks for changes using updated timestamps.
 
-    Behavior:
-      - On first run (per tasklist):
-        * We do NOT show old deleted tasks.
-        * We build the internal cache of existing tasks.
-        * We immediately notify the callback of pre-existing (non-deleted) tasks that match criteria.
-      - On subsequent runs:
-        * We fetch tasks updated since last_updated_time, including newly deleted tasks.
-        * We determine create/update/delete changes by comparing to the cache.
-        * We notify the callback of any changes that match criteria.
+    Unique behaviors:
+      - Once a task is added to the active tracking set, it remains forever,
+        unless it is deleted.
+      - Any update or deletion to a task in the active tracking set triggers
+        a callback (on_new_tasks).
+      - A task not in the set is only added if it meets the criteria upon
+        creation or update. If it later stops meeting the criteria, it stays
+        in the set.
+      - On first run, we skip old deletions (showDeleted=False).
+      - On incremental runs, showDeleted=True to detect new deletions.
+      - new_criteria_reset() can add tasks that now meet the new criteria,
+        but does not remove tasks that previously met old criteria.
     """
 
     def __init__(
-        self,
-        check_interval_seconds: int,
-        tasks_handler: Optional[GoogleTasksAPIHandler],
-        criteria_func: Callable[[dict], bool],
-        tasklist_ids: Optional[List[str]] = None
+            self,
+            check_interval_seconds: int,
+            tasks_handler: Optional[GoogleTasksAPIHandler],
+            criteria_func: Callable[[dict], bool],
+            tasklist_ids: Optional[List[str]] = None
     ):
         super().__init__(check_interval_seconds)
         self.tasks_handler = tasks_handler or GoogleTasksAPIHandler()
+
+        # The user-supplied function that decides if a task is "interesting."
         self.criteria_func = criteria_func
 
         # If user did not provide lists => dynamic mode
         self._dynamic_tasklists = not bool(tasklist_ids)
         self.tasklist_ids = tasklist_ids or []
 
-        # Where we store tasks that matched criteria across time
-        self._matching_tasks: List[dict] = []
-        # Where we store info about ALL changes observed
-        # (including created, updated, deleted, and possibly no-change).
-        self._all_changes: List[dict] = []
-        # task_id -> last known version of the task
-        self._task_cache: Dict[str, dict] = {}
-        # tasklist_id -> last known updated timestamp
+        # For each tasklist: the last known updated timestamp (RFC3339 string)
         self._last_updated_time: Dict[str, str] = {}
 
-        # Optional callback: called when we detect newly relevant tasks
+        # 1) The main cache: task_id -> task_data (for tasks that are not deleted)
+        self._task_cache: Dict[str, dict] = {}
+
+        # 2) The active tracking set: a set of task_ids that have
+        #    ever met the criteria (unless deleted)
+        self._active_tracking_set: Set[str] = set()
+
+        # For debugging/logging: a list of all observed changes
+        self._all_changes: List[dict] = []
+
+        # Callback to be fired on newly relevant tasks OR changes/deletions
+        # of tasks already in the set
         self.on_new_tasks: Optional[Callable[[List[dict]], None]] = None
 
+    # -------------------------
+    # Public utility methods
+    # -------------------------
+    def get_cache_size(self) -> int:
+        """Return how many items are currently in the task cache."""
+        return len(self._task_cache)
+
+    def get_active_keys(self) -> Set[str]:
+        """Return a copy of the set of active (matching) task IDs."""
+        return set(self._active_tracking_set)
+
+    def get_all_changes(self) -> List[dict]:
+        """
+        Return the log of all changes observed so far.
+        Each item is { 'id', 'change_type', 'old_data', 'new_data', 'diffs' }.
+        """
+        return self._all_changes
+
+    def get_active_tasks(self) -> List[dict]:
+        """
+        Return a list of the actual task dicts for those IDs in _active_tracking_set
+        that are still in the cache (i.e. not deleted).
+        """
+        return [self._task_cache[tid] for tid in self._active_tracking_set if tid in self._task_cache]
+
+    async def new_criteria_reset(self, new_criteria_func: Optional[Callable[[dict], bool]] = None):
+        """
+        1) Optionally update the criteria function.
+        2) Immediately poll once (so we have the latest data).
+        3) Re-check everything in the cache against the new criteria, adding any
+           newly eligible tasks to _active_tracking_set.
+           (We never remove tasks that were previously added, unless they've
+            been deleted.)
+        """
+        # 1) Update the criteria if provided
+        if new_criteria_func is not None:
+            self.criteria_func = new_criteria_func
+
+        # 2) Immediately run one polling cycle to get up-to-date
+        await self.handle_polling()
+
+        # 3) Re-check everything in the cache
+        newly_added = []
+        for tid, data in self._task_cache.items():
+            if tid not in self._active_tracking_set:
+                if self.criteria_func(data):
+                    self._active_tracking_set.add(tid)
+                    newly_added.append(data)
+        if newly_added and self.on_new_tasks:
+            # If you want to treat them as newly relevant, do so
+            self.on_new_tasks(newly_added)
+
+        logger.info(
+            f"[new_criteria_reset] After re-checking cache of size {len(self._task_cache)}, "
+            f"{len(self._active_tracking_set)} total tasks are in the set."
+        )
+
+    # -------------------------
+    # Internal Polling Methods
+    # -------------------------
     async def handle_polling(self):
         """
-        Main polling loop. If _dynamic_tasklists is True, we fetch all lists each time.
+        Main polling loop. If _dynamic_tasklists is True, fetch all lists each time.
         Otherwise, we use the provided self.tasklist_ids.
         """
         if self._dynamic_tasklists:
@@ -68,158 +139,215 @@ class GTasksChangeAgent(PassiveAPIAgent):
             logger.info(f"GTasksChangeAgent => Using user-supplied tasklist_ids: {current_ids}")
 
         for tlist_id in current_ids:
-            logger.info(f"GTasksChangeAgent => Checking task list '{tlist_id}'...")
             if tlist_id not in self._last_updated_time:
-                logger.info(f"GTasksChangeAgent => First run for list '{tlist_id}'")
-                # On first run, we skip old deletions => show_deleted=False
-                await self._handle_first_run(tlist_id, show_deleted=False)
+                # First run => skip old deletions
+                logger.info(f"[First Run] TaskList={tlist_id}")
+                await self._handle_first_run(tlist_id)
             else:
                 updated_min = self._last_updated_time[tlist_id]
-                logger.info(f"GTasksChangeAgent => Using updatedMin={updated_min} for list '{tlist_id}'")
-                # On subsequent runs, we do show_deleted=True to detect new deletions
-                new_items = await self._handle_incremental_run(tlist_id, show_deleted=True)
+                logger.info(f"[Incremental] TaskList={tlist_id}, updatedMin={updated_min}")
+                new_items = await self._handle_incremental_run(tlist_id)
+                # If we found newly relevant items or changes to existing
+                # tracked items, we call the callback
                 if new_items and self.on_new_tasks:
                     self.on_new_tasks(new_items)
-                self._matching_tasks.extend(new_items)
 
         logger.info("Polling Cycle Complete for all lists.")
 
-    async def _handle_first_run(self, tlist_id: str, show_deleted: bool):
+    async def _handle_first_run(self, tlist_id: str):
         """
-        Baseline fetch of tasks in this list.
-        We do NOT consider them as 'changes', but we DO call on_new_tasks for
-        any non-deleted tasks that match the criteria.
+        On first run, we do showDeleted=False so tasks deleted before agent start
+        won't appear. We store tasks in _task_cache, and any that pass the criteria
+        get added to _active_tracking_set. We call the callback with those items
+        since they're "preexisting but relevant."
         """
         try:
             resp = (
                 self.tasks_handler.service.tasks()
-                .list(tasklist=tlist_id, showHidden=True, showDeleted=show_deleted)
+                .list(tasklist=tlist_id, showHidden=True, showDeleted=False)
                 .execute()
             )
             tasks = resp.get("items", [])
         except Exception as e:
-            logger.error(f"GTasksChangeAgent => Error during first-run fetch: {e}")
+            logger.error(f"[First Run] Error fetching tasks for {tlist_id}: {e}")
             return
 
         max_updated = None
-        first_run_new_items = []
+        newly_relevant = []
         for t in tasks:
             tid = t.get("id")
             if not tid:
                 continue
 
+            # Add to the cache
             self._task_cache[tid] = t
-            is_deleted = t.get("deleted", False)
 
-            # If it's not deleted, check if it meets the criteria
-            if not is_deleted and self.criteria_func(t):
-                first_run_new_items.append(t)
+            # If it meets criteria, add to the set
+            if self.criteria_func(t):
+                self._active_tracking_set.add(tid)
+                newly_relevant.append(t)
 
             # Track largest updated time
-            this_updated = t.get("updated")
-            if this_updated and (max_updated is None or this_updated > max_updated):
-                max_updated = this_updated
+            t_updated = t.get("updated")
+            if t_updated and (max_updated is None or t_updated > max_updated):
+                max_updated = t_updated
 
-        # If we found pre-existing tasks that meet criteria, send them to callback now
-        if first_run_new_items and self.on_new_tasks:
-            self.on_new_tasks(first_run_new_items)
-        self._matching_tasks.extend(first_run_new_items)
+        # If we found tasks that meet the criteria, callback
+        if newly_relevant and self.on_new_tasks:
+            self.on_new_tasks(newly_relevant)
 
-        # Store last_updated_time
         if max_updated:
             self._last_updated_time[tlist_id] = max_updated
         else:
-            # No tasks or no updated => fallback to "now"
             self._last_updated_time[tlist_id] = datetime.utcnow().isoformat() + "Z"
 
         logger.info(
-            f"GTasksChangeAgent => First run complete. Fetched {len(tasks)} tasks "
-            f"from '{tlist_id}'. {len(first_run_new_items)} matched criteria and were reported."
+            f"[First Run] {tlist_id}: fetched {len(tasks)} tasks, "
+            f"{len(newly_relevant)} matched criteria."
         )
 
-    async def _handle_incremental_run(self, tlist_id: str, show_deleted: bool) -> List[dict]:
-        new_items = []
-        updated_min = self._last_updated_time[tlist_id]
+    async def _handle_incremental_run(self, tlist_id: str) -> List[dict]:
+        """
+        On subsequent runs, we do showDeleted=True so newly deleted items are detected.
+        We'll fetch tasks updated after last_updated_time, filter out anything
+        with an updated timestamp <= that min, then see if it's created, updated, or deleted.
+
+        Return a list of tasks that should trigger a callback:
+         - newly relevant tasks (i.e. not in the set, but pass criteria now)
+         - any changes to tasks that are already in the set (including deletion)
+        """
+        updated_min_str = self._last_updated_time[tlist_id]
+        new_items: List[dict] = []
 
         try:
             resp = (
                 self.tasks_handler.service.tasks()
-                .list(tasklist=tlist_id, showHidden=True, showDeleted=show_deleted, updatedMin=updated_min)
+                .list(
+                    tasklist=tlist_id,
+                    showHidden=True,
+                    showDeleted=True,
+                    updatedMin=updated_min_str
+                )
                 .execute()
             )
             tasks = resp.get("items", [])
         except Exception as e:
-            logger.error(f"GTasksChangeAgent => Error during incremental fetch: {e}")
+            logger.error(f"[Incremental] Error fetching tasks for {tlist_id}: {e}")
             return new_items
 
-        logger.info(f"GTasksChangeAgent => Found {len(tasks)} changed task(s) in '{tlist_id}'.")
-        changes_this_round = []
-        max_updated_str = updated_min
-
+        logger.info(f"[Incremental] {tlist_id}: server returned {len(tasks)} tasks.")
+        baseline_dt = parser.isoparse(updated_min_str)
+        filtered_tasks = []
         for t in tasks:
-            change_info = self._describe_change(t)
-            changes_this_round.append(change_info)
+            t_upd_str = t.get("updated")
+            if not t_upd_str:
+                continue
+            try:
+                t_dt = parser.isoparse(t_upd_str)
+            except:
+                continue
+            if t_dt > baseline_dt:
+                filtered_tasks.append(t)
+
+        logger.info(f"[Incremental] {tlist_id}: {len(filtered_tasks)} tasks have updated > {updated_min_str}.")
+        max_updated_str = updated_min_str
+        changes_this_round = []
+
+        for t in filtered_tasks:
+            change = self._describe_change(t)
+            changes_this_round.append(change)
+            ctype = change["change_type"]
+            old_data = change["old_data"]
+            new_data = change["new_data"]
 
             logger.info(
-                f"GTasksChangeAgent => Change for task_id={change_info['id']}, "
-                f"change_type={change_info['change_type']}, diffs={change_info['diffs']}"
+                f"[Incremental] {tlist_id} => Task {change['id']}, {ctype}, diffs={change['diffs']}"
             )
 
-            # Decide if we should pass this to new_items
-            if change_info["change_type"] == "created":
-                if self.criteria_func(change_info["new_data"]):
-                    new_items.append(change_info["new_data"])
-            elif change_info["change_type"] == "updated":
-                if self.criteria_func(change_info["new_data"]):
-                    new_items.append(change_info["new_data"])
-            elif change_info["change_type"] == "deleted":
-                old_data = change_info["old_data"]
-                if old_data and self.criteria_func(old_data):
-                    new_items.append(change_info["new_data"])
+            task_id = change["id"]
 
-            # Track the largest updated timestamp
-            this_updated = t.get("updated")
-            if this_updated and this_updated > max_updated_str:
-                max_updated_str = this_updated
+            if ctype == "created":
+                # If it meets criteria, add to set => callback
+                if not new_data.get("deleted", False) and self.criteria_func(new_data):
+                    self._active_tracking_set.add(task_id)
+                    new_items.append(new_data)
+                # If it doesn't pass criteria, do nothing.
+
+            elif ctype == "updated":
+                # If it's already in the set => ALWAYS callback
+                # (the user wants any changes to tracked items => callback)
+                if task_id in self._active_tracking_set:
+                    new_items.append(new_data)
+                else:
+                    # If it's not in the set but now meets criteria => add + callback
+                    if not new_data.get("deleted", False) and self.criteria_func(new_data):
+                        self._active_tracking_set.add(task_id)
+                        new_items.append(new_data)
+                # We do NOT remove it if it fails criteria; "once in, stays in."
+
+            elif ctype == "deleted":
+                # If the old_data was in the set => callback
+                if task_id in self._active_tracking_set:
+                    # Show the new_data with deleted=True
+                    new_items.append(new_data)
+                    # And remove from both cache + set
+                    self._prune_item(task_id)
+                else:
+                    # If we never tracked it, it's just no-change from our perspective
+                    pass
+
+            # "no-change" can happen if the API re-sends the same data
+            # we won't do anything for no-change
+
+            # Update max_updated
+            upd_str = new_data.get("updated")
+            if upd_str and upd_str > max_updated_str:
+                max_updated_str = upd_str
 
         self._all_changes.extend(changes_this_round)
-
-        # -------------------  MINIMAL FIX START -------------------
-        # If Google returns the same updated timestamp repeatedly, bump it slightly
-        if max_updated_str <= updated_min:
-            # Remove trailing 'Z' to parse, then re-add it.
-            dt = datetime.fromisoformat(max_updated_str.replace("Z", ""))
-            dt += timedelta(microseconds=1)
-            max_updated_str = dt.isoformat() + "Z"
-        # -------------------  MINIMAL FIX END ---------------------
-
         self._last_updated_time[tlist_id] = max_updated_str
-
-        logger.info(f"GTasksChangeAgent => Found {len(new_items)} matching task(s) for '{tlist_id}'.")
+        logger.info(f"[Incremental] {tlist_id}: Found {len(new_items)} tasks that trigger a callback. Currently tracking {len(self._active_tracking_set)} items. ")
         return new_items
 
     def _describe_change(self, new_data: dict) -> dict:
         """
-        Compare new_data with our cache to classify the change as created, updated, or deleted.
-        Also record the diffs, plus old_data/new_data.
+        Compare new_data to our cache to classify as created, updated, or deleted.
+        Then update the cache if not deleted. Return a dict describing the change:
+          { 'id': ..., 'change_type': 'created'/'updated'/'deleted'/'no-change',
+            'old_data': ..., 'new_data': ..., 'diffs': ... }
         """
         tid = new_data.get("id", "")
         old_data = self._task_cache.get(tid, {})
         is_deleted = new_data.get("deleted", False)
 
         if is_deleted:
-            change_type = "deleted"
-            diffs = self._compute_diff(old_data, new_data)
+            # If we never had it => it was deleted before we started => 'no-change'
+            if not old_data:
+                return {
+                    "id": tid,
+                    "change_type": "no-change",
+                    "old_data": {},
+                    "new_data": new_data,
+                    "diffs": {}
+                }
+            else:
+                # It's newly deleted => find diffs
+                diffs = self._compute_diff(old_data, new_data)
+                change_type = "deleted"
+                # We do NOT update the cache here, we'll prune it in _handle_incremental_run
         else:
             if not old_data:
-                change_type = "created"
+                # brand new => 'created'
                 diffs = self._compute_diff({}, new_data)
+                change_type = "created"
+                self._task_cache[tid] = new_data
             else:
                 diffs = self._compute_diff(old_data, new_data)
-                change_type = "updated" if diffs else "no-change"
-
-        # Update the cache
-        self._task_cache[tid] = new_data
+                if diffs:
+                    change_type = "updated"
+                    self._task_cache[tid] = new_data
+                else:
+                    change_type = "no-change"
 
         return {
             "id": tid,
@@ -230,12 +358,9 @@ class GTasksChangeAgent(PassiveAPIAgent):
         }
 
     def _compute_diff(self, old_data: dict, new_data: dict) -> dict:
-        """
-        Shallow compare of old_data and new_data fields, returning a dict
-        of { field: { "old": X, "new": Y } } for changed fields.
-        """
+        """Return a shallow dict of changed fields."""
         changes = {}
-        all_keys = set(old_data.keys()).union(new_data.keys())
+        all_keys = set(old_data.keys()) | set(new_data.keys())
         for k in all_keys:
             old_val = old_data.get(k)
             new_val = new_data.get(k)
@@ -243,15 +368,10 @@ class GTasksChangeAgent(PassiveAPIAgent):
                 changes[k] = {"old": old_val, "new": new_val}
         return changes
 
-    def get_matching_tasks(self) -> List[dict]:
+    def _prune_item(self, task_id: str):
         """
-        Return all tasks that have ever met criteria during first-run or incremental runs.
+        Removes this task from the cache AND from the active tracking set.
+        Called when we confirm a tracked item is newly deleted.
         """
-        return self._matching_tasks
-
-    def get_all_changes(self) -> List[dict]:
-        """
-        Return a list describing all observed changes (including 'no-change' if it had diffs=0).
-        Each entry is a dict with keys: id, change_type, ol gd_data, new_data, diffs
-        """
-        return self._all_changes
+        self._task_cache.pop(task_id, None)
+        self._active_tracking_set.discard(task_id)
