@@ -409,18 +409,19 @@ class GCalEventChangeAgent(PassiveAPIAgent):
 
     async def new_criteria_reset(self, new_criteria_func: Callable[[dict], bool]):
         """
-        Poll immediately (full or incremental), then recalc _active_tracking_set
-        with the new criteria, but don't remove items from it if they fail the new criteria
-        (once tracked, we keep them unless deleted or out-of-window).
+        Poll immediately (full or incremental) for each calendar, prune out-of-window events,
+        then reset _active_tracking_set and rebuild it by checking all in-window events
+        against the *new* criteria function.
         """
         self.criteria_func = new_criteria_func
 
-        # Zero out the counters so we can log them after
+        # Zero out counters for logging
         self._added_to_cache = 0
         self._removed_from_cache = 0
         self._added_to_active_set = 0
         self._removed_from_active_set = 0
 
+        # 1) Perform a poll (full or incremental) for each calendar
         for cal_id in self.calendar_ids:
             if not self._last_sync_token:
                 logger.info(f"[GCalEventChangeAgent] new_criteria_reset => FULL fetch for {cal_id}.")
@@ -429,11 +430,24 @@ class GCalEventChangeAgent(PassiveAPIAgent):
                 logger.info(f"[GCalEventChangeAgent] new_criteria_reset => incremental fetch for {cal_id}.")
                 await self._handle_incremental_fetch(cal_id)
 
-        # Don't forcibly remove anything from the active set if they fail the new criteria now.
-        # We only remove them if they go out of window or are deleted.
-
-        # Then prune out-of-window
+        # 2) Prune out-of-window events
         self.prune_out_of_window_events()
+
+        # 3) Completely reset active_tracking_set...
+        old_active_count = len(self._active_tracking_set)
+        self._active_tracking_set = set()
+        # Mark how many we removed in this reset:
+        self._removed_from_active_set += old_active_count
+
+        # 4) ...and rebuild it from the new criteria.
+        #    We'll add any event in the cache that meets the new_criteria_func.
+        local_added = 0
+        for ev_id, rec in self._event_cache.items():
+            ev_current = rec.get("current")
+            if ev_current and self.criteria_func(ev_current):
+                self._active_tracking_set.add(ev_id)
+                local_added += 1
+        self._added_to_active_set += local_added
 
         # final logging
         for cal_id in self.calendar_ids:

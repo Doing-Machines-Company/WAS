@@ -112,9 +112,9 @@ class GTasksChangeAgent(PassiveAPIAgent):
                 if self.criteria_func(data):
                     self._active_tracking_set.add(tid)
                     newly_added.append(data)
-        if newly_added and self.on_tracked_change:
-            # If you want to treat them as newly relevant, do so
-            self.on_tracked_change(newly_added)
+        # if newly_added and self.on_tracked_change:
+        #     # If you want to treat them as newly relevant, do so
+        #     self.on_tracked_change(newly_added)
 
         logger.info(
             f"[new_criteria_reset] After re-checking cache of size {len(self._task_cache)}, "

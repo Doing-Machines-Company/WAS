@@ -245,7 +245,7 @@ class GmailNewMailAgent(PassiveAPIAgent):
             logger.info(
                 f"new_criteria_reset => Found {len(updated_list)} thread(s) matching the new criteria. Firing callback."
             )
-            self.on_tracked_change(updated_list)
+            # self.on_tracked_change(updated_list)
 
     # ------------------------------------------------
     # Internal helpers
