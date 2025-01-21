@@ -3,7 +3,7 @@
 import asyncio
 import logging
 
-from google_tasks_event_change import GTasksChangeAgent
+from google_tasks_change import GTasksChangeAgent
 from api_functions import GoogleTasksAPIHandler
 
 logging.basicConfig(level=logging.INFO)
@@ -14,8 +14,8 @@ def my_criteria_func(task_data: dict) -> bool:
     appears in the task's title.
     """
     title = task_data.get("title", "") or ""
-    return "important" in title.lower()
-
+    # return "important" in title.lower()
+    return True
 def on_new_tasks_callback(new_items):
     print(f"\n[CALLBACK] Received {len(new_items)} new/updated matching task(s):")
     for t in new_items:

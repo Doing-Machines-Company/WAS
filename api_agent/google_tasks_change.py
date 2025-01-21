@@ -1,9 +1,9 @@
-# google_tasks_event_change.py
+# google_tasks_change.py
 
 import asyncio
 import logging
 from typing import Optional, Callable, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from passive_api_agent import PassiveAPIAgent
 from api_functions import GoogleTasksAPIHandler
@@ -138,10 +138,6 @@ class GTasksChangeAgent(PassiveAPIAgent):
         )
 
     async def _handle_incremental_run(self, tlist_id: str, show_deleted: bool) -> List[dict]:
-        """
-        Fetch tasks updated since last run, detect changes, and return any new/updated/deleted tasks
-        that meet criteria.
-        """
         new_items = []
         updated_min = self._last_updated_time[tlist_id]
 
@@ -173,23 +169,30 @@ class GTasksChangeAgent(PassiveAPIAgent):
             if change_info["change_type"] == "created":
                 if self.criteria_func(change_info["new_data"]):
                     new_items.append(change_info["new_data"])
-
             elif change_info["change_type"] == "updated":
                 if self.criteria_func(change_info["new_data"]):
                     new_items.append(change_info["new_data"])
-
             elif change_info["change_type"] == "deleted":
-                # For a newly deleted task, we check if the OLD data matched the criteria
                 old_data = change_info["old_data"]
                 if old_data and self.criteria_func(old_data):
-                    # We pass the new_data (which has "deleted": True) so user sees it's gone
                     new_items.append(change_info["new_data"])
 
+            # Track the largest updated timestamp
             this_updated = t.get("updated")
             if this_updated and this_updated > max_updated_str:
                 max_updated_str = this_updated
 
         self._all_changes.extend(changes_this_round)
+
+        # -------------------  MINIMAL FIX START -------------------
+        # If Google returns the same updated timestamp repeatedly, bump it slightly
+        if max_updated_str <= updated_min:
+            # Remove trailing 'Z' to parse, then re-add it.
+            dt = datetime.fromisoformat(max_updated_str.replace("Z", ""))
+            dt += timedelta(microseconds=1)
+            max_updated_str = dt.isoformat() + "Z"
+        # -------------------  MINIMAL FIX END ---------------------
+
         self._last_updated_time[tlist_id] = max_updated_str
 
         logger.info(f"GTasksChangeAgent => Found {len(new_items)} matching task(s) for '{tlist_id}'.")
@@ -249,6 +252,6 @@ class GTasksChangeAgent(PassiveAPIAgent):
     def get_all_changes(self) -> List[dict]:
         """
         Return a list describing all observed changes (including 'no-change' if it had diffs=0).
-        Each entry is a dict with keys: id, change_type, old_data, new_data, diffs
+        Each entry is a dict with keys: id, change_type, ol gd_data, new_data, diffs
         """
         return self._all_changes
