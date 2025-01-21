@@ -92,33 +92,36 @@ class GTasksChangeAgent(PassiveAPIAgent):
     async def new_criteria_reset(self, new_criteria_func: Optional[Callable[[dict], bool]] = None):
         """
         1) Optionally update the criteria function.
-        2) Immediately poll once (so we have the latest data).
-        3) Re-check everything in the cache against the new criteria, adding any
-           newly eligible tasks to _active_tracking_set.
-           (We never remove tasks that were previously added, unless they've
-            been deleted.)
+        2) Immediately poll once (so we have the latest data in _task_cache).
+        3) COMPLETELY REPLACE the _active_tracking_set by checking the new (or same) criteria
+           for ALL tasks in _task_cache.
+           => This overrides the "once in, always in" for normal operation.
         """
+
         # 1) Update the criteria if provided
         if new_criteria_func is not None:
             self.criteria_func = new_criteria_func
 
-        # 2) Immediately run one polling cycle to get up-to-date
+        # 2) Do an immediate poll to ensure _task_cache is up-to-date
         await self.handle_polling()
 
-        # 3) Re-check everything in the cache
-        newly_added = []
+        # 3) Build a brand-new active set based on the current criteria
+        old_active = self._active_tracking_set
+        new_active = set()
+
         for tid, data in self._task_cache.items():
-            if tid not in self._active_tracking_set:
+            # Make sure it's not marked deleted
+            if not data.get("deleted", False):
+                # If it passes the (new) criteria, add it
                 if self.criteria_func(data):
-                    self._active_tracking_set.add(tid)
-                    newly_added.append(data)
-        # if newly_added and self.on_tracked_change:
-        #     # If you want to treat them as newly relevant, do so
-        #     self.on_tracked_change(newly_added)
+                    new_active.add(tid)
+
+        # Overwrite the old set
+        self._active_tracking_set = new_active
 
         logger.info(
-            f"[new_criteria_reset] After re-checking cache of size {len(self._task_cache)}, "
-            f"{len(self._active_tracking_set)} total tasks are in the set."
+            f"[new_criteria_reset] Rebuilt _active_tracking_set from scratch. "
+            f"Old size = {len(old_active)}, new size = {len(self._active_tracking_set)}. "
         )
 
     # -------------------------
