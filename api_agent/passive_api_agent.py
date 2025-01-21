@@ -38,3 +38,9 @@ class PassiveAPIAgent:
         Subclasses implement all check+action logic in this single method.
         """
         raise NotImplementedError("Subclasses must implement handle_polling()")
+
+    async def new_criteria_reset(self):
+        """
+        Subtask should handle logic.
+        """
+        raise NotImplementedError("Subclasses must implement new_criteria_reset()")
