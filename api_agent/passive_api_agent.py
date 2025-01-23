@@ -45,8 +45,13 @@ class PassiveAPIAgent:
         """
         raise NotImplementedError("Subclasses must implement new_criteria_reset()")
 
-    async def on_tracked_change(self):
+    async def on_tracked_change(self, changes: dict):
         """
-        Subtask should handle logic.
+        Subtask should handle logic for changes.
+        'changes' is a dictionary keyed by item ID, with each value containing:
+            {
+              "data": <the_item_data>,
+              "just_changed": bool
+            }
         """
         raise NotImplementedError("Subclasses must implement on_tracked_change()")

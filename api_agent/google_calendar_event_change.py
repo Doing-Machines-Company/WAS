@@ -21,7 +21,7 @@ class GCalEventChangeAgent(PassiveAPIAgent):
       1) Each event in _event_cache now maintains a 'current' snapshot
          plus a 'versions' list to track all historical changes.
       2) If an event in the active set is deleted (status=cancelled),
-         a callback is fired.
+         a callback is fired (and we remove it from active set).
     """
 
     def __init__(
@@ -43,41 +43,35 @@ class GCalEventChangeAgent(PassiveAPIAgent):
         self.time_window_past_hours = time_window_past_hours
         self.time_window_future_hours = time_window_future_hours
 
-        # Where we store event data (including historical versions).
-        #
-        # Structure:
-        #   _event_cache[event_id] = {
-        #       "current": <dict> the current snapshot of the event,
-        #       "versions": [    # list of snapshots (dict) representing historical changes
-        #           {
-        #               "timestamp": <datetime of the poll when change was seen>,
-        #               "event": <the event data at that point in time>
-        #           },
-        #           ...
-        #       ]
-        #   }
-        #
+        # event_id => {
+        #   "current": <dict>,
+        #   "versions": [ { "timestamp": <datetime>, "event": <dict> }, ... ]
+        # }
         self._event_cache: Dict[str, dict] = {}
 
-        # Events that have met criteria while in-window (remain unless pruned or deleted)
+        # event_ids that have met criteria => remain unless pruned or deleted
         self._active_tracking_set: set = set()
 
-        # Chronological record of changes (lightweight "change_type + diffs" log)
+        # Chronological record of changes
         self._all_changes: List[dict] = []
 
-        # Optional callback for changes to events *in* _active_tracking_set
-        # or if a tracked event is deleted.
-        self.on_tracked_change: Optional[Callable[[dict], None]] = None
+        # Now on_tracked_change always takes a dictionary keyed by event_id
+        # each containing {"data": ..., "just_changed": bool}
+        self.on_tracked_change: Optional[Callable[[Dict[str, Dict[str, Any]]], None]] = None
 
-        # We track if we've done a first fetch yet (for logging)
+        # We track if we've done a first fetch yet
         self._did_initial_fetch = False
 
     async def handle_polling(self):
         """
-        Periodically called. We do either a full fetch (if no sync token)
-        or an incremental fetch. Then we prune out-of-window events,
-        and log a summary of how many items are in our cache and active set.
+        Periodically called.
+        - For each calendar ID, do full or incremental fetch.
+        - Then prune out-of-window events.
+        - Collect which event IDs changed this round.
+        - Finally, invoke the unified callback with the entire active set.
         """
+        changed_ids = set()
+
         for cal_id in self.calendar_ids:
             # Keep counters for logging
             self._added_to_cache = 0
@@ -85,23 +79,24 @@ class GCalEventChangeAgent(PassiveAPIAgent):
             self._added_to_active_set = 0
             self._removed_from_active_set = 0
 
+            # Do a full or incremental fetch
             if not self._last_sync_token:
-                # No sync token => full fetch
                 if not self._did_initial_fetch:
                     logger.info(f"[GCalEventChangeAgent] No syncToken => FIRST-RUN full fetch for {cal_id}.")
                     self._did_initial_fetch = True
                 else:
                     logger.info(f"[GCalEventChangeAgent] No syncToken => normal full fetch for {cal_id}.")
-                await self._handle_full_fetch(cal_id)
+                newly_changed = await self._handle_full_fetch(cal_id)
             else:
-                # We have a sync token => incremental fetch
                 logger.info(f"[GCalEventChangeAgent] Doing incremental fetch for {cal_id}.")
-                await self._handle_incremental_fetch(cal_id)
+                newly_changed = await self._handle_incremental_fetch(cal_id)
 
-            # Prune out-of-window events
+            changed_ids.update(newly_changed)
+
+            # Prune out-of-window
             self.prune_out_of_window_events()
 
-            # Log final stats
+            # Log
             logger.info(
                 f"[GCalEventChangeAgent] After poll for '{cal_id}':\n"
                 f"   event_cache size={len(self._event_cache)}, active_tracking_set size={len(self._active_tracking_set)}\n"
@@ -109,11 +104,23 @@ class GCalEventChangeAgent(PassiveAPIAgent):
                 f"added_to_active_set={self._added_to_active_set}, removed_from_active_set={self._removed_from_active_set}"
             )
 
-    async def _handle_full_fetch(self, cal_id: str):
+        # Final callback with entire active set
+        if self.on_tracked_change:
+            payload = {}
+            for ev_id in self._active_tracking_set:
+                rec = self._event_cache[ev_id]
+                payload[ev_id] = {
+                    "data": rec["current"],
+                    "just_changed": (ev_id in changed_ids)
+                }
+            self.on_tracked_change(payload)
+
+    async def _handle_full_fetch(self, cal_id: str) -> set:
         """
-        Fetch all events (no time filter), store them in the cache if they're in-window,
-        record a syncToken if provided. Then log how many were in vs out of the timeframe.
+        Fetch all events, store them if in-window, record syncToken if present.
+        Return set of event_ids that changed in this operation.
         """
+        changed_ids = set()
         try:
             resp = self.calendar_handler.service.events().list(
                 calendarId=cal_id,
@@ -122,7 +129,7 @@ class GCalEventChangeAgent(PassiveAPIAgent):
             ).execute()
         except HttpError as e:
             logger.error(f"[GCalEventChangeAgent] HttpError during full fetch: {e}")
-            return
+            return changed_ids
 
         items = resp.get("items", [])
         logger.info(f"[GCalEventChangeAgent] Full fetch returned {len(items)} events for {cal_id}.")
@@ -131,13 +138,12 @@ class GCalEventChangeAgent(PassiveAPIAgent):
         out_of_timeframe_count = 0
 
         for ev in items:
-            is_in_timeframe = self._process_incremental_change(ev)
+            is_in_timeframe = self._process_incremental_change(ev, changed_ids)
             if is_in_timeframe:
                 in_timeframe_count += 1
             else:
                 out_of_timeframe_count += 1
 
-        # store sync token if provided
         nxt = resp.get("nextSyncToken")
         if nxt:
             self._last_sync_token = nxt
@@ -146,12 +152,13 @@ class GCalEventChangeAgent(PassiveAPIAgent):
             f"[GCalEventChangeAgent] => {len(items)} items processed. "
             f"{in_timeframe_count} in timeframe, {out_of_timeframe_count} out of timeframe."
         )
+        return changed_ids
 
-    async def _handle_incremental_fetch(self, cal_id: str):
+    async def _handle_incremental_fetch(self, cal_id: str) -> set:
         """
-        Use stored syncToken to do an incremental fetch. Then feed them
-        to _process_incremental_change.
+        Use stored syncToken to do an incremental fetch; return set of changed event_ids.
         """
+        changed_ids = set()
         try:
             resp = self.calendar_handler.service.events().list(
                 calendarId=cal_id,
@@ -162,10 +169,10 @@ class GCalEventChangeAgent(PassiveAPIAgent):
             if e.resp and e.resp.status == 410:
                 logger.warning("[GCalEventChangeAgent] Sync token expired => next time we'll do a full fetch.")
                 self._last_sync_token = None
-                return
+                return changed_ids
             else:
                 logger.error(f"[GCalEventChangeAgent] HttpError during incremental fetch: {e}")
-                return
+                return changed_ids
 
         items = resp.get("items", [])
         logger.info(f"[GCalEventChangeAgent] Incremental fetch returned {len(items)} changed events for {cal_id}.")
@@ -174,7 +181,7 @@ class GCalEventChangeAgent(PassiveAPIAgent):
         out_of_timeframe_count = 0
 
         for ev in items:
-            is_in_timeframe = self._process_incremental_change(ev)
+            is_in_timeframe = self._process_incremental_change(ev, changed_ids)
             if is_in_timeframe:
                 in_timeframe_count += 1
             else:
@@ -188,15 +195,15 @@ class GCalEventChangeAgent(PassiveAPIAgent):
             f"[GCalEventChangeAgent] => {len(items)} changed items processed. "
             f"{in_timeframe_count} in timeframe, {out_of_timeframe_count} out of timeframe."
         )
+        return changed_ids
 
-    def _process_incremental_change(self, ev: dict) -> bool:
+    def _process_incremental_change(self, ev: dict, changed_ids: set) -> bool:
         """
         Compare event vs our cache => figure out 'created','updated','deleted','no-change'.
-        If in the time window, keep/update in the cache. If out of window, remove from cache.
-        If it's in the active set, we do a callback on real changes. Also, if an active item
-        is deleted, we trigger the callback.
-
-        Returns True if the final result is that the event is in the time window, else False.
+        Update the cache if in-window or remove if out-of-window.
+        If in active set => mark changed if real update or deletion.
+        If newly meets criteria => add & mark changed.
+        Return True if event is in-window, else False.
         """
         ev_id = ev.get("id", "")
         # figure out the type of change
@@ -204,94 +211,83 @@ class GCalEventChangeAgent(PassiveAPIAgent):
         change_type = change_description["change_type"]
         self._all_changes.append(change_description)
 
-        # were we tracking this event before?
         old_in_cache = (ev_id in self._event_cache)
         old_in_active = (ev_id in self._active_tracking_set)
 
         if change_type == "deleted":
-            # The user has deleted/cancelled the event from the calendar
-            #
-            # 1) If it was in the active set, trigger callback, then remove from active
-            if old_in_active and self.on_tracked_change:
-                self.on_tracked_change(change_description)
+            # if in active => remove & mark changed
             if old_in_active:
+                changed_ids.add(ev_id)
                 self._active_tracking_set.remove(ev_id)
                 self._removed_from_active_set += 1
 
-            # 2) Possibly update or remove it in the cache:
-            #    If still within window, we keep a final "deleted" version
-            #    so that the historical record is there if needed.
+            # keep final "deleted" version if in-window, else remove
             in_timeframe = self._within_time_window(ev)
             if in_timeframe:
-                # If it wasn't in the cache, create a record
                 rec = self._event_cache.get(ev_id)
                 if not rec:
                     rec = {"current": None, "versions": []}
                     self._event_cache[ev_id] = rec
                     self._added_to_cache += 1
 
-                # add this new version to the history
+                # record historical version
                 if change_type != "no-change":
                     rec["versions"].append({
                         "timestamp": datetime.utcnow(),
                         "event": ev.copy()
                     })
-                # mark current
                 rec["current"] = ev
-
             else:
-                # if it was in the cache, remove it entirely
                 if old_in_cache:
                     del self._event_cache[ev_id]
                     self._removed_from_cache += 1
+            return in_timeframe
 
         else:
-            # It's not deleted => normal event
+            # not deleted => normal event
             in_timeframe = self._within_time_window(ev)
             if in_timeframe:
-                # update or create in cache
+                # update/create in cache
                 rec = self._event_cache.get(ev_id)
                 if not rec:
                     rec = {"current": None, "versions": []}
                     self._event_cache[ev_id] = rec
                     self._added_to_cache += 1
 
-                # If there's an actual change (created or updated), store a snapshot in versions
+                # store a snapshot if there's an actual change
                 if change_type != "no-change":
                     rec["versions"].append({
                         "timestamp": datetime.utcnow(),
                         "event": ev.copy()
                     })
+                    # if old_in_active or if newly meets criteria => changed
+                    if old_in_active or self.criteria_func(ev):
+                        changed_ids.add(ev_id)
 
-                # Update current event
                 rec["current"] = ev
 
-                # If it meets criteria and wasn't previously in active => add
+                # if newly meets criteria => add to active
                 if self.criteria_func(ev) and not old_in_active:
                     self._active_tracking_set.add(ev_id)
                     self._added_to_active_set += 1
+                    changed_ids.add(ev_id)
 
             else:
-                # Out of timeframe => prune from cache if present
+                # out of timeframe => remove from cache if present
                 if old_in_cache:
                     del self._event_cache[ev_id]
                     self._removed_from_cache += 1
 
-                # Also remove it from active set
+                # also remove from active
                 if old_in_active:
                     self._active_tracking_set.remove(ev_id)
                     self._removed_from_active_set += 1
 
-            # If new_in_active and there's a real change => callback
-            new_in_active = (ev_id in self._active_tracking_set)
-            if new_in_active and change_type != "no-change" and self.on_tracked_change:
-                self.on_tracked_change(change_description)
-
-        return self._within_time_window(ev)
+            return in_timeframe
 
     def _describe_change(self, ev: dict) -> dict:
         """
-        'deleted' if event's status=cancelled,
+        'deleted' if status=cancelled,
         'created' if not in cache,
         'updated' if in cache and something changed,
         'no-change' if in cache but no fields changed.
@@ -302,8 +298,8 @@ class GCalEventChangeAgent(PassiveAPIAgent):
         old_event = rec["current"] if rec else {}
 
         if status == "cancelled":
-            change_type = "deleted"
             diffs = self._compute_diff(old_event, ev)
+            change_type = "deleted"
         else:
             if not old_event:
                 change_type = "created"
@@ -321,16 +317,13 @@ class GCalEventChangeAgent(PassiveAPIAgent):
 
     def _compute_diff(self, old_event: dict, new_event: dict) -> dict:
         """
-        Shallow diff:
-            { fieldName: {"old": val, "new": val}, ... }
+        Return shallow diff as {fieldName: {"old": val, "new": val}, ...}
         """
         changes = {}
         all_keys = set(old_event.keys()).union(new_event.keys())
         for k in all_keys:
-            old_val = old_event.get(k)
-            new_val = new_event.get(k)
-            if old_val != new_val:
-                changes[k] = {"old": old_val, "new": new_val}
+            if old_event.get(k) != new_event.get(k):
+                changes[k] = {"old": old_event.get(k), "new": new_event.get(k)}
         return changes
 
     def _within_time_window(self, event: dict) -> bool:
@@ -345,18 +338,12 @@ class GCalEventChangeAgent(PassiveAPIAgent):
         return not (ev_end < win_start or ev_start > win_end)
 
     def _compute_time_window(self):
-        """
-        Return (start, end) for local time window in naive UTC datetimes.
-        """
         now = datetime.utcnow()
         start = now - timedelta(hours=self.time_window_past_hours)
         end = now + timedelta(hours=self.time_window_future_hours)
         return start, end
 
     def _parse_event_start(self, event: dict) -> Optional[datetime]:
-        """
-        Parse start from 'start.dateTime' or 'start.date'.
-        """
         start_info = event.get("start", {})
         dt_str = start_info.get("dateTime") or start_info.get("date")
         if not dt_str:
@@ -370,9 +357,6 @@ class GCalEventChangeAgent(PassiveAPIAgent):
             return None
 
     def _parse_event_end(self, event: dict) -> Optional[datetime]:
-        """
-        Parse end from 'end.dateTime' or 'end.date'.
-        """
         end_info = event.get("end", {})
         dt_str = end_info.get("dateTime") or end_info.get("date")
         if not dt_str:
@@ -391,10 +375,9 @@ class GCalEventChangeAgent(PassiveAPIAgent):
         Also remove them from active set if they get pruned.
         """
         to_remove = []
-        for ev_id, rec in self._event_cache.items():
+        for ev_id, rec in list(self._event_cache.items()):
             current_event = rec["current"]
             if not current_event:
-                # If there's no actual event data, remove
                 to_remove.append(ev_id)
                 continue
             if not self._within_time_window(current_event):
@@ -409,13 +392,12 @@ class GCalEventChangeAgent(PassiveAPIAgent):
 
     async def new_criteria_reset(self, new_criteria_func: Callable[[dict], bool]):
         """
-        Poll immediately (full or incremental) for each calendar, prune out-of-window events,
-        then reset _active_tracking_set and rebuild it by checking all in-window events
-        against the *new* criteria function.
+        Poll immediately for each calendar, prune out-of-window,
+        then rebuild _active_tracking_set using new_criteria_func.
         """
         self.criteria_func = new_criteria_func
 
-        # Zero out counters for logging
+        # zero out counters
         self._added_to_cache = 0
         self._removed_from_cache = 0
         self._added_to_active_set = 0
@@ -430,17 +412,15 @@ class GCalEventChangeAgent(PassiveAPIAgent):
                 logger.info(f"[GCalEventChangeAgent] new_criteria_reset => incremental fetch for {cal_id}.")
                 await self._handle_incremental_fetch(cal_id)
 
-        # 2) Prune out-of-window events
+        # 2) Prune out-of-window
         self.prune_out_of_window_events()
 
-        # 3) Completely reset active_tracking_set...
+        # 3) Completely reset active set
         old_active_count = len(self._active_tracking_set)
         self._active_tracking_set = set()
-        # Mark how many we removed in this reset:
         self._removed_from_active_set += old_active_count
 
-        # 4) ...and rebuild it from the new criteria.
-        #    We'll add any event in the cache that meets the new_criteria_func.
+        # 4) Re-check each event in cache
         local_added = 0
         for ev_id, rec in self._event_cache.items():
             ev_current = rec.get("current")

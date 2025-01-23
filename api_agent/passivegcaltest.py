@@ -3,35 +3,60 @@
 import asyncio
 import logging
 
-from google_calender_event_change import GCalEventChangeAgent
+from google_calendar_event_change import GCalEventChangeAgent
 from api_functions import GoogleCalendarAPIHandler
 
 logging.basicConfig(level=logging.INFO)
 
 def my_criteria_func(event_data: dict) -> bool:
     """
-    For example: Return True if 'meeting' is in the event summary.
-    Or, return True for everything if you want to track all events.
+    Example criteria: Return True if 'meeting' is in the event summary.
     """
     summary = event_data.get("summary", "") or ""
     return "meeting" in summary.lower()
 
-def on_tracked_event_changed(change_info: dict):
+def my_new_criteria_func(event_data: dict) -> bool:
     """
-    Called whenever a tracked event is created/updated/deleted
-    (i.e. in _active_tracking_set).
+    A second criteria for testing new_criteria_reset:
+    Return True if 'zoom' is in the event summary.
     """
-    ev_id = change_info["id"]
-    change_type = change_info["change_type"]
-    diffs = change_info["diffs"]
-    print(f"[TRACKED CHANGE] eventId={ev_id}, type={change_type}, diffs={diffs}")
+    summary = event_data.get("summary", "") or ""
+    return "zoom" in summary.lower()
+
+def on_tracked_change(changes: dict):
+    """
+    `changes` is a dictionary:
+        {
+          "<event_id>": {
+              "data": <the_event_dict>,
+              "just_changed": bool
+          }, ...
+        }
+    """
+    # 1) Log all items in the dictionary
+    logging.info(f"[CALLBACK] Received {len(changes)} event(s) in this poll cycle:")
+    for ev_id, info in changes.items():
+        ev_data = info["data"]
+        summary = ev_data.get("summary", "")
+        logging.info(f"  - eventId={ev_id}, summary={summary}")
+
+    # 2) Now, log which items had just_changed=True
+    updated = [ev_id for ev_id, info in changes.items() if info["just_changed"]]
+    if updated:
+        logging.info(f"[CALLBACK] Of these, {len(updated)} event(s) were updated/changed:")
+        for ev_id in updated:
+            ev_data = changes[ev_id]["data"]
+            summary = ev_data.get("summary", "")
+            logging.info(f"     * eventId={ev_id}, summary={summary}")
+    else:
+        logging.info(f"[CALLBACK] None of these items changed this time.")
 
 async def main():
     calendar_handler = GoogleCalendarAPIHandler()
 
     # We'll watch from 12 hours in the past up to 72 hours in the future
     agent = GCalEventChangeAgent(
-        check_interval_seconds=10,
+        check_interval_seconds=5,
         calendar_handler=calendar_handler,
         criteria_func=my_criteria_func,
         time_window_past_hours=12,
@@ -40,18 +65,23 @@ async def main():
         last_sync_token=None       # Start fresh => full fetch first
     )
 
-    # This callback fires whenever a tracked event is created/updated/deleted
-    agent.on_tracked_change = on_tracked_event_changed
+    # This callback fires whenever we do a poll
+    agent.on_tracked_change = on_tracked_change
 
     # Start agent in background
     task = asyncio.create_task(agent.start())
 
-    # Let it run for ~1 minute
-    await asyncio.sleep(240)
+    # Let it run for 45 seconds
+    logging.info("Running with my_criteria_func (searching 'meeting') for 45 seconds...")
+    await asyncio.sleep(20)
 
-    # Optionally, do a new criteria reset
-    # new_criteria = lambda ev: "zoom" in (ev.get("summary","").lower())
-    # await agent.new_criteria_reset(new_criteria)
+    # Test new_criteria_reset
+    logging.info("\n=== Now calling new_criteria_reset to switch to 'zoom' in summary ===\n")
+    await agent.new_criteria_reset(my_new_criteria_func)
+
+    # Let it run for another 45 seconds
+    logging.info("Running with new_criteria_func (searching 'zoom') for another 45 seconds...")
+    await asyncio.sleep(45)
 
     # Stop the agent
     agent.stop()
