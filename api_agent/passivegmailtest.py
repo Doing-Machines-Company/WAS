@@ -12,14 +12,13 @@ logging.basicConfig(level=logging.INFO)
 
 def my_thread_criteria_func_v1(thread_data: dict) -> bool:
     """
-    Example thread-level criteria function #1:
-      - Return True if ANY in-timeframe message has 'bonk' in subject and snippet.
-      - Because we only pass the in-timeframe messages, no need to filter further here.
+    Example #1:
+    Return True if 'bonk' is found in both subject and snippet.
     """
     messages = thread_data.get("messages", [])
     for msg in messages:
         snippet = (msg.get("snippet") or "").lower()
-        if "bonk" not in snippet:
+        if "bonk1" not in snippet:
             continue
 
         headers = msg.get("payload", {}).get("headers", [])
@@ -29,20 +28,19 @@ def my_thread_criteria_func_v1(thread_data: dict) -> bool:
                 subject = h.get("value", "").lower()
                 break
 
-        if "bonk" in subject and "bonk" in snippet:
+        if "bonk1" in subject and "bonk1" in snippet:
             return True
     return False
 
-
 def my_thread_criteria_func_v2(thread_data: dict) -> bool:
     """
-    Example thread-level criteria function #2:
-      - Return True if ANY in-timeframe message has 'testing123' in snippet or subject.
+    Example #2:
+    Return True if 'testing123' is found in subject or snippet.
     """
     messages = thread_data.get("messages", [])
     for msg in messages:
         snippet = (msg.get("snippet") or "").lower()
-        if "testing123" in snippet:
+        if "bonk2" in snippet:
             return True
 
         headers = msg.get("payload", {}).get("headers", [])
@@ -52,57 +50,59 @@ def my_thread_criteria_func_v2(thread_data: dict) -> bool:
                 subject = h.get("value", "").lower()
                 break
 
-        if "testing123" in subject:
+        if "bonk2" in subject:
             return True
     return False
 
 
-def on_new_threads_callback(threads_list):
+def on_tracked_change(changes: dict):
     """
-    Called whenever we discover new threads that pass the criteria
-    or whenever a tracked thread sees a new message (any change).
+    `changes` is a dictionary of thread_id -> {"data": <thread_data>, "just_changed": bool}.
     """
-    print(f"\n[CALLBACK] Received {len(threads_list)} thread(s):")
-    for th in threads_list:
-        tid = th.get("id")
-        print(f"  - Thread ID = {tid}")
-        # Possibly list message subjects
-        for m in th.get("messages", []):
-            subject = None
-            for h in m.get("payload", {}).get("headers", []):
-                if h.get("name", "").lower() == "subject":
-                    subject = h.get("value", "")
-                    break
-            print(f"    * Message ID: {m.get('id')} Subject: {subject}")
+    # 1) Log all threads received
+    logging.info(f"[CALLBACK] Received {len(changes)} thread(s) this cycle:")
+    for t_id, info in changes.items():
+        thread_data = info["data"]
+        logging.info(f"  - Thread ID={t_id}, snippetOfFirstMsg='{thread_data.get('messages', [{}])[0].get('snippet','')[:40]}'")
+
+    # 2) Log which threads had just_changed=True
+    changed = [t_id for t_id, info in changes.items() if info["just_changed"]]
+    if changed:
+        logging.info(f"[CALLBACK] Of these, {len(changed)} thread(s) were updated/changed:")
+        for t_id in changed:
+            thr_data = changes[t_id]["data"]
+            logging.info(f"     * Thread ID={t_id}, totalMessages={len(thr_data.get('messages',[]))}")
+    else:
+        logging.info("[CALLBACK] None of these threads were newly updated/changed this time.")
 
 
 async def main():
     gmail_handler = GmailAPIHandler()
 
-    # Create the agent with an initial criteria function and no JSON storage
+    # Create the agent with an initial criteria function
     agent = GmailNewMailAgent(
         check_interval_seconds=7,
         gmail_handler=gmail_handler,
         criteria_func=my_thread_criteria_func_v1,  # Start with criteria_func_v1
-        timeframe_hours=24,                       # only consider last 24h for new matches
-        label_ids=["INBOX"],                      # watch changes for threads that appear in INBOX
-        last_history_id=None                      # if None, will set it at start
+        timeframe_hours=24,
+        label_ids=["INBOX"],   # watch threads that appear in INBOX
+        last_history_id=None
     )
-    agent.on_tracked_change = on_new_threads_callback
+    agent.on_tracked_change = on_tracked_change
 
     # Start the agent in the background
     task = asyncio.create_task(agent.start())
 
-    # Let it run for ~30s
-    print("Running with criteria_func_v1 for 30 seconds...")
-    await asyncio.sleep(120)
+    # Let it run for ~30 seconds with the first criteria
+    logging.info("Running with criteria_func_v1 for 30 seconds...")
+    await asyncio.sleep(10)
 
-    # Now suppose we want to change to a new criteria function on the fly
-    print("\n*** NOW CHANGING THE CRITERIA FUNCTION to my_thread_criteria_func_v2 ***\n")
+    # Switch to new criteria
+    logging.info("\n*** NOW CHANGING THE CRITERIA FUNCTION to my_thread_criteria_func_v2 ***\n")
     await agent.new_criteria_reset(my_thread_criteria_func_v2)
 
-    # Let it run for another ~30s to see new matches
-    print("Running with criteria_func_v2 for another 30 seconds...")
+    # Let it run for another ~30 seconds
+    logging.info("Running with criteria_func_v2 for 30 more seconds...")
     await asyncio.sleep(60)
 
     # Stop the agent

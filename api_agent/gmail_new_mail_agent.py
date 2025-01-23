@@ -18,26 +18,17 @@ class GmailNewMailAgent(PassiveAPIAgent):
     """
     A 'passive' agent that:
       - Caches and tracks threads (not just individual messages).
-      - On startup, crawls all threads that have a message within the last X timeframe (timeframe_hours).
+      - On the first poll, crawls all threads that have a message
+        within the last X timeframe (timeframe_hours).
       - On each poll:
-          * We call the Gmail History API (no label filter) to detect all new messages.
-          * If the thread is in our actively tracked set (_active_tracking_set), we fetch changes and fire the callback (no criteria check).
-          * Else if the new message's labelIds intersect with self.label_ids, we consider it a newly relevant thread and fetch changes.
+          * We call the Gmail History API (no label filter) to detect new messages.
           * We skip drafts.
-          * If after fetching a new thread it passes our criteria_func, we add that thread to the actively tracked set.
-      - We have one callback, on_new_matching_threads, which is triggered:
-          1) For threads we are already tracking if they have new changes.
-          2) For threads that newly pass the criteria function.
-      - On startup or a new criteria reset, we only evaluate the criteria function for threads in the timeframe,
-        ignoring older ones for performance reasons.
-
-    Additional new feature:
-      - new_criteria_reset(new_criteria_func):
-          1) Replaces the agent's criteria_func.
-          2) Clears the actively tracked set.
-          3) Forces an immediate poll (handle_polling).
-          4) Prunes old threads (outside timeframe).
-          5) Re-checks the remaining threads in the cache with the new criteria function => track + callback if newly matched.
+          * If the thread is in our actively tracked set => fetch & mark as changed
+          * Else if new message's labelIds intersect with self.label_ids => fetch => if pass => track
+          * Then prune old threads if not in the active set.
+      - We have one callback, on_tracked_change, which receives:
+          * A dictionary of all active threads,
+          * Each entry has "data": <thread_data> and "just_changed": bool
     """
 
     def __init__(
@@ -54,7 +45,8 @@ class GmailNewMailAgent(PassiveAPIAgent):
         self.criteria_func = criteria_func
         self.timeframe_hours = timeframe_hours
 
-        # For newly discovered threads, we only consider them if they appear under these labelIds (e.g. "INBOX")
+        # For newly discovered threads, we only consider them if they appear
+        # under these labelIds (e.g. "INBOX")
         self.label_ids = label_ids or ["INBOX"]
 
         self.last_history_id = last_history_id
@@ -62,198 +54,195 @@ class GmailNewMailAgent(PassiveAPIAgent):
         # In-memory cache of thread_id -> thread_resource
         self._thread_cache: Dict[str, dict] = {}
 
-        # Threads that have passed the criteria at least once since last reset
+        # Threads that have passed the criteria at least once
         self._active_tracking_set: set[str] = set()
 
         # Optional callback for "new or updated" threads
-        self.on_tracked_change: Optional[Callable[[List[dict]], None]] = None
+        # Now always takes a dictionary keyed by thread_id
+        # containing {"data": <thread_data>, "just_changed": bool}
+        self.on_tracked_change: Optional[Callable[[Dict[str, Dict[str, Any]]], None]] = None
 
-    async def start(self):
-        """
-        1) Initial crawl of recent threads (timeframe_hours)
-        2) Prune older threads
-        3) Evaluate any leftover threads for the criteria => track them if matched
-        4) If we don't have a last_history_id, fetch it
-        5) Start the normal PassiveAPIAgent loop
-        """
-        logger.info("Performing initial crawl of recent threads...")
-        self._initial_crawl()
-
-        # Prune older threads so we only keep items in timeframe
-        self._prune_old_threads()
-
-        # Evaluate leftover threads for criteria
-        newly_matched = []
-        for thread_id, thread_data in self._thread_cache.items():
-            if thread_id not in self._active_tracking_set:
-                if self.criteria_func(thread_data):
-                    self._active_tracking_set.add(thread_id)
-                    newly_matched.append(thread_data)
-
-        if newly_matched and self.on_tracked_change:
-            logger.info(f"Firing callback for {len(newly_matched)} newly matched thread(s) on startup.")
-            self.on_tracked_change(newly_matched)
-
-        # If we don't have a baseline, fetch a current historyId so we skip older mail
-        if not self.last_history_id:
-            hid = self._fetch_current_history_id()
-            if hid:
-                logger.info(f"GmailNewMailAgent => Setting initial last_history_id to {hid}")
-                self.last_history_id = hid
-
-        await super().start()
+        # For first-run detection in handle_polling
+        self._did_initial_crawl = False
 
     async def handle_polling(self):
         """
         Called periodically:
-          - Compare new_hid vs. last_history_id
-          - If different, gather new messages from the entire mailbox (no label filter)
-          - Skip drafts
-          - If thread is in active set => fetch, callback
-          - Else if thread label intersects with self.label_ids => fetch => if new pass => add + callback
-          - Prune old threads not in active set
+          1) If first run:
+             - Do the initial crawl of recent threads,
+             - Prune older threads,
+             - Evaluate them for criteria => add to active if matched,
+             - Possibly set last_history_id if not set.
+             - Mark self._did_initial_crawl = True
+          2) Else do incremental polling via Gmail History API
+             - Skip drafts
+             - If thread is in active => fetch => mark changed
+             - Else if new message's labels intersect => fetch => check criteria
+          3) Prune old threads not in active set
+          4) Fire the callback with the entire active set, tagging which changed
         """
-        new_hid = self._fetch_current_history_id()
-        if not new_hid:
-            logger.warning("GmailNewMailAgent => could not fetch current historyId.")
-            return
+        changed_ids = set()
 
-        if not self.last_history_id:
-            logger.info("GmailNewMailAgent => first run in handle_polling, ignoring older mail.")
-            self.last_history_id = new_hid
-            return
+        if not self._did_initial_crawl:
+            logger.info("GmailNewMailAgent => Performing initial crawl of recent threads...")
+            self._initial_crawl()
+            self._prune_old_threads()
 
-        if new_hid == self.last_history_id:
-            logger.info("GmailNewMailAgent => no new mail.")
-            return
+            # Evaluate leftover threads for criteria
+            newly_matched = []
+            for thread_id, thread_data in self._thread_cache.items():
+                if thread_id not in self._active_tracking_set:
+                    if self.criteria_func(thread_data):
+                        self._active_tracking_set.add(thread_id)
+                        newly_matched.append(thread_id)
 
-        changed_items = self._fetch_changed_ids_for_all(self.last_history_id, new_hid)
-        logger.info(f"GmailNewMailAgent => found {len(changed_items)} new/changed message(s).")
+            # Mark those newly matched as changed
+            changed_ids.update(newly_matched)
 
-        # We track two sets for the callback:
-        #  1) already-tracked threads that changed
-        #  2) newly matched threads
-        changed_tracked_thread_ids = set()
-        newly_matched_thread_ids = set()
+            # If we don't have a baseline history ID, fetch it to skip older mail
+            if not self.last_history_id:
+                hid = self._fetch_current_history_id()
+                if hid:
+                    logger.info(f"GmailNewMailAgent => Setting initial last_history_id to {hid}")
+                    self.last_history_id = hid
 
-        for msg_id, label_list in changed_items:
-            if "DRAFT" in label_list:
-                logger.info(f"Skipping message {msg_id} because it is labeled DRAFT.")
-                continue
-
-            # fetch the message to confirm
-            try:
-                action = APIAction(
-                    action_type=APIActionType.GMAIL_GET_MESSAGE,
-                    parameters=GmailGetMessageParams(messageId=msg_id).__dict__
-                )
-                msg_data = self.gmail_handler.perform_action(action)
-            except HttpError as e:
-                if e.resp.status == 404:
-                    logger.warning(f"Message {msg_id} not found (404). Skipping.")
-                    continue
-                else:
-                    raise e
-
-            if not msg_data:
-                continue
-
-            msg_labels = msg_data.get("labelIds", [])
-            if "DRAFT" in msg_labels:
-                logger.info(f"Skipping message {msg_id} because it is labeled DRAFT.")
-                continue
-
-            thread_id = msg_data.get("threadId")
-            if not thread_id:
-                continue
-
-            # Decide if we should fetch the thread
-            #  - If in active set => always fetch & callback
-            #  - Else if label intersection => fetch & check criteria
-            if thread_id in self._active_tracking_set:
-                # We'll definitely fetch it
-                fetch_this_thread = True
+            self._did_initial_crawl = True
+        else:
+            # Incremental poll
+            new_hid = self._fetch_current_history_id()
+            if not new_hid:
+                logger.warning("GmailNewMailAgent => could not fetch current historyId.")
+            elif not self.last_history_id:
+                # first time in handle_polling, but we did do _initial_crawl =>
+                # just set last_history_id to new_hid
+                logger.info("GmailNewMailAgent => no existing last_history_id, setting it now.")
+                self.last_history_id = new_hid
+            elif new_hid == self.last_history_id:
+                logger.info("GmailNewMailAgent => no new mail since last poll.")
             else:
-                # Not tracked yet => only fetch if new message intersects label_ids
-                if any(lbl in self.label_ids for lbl in label_list):
-                    fetch_this_thread = True
-                else:
-                    fetch_this_thread = False
+                # there's new mail
+                changed_messages = self._fetch_changed_ids_for_all(self.last_history_id, new_hid)
+                logger.info(f"GmailNewMailAgent => found {len(changed_messages)} new/changed message(s).")
 
-            if not fetch_this_thread:
-                continue
+                for msg_id, label_list in changed_messages:
+                    if "DRAFT" in label_list:
+                        # skip
+                        continue
+                    # fetch the message to confirm
+                    try:
+                        action = APIAction(
+                            action_type=APIActionType.GMAIL_GET_MESSAGE,
+                            parameters=GmailGetMessageParams(messageId=msg_id).__dict__
+                        )
+                        msg_data = self.gmail_handler.perform_action(action)
+                    except HttpError as e:
+                        if e.resp.status == 404:
+                            logger.warning(f"Message {msg_id} not found (404). Skipping.")
+                            continue
+                        else:
+                            raise e
 
-            # Get entire thread
-            thread_data = self._fetch_thread_by_id(thread_id)
-            if not thread_data:
-                continue
+                    if not msg_data:
+                        continue
 
-            # Update the cache
-            self._thread_cache[thread_id] = thread_data
+                    # skip if draft
+                    msg_labels = msg_data.get("labelIds", [])
+                    if "DRAFT" in msg_labels:
+                        continue
 
-            # If it's already tracked => add to changed set
-            if thread_id in self._active_tracking_set:
-                changed_tracked_thread_ids.add(thread_id)
-            else:
-                # Not in tracked set => see if it passes criteria => track it
-                if self.criteria_func(thread_data):
-                    self._active_tracking_set.add(thread_id)
-                    newly_matched_thread_ids.add(thread_id)
+                    thread_id = msg_data.get("threadId")
+                    if not thread_id:
+                        continue
 
-        # Prune old threads not in active set
-        self._prune_old_threads()
+                    # Decide if we should fetch the thread
+                    if thread_id in self._active_tracking_set:
+                        fetch_this_thread = True
+                    else:
+                        # Not tracked => only fetch if it belongs to a label of interest
+                        if any(lbl in self.label_ids for lbl in label_list):
+                            fetch_this_thread = True
+                        else:
+                            fetch_this_thread = False
 
-        # Combine sets => trigger callback
-        all_updated_ids = changed_tracked_thread_ids.union(newly_matched_thread_ids)
-        if all_updated_ids and self.on_tracked_change:
-            updated_list = [self._thread_cache[tid] for tid in all_updated_ids]
-            self.on_tracked_change(updated_list)
+                    if not fetch_this_thread:
+                        continue
 
-        # Update last_history_id
-        self.last_history_id = new_hid
+                    # retrieve the entire thread
+                    thread_data = self._fetch_thread_by_id(thread_id)
+                    if not thread_data:
+                        continue
+
+                    # update the cache
+                    self._thread_cache[thread_id] = thread_data
+
+                    # if already in active => mark changed
+                    if thread_id in self._active_tracking_set:
+                        changed_ids.add(thread_id)
+                    else:
+                        # newly see if it passes
+                        if self.criteria_func(thread_data):
+                            self._active_tracking_set.add(thread_id)
+                            changed_ids.add(thread_id)
+
+                # update last_history_id
+                self.last_history_id = new_hid
+
+            # prune old threads not in active
+            self._prune_old_threads()
+
+        # End-of-poll callback: entire active set
+        if self.on_tracked_change:
+            payload = {}
+            for tid in self._active_tracking_set:
+                payload[tid] = {
+                    "data": self._thread_cache[tid],
+                    "just_changed": (tid in changed_ids)
+                }
+            self.on_tracked_change(payload)
 
     async def new_criteria_reset(self, new_criteria_func: Callable[[dict], bool]):
         """
-        Allows changing the agent's criteria function at runtime:
-          1) Update self.criteria_func.
-          2) Clear out self._active_tracking_set.
-          3) Perform an immediate single poll (handle_polling).
-          4) Prune old threads (so we only keep the timeframe).
-          5) Re-check the remaining threads in the cache with the new criteria => track them + callback
+        1) Update criteria_func
+        2) Clear _active_tracking_set
+        3) Force an immediate poll (handle_polling)
+        4) Prune old threads
+        5) Re-check remaining threads in cache with new criteria => track & mark changed
         """
-        logger.info("new_criteria_reset => Setting new criteria function, clearing active tracking set.")
+        logger.info("GmailNewMailAgent => new_criteria_reset: updating criteria, clearing active set.")
         self.criteria_func = new_criteria_func
         self._active_tracking_set.clear()
 
-        # Step 3: immediate poll
+        # immediate poll
         await self.handle_polling()
 
-        # Step 4: prune old threads
+        # prune
         self._prune_old_threads()
 
-        # Step 5: re-check all remaining threads with new criteria
-        newly_matched_thread_ids = set()
+        # re-check
+        changed_ids = set()
         for thread_id, thread_data in self._thread_cache.items():
-            # Only check if not already tracked
             if thread_id not in self._active_tracking_set:
                 if self.criteria_func(thread_data):
                     self._active_tracking_set.add(thread_id)
-                    newly_matched_thread_ids.add(thread_id)
+                    changed_ids.add(thread_id)
 
-        if newly_matched_thread_ids and self.on_tracked_change:
-            updated_list = [self._thread_cache[tid] for tid in newly_matched_thread_ids]
+        if self.on_tracked_change and changed_ids:
+            payload = {}
+            for tid in self._active_tracking_set:
+                payload[tid] = {
+                    "data": self._thread_cache[tid],
+                    "just_changed": (tid in changed_ids)
+                }
             logger.info(
-                f"new_criteria_reset => Found {len(updated_list)} thread(s) matching the new criteria. Firing callback."
+                f"GmailNewMailAgent => new_criteria_reset => Found {len(changed_ids)} newly matched thread(s)."
             )
-            # self.on_tracked_change(updated_list)
+            self.on_tracked_change(payload)
 
     # ------------------------------------------------
     # Internal helpers
     # ------------------------------------------------
     def _fetch_current_history_id(self) -> Optional[str]:
-        """
-        Retrieve the latest historyId from getProfile().
-        """
+        """Retrieve the latest historyId from getProfile()."""
         try:
             prof = self.gmail_handler.service.users().getProfile(userId='me').execute()
             return prof.get('historyId')
@@ -263,7 +252,7 @@ class GmailNewMailAgent(PassiveAPIAgent):
 
     def _fetch_changed_ids_for_all(self, old_hid: str, new_hid: str) -> List[Any]:
         """
-        Calls the Gmail history API for 'messageAdded' events across *all* labels (no label filter).
+        Calls the Gmail history API for 'messageAdded' events across *all* labels.
         Returns list of (message_id, label_list).
         """
         all_map = {}
@@ -298,9 +287,7 @@ class GmailNewMailAgent(PassiveAPIAgent):
         return [(m, list(lbls)) for m, lbls in all_map.items()]
 
     def _fetch_thread_by_id(self, thread_id: str) -> Optional[dict]:
-        """
-        Fetches an entire thread object with 'full' message payloads.
-        """
+        """Fetch entire thread with 'full' message payloads."""
         try:
             thread_data = self.gmail_handler.service.users().threads().get(
                 userId='me',
@@ -315,7 +302,7 @@ class GmailNewMailAgent(PassiveAPIAgent):
     def _initial_crawl(self):
         """
         Fetch threads that have at least one message in the last self.timeframe_hours hours,
-        via a Gmail query like 'newer_than:Xh'. Store them in _thread_cache.
+        via Gmail query 'newer_than:Xh'. Store them in _thread_cache.
         """
         query = f"newer_than:{self.timeframe_hours}h"
         page_token = None
@@ -343,7 +330,7 @@ class GmailNewMailAgent(PassiveAPIAgent):
             if not page_token:
                 break
 
-        logger.info(f"_initial_crawl => Found {len(self._thread_cache)} threads so far in last {self.timeframe_hours}h.")
+        logger.info(f"_initial_crawl => Found {len(self._thread_cache)} threads in last {self.timeframe_hours}h.")
 
     def _prune_old_threads(self):
         """
@@ -355,9 +342,7 @@ class GmailNewMailAgent(PassiveAPIAgent):
 
         for thread_id, thread_data in self._thread_cache.items():
             if thread_id in self._active_tracking_set:
-                # If it's in the active set, never prune
-                continue
-            # Otherwise, check if it's in timeframe
+                continue  # never prune actively tracked
             if not self._thread_in_timeframe(thread_data, cutoff):
                 to_remove.append(thread_id)
 
