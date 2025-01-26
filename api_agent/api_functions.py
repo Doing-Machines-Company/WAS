@@ -1,4 +1,5 @@
 # api_functions.py
+
 import os
 import pickle
 import base64
@@ -294,23 +295,39 @@ class GoogleCalendarAPIHandler:
             raise ValueError(f"Calendar: Unsupported action type: {action.action_type}")
 
     def list_calendars(self, params: CalendarListCalendarsParams) -> Any:
-        """
-        No parameters, but typed for consistency if we add them later.
-        """
         response = self.service.calendarList().list().execute()
         return response.get('items', [])
 
     def create_event(self, params: CalendarCreateEventParams) -> Any:
+        # Handle start dateTime
+        if isinstance(params.start, datetime):
+            start_dt = params.start.isoformat()
+        else:
+            start_dt = params.start  # assume user gave string
+
+        # If there's no trailing 'Z' or +offset or -offset (after date part), append 'Z'
+        if not start_dt.endswith('Z') and ('+' not in start_dt[10:] and '-' not in start_dt[10:]):
+            start_dt += 'Z'
+
+        # Handle end dateTime
+        if isinstance(params.end, datetime):
+            end_dt = params.end.isoformat()
+        else:
+            end_dt = params.end  # assume user gave string
+
+        if not end_dt.endswith('Z') and ('+' not in end_dt[10:] and '-' not in end_dt[10:]):
+            end_dt += 'Z'
+
         event = {
             'summary': params.summary,
             'location': params.location,
             'description': params.description,
             'start': {
-                'dateTime': params.start.isoformat(),
+                'dateTime': start_dt,
                 'timeZone': params.timeZone,
             },
             'end': {
-                'dateTime': params.end.isoformat(),
+                'dateTime': end_dt,
                 'timeZone': params.timeZone,
             },
         }
@@ -318,10 +335,21 @@ class GoogleCalendarAPIHandler:
         return created
 
     def list_events(self, params: CalendarListEventsParams) -> Any:
-        now = (params.timeMin or datetime.utcnow()).isoformat() + 'Z'
+        if not params.timeMin:
+            # No timeMin provided, default to now
+            time_min_value = datetime.utcnow().isoformat() + 'Z'
+        elif isinstance(params.timeMin, datetime):
+            time_min_value = params.timeMin.isoformat()
+            if not time_min_value.endswith('Z') and ('+' not in time_min_value[10:] and '-' not in time_min_value[10:]):
+                time_min_value += 'Z'
+        else:
+            time_min_value = params.timeMin
+            if not time_min_value.endswith('Z') and ('+' not in time_min_value[10:] and '-' not in time_min_value[10:]):
+                time_min_value += 'Z'
+
         response = self.service.events().list(
             calendarId='primary',
-            timeMin=now,
+            timeMin=time_min_value,
             maxResults=params.maxResults,
             singleEvents=params.singleEvents,
             orderBy=params.orderBy
@@ -350,6 +378,8 @@ class GoogleCalendarAPIHandler:
             eventId=params.event_id
         ).execute()
         return {"status": "deleted", "event_id": params.event_id}
+
+
 
 class GoogleTasksAPIHandler:
     def __init__(self):
