@@ -72,8 +72,8 @@ Here is an example of STOP usage:
 task: Track my canvas classes 
 ```json
 {
-  "action_type": "LIST_MODULES",
-  "reason": "Need to see all modules in the course",
+  "action_type": "STOP",
+  "reason": "We have all course IDs so can set up the polling functions for each course",
   "parameters": {
     "final_answer" : [
       ["CANVAS_LIST_ASSIGNMENTS", 12345],
