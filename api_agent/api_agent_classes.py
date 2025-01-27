@@ -62,7 +62,7 @@ class APIActionType(enum.Enum):
     CALENDAR_LIST_CALENDARS = ("calendar_list_calendars", True)
     CALENDAR_CREATE_EVENT = ("calendar_create_event", False)
     CALENDAR_LIST_EVENTS = ("calendar_list_events", True)
-    CALENDAR_UPDATE_EVENT = ("calendar_update_event", True)
+    CALENDAR_UPDATE_EVENT = ("calendar_update_event", False)
     CALENDAR_DELETE_EVENT = ("calendar_delete_event", False)
 
     # Google Tasks
@@ -82,6 +82,15 @@ class APIActionType(enum.Enum):
     TASKS_CLEAR_COMPLETED_TASKS = ("tasks_clear_completed_tasks", False)
     TASKS_MOVE_TASK = ("tasks_move_task", True)
 
+    @staticmethod
+    def from_string(action_type_str: str) -> "APIActionType":
+        # Convert to uppercase just to be sure we match (e.g. "calendar_create_event" -> "CALENDAR_CREATE_EVENT")
+        upper_str = action_type_str.upper()
+        for member in APIActionType:
+            if member.value.upper() == upper_str:
+                return member
+        # If we don’t find a match, raise an error or fallback to STOP
+        raise ValueError(f"Unknown action type string: {action_type_str}")
 
 @dataclass
 class APILinearMemory:

@@ -19,12 +19,12 @@ class CalendarCreateEventParams:
     """
     summary: str
     description: str
-    location: str
-    start: datetime
-    end: datetime
+    location: Optional[str] = None
+
+    start: datetime = datetime.now()
+    end: datetime = datetime.now()
     timeZone: str = "America/New_York"
 
-    # Optional extras
     colorId: Optional[str] = None
     transparency: Optional[str] = None
     visibility: Optional[str] = None

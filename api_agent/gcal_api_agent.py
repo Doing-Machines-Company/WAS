@@ -10,9 +10,10 @@ from api_llm_handling import AgentCall, LLMMessage
 from call_llm import call_llm
 from api_functions import GoogleCalendarAPIHandler
 
+
 class GCalAPIAgent(APIAgent):
     def __init__(self, task="", fast_mode=False, retry_cap=10):
-        super().__init__(fast_mode=fast_mode, api="gcal", retry_cap=retry_cap)
+        super().__init__(fast_mode=fast_mode, api="google_calendar", retry_cap=retry_cap)
 
         self.task = task
 
@@ -32,36 +33,27 @@ class GCalAPIAgent(APIAgent):
             return f.read()
 
     def initialize_api_handler(self):
-        """Initialize the Gmail API handler."""
+        """Initialize the Google Calendar API handler."""
         return GoogleCalendarAPIHandler()
 
     async def setup(self):
-        """Setup tasks specific to GmailAPIAgent."""
+        """Setup tasks specific to GCalAPIAgent (none needed)."""
         pass
 
     def initialize_index(self):
-        """Create an LLM-based index over some reference text (for clarifications, etc.)."""
-        # Implementation specific to Gmail, e.g., indexing emails or labels
-        # Placeholder for actual indexing logic
+        """Not used here."""
         pass
 
-    async def call_action(self, provider: str = "cerebras", model: str = "llama-3.3-70b") -> AgentCall:
+    async def call_action(self, provider: str = "anthropic", model: str = "claude-3-5-sonnet-latest") -> AgentCall:
         """
-        Produces a specialized prompt for Gmail actions and processes the LLM response.
-
-        Args:
-            provider (str): The LLM provider to use.
-            model (str): The model name to use.
-
-        Returns:
-            AgentCall: The result of the LLM call, including the chosen action.
+        Produces a specialized prompt for Google Calendar actions and processes the LLM response.
         """
         # Summarize the current memory of actions
         memory_text = ""
         for i, mem in enumerate(self.action_mem):
             memory_text += f"- Step {i + 1} => Called: {mem.call} | Received: {mem.received}\n"
 
-        # Prepare user prompt replacements
+        # Prepare user prompt placeholders
         user_replacements = {
             'memory': memory_text.strip(),
             'task': self.task if self.task else "",
@@ -79,7 +71,7 @@ class GCalAPIAgent(APIAgent):
 
         print("Preparing to call LLM for action determination.")
 
-        # Call the LLM asynchronously
+        # Call the LLM
         agent_call = await call_llm(
             messages=messages,
             provider=provider,
@@ -90,9 +82,8 @@ class GCalAPIAgent(APIAgent):
         print(f"LLM Response: {agent_call.llm_response}")
 
         chosen_action = None
-        # Process parsed_output
+
         if agent_call.parsed_output:
-            # Iterate through all parsed JSON blocks
             for parsed in agent_call.parsed_output:
                 if isinstance(parsed, dict) and "action_type" in parsed:
                     try:
@@ -101,15 +92,14 @@ class GCalAPIAgent(APIAgent):
                         # Map action_type_str to APIActionType Enum
                         action_type_mapping = {
                             "STOP": APIActionType.STOP,
-                            "REQUEST_USER_INPUT": APIActionType.REQUEST_USER_INPUT,
                             "CALENDAR_LIST_CALENDARS": APIActionType.CALENDAR_LIST_CALENDARS,
                             "CALENDAR_CREATE_EVENT": APIActionType.CALENDAR_CREATE_EVENT,
                             "CALENDAR_LIST_EVENTS": APIActionType.CALENDAR_LIST_EVENTS,
                             "CALENDAR_UPDATE_EVENT": APIActionType.CALENDAR_UPDATE_EVENT,
                             "CALENDAR_DELETE_EVENT": APIActionType.CALENDAR_DELETE_EVENT,
+                            # If LLM tries REQUEST_USER_INPUT, it won't be recognized and will default to STOP
                         }
-
-                        action_type = action_type_mapping.get(action_type_str, APIActionType.STOP)  # Fallback to STOP
+                        action_type = action_type_mapping.get(action_type_str, APIActionType.STOP)
 
                         chosen_action = APIAction(
                             action_type=action_type,
@@ -117,12 +107,12 @@ class GCalAPIAgent(APIAgent):
                             parameters=parsed.get("parameters", None)
                         )
                         print(f"Chosen APIAction: {chosen_action.action_type} | Reason: {chosen_action.reason}")
-                        break  # Exit after finding the first valid action
-                    except Exception as e:
-                        print("Error mapping Gmail action type:", e)
-                        continue  # Try the next parsed JSON block
+                        break
 
-        # If no valid action was parsed, default to STOP
+                    except Exception as e:
+                        print("Error mapping Calendar action type:", e)
+                        continue
+
         if not chosen_action:
             chosen_action = APIAction(
                 action_type=APIActionType.STOP,
@@ -130,18 +120,13 @@ class GCalAPIAgent(APIAgent):
                 parameters=None
             )
 
-        # Update the parsed_output with the chosen_action
         agent_call.parsed_output = chosen_action
-
         return agent_call
 
     async def handle_actions(self, action: APIAction):
         """
-        Handle the given APIAction. This includes executing the action using the API handler,
-        managing user interactions, and updating memory.
-
-        Args:
-            action (APIAction): The action to handle.
+        Execute or handle the given APIAction.
+        No 'REQUEST_USER_INPUT' is handled here.
         """
         action_type = action.action_type
         action_reason = action.reason
@@ -149,29 +134,32 @@ class GCalAPIAgent(APIAgent):
         print(f"Handling APIAction: {action_type} | Reason: {action_reason}")
 
         if action_type == APIActionType.STOP:
-            # End agent
+            # The agent is done.
+            final_answer = []
+            if action.parameters:
+                final_answer = action.parameters.get("final_answer", [])
+
+            if final_answer:
+                print("Executing final sub-actions from STOP:")
+                for idx, (subaction_str, subparams) in enumerate(final_answer, start=1):
+                    subaction_type = APIActionType.from_string(subaction_str)
+                    print(f"{idx}. {subaction_str} => {subparams}")
+                    try:
+                        # Perform each sub-action if you want them executed automatically
+                        result = self.api_handler.perform_action(APIAction(
+                            action_type=subaction_type,
+                            reason="Final batch sub-action",
+                            parameters=subparams
+                        ))
+                        print("   Sub-action result:", result)
+                    except Exception as e:
+                        print("   Sub-action error:", e)
+
             await self.output_queue.put(('exit_message', "GCal Agent has stopped."))
             self.stop()
 
-        elif action_type == APIActionType.REQUEST_USER_INPUT:
-            # Ask user for specific input
-            question = action.parameters.get("question", "Please provide additional information.")
-            user_input = await self.ask_user(question)
-
-            # Store the response in context
-            self.context_info += f"User input: {user_input}\n"
-            self.question_answers.append((question, user_input))
-
-            # Record the action in memory
-            new_memory = APILinearMemory(
-                self.api,
-                call="REQUEST_USER_INPUT",
-                received=user_input
-            )
-            self.action_mem.append(new_memory)
-
         else:
-            # Perform the API action using the API handler
+            # Perform the single-step Calendar action
             try:
                 result = self.api_handler.perform_action(action)
                 success = True
@@ -186,7 +174,7 @@ class GCalAPIAgent(APIAgent):
                     self.stop()
             else:
                 self.failed_count = 0
-                # Store the action in memory
+                # Store the action and result in memory
                 new_memory = APILinearMemory(
                     self.api,
                     call=action_type.value,
@@ -194,10 +182,9 @@ class GCalAPIAgent(APIAgent):
                 )
                 self.action_mem.append(new_memory)
 
+
 if __name__ == "__main__":
-
-    # Instantiate an agent for Gmail
-    agent = GCalAPIAgent(task="what are my events")
-
-    # Actually run the agent’s async loop
+    # Instantiate an agent for Google Calendar
+    agent = GCalAPIAgent(task="create two events on jan 27 2025, one called 'one', the other called 'two'")
+    # agent = GCalAPIAgent(task="give me all my events")
     asyncio.run(agent.run())
