@@ -295,33 +295,38 @@ class GoogleCalendarAPIHandler:
             raise ValueError(f"Calendar: Unsupported action type: {action.action_type}")
 
     def list_calendars(self, params: CalendarListCalendarsParams) -> Any:
-        response = self.service.calendarList().list().execute()
+        # Example usage of optional fields
+        request_body = {}
+        if params.maxResults is not None:
+            request_body["maxResults"] = params.maxResults
+        if params.minAccessRole is not None:
+            request_body["minAccessRole"] = params.minAccessRole
+        if params.showHidden is not None:
+            request_body["showHidden"] = params.showHidden
+
+        response = self.service.calendarList().list(**request_body).execute()
         return response.get('items', [])
 
     def create_event(self, params: CalendarCreateEventParams) -> Any:
-        # Handle start dateTime
+        # Convert start/end to ISO strings if they are datetimes
         if isinstance(params.start, datetime):
             start_dt = params.start.isoformat()
         else:
-            start_dt = params.start  # assume user gave string
-
-        # If there's no trailing 'Z' or +offset or -offset (after date part), append 'Z'
+            start_dt = str(params.start)
         if not start_dt.endswith('Z') and ('+' not in start_dt[10:] and '-' not in start_dt[10:]):
             start_dt += 'Z'
 
-        # Handle end dateTime
         if isinstance(params.end, datetime):
             end_dt = params.end.isoformat()
         else:
-            end_dt = params.end  # assume user gave string
-
+            end_dt = str(params.end)
         if not end_dt.endswith('Z') and ('+' not in end_dt[10:] and '-' not in end_dt[10:]):
             end_dt += 'Z'
 
         event = {
             'summary': params.summary,
-            'location': params.location,
             'description': params.description,
+            'location': params.location,
             'start': {
                 'dateTime': start_dt,
                 'timeZone': params.timeZone,
@@ -329,31 +334,61 @@ class GoogleCalendarAPIHandler:
             'end': {
                 'dateTime': end_dt,
                 'timeZone': params.timeZone,
-            },
+            }
         }
+        # Handle optional fields
+        if params.colorId:
+            event['colorId'] = params.colorId
+        if params.transparency:
+            event['transparency'] = params.transparency
+        if params.visibility:
+            event['visibility'] = params.visibility
+        # If you had e.g. params.recurrence, set event['recurrence'] = [...]
+
         created = self.service.events().insert(calendarId='primary', body=event).execute()
         return created
 
     def list_events(self, params: CalendarListEventsParams) -> Any:
-        if not params.timeMin:
-            # No timeMin provided, default to now
+        # Handle timeMin
+        if params.timeMin is None:
             time_min_value = datetime.utcnow().isoformat() + 'Z'
         elif isinstance(params.timeMin, datetime):
             time_min_value = params.timeMin.isoformat()
             if not time_min_value.endswith('Z') and ('+' not in time_min_value[10:] and '-' not in time_min_value[10:]):
                 time_min_value += 'Z'
         else:
+            # It's a string
             time_min_value = params.timeMin
             if not time_min_value.endswith('Z') and ('+' not in time_min_value[10:] and '-' not in time_min_value[10:]):
                 time_min_value += 'Z'
 
-        response = self.service.events().list(
-            calendarId='primary',
-            timeMin=time_min_value,
-            maxResults=params.maxResults,
-            singleEvents=params.singleEvents,
-            orderBy=params.orderBy
-        ).execute()
+        # Handle timeMax
+        time_max_value = None
+        if params.timeMax:
+            if isinstance(params.timeMax, datetime):
+                time_max_value = params.timeMax.isoformat()
+                if not time_max_value.endswith('Z') and ('+' not in time_max_value[10:] and '-' not in time_max_value[10:]):
+                    time_max_value += 'Z'
+            else:
+                time_max_value = params.timeMax
+                if not time_max_value.endswith('Z') and ('+' not in time_max_value[10:] and '-' not in time_max_value[10:]):
+                    time_max_value += 'Z'
+
+        request_args = {
+            'calendarId': 'primary',
+            'timeMin': time_min_value,
+            'maxResults': params.maxResults,
+            'singleEvents': params.singleEvents,
+            'orderBy': params.orderBy
+        }
+        if time_max_value is not None:
+            request_args['timeMax'] = time_max_value
+        if params.showDeleted is not None:
+            request_args['showDeleted'] = params.showDeleted
+        if params.timeZone is not None:
+            request_args['timeZone'] = params.timeZone
+
+        response = self.service.events().list(**request_args).execute()
         return response.get('items', [])
 
     def update_event(self, params: CalendarUpdateEventParams) -> Any:
@@ -362,6 +397,8 @@ class GoogleCalendarAPIHandler:
             eventId=params.event_id
         ).execute()
 
+        # Merge fields_to_update directly onto the event object
+        # For example, if fields_to_update = {"summary": "New Title", "colorId": "1"}
         for key, val in params.fields_to_update.items():
             event[key] = val
 
