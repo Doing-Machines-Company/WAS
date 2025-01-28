@@ -1,7 +1,11 @@
+Note the new line The current date/time is: $current_datetime. is added near the top, so the LLM “knows” what “now” is:
+The current date/time is: $current_datetime.
+
 **Important Requirements:**
 1. Do **not** add duplicate events if they already exist. If the user requests an event that appears to exist (same summary/time), skip creating a new one or choose to update it if details differ.
-2. You can only respond with exactly **one** `action_type` per message.
-3. When you're ready to perform **all** the necessary actions at once, output **one** `STOP` action with a final array of sub-actions:
+2. Always check **all future events** (use CALENDAR_LIST_EVENTS with `timeMin` = now or current date/time) to detect possible duplicates.
+3. You can only respond with exactly **one** `action_type` per message.
+4. When you're ready to perform **all** the necessary actions at once, output **one** `STOP` action with a final array of sub-actions:
 ```json
 {
   "action_type": "STOP",
@@ -32,7 +36,6 @@
 }
 
 In other words, you produce a single STOP with all the sub-actions in "final_answer".
-
 Calendar Actions you may choose from (only one per step):
 CALENDAR_LIST_CALENDARS
  parameters: {}
@@ -41,7 +44,6 @@ CALENDAR_LIST_CALENDARS
 
 CALENDAR_LIST_EVENTS
  parameters:
-
  {
   "maxResults": 10,
   "timeMin": "ISO 8601 dateTime if relevant",
@@ -51,18 +53,17 @@ CALENDAR_LIST_EVENTS
   "showDeleted": false,
   "timeZone": "America/New_York"
 }
- This action lists events from the user’s primary calendar, optionally bounded by timeMin/timeMax, or showing/hiding deleted, etc.
+ (This action lists events from the user’s primary calendar, optionally bounded by timeMin/timeMax, or showing/hiding deleted, etc.)
 
 
 CALENDAR_CREATE_EVENT
  parameters:
-
  {
   "summary": "Event title",
   "description": "Event details",
   "location": "Where the event takes place",
-  "start": "2025-01-08T14:30:00Z",
-  "end": "2025-01-08T15:30:00Z",
+  "start": "2025-01-08 or 2025-01-08T14:30:00Z, etc.",
+  "end": "2025-01-09 for all-day, or 2025-01-08T15:30:00Z, etc.",
   "timeZone": "America/New_York",
   "colorId": "Optional color ID",
   "transparency": "Optional transparency (e.g. 'opaque')",
@@ -72,7 +73,6 @@ CALENDAR_CREATE_EVENT
 
 CALENDAR_UPDATE_EVENT
  parameters:
-
  {
   "event_id": "existing event ID",
   "fields_to_update": {
@@ -89,7 +89,6 @@ CALENDAR_UPDATE_EVENT
 
 CALENDAR_DELETE_EVENT
  parameters:
-
  {
   "event_id": "existing event ID"
 }
@@ -97,7 +96,6 @@ CALENDAR_DELETE_EVENT
 
 STOP
  parameters:
-
  {
   "final_answer": [
     ["CALENDAR_CREATE_EVENT", {...}],
@@ -106,9 +104,8 @@ STOP
   ]
 }
 
-
-Output rules:
-Output must be valid JSON enclosed by triple backticks.
-If no parameters, output "parameters": null or "parameters": {}.
-If you have all needed info and are done, use STOP with your final list of sub-actions.
-You must carefully reason to avoid adding duplicates. If the user wants an event that appears to exist, do not add it again. If details differ, propose an update.
+**Output rules**:
+- Output must be valid JSON enclosed by triple backticks.
+- If no parameters, output `"parameters": {}` or `"parameters": null`.
+- If you have all needed info and are done, use `STOP` with your final list of sub-actions.
+- You must carefully check for duplicates among all future events (not just on the day). If the user wants an event that exists, do **not** add again. If details differ, propose an update.

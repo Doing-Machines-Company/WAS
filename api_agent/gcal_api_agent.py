@@ -3,6 +3,7 @@
 import os
 import string
 import asyncio
+from datetime import datetime, timezone
 
 from api_agent_classes import APIAction, APIActionType, APILinearMemory
 from api_agent import APIAgent
@@ -16,6 +17,9 @@ class GCalAPIAgent(APIAgent):
         super().__init__(fast_mode=fast_mode, api="google_calendar", retry_cap=retry_cap)
 
         self.task = task
+
+        # Store current date/time in ISO format (UTC) for the LLM's awareness.
+        self.current_datetime = datetime.now(timezone.utc).isoformat()
 
         # Load the system prompt from a dedicated file
         system_prompt_path = os.path.join("api_prompts/gcal", "google_calendar_system.txt")
@@ -59,13 +63,16 @@ class GCalAPIAgent(APIAgent):
             'task': self.task if self.task else "",
             'task_notes': self.task_notes if self.task_notes else ""
         }
-
-        # Perform string template substitution on the user prompt
         user_prompt_str = string.Template(self.gmail_user_prompt_template).substitute(user_replacements)
+
+        # Also substitute $current_datetime into the system prompt
+        system_prompt_str = string.Template(self.gmail_system_prompt).substitute({
+            'current_datetime': self.current_datetime
+        })
 
         # Build LLM messages
         messages = [
-            LLMMessage(message_role="system", content=self.gmail_system_prompt),
+            LLMMessage(message_role="system", content=system_prompt_str),
             LLMMessage(message_role="user", content=user_prompt_str),
         ]
 
@@ -88,8 +95,7 @@ class GCalAPIAgent(APIAgent):
                 if isinstance(parsed, dict) and "action_type" in parsed:
                     try:
                         action_type_str = parsed.get("action_type", "").upper()
-
-                        # Map action_type_str to APIActionType Enum
+                        # Map string -> APIActionType
                         action_type_mapping = {
                             "STOP": APIActionType.STOP,
                             "CALENDAR_LIST_CALENDARS": APIActionType.CALENDAR_LIST_CALENDARS,
@@ -97,7 +103,6 @@ class GCalAPIAgent(APIAgent):
                             "CALENDAR_LIST_EVENTS": APIActionType.CALENDAR_LIST_EVENTS,
                             "CALENDAR_UPDATE_EVENT": APIActionType.CALENDAR_UPDATE_EVENT,
                             "CALENDAR_DELETE_EVENT": APIActionType.CALENDAR_DELETE_EVENT,
-                            # If LLM tries REQUEST_USER_INPUT, it won't be recognized and will default to STOP
                         }
                         action_type = action_type_mapping.get(action_type_str, APIActionType.STOP)
 
@@ -145,7 +150,7 @@ class GCalAPIAgent(APIAgent):
                     subaction_type = APIActionType.from_string(subaction_str)
                     print(f"{idx}. {subaction_str} => {subparams}")
                     try:
-                        # Perform each sub-action if you want them executed automatically
+                        # Optionally perform each sub-action
                         result = self.api_handler.perform_action(APIAction(
                             action_type=subaction_type,
                             reason="Final batch sub-action",
@@ -184,7 +189,7 @@ class GCalAPIAgent(APIAgent):
 
 
 if __name__ == "__main__":
+    # Example usage
     # Instantiate an agent for Google Calendar
-    agent = GCalAPIAgent(task="create two events on jan 27 2025, one called 'one', the other called 'two'")
-    # agent = GCalAPIAgent(task="give me all my events")
+    agent = GCalAPIAgent(task="create two all-day events on Jan 28, 2025, called 'one' and 'two'")
     asyncio.run(agent.run())

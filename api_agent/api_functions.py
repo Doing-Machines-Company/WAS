@@ -295,7 +295,6 @@ class GoogleCalendarAPIHandler:
             raise ValueError(f"Calendar: Unsupported action type: {action.action_type}")
 
     def list_calendars(self, params: CalendarListCalendarsParams) -> Any:
-        # Example usage of optional fields
         request_body = {}
         if params.maxResults is not None:
             request_body["maxResults"] = params.maxResults
@@ -307,71 +306,104 @@ class GoogleCalendarAPIHandler:
         response = self.service.calendarList().list(**request_body).execute()
         return response.get('items', [])
 
-    def create_event(self, params: CalendarCreateEventParams) -> Any:
-        # Convert start/end to ISO strings if they are datetimes
-        if isinstance(params.start, datetime):
-            start_dt = params.start.isoformat()
-        else:
-            start_dt = str(params.start)
-        if not start_dt.endswith('Z') and ('+' not in start_dt[10:] and '-' not in start_dt[10:]):
-            start_dt += 'Z'
+    def _is_all_day_string(self, value: str) -> bool:
+        """
+        Returns True if 'value' is in YYYY-MM-DD format (no 'T'), meaning an all-day event.
+        """
+        try:
+            datetime.strptime(value, "%Y-%m-%d")
+            return True
+        except ValueError:
+            return False
 
-        if isinstance(params.end, datetime):
-            end_dt = params.end.isoformat()
+    def _parse_date_or_datetime(self, possibly_dt) -> dict:
+        """
+        Returns a dict suitable for an event's 'start'/'end' field:
+         - {"date": "..."} for all-day
+         - {"dateTime": "..."} for timed events
+        """
+        if isinstance(possibly_dt, datetime):
+            iso_str = possibly_dt.isoformat()
+            # If using naive or UTC, might append 'Z':
+            if iso_str.endswith("+00:00"):
+                iso_str = iso_str.replace("+00:00", "Z")
+            return {"dateTime": iso_str}
+
+        elif isinstance(possibly_dt, str):
+            if self._is_all_day_string(possibly_dt):
+                # all-day event
+                return {"date": possibly_dt}
+            else:
+                # timed event
+                return {"dateTime": possibly_dt}
+
         else:
-            end_dt = str(params.end)
-        if not end_dt.endswith('Z') and ('+' not in end_dt[10:] and '-' not in end_dt[10:]):
-            end_dt += 'Z'
+            # Fallback = now
+            now_iso = datetime.utcnow().isoformat() + "Z"
+            return {"dateTime": now_iso}
+
+    def create_event(self, params: CalendarCreateEventParams) -> Any:
+        start_obj = self._parse_date_or_datetime(params.start)
+        end_obj = self._parse_date_or_datetime(params.end)
+
+        # If user wants all-day and start == end, shift end +1 day
+        if "date" in start_obj and "date" in end_obj and (start_obj["date"] == end_obj["date"]):
+            from datetime import datetime, timedelta
+            start_date = datetime.strptime(start_obj["date"], "%Y-%m-%d").date()
+            end_date = start_date + timedelta(days=1)
+            end_obj["date"] = end_date.isoformat()
 
         event = {
             'summary': params.summary,
-            'description': params.description,
-            'location': params.location,
-            'start': {
-                'dateTime': start_dt,
-                'timeZone': params.timeZone,
-            },
-            'end': {
-                'dateTime': end_dt,
-                'timeZone': params.timeZone,
-            }
+            'description': params.description or "",  # fallback to empty string if None
+            'location': params.location or ""
         }
-        # Handle optional fields
+
+        if "dateTime" in start_obj:
+            start_obj["timeZone"] = params.timeZone
+        if "dateTime" in end_obj:
+            end_obj["timeZone"] = params.timeZone
+
+        event['start'] = start_obj
+        event['end'] = end_obj
+
+        # Optional fields
         if params.colorId:
             event['colorId'] = params.colorId
         if params.transparency:
             event['transparency'] = params.transparency
         if params.visibility:
             event['visibility'] = params.visibility
-        # If you had e.g. params.recurrence, set event['recurrence'] = [...]
 
         created = self.service.events().insert(calendarId='primary', body=event).execute()
         return created
 
     def list_events(self, params: CalendarListEventsParams) -> Any:
-        # Handle timeMin
+        # If no timeMin is given, default to now => future events
         if params.timeMin is None:
             time_min_value = datetime.utcnow().isoformat() + 'Z'
         elif isinstance(params.timeMin, datetime):
             time_min_value = params.timeMin.isoformat()
-            if not time_min_value.endswith('Z') and ('+' not in time_min_value[10:] and '-' not in time_min_value[10:]):
+            if not time_min_value.endswith('Z') and \
+               ('+' not in time_min_value[10:] and '-' not in time_min_value[10:]):
                 time_min_value += 'Z'
         else:
-            # It's a string
             time_min_value = params.timeMin
-            if not time_min_value.endswith('Z') and ('+' not in time_min_value[10:] and '-' not in time_min_value[10:]):
+            if not time_min_value.endswith('Z') and \
+               ('+' not in time_min_value[10:] and '-' not in time_min_value[10:]):
                 time_min_value += 'Z'
 
-        # Handle timeMax
         time_max_value = None
         if params.timeMax:
             if isinstance(params.timeMax, datetime):
                 time_max_value = params.timeMax.isoformat()
-                if not time_max_value.endswith('Z') and ('+' not in time_max_value[10:] and '-' not in time_max_value[10:]):
+                if not time_max_value.endswith('Z') and \
+                   ('+' not in time_max_value[10:] and '-' not in time_max_value[10:]):
                     time_max_value += 'Z'
             else:
                 time_max_value = params.timeMax
-                if not time_max_value.endswith('Z') and ('+' not in time_max_value[10:] and '-' not in time_max_value[10:]):
+                if not time_max_value.endswith('Z') and \
+                   ('+' not in time_max_value[10:] and '-' not in time_max_value[10:]):
                     time_max_value += 'Z'
 
         request_args = {
@@ -381,7 +413,7 @@ class GoogleCalendarAPIHandler:
             'singleEvents': params.singleEvents,
             'orderBy': params.orderBy
         }
-        if time_max_value is not None:
+        if time_max_value:
             request_args['timeMax'] = time_max_value
         if params.showDeleted is not None:
             request_args['showDeleted'] = params.showDeleted
@@ -392,13 +424,8 @@ class GoogleCalendarAPIHandler:
         return response.get('items', [])
 
     def update_event(self, params: CalendarUpdateEventParams) -> Any:
-        event = self.service.events().get(
-            calendarId='primary',
-            eventId=params.event_id
-        ).execute()
+        event = self.service.events().get(calendarId='primary', eventId=params.event_id).execute()
 
-        # Merge fields_to_update directly onto the event object
-        # For example, if fields_to_update = {"summary": "New Title", "colorId": "1"}
         for key, val in params.fields_to_update.items():
             event[key] = val
 
