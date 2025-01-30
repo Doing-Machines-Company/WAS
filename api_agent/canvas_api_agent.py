@@ -13,13 +13,13 @@ from api_agent import APIAgent
 class CanvasAPIAgent(APIAgent):
     def __init__(self, fast_mode=False, retry_cap=10):
         super().__init__(fast_mode=fast_mode, api="canvas", retry_cap=retry_cap)
-
+        current_dir = os.path.dirname(os.path.abspath(__file__))
         # Load the system prompt from a dedicated file
-        system_prompt_path = os.path.join("api_prompts", "canvas_system.txt")
+        system_prompt_path = os.path.join(current_dir, "api_prompts", "canvas_system.txt")
         self.canvas_system_prompt = self.load_file(system_prompt_path)
 
         # Load the user prompt template from another file
-        user_prompt_path = os.path.join("api_prompts", "canvas_user.txt")
+        user_prompt_path = os.path.join(current_dir, "api_prompts", "canvas_user.txt")
         self.canvas_user_prompt_template = self.load_file(user_prompt_path)
 
     def load_file(self, file_path: str) -> str:
@@ -61,7 +61,7 @@ class CanvasAPIAgent(APIAgent):
         user_prompt_str = string.Template(self.canvas_user_prompt_template).substitute(
             user_replacements
         )
-
+        input(user_prompt_str)
         # Build LLM messages
         messages = [
             LLMMessage(message_role="system", content=self.canvas_system_prompt),
@@ -73,8 +73,9 @@ class CanvasAPIAgent(APIAgent):
             messages=messages,
             provider=provider,
             model=model,
-            max_tokens=512,  # Adjust as needed
+            max_tokens=8192,  # Adjust as needed
         )
+        print(agent_call.llm_response)
 
         chosen_action = None
 
@@ -98,7 +99,6 @@ class CanvasAPIAgent(APIAgent):
                             "CANVAS_GET_GRADES": APIActionType.CANVAS_GET_GRADES,
                             "CANVAS_GET_SUBMISSION_HISTORY": APIActionType.CANVAS_GET_SUBMISSION_HISTORY,
                             "CANVAS_GET_FILE": APIActionType.CANVAS_GET_FILE,
-                            "CANVAS_GET_SYLLABUS": APIActionType.CANVAS_GET_SYLLABUS,
                             "CANVAS_LIST_PAGES": APIActionType.CANVAS_LIST_PAGES,
                             "CANVAS_GET_PAGE": APIActionType.CANVAS_GET_PAGE,
                             "CANVAS_LIST_FILES": APIActionType.CANVAS_LIST_FILES,
@@ -125,8 +125,7 @@ class CanvasAPIAgent(APIAgent):
                 reason="Failed to parse LLM action or no valid action returned.",
                 parameters=None,
             )
-
         # Update the parsed_output with the chosen_action
         agent_call.parsed_output = chosen_action
-
+        
         return agent_call

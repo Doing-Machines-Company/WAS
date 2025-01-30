@@ -85,15 +85,6 @@ class CanvasGetSubmissionHistoryParams:
     )
 
 @dataclass
-class CanvasGetSyllabusParams:
-    """
-    Parameters for the CANVAS_GET_SYLLABUS action.
-    Gets the syllabus from the dedicated syllabus page of a course if it exists.
-    """
-
-    course_id: int
-
-@dataclass
 class CanvasListPagesParams:
     """
     Parameters for the CANVAS_LIST_PAGES action.

@@ -52,7 +52,6 @@ class APIActionType(enum.Enum):
     CANVAS_GET_SUBMISSION_HISTORY = "canvas_get_submission_history"
     CANVAS_LIST_PAGES = "canvas_list_pages"
     CANVAS_GET_PAGE = "canvas_get_page"
-    CANVAS_GET_SYLLABUS = "canvas_get_syllabus"
     CANVAS_LIST_FILES = "canvas_list_files"
     CANVAS_GET_FILE = "canvas_get_file"
 @dataclass

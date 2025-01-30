@@ -18,7 +18,6 @@ from api_type_classes.api_actions_params_canvas import (
     CanvasListPagesParams,
     CanvasGetPageParams,
     CanvasListCoursesParams,
-    CanvasGetSyllabusParams,
     CanvasListFilesParams,
     CanvasGetFileParams
 )
@@ -249,7 +248,6 @@ class CanvasAPIHandler:
 
     def create_service(self) -> Canvas:
         credentials = None
-        print(os.getcwd())
         if os.path.exists("canvas.json"):
             with open("canvas.json", "r") as credentials_file:
                 # `credentials` is a dictionary with two keys: `url` and `token`
@@ -292,10 +290,6 @@ class CanvasAPIHandler:
             params = CanvasListCoursesParams(**(action.parameters or {}))
             return self.list_courses(params)
 
-        elif action.action_type == APIActionType.CANVAS_GET_SYLLABUS:
-            params = CanvasGetSyllabusParams(**(action.parameters or {}))
-            return self.get_syllabus(params)
-
         elif action.action_type == APIActionType.CANVAS_LIST_PAGES:
             params = CanvasListPagesParams(**(action.parameters or {}))
             return self.list_pages(params)
@@ -319,21 +313,43 @@ class CanvasAPIHandler:
         Lists active courses for a given user
 
         """
-        return list(self.service.get_courses(enrollment_state=['active']))
+        return [str(course) for course in self.service.get_courses(enrollment_state='active')]
 
     def list_assignments(self, params: CanvasListAssignmentsParams) -> Any:
         """
         List assignments for a course with optional includes.
         """
         course = self.service.get_course(params.course_id)
-        return list(course.get_assignments(include=params.include))
+        assignments = course.get_assignments(include=params.include)
+        filtered_assignments = []
+        for assignment in assignments:
+            filtered_assignment = {
+                'id': assignment.id,
+                'name': assignment.name,
+                'due_at': assignment.due_at,
+                'points_possible': assignment.points_possible,
+                'submission_types': assignment.submission_types
+            }
+            filtered_assignments.append(filtered_assignment)
+        return filtered_assignments
 
     def get_assignment_details(self, params: CanvasGetAssignmentDetailsParams) -> Any:
         """
         Get detailed information about a specific assignment.
         """
         course = self.service.get_course(params.course_id)
-        return course.get_assignment(params.assignment_id)
+        assignment = course.get_assignment(params.assignment_id)
+        detailed_assignment = {
+            'id': assignment.id,
+            'name': assignment.name,
+            'description': assignment.description,
+            'due_at': assignment.due_at,
+            'points_possible': assignment.points_possible,
+            'submission_types': assignment.submission_types
+        }
+        return detailed_assignment
+
+
 
     def list_modules(self, params: CanvasListModulesParams) -> Any:
         """
@@ -355,9 +371,20 @@ class CanvasAPIHandler:
         Get grades for the current user in a course.
         """
         course = self.service.get_course(params.course_id)
-        enrollments = course.get_enrollments(type="student", include=params.include)
-        return next(enrollments)
 
+        # Fetch assignments and grades
+        assignments = course.get_assignments()
+        for assignment in assignments:
+            # Fetch the submission for the authenticated user
+            submission = assignment.get_submission('self')
+            grade = submission.grade
+            score = submission.score
+            points_possible = assignment.points_possible
+            print(f"Assignment: {assignment.name}")
+            print(f"  Grade: {grade}")
+            print(f"  Score: {score}")
+            print(f"  Points Possible: {points_possible}")
+            print("-" * 40)
     def get_submission_history(self, params: CanvasGetSubmissionHistoryParams) -> Any:
         """
         Get submission history for an assignment.
@@ -367,21 +394,7 @@ class CanvasAPIHandler:
         return assignment.get_submission(
             self.service.get_current_user().id, include=params.include
         )
-    def get_syllabus(self, params: CanvasGetSyllabusParams) -> Any:
-        """
-        Get the syllabus content from the dedicated syllabus page of a course.
-        
-        Args:
-            params: CanvasGetSyllabusParams containing course_id
-            
-        Returns:
-            dict: Contains syllabus_body (HTML content) and usage data
-        """
-        course = self.service.get_course(params.course_id)
-        return {
-            'syllabus_body': course.syllabus_body,
-            'syllabus_usage': course.syllabus_usage
-        }
+
     def list_pages(self, params: CanvasListPagesParams) -> Any:
         """
         List all wiki pages in a course.
@@ -393,7 +406,22 @@ class CanvasAPIHandler:
             list: All pages in the course
         """
         course = self.service.get_course(params.course_id)
-        return list(course.get_pages())
+        all_pages = []
+        try:
+            pages = course.get_pages(per_page=100)
+        except Exception as e:
+            input(e)
+        for page in pages:
+            print(page)
+        input()
+        # while True:
+        #     try:
+        #         page = next(pages)
+        #         all_pages.append(page)
+        #     except StopIteration:
+        #         break
+        
+        return all_pages
     def get_page(self, params: CanvasGetPageParams) -> Any:
         """
         Get a specific page by URL or ID.

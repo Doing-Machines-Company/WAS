@@ -35,7 +35,7 @@ class APIAgent:
         self.retry_cap = retry_cap
 
         # Inputs or prompts
-        self.task = None  # The main user request
+        self.task = ""  # The main user request
         self.task_notes = ""  # Additional context
 
         # For LLM question/answer flows
@@ -61,7 +61,7 @@ class APIAgent:
         self.item_context_pairs = ""
 
         # Initialize the LLM index
-        self.initialize_index()
+        #self.initialize_index()
 
         # Initialize the correct API handler
         if self.api == APIType.GMAIL:
@@ -154,7 +154,7 @@ class APIAgent:
     async def run(self):
         """Main execution loop for the agent."""
 
-        self.task = "What courses do I have"
+        self.task = "Track my canvas courses"
         self.task_notes = ""
 
         # # 1) If no task is set, ask user
@@ -188,12 +188,12 @@ class APIAgent:
         # 4) Loop to process chosen actions from LLM
         while not self.stop_event.is_set():
             try:
-                self.curr_save_node = SavedTrajectoryNode()
+                # self.curr_save_node = SavedTrajectoryNode()
 
                 # a) LLM decides on next action => we get an `APIAction`
                 # NOTE: specialized classes override call_action(...)
                 action_out_call = await self.call_action(
-                    provider="cerebras", model="llama-3.3-70b"
+                    provider="anthropic", model="claude-3-5-sonnet-20241022"
                 )
                 chosen_action: APIAction = action_out_call.parsed_output
 
@@ -204,12 +204,12 @@ class APIAgent:
                         self.stop()
                     break
 
-                self.curr_save_node.ad_call = action_out_call
+                # self.curr_save_node.ad_call = action_out_call
                 action_type = chosen_action.action_type
                 action_reason = chosen_action.reason
 
-                print(f"Chosen APIAction: {action_type} | Reason: {action_reason}")
-
+                print(f"Chosen APIAction: {action_type} | Parameters: {chosen_action.parameters}| Reason: {action_reason}")
+                input()
                 # b) Handle special vs. API action
                 if action_type == APIActionType.STOP:
                     # End agent
@@ -257,13 +257,14 @@ class APIAgent:
                     else:
                         self.failed_count = 0
                         # Store the action in memory
+                        call_str = f"{action_type.value} with parameters {chosen_action.parameters}"
                         new_memory = APILinearMemory(
-                            self.api, call=action_type.value, received=str(result)
+                            self.api, call=call_str, received=str(result)
                         )
                         self.action_mem.append(new_memory)
 
                 # d) Save step
-                self.saved_trajectory.add_node(copy.deepcopy(self.curr_save_node))
+                # self.saved_trajectory.add_node(copy.deepcopy(self.curr_save_node))
 
                 gc.collect()
 
@@ -287,13 +288,13 @@ class APIAgent:
 
     def stop(self):
         """Stop execution and save the trajectory to disk."""
-        now = datetime.datetime.now()
-        filename = (
-            f"{self.saved_trajectory.user_input_task}_{now.strftime('%Y%m%d_%H%M')}.pkl"
-        )
-        directory = "saved_trajectories"
-        if not os.path.exists(directory):
-            os.makedirs(directory)
-        with open(os.path.join(directory, filename), "wb") as f:
-            pickle.dump(self.saved_trajectory, f)
+        # now = datetime.datetime.now()
+        # filename = (
+        #     f"{self.saved_trajectory.user_input_task}_{now.strftime('%Y%m%d_%H%M')}.pkl"
+        # )
+        # directory = "saved_trajectories"
+        # if not os.path.exists(directory):
+        #     os.makedirs(directory)
+        # with open(os.path.join(directory, filename), "wb") as f:
+        #     pickle.dump(self.saved_trajectory, f)
         self.stop_event.set()

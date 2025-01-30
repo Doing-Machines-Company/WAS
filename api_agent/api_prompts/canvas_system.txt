@@ -85,7 +85,7 @@ task: Track my canvas classes
 ```
  
 
-Explanation: 12345, 23456, 34567 are the course ids of this particular user's canvas courses. To track them, we need to list each of their assignments. Note that we had already figured out their course IDs from exploration and they don't change so need to poll those functions, only the assignments.
+Explanation: 12345, 23456, 34567 are the course ids of this particular user's canvas courses. To track them, we need to list each of their assignments. Note that we had already figured out their course IDs from exploration and they don't change so no need to poll those functions, only the assignments.
 
 
 You must reason very hard using Chain of Thought before giving a response.
