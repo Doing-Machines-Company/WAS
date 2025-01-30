@@ -1,49 +1,46 @@
-# api_actions_params_calendar.py
+# api_actions_params_gcal.py
+
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union
 from datetime import datetime
 
 @dataclass
 class CalendarListCalendarsParams:
-    """
-    Parameters for listing a user's calendars.
-    """
-    pass  # For now, no special parameters are needed. Could add 'maxResults' if you wish.
+    maxResults: Optional[int] = None
+    minAccessRole: Optional[str] = None
+    showHidden: Optional[bool] = None
 
 @dataclass
 class CalendarCreateEventParams:
-    """
-    Parameters for creating a calendar event.
-    """
-    summary: str = "Test Event"
-    description: str = "This is a test event."
-    location: str = "123 Main St."
-    start: datetime = datetime.now()
-    end: datetime = datetime.now()
+    summary: str  # Still required if you want a summary at minimum
+    description: Optional[str] = None
+    location: Optional[str] = None
+
+    start: Optional[Union[str, datetime]] = None
+    end: Optional[Union[str, datetime]] = None
     timeZone: str = "America/New_York"
-    # You could also add 'attendees', etc.
+
+    colorId: Optional[str] = None
+    transparency: Optional[str] = None
+    visibility: Optional[str] = None
+
 
 @dataclass
 class CalendarListEventsParams:
-    """
-    Parameters for listing upcoming events.
-    """
+    calendarId: Optional[str] = None  # <-- add this
     maxResults: int = 10
-    timeMin: Optional[datetime] = None  # If None, we default to now in the code
+    timeMin: Optional[Union[str, datetime]] = None
+    timeMax: Optional[Union[str, datetime]] = None
     singleEvents: bool = True
     orderBy: str = "startTime"
+    showDeleted: Optional[bool] = None
+    timeZone: Optional[str] = None
 
 @dataclass
 class CalendarUpdateEventParams:
-    """
-    Parameters for updating a specific event.
-    """
     event_id: str
-    fields_to_update: Dict[str, Any]  # e.g., {"summary": "New Title"}
+    fields_to_update: Dict[str, Any]
 
 @dataclass
 class CalendarDeleteEventParams:
-    """
-    Parameters for deleting an event.
-    """
     event_id: str

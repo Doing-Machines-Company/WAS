@@ -1,0 +1,25 @@
+Here is your action memory so far:
+$memory
+
+Currently available calendars:
+$available_calendars
+
+Currently available task lists:
+$available_tasklists
+
+User's main request:
+$task
+
+Decide your next single action in valid JSON (triple backticks) from the list in the system instructions.
+Reason step-by-step using Chain-of-Thought (CoT) to do so.
+
+- You may use either a Calendar action (e.g. `CALENDAR_LIST_EVENTS`, `CALENDAR_CREATE_EVENT`, etc.) if the user’s request refers to a scheduled date/time.
+- Or, use a Tasks action (e.g. `TASKS_LIST_TASKS`, `TASKS_CREATE_TASK`, etc.) if the user’s request refers to to-do items or due dates.
+- If you need to fetch more information first (e.g. listing tasks or events to check duplicates), do that in one single action.
+- When you have **all** the info you need and are ready to perform everything at once, output **one** `STOP` action with a `"final_answer"` array containing all the sub-actions.
+
+Remember:
+1. You can only use **one** `action_type` in this response unless using `STOP`.
+2. Output must be valid JSON enclosed by triple backticks.
+3. Check carefully for duplicates in both events (future) and tasks (uncompleted or relevant to the user’s chosen list).
+4. If no parameters are needed, return `"parameters": {}` or `"parameters": null`.

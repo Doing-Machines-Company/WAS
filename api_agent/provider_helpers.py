@@ -35,9 +35,12 @@ def anthropic_call(messages: List[LLMMessage], model: str, max_tokens: int) -> s
         model=model,
         max_tokens=max_tokens,
         temperature=0,
-        system=system_segments,
-        messages=user_segments
+        # Combine system segments into a single string
+        system="\n".join(system_segments),
+        # Convert user segments into the expected list[{"role": "user", "content": ...}]
+        messages=[{"role": "user", "content": seg} for seg in user_segments]
     )
+
     return message.content[0].text
 
 

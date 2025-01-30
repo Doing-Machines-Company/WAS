@@ -1,4 +1,5 @@
 # api_functions.py
+
 import os
 import pickle
 import base64
@@ -13,6 +14,7 @@ from datetime import datetime, timedelta
 
 from api_agent_classes import APIAction, APIActionType
 
+# Gmail param classes
 from api_type_classes.api_actions_params_gmail import (
     # messages
     GmailListMessagesParams,
@@ -30,11 +32,30 @@ from api_type_classes.api_actions_params_gmail import (
     GmailSendDraftParams
 )
 
+# Calendar param classes
 from api_type_classes.api_actions_params_gcal import (
-    CalendarListCalendarsParams, CalendarCreateEventParams, CalendarListEventsParams,
-    CalendarUpdateEventParams, CalendarDeleteEventParams
+    CalendarListCalendarsParams,
+    CalendarCreateEventParams,
+    CalendarListEventsParams,
+    CalendarUpdateEventParams,
+    CalendarDeleteEventParams
 )
 
+# Tasks param classes
+from api_type_classes.api_actions_params_gtasks import (
+    TasksListTasklistsParams,
+    TasksGetTasklistParams,
+    TasksCreateTasklistParams,
+    TasksUpdateTasklistParams,
+    TasksDeleteTasklistParams,
+    TasksListTasksParams,
+    TasksGetTaskParams,
+    TasksCreateTaskParams,
+    TasksUpdateTaskParams,
+    TasksDeleteTaskParams,
+    TasksClearCompletedParams,
+    TasksMoveTaskParams
+)
 
 SCOPES = [
     'https://www.googleapis.com/auth/gmail.readonly',
@@ -43,7 +64,9 @@ SCOPES = [
     'https://www.googleapis.com/auth/gmail.send',
     'https://www.googleapis.com/auth/calendar',
     'https://www.googleapis.com/auth/calendar.events',
-    'https://www.googleapis.com/auth/calendar.events.readonly'
+    'https://www.googleapis.com/auth/calendar.events.readonly',
+    'https://www.googleapis.com/auth/tasks',
+    'https://www.googleapis.com/auth/tasks.readonly'
 ]
 
 def authenticate():
@@ -63,6 +86,9 @@ def authenticate():
 
     return creds
 
+# ---------------------------------------------------------------------------
+#                           GmailAPIHandler
+# ---------------------------------------------------------------------------
 
 class GmailAPIHandler:
     def __init__(self):
@@ -71,7 +97,7 @@ class GmailAPIHandler:
 
     def perform_action(self, action: APIAction) -> Any:
         """
-        Dispatcher that calls the correct method based on the action_type.
+        Dispatcher for Gmail actions.
         """
         # Messages
         if action.action_type == APIActionType.GMAIL_LIST_MESSAGES:
@@ -198,11 +224,7 @@ class GmailAPIHandler:
 
     def update_draft(self, params: GmailUpdateDraftParams) -> Any:
         """
-
-        NEEDS TO BE BETTER, but we aren't supporting writing/editing for MVP
-
-        :param params:
-        :return:
+        Example update. Minimal for demonstration.
         """
         # 1) Fetch existing draft
         old_draft = self.service.users().drafts().get(
@@ -261,6 +283,9 @@ class GmailAPIHandler:
                 return h.get("value", "")
         return ""
 
+# ---------------------------------------------------------------------------
+#                           GoogleCalendarAPIHandler
+# ---------------------------------------------------------------------------
 
 class GoogleCalendarAPIHandler:
     def __init__(self):
@@ -292,45 +317,138 @@ class GoogleCalendarAPIHandler:
             raise ValueError(f"Calendar: Unsupported action type: {action.action_type}")
 
     def list_calendars(self, params: CalendarListCalendarsParams) -> Any:
-        """
-        No parameters, but typed for consistency if we add them later.
-        """
-        response = self.service.calendarList().list().execute()
+        request_body = {}
+        if params.maxResults is not None:
+            request_body["maxResults"] = params.maxResults
+        if params.minAccessRole is not None:
+            request_body["minAccessRole"] = params.minAccessRole
+        if params.showHidden is not None:
+            request_body["showHidden"] = params.showHidden
+
+        response = self.service.calendarList().list(**request_body).execute()
         return response.get('items', [])
 
+    def _is_all_day_string(self, value: str) -> bool:
+        """
+        Returns True if 'value' is in YYYY-MM-DD format (no 'T'), meaning an all-day event.
+        """
+        try:
+            datetime.strptime(value, "%Y-%m-%d")
+            return True
+        except ValueError:
+            return False
+
+    def _parse_date_or_datetime(self, possibly_dt) -> dict:
+        """
+        Returns a dict suitable for an event's 'start'/'end' field:
+         - {"date": "..."} for all-day
+         - {"dateTime": "..."} for timed events
+        """
+        if isinstance(possibly_dt, datetime):
+            iso_str = possibly_dt.isoformat()
+            # If using naive or UTC, might append 'Z':
+            if iso_str.endswith("+00:00"):
+                iso_str = iso_str.replace("+00:00", "Z")
+            return {"dateTime": iso_str}
+
+        elif isinstance(possibly_dt, str):
+            if self._is_all_day_string(possibly_dt):
+                # all-day event
+                return {"date": possibly_dt}
+            else:
+                # timed event
+                return {"dateTime": possibly_dt}
+
+        else:
+            # Fallback = now
+            now_iso = datetime.utcnow().isoformat() + "Z"
+            return {"dateTime": now_iso}
+
     def create_event(self, params: CalendarCreateEventParams) -> Any:
+        start_obj = self._parse_date_or_datetime(params.start)
+        end_obj = self._parse_date_or_datetime(params.end)
+
+        # If user wants all-day and start == end, shift end +1 day
+        if "date" in start_obj and "date" in end_obj and (start_obj["date"] == end_obj["date"]):
+            from datetime import datetime, timedelta
+            start_date = datetime.strptime(start_obj["date"], "%Y-%m-%d").date()
+            end_date = start_date + timedelta(days=1)
+            end_obj["date"] = end_date.isoformat()
+
         event = {
             'summary': params.summary,
-            'location': params.location,
-            'description': params.description,
-            'start': {
-                'dateTime': params.start.isoformat(),
-                'timeZone': params.timeZone,
-            },
-            'end': {
-                'dateTime': params.end.isoformat(),
-                'timeZone': params.timeZone,
-            },
+            'description': params.description or "",  # fallback to empty if None
+            'location': params.location or ""
         }
+
+        if "dateTime" in start_obj:
+            start_obj["timeZone"] = params.timeZone
+        if "dateTime" in end_obj:
+            end_obj["timeZone"] = params.timeZone
+
+        event['start'] = start_obj
+        event['end'] = end_obj
+
+        # Optional fields
+        if params.colorId:
+            event['colorId'] = params.colorId
+        if params.transparency:
+            event['transparency'] = params.transparency
+        if params.visibility:
+            event['visibility'] = params.visibility
+
+        # For simplicity, always use "primary" calendar
         created = self.service.events().insert(calendarId='primary', body=event).execute()
         return created
 
     def list_events(self, params: CalendarListEventsParams) -> Any:
-        now = (params.timeMin or datetime.utcnow()).isoformat() + 'Z'
-        response = self.service.events().list(
-            calendarId='primary',
-            timeMin=now,
-            maxResults=params.maxResults,
-            singleEvents=params.singleEvents,
-            orderBy=params.orderBy
-        ).execute()
+        if params.timeMin is None:
+            time_min_value = datetime.utcnow().isoformat() + 'Z'
+        elif isinstance(params.timeMin, datetime):
+            time_min_value = params.timeMin.isoformat()
+            if not time_min_value.endswith('Z') and \
+               ('+' not in time_min_value[10:] and '-' not in time_min_value[10:]):
+                time_min_value += 'Z'
+        else:
+            time_min_value = params.timeMin
+            if not time_min_value.endswith('Z') and \
+               ('+' not in time_min_value[10:] and '-' not in time_min_value[10:]):
+                time_min_value += 'Z'
+
+        time_max_value = None
+        if params.timeMax:
+            if isinstance(params.timeMax, datetime):
+                time_max_value = params.timeMax.isoformat()
+                if not time_max_value.endswith('Z') and \
+                   ('+' not in time_max_value[10:] and '-' not in time_max_value[10:]):
+                    time_max_value += 'Z'
+            else:
+                time_max_value = params.timeMax
+                if not time_max_value.endswith('Z') and \
+                   ('+' not in time_max_value[10:] and '-' not in time_max_value[10:]):
+                    time_max_value += 'Z'
+
+        calendar_id = params.calendarId if params.calendarId else "primary"
+
+        request_args = {
+            "calendarId": calendar_id,
+            "timeMin": time_min_value,
+            "maxResults": params.maxResults,
+            "singleEvents": params.singleEvents,
+            "orderBy": params.orderBy,
+        }
+        if time_max_value:
+            request_args["timeMax"] = time_max_value
+        if params.showDeleted is not None:
+            request_args["showDeleted"] = params.showDeleted
+        if params.timeZone is not None:
+            request_args["timeZone"] = params.timeZone
+
+        response = self.service.events().list(**request_args).execute()
         return response.get('items', [])
 
     def update_event(self, params: CalendarUpdateEventParams) -> Any:
-        event = self.service.events().get(
-            calendarId='primary',
-            eventId=params.event_id
-        ).execute()
+        event = self.service.events().get(calendarId='primary', eventId=params.event_id).execute()
 
         for key, val in params.fields_to_update.items():
             event[key] = val
@@ -348,3 +466,153 @@ class GoogleCalendarAPIHandler:
             eventId=params.event_id
         ).execute()
         return {"status": "deleted", "event_id": params.event_id}
+
+
+# ---------------------------------------------------------------------------
+#                           GoogleTasksAPIHandler
+# ---------------------------------------------------------------------------
+
+class GoogleTasksAPIHandler:
+    def __init__(self):
+        self.creds = authenticate()
+        self.service = build('tasks', 'v1', credentials=self.creds)
+
+    def perform_action(self, action: APIAction) -> Any:
+        """Dispatcher for Tasks actions, using your param dataclasses."""
+        if action.action_type == APIActionType.TASKS_LIST_TASKLISTS:
+            p = TasksListTasklistsParams(**(action.parameters or {}))
+            return self._list_tasklists(p)
+        elif action.action_type == APIActionType.TASKS_GET_TASKLIST:
+            p = TasksGetTasklistParams(**(action.parameters or {}))
+            return self._get_tasklist(p)
+        elif action.action_type == APIActionType.TASKS_CREATE_TASKLIST:
+            p = TasksCreateTasklistParams(**(action.parameters or {}))
+            return self._create_tasklist(p)
+        elif action.action_type == APIActionType.TASKS_UPDATE_TASKLIST:
+            p = TasksUpdateTasklistParams(**(action.parameters or {}))
+            return self._update_tasklist(p)
+        elif action.action_type == APIActionType.TASKS_DELETE_TASKLIST:
+            p = TasksDeleteTasklistParams(**(action.parameters or {}))
+            return self._delete_tasklist(p)
+
+        elif action.action_type == APIActionType.TASKS_LIST_TASKS:
+            p = TasksListTasksParams(**(action.parameters or {}))
+            return self._list_tasks(p)
+        elif action.action_type == APIActionType.TASKS_GET_TASK:
+            p = TasksGetTaskParams(**(action.parameters or {}))
+            return self._get_task(p)
+        elif action.action_type == APIActionType.TASKS_CREATE_TASK:
+            p = TasksCreateTaskParams(**(action.parameters or {}))
+            return self._create_task(p)
+        elif action.action_type == APIActionType.TASKS_UPDATE_TASK:
+            p = TasksUpdateTaskParams(**(action.parameters or {}))
+            return self._update_task(p)
+        elif action.action_type == APIActionType.TASKS_DELETE_TASK:
+            p = TasksDeleteTaskParams(**(action.parameters or {}))
+            return self._delete_task(p)
+        elif action.action_type == APIActionType.TASKS_CLEAR_COMPLETED_TASKS:
+            p = TasksClearCompletedParams(**(action.parameters or {}))
+            return self._clear_completed_tasks(p)
+        elif action.action_type == APIActionType.TASKS_MOVE_TASK:
+            p = TasksMoveTaskParams(**(action.parameters or {}))
+            return self._move_task(p)
+
+        else:
+            raise ValueError(f"Unsupported Tasks action type: {action.action_type}")
+
+    # --------------------------------------------------------
+    # Tasklists
+    # --------------------------------------------------------
+    def _list_tasklists(self, params: TasksListTasklistsParams) -> Any:
+        """Lists all user's task lists."""
+        request_args = {}
+        if params.maxResults is not None:
+            request_args["maxResults"] = params.maxResults
+        resp = self.service.tasklists().list(**request_args).execute()
+        return resp.get("items", [])
+
+    def _get_tasklist(self, params: TasksGetTasklistParams) -> Any:
+        return self.service.tasklists().get(tasklist=params.tasklist_id).execute()
+
+    def _create_tasklist(self, params: TasksCreateTasklistParams) -> Any:
+        body = {"title": params.title}
+        return self.service.tasklists().insert(body=body).execute()
+
+    def _update_tasklist(self, params: TasksUpdateTasklistParams) -> Any:
+        body = {"title": params.new_title}
+        return self.service.tasklists().update(tasklist=params.tasklist_id, body=body).execute()
+
+    def _delete_tasklist(self, params: TasksDeleteTasklistParams) -> Any:
+        self.service.tasklists().delete(tasklist=params.tasklist_id).execute()
+        return {"status": "deleted", "tasklist_id": params.tasklist_id}
+
+    # --------------------------------------------------------
+    # Tasks
+    # --------------------------------------------------------
+    def _list_tasks(self, p: TasksListTasksParams) -> Any:
+        request_args = {
+            "tasklist": p.tasklist_id,
+            "showCompleted": p.showCompleted,
+            "showDeleted": p.showDeleted,
+            "showHidden": p.showHidden
+        }
+        if p.updatedMin:
+            request_args["updatedMin"] = p.updatedMin
+        if p.dueMin:
+            request_args["dueMin"] = p.dueMin
+        if p.dueMax:
+            request_args["dueMax"] = p.dueMax
+        if p.maxResults is not None:
+            request_args["maxResults"] = p.maxResults
+
+        resp = self.service.tasks().list(**request_args).execute()
+        return resp.get("items", [])
+
+    def _get_task(self, p: TasksGetTaskParams) -> Any:
+        return self.service.tasks().get(
+            tasklist=p.tasklist_id,
+            task=p.task_id
+        ).execute()
+
+    def _create_task(self, p: TasksCreateTaskParams) -> Any:
+        body = {"title": p.title}
+        if p.notes:
+            body["notes"] = p.notes
+        if p.due:
+            body["due"] = p.due  # Must be RFC 3339 dateTime or YYYY-MM-DD
+        return self.service.tasks().insert(
+            tasklist=p.tasklist_id, body=body
+        ).execute()
+
+    def _update_task(self, p: TasksUpdateTaskParams) -> Any:
+        # 1) fetch existing
+        task = self.service.tasks().get(tasklist=p.tasklist_id, task=p.task_id).execute()
+        # 2) update fields
+        for key, val in p.fields_to_update.items():
+            task[key] = val
+        # 3) push update
+        return self.service.tasks().update(
+            tasklist=p.tasklist_id,
+            task=p.task_id,
+            body=task
+        ).execute()
+
+    def _delete_task(self, p: TasksDeleteTaskParams) -> Any:
+        self.service.tasks().delete(tasklist=p.tasklist_id, task=p.task_id).execute()
+        return {"status": "deleted", "task_id": p.task_id}
+
+    def _clear_completed_tasks(self, p: TasksClearCompletedParams) -> Any:
+        self.service.tasks().clear(tasklist=p.tasklist_id).execute()
+        return {"status": "cleared_completed", "tasklist_id": p.tasklist_id}
+
+    def _move_task(self, p: TasksMoveTaskParams) -> Any:
+        request_args = {
+            "tasklist": p.tasklist_id,
+            "task": p.task_id,
+        }
+        if p.parent:
+            request_args["parent"] = p.parent
+        if p.previous:
+            request_args["previous"] = p.previous
+
+        return self.service.tasks().move(**request_args).execute()
