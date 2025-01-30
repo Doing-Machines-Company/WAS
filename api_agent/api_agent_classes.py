@@ -2,12 +2,14 @@
 
 import enum
 from dataclasses import dataclass
-from typing import Optional, Any
+from typing import Any, Optional
+
 
 class APIType(enum.Enum):
     SPECIAL = "special"
     GMAIL = "gmail"
     GOOGLE_CALENDAR = "google_calendar"
+    CANVAS = "canvas"
 
     @classmethod
     def from_string(cls, api_str: str) -> 'APIType':
@@ -82,6 +84,19 @@ class APIActionType(enum.Enum):
     TASKS_CLEAR_COMPLETED_TASKS = ("tasks_clear_completed_tasks", False)
     TASKS_MOVE_TASK = ("tasks_move_task", True)
 
+    # Canvas
+    CANVAS_LIST_COURSES = "canvas_list_courses"
+    CANVAS_LIST_ASSIGNMENTS = "canvas_list_assignments"
+    CANVAS_GET_ASSIGNMENT_DETAILS = "canvas_get_assignment_details"
+    CANVAS_LIST_MODULES = "canvas_list_modules"
+    CANVAS_GET_MODULE_ITEMS = "canvas_get_module_items"
+    CANVAS_GET_GRADES = "canvas_get_grades"
+    CANVAS_GET_SUBMISSION_HISTORY = "canvas_get_submission_history"
+    CANVAS_LIST_PAGES = "canvas_list_pages"
+    CANVAS_GET_PAGE = "canvas_get_page"
+    CANVAS_LIST_FILES = "canvas_list_files"
+    CANVAS_GET_FILE = "canvas_get_file"
+    
     @staticmethod
     def from_string(action_type_str: str) -> "APIActionType":
         # Convert to uppercase just to be sure we match (e.g. "calendar_create_event" -> "CALENDAR_CREATE_EVENT")
@@ -92,15 +107,17 @@ class APIActionType(enum.Enum):
         # If we don’t find a match, raise an error or fallback to STOP
         raise ValueError(f"Unknown action type string: {action_type_str}")
 
+    
 @dataclass
 class APILinearMemory:
     """
     Simple record of an API call and response for debugging, context,
     or chain-of-thought logging.
     """
+
     api_type: APIType
-    call: str          # e.g., the API action name or details
-    received: str      # e.g., the response from the API call
+    call: str  # e.g., the API action name or details
+    received: str  # e.g., the response from the API call
 
 
 @dataclass
@@ -111,6 +128,7 @@ class APIAction:
       - reason: Why the LLM decided on this action
       - parameters: Arbitrary data with the parameters for the API call
     """
+
     action_type: APIActionType
     reason: Optional[str] = None
     parameters: Optional[Any] = None

@@ -1,0 +1,4 @@
+Here is your action memory so far: $memory
+User's main request: $task
+Additional context: $task_notes
+Decide your next single action in valid JSON (with triple backticks json ...). Only use actions from the list described above in the system instructions.

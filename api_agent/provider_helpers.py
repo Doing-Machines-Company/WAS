@@ -28,8 +28,8 @@ def cerebras_call(messages: List[LLMMessage], model: str, max_tokens: int) -> st
 
 
 def anthropic_call(messages: List[LLMMessage], model: str, max_tokens: int) -> str:
-    system_segments = [msg.content for msg in messages if msg.message_role == "system"]
-    user_segments = [msg.content for msg in messages if msg.message_role == "user"]
+    system_segments = "".join([msg.content for msg in messages if msg.message_role == "system"])
+    user_segments = [{"role": "user", "content": msg.content} for msg in messages if msg.message_role == "user"]
 
     message = anthropic_client.messages.create(
         model=model,
