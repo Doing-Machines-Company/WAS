@@ -1,12 +1,13 @@
 Here is your action memory so far:
 $memory
 
+Currently available calendars:
+$available_calendars
+
 User's main request:
 $task
 
-Additional context:
-$task_notes
-
 Decide your next single action in valid JSON (triple backticks) from the list in the system instructions above.
+Reason step-by-step using Chain-of-Thought (CoT) to do so.
 - You may use a Calendar API action (e.g. `CALENDAR_LIST_EVENTS`, `CALENDAR_CREATE_EVENT`, etc.).
 - When done, finalize with `STOP` and a `"final_answer"` array of sub-actions if needed.

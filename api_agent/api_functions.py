@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 
 from api_agent_classes import APIAction, APIActionType
 
+# Gmail param classes
 from api_type_classes.api_actions_params_gmail import (
     # messages
     GmailListMessagesParams,
@@ -31,11 +32,30 @@ from api_type_classes.api_actions_params_gmail import (
     GmailSendDraftParams
 )
 
+# Calendar param classes
 from api_type_classes.api_actions_params_gcal import (
-    CalendarListCalendarsParams, CalendarCreateEventParams, CalendarListEventsParams,
-    CalendarUpdateEventParams, CalendarDeleteEventParams
+    CalendarListCalendarsParams,
+    CalendarCreateEventParams,
+    CalendarListEventsParams,
+    CalendarUpdateEventParams,
+    CalendarDeleteEventParams
 )
 
+# Tasks param classes
+from api_type_classes.api_actions_params_gtasks import (
+    TasksListTasklistsParams,
+    TasksGetTasklistParams,
+    TasksCreateTasklistParams,
+    TasksUpdateTasklistParams,
+    TasksDeleteTasklistParams,
+    TasksListTasksParams,
+    TasksGetTaskParams,
+    TasksCreateTaskParams,
+    TasksUpdateTaskParams,
+    TasksDeleteTaskParams,
+    TasksClearCompletedParams,
+    TasksMoveTaskParams
+)
 
 SCOPES = [
     'https://www.googleapis.com/auth/gmail.readonly',
@@ -66,6 +86,9 @@ def authenticate():
 
     return creds
 
+# ---------------------------------------------------------------------------
+#                           GmailAPIHandler
+# ---------------------------------------------------------------------------
 
 class GmailAPIHandler:
     def __init__(self):
@@ -74,7 +97,7 @@ class GmailAPIHandler:
 
     def perform_action(self, action: APIAction) -> Any:
         """
-        Dispatcher that calls the correct method based on the action_type.
+        Dispatcher for Gmail actions.
         """
         # Messages
         if action.action_type == APIActionType.GMAIL_LIST_MESSAGES:
@@ -201,11 +224,7 @@ class GmailAPIHandler:
 
     def update_draft(self, params: GmailUpdateDraftParams) -> Any:
         """
-
-        NEEDS TO BE BETTER, but we aren't supporting writing/editing for MVP
-
-        :param params:
-        :return:
+        Example update. Minimal for demonstration.
         """
         # 1) Fetch existing draft
         old_draft = self.service.users().drafts().get(
@@ -264,6 +283,9 @@ class GmailAPIHandler:
                 return h.get("value", "")
         return ""
 
+# ---------------------------------------------------------------------------
+#                           GoogleCalendarAPIHandler
+# ---------------------------------------------------------------------------
 
 class GoogleCalendarAPIHandler:
     def __init__(self):
@@ -355,7 +377,7 @@ class GoogleCalendarAPIHandler:
 
         event = {
             'summary': params.summary,
-            'description': params.description or "",  # fallback to empty string if None
+            'description': params.description or "",  # fallback to empty if None
             'location': params.location or ""
         }
 
@@ -375,11 +397,11 @@ class GoogleCalendarAPIHandler:
         if params.visibility:
             event['visibility'] = params.visibility
 
+        # For simplicity, always use "primary" calendar
         created = self.service.events().insert(calendarId='primary', body=event).execute()
         return created
 
     def list_events(self, params: CalendarListEventsParams) -> Any:
-        # If no timeMin is given, default to now => future events
         if params.timeMin is None:
             time_min_value = datetime.utcnow().isoformat() + 'Z'
         elif isinstance(params.timeMin, datetime):
@@ -406,19 +428,21 @@ class GoogleCalendarAPIHandler:
                    ('+' not in time_max_value[10:] and '-' not in time_max_value[10:]):
                     time_max_value += 'Z'
 
+        calendar_id = params.calendarId if params.calendarId else "primary"
+
         request_args = {
-            'calendarId': 'primary',
-            'timeMin': time_min_value,
-            'maxResults': params.maxResults,
-            'singleEvents': params.singleEvents,
-            'orderBy': params.orderBy
+            "calendarId": calendar_id,
+            "timeMin": time_min_value,
+            "maxResults": params.maxResults,
+            "singleEvents": params.singleEvents,
+            "orderBy": params.orderBy,
         }
         if time_max_value:
-            request_args['timeMax'] = time_max_value
+            request_args["timeMax"] = time_max_value
         if params.showDeleted is not None:
-            request_args['showDeleted'] = params.showDeleted
+            request_args["showDeleted"] = params.showDeleted
         if params.timeZone is not None:
-            request_args['timeZone'] = params.timeZone
+            request_args["timeZone"] = params.timeZone
 
         response = self.service.events().list(**request_args).execute()
         return response.get('items', [])
@@ -444,137 +468,151 @@ class GoogleCalendarAPIHandler:
         return {"status": "deleted", "event_id": params.event_id}
 
 
+# ---------------------------------------------------------------------------
+#                           GoogleTasksAPIHandler
+# ---------------------------------------------------------------------------
 
 class GoogleTasksAPIHandler:
     def __init__(self):
         self.creds = authenticate()
         self.service = build('tasks', 'v1', credentials=self.creds)
 
-    def list_tasklists(self) -> Any:
-        """
-        Lists all the user's task lists.
-        """
-        resp = self.service.tasklists().list().execute()
+    def perform_action(self, action: APIAction) -> Any:
+        """Dispatcher for Tasks actions, using your param dataclasses."""
+        if action.action_type == APIActionType.TASKS_LIST_TASKLISTS:
+            p = TasksListTasklistsParams(**(action.parameters or {}))
+            return self._list_tasklists(p)
+        elif action.action_type == APIActionType.TASKS_GET_TASKLIST:
+            p = TasksGetTasklistParams(**(action.parameters or {}))
+            return self._get_tasklist(p)
+        elif action.action_type == APIActionType.TASKS_CREATE_TASKLIST:
+            p = TasksCreateTasklistParams(**(action.parameters or {}))
+            return self._create_tasklist(p)
+        elif action.action_type == APIActionType.TASKS_UPDATE_TASKLIST:
+            p = TasksUpdateTasklistParams(**(action.parameters or {}))
+            return self._update_tasklist(p)
+        elif action.action_type == APIActionType.TASKS_DELETE_TASKLIST:
+            p = TasksDeleteTasklistParams(**(action.parameters or {}))
+            return self._delete_tasklist(p)
+
+        elif action.action_type == APIActionType.TASKS_LIST_TASKS:
+            p = TasksListTasksParams(**(action.parameters or {}))
+            return self._list_tasks(p)
+        elif action.action_type == APIActionType.TASKS_GET_TASK:
+            p = TasksGetTaskParams(**(action.parameters or {}))
+            return self._get_task(p)
+        elif action.action_type == APIActionType.TASKS_CREATE_TASK:
+            p = TasksCreateTaskParams(**(action.parameters or {}))
+            return self._create_task(p)
+        elif action.action_type == APIActionType.TASKS_UPDATE_TASK:
+            p = TasksUpdateTaskParams(**(action.parameters or {}))
+            return self._update_task(p)
+        elif action.action_type == APIActionType.TASKS_DELETE_TASK:
+            p = TasksDeleteTaskParams(**(action.parameters or {}))
+            return self._delete_task(p)
+        elif action.action_type == APIActionType.TASKS_CLEAR_COMPLETED_TASKS:
+            p = TasksClearCompletedParams(**(action.parameters or {}))
+            return self._clear_completed_tasks(p)
+        elif action.action_type == APIActionType.TASKS_MOVE_TASK:
+            p = TasksMoveTaskParams(**(action.parameters or {}))
+            return self._move_task(p)
+
+        else:
+            raise ValueError(f"Unsupported Tasks action type: {action.action_type}")
+
+    # --------------------------------------------------------
+    # Tasklists
+    # --------------------------------------------------------
+    def _list_tasklists(self, params: TasksListTasklistsParams) -> Any:
+        """Lists all user's task lists."""
+        request_args = {}
+        if params.maxResults is not None:
+            request_args["maxResults"] = params.maxResults
+        resp = self.service.tasklists().list(**request_args).execute()
         return resp.get("items", [])
 
-    def get_tasklist(self, tasklist_id: str) -> Any:
-        """
-        Retrieves a single task list by ID.
-        """
-        return self.service.tasklists().get(tasklist=tasklist_id).execute()
+    def _get_tasklist(self, params: TasksGetTasklistParams) -> Any:
+        return self.service.tasklists().get(tasklist=params.tasklist_id).execute()
 
-    def create_tasklist(self, title: str) -> Any:
-        """
-        Creates a new task list with the given title.
-        """
-        body = {"title": title}
+    def _create_tasklist(self, params: TasksCreateTasklistParams) -> Any:
+        body = {"title": params.title}
         return self.service.tasklists().insert(body=body).execute()
 
-    def update_tasklist(self, tasklist_id: str, new_title: str) -> Any:
-        """
-        Updates the title of a task list.
-        """
-        body = {"title": new_title}
-        return self.service.tasklists().update(tasklist=tasklist_id, body=body).execute()
+    def _update_tasklist(self, params: TasksUpdateTasklistParams) -> Any:
+        body = {"title": params.new_title}
+        return self.service.tasklists().update(tasklist=params.tasklist_id, body=body).execute()
 
-    def delete_tasklist(self, tasklist_id: str) -> Any:
-        """
-        Deletes a task list.
-        """
-        self.service.tasklists().delete(tasklist=tasklist_id).execute()
-        return {"status": "deleted", "tasklist_id": tasklist_id}
+    def _delete_tasklist(self, params: TasksDeleteTasklistParams) -> Any:
+        self.service.tasklists().delete(tasklist=params.tasklist_id).execute()
+        return {"status": "deleted", "tasklist_id": params.tasklist_id}
 
     # --------------------------------------------------------
-    # Task methods
+    # Tasks
     # --------------------------------------------------------
-
-    def list_tasks(
-        self,
-        tasklist_id: str,
-        show_completed: bool = True,
-        show_deleted: bool = False,
-        show_hidden: bool = False,
-        updated_min: str = None
-    ) -> Any:
-        """
-        Retrieves tasks in a specified task list, optionally filtering by updatedMin
-        and whether to show completed/deleted/hidden tasks.
-        """
-        params = {
-            "tasklist": tasklist_id,
-            "showCompleted": show_completed,
-            "showDeleted": show_deleted,
-            "showHidden": show_hidden,
+    def _list_tasks(self, p: TasksListTasksParams) -> Any:
+        request_args = {
+            "tasklist": p.tasklist_id,
+            "showCompleted": p.showCompleted,
+            "showDeleted": p.showDeleted,
+            "showHidden": p.showHidden
         }
-        if updated_min:
-            params["updatedMin"] = updated_min
+        if p.updatedMin:
+            request_args["updatedMin"] = p.updatedMin
+        if p.dueMin:
+            request_args["dueMin"] = p.dueMin
+        if p.dueMax:
+            request_args["dueMax"] = p.dueMax
+        if p.maxResults is not None:
+            request_args["maxResults"] = p.maxResults
 
-        resp = self.service.tasks().list(**params).execute()
+        resp = self.service.tasks().list(**request_args).execute()
         return resp.get("items", [])
 
-    def get_task(self, tasklist_id: str, task_id: str) -> Any:
-        """
-        Retrieves a specific task by ID from the specified task list.
-        """
+    def _get_task(self, p: TasksGetTaskParams) -> Any:
         return self.service.tasks().get(
-            tasklist=tasklist_id,
-            task=task_id
+            tasklist=p.tasklist_id,
+            task=p.task_id
         ).execute()
 
-    def create_task(self, tasklist_id: str, title: str, notes: str = None, due: str = None) -> Any:
-        """
-        Creates a new task in the specified task list.
-        """
-        body = {"title": title}
-        if notes:
-            body["notes"] = notes
-        if due:
-            body["due"] = due  # must be RFC3339 date/time
+    def _create_task(self, p: TasksCreateTaskParams) -> Any:
+        body = {"title": p.title}
+        if p.notes:
+            body["notes"] = p.notes
+        if p.due:
+            body["due"] = p.due  # Must be RFC 3339 dateTime or YYYY-MM-DD
+        return self.service.tasks().insert(
+            tasklist=p.tasklist_id, body=body
+        ).execute()
 
-        return self.service.tasks().insert(tasklist=tasklist_id, body=body).execute()
-
-    def update_task(self, tasklist_id: str, task_id: str, fields_to_update: dict) -> Any:
-        """
-        Updates an existing task. fields_to_update can contain any valid task fields:
-          - title, notes, due, status, etc.
-        """
-        task = self.service.tasks().get(tasklist=tasklist_id, task=task_id).execute()
-        for key, val in fields_to_update.items():
+    def _update_task(self, p: TasksUpdateTaskParams) -> Any:
+        # 1) fetch existing
+        task = self.service.tasks().get(tasklist=p.tasklist_id, task=p.task_id).execute()
+        # 2) update fields
+        for key, val in p.fields_to_update.items():
             task[key] = val
-
+        # 3) push update
         return self.service.tasks().update(
-            tasklist=tasklist_id,
-            task=task_id,
+            tasklist=p.tasklist_id,
+            task=p.task_id,
             body=task
         ).execute()
 
-    def delete_task(self, tasklist_id: str, task_id: str) -> Any:
-        """
-        Deletes a task from the specified task list.
-        """
-        self.service.tasks().delete(tasklist=tasklist_id, task=task_id).execute()
-        return {"status": "deleted", "task_id": task_id}
+    def _delete_task(self, p: TasksDeleteTaskParams) -> Any:
+        self.service.tasks().delete(tasklist=p.tasklist_id, task=p.task_id).execute()
+        return {"status": "deleted", "task_id": p.task_id}
 
-    def clear_completed_tasks(self, tasklist_id: str) -> Any:
-        """
-        Clears all completed tasks from the specified task list.
-        """
-        self.service.tasks().clear(tasklist=tasklist_id).execute()
-        return {"status": "cleared_completed", "tasklist_id": tasklist_id}
+    def _clear_completed_tasks(self, p: TasksClearCompletedParams) -> Any:
+        self.service.tasks().clear(tasklist=p.tasklist_id).execute()
+        return {"status": "cleared_completed", "tasklist_id": p.tasklist_id}
 
-    def move_task(self, tasklist_id: str, task_id: str, parent: str = None, previous: str = None) -> Any:
-        """
-        Moves the specified task to another position.
-        'parent' can be a task ID to make it a subtask,
-        'previous' can be a task ID to place it immediately after that sibling.
-        """
-        params = {
-            "tasklist": tasklist_id,
-            "task": task_id,
+    def _move_task(self, p: TasksMoveTaskParams) -> Any:
+        request_args = {
+            "tasklist": p.tasklist_id,
+            "task": p.task_id,
         }
-        if parent:
-            params["parent"] = parent
-        if previous:
-            params["previous"] = previous
+        if p.parent:
+            request_args["parent"] = p.parent
+        if p.previous:
+            request_args["previous"] = p.previous
 
-        return self.service.tasks().move(**params).execute()
+        return self.service.tasks().move(**request_args).execute()

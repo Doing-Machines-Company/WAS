@@ -11,15 +11,14 @@ from api_llm_handling import AgentCall, LLMMessage
 from call_llm import call_llm
 from api_functions import GoogleCalendarAPIHandler
 
-
 class GCalAPIAgent(APIAgent):
     def __init__(self, task="", fast_mode=False, retry_cap=10):
         super().__init__(fast_mode=fast_mode, api="google_calendar", retry_cap=retry_cap)
-
         self.task = task
-
-        # Store current date/time in ISO format (UTC) for the LLM's awareness.
         self.current_datetime = datetime.now(timezone.utc).isoformat()
+
+        # Will hold the user's calendar list (all available)
+        self.all_calendars = []
 
         # Load the system prompt from a dedicated file
         system_prompt_path = os.path.join("api_prompts/gcal", "google_calendar_system.txt")
@@ -41,8 +40,25 @@ class GCalAPIAgent(APIAgent):
         return GoogleCalendarAPIHandler()
 
     async def setup(self):
-        """Setup tasks specific to GCalAPIAgent (none needed)."""
-        pass
+        """
+        Setup tasks:
+          - fetch all available calendars and store them in self.all_calendars
+        """
+        # We'll do an immediate CALENDAR_LIST_CALENDARS action
+        try:
+            list_action = APIAction(
+                action_type=APIActionType.CALENDAR_LIST_CALENDARS,
+                reason="Fetch all calendars for context",
+                parameters={}
+            )
+            result = self.api_handler.perform_action(list_action)
+            if isinstance(result, list):
+                self.all_calendars = result
+            else:
+                self.all_calendars = []
+        except Exception as e:
+            print("Error fetching all calendars:", e)
+            self.all_calendars = []
 
     def initialize_index(self):
         """Not used here."""
@@ -61,9 +77,14 @@ class GCalAPIAgent(APIAgent):
         user_replacements = {
             'memory': memory_text.strip(),
             'task': self.task if self.task else "",
-            'task_notes': self.task_notes if self.task_notes else ""
+            # NEW: pass the entire list of calendars as a string
+            'available_calendars': str(self.all_calendars)
         }
+
         user_prompt_str = string.Template(self.gmail_user_prompt_template).substitute(user_replacements)
+
+        # print(user_prompt_str)
+        # input("CHECK!")
 
         # Also substitute $current_datetime into the system prompt
         system_prompt_str = string.Template(self.gmail_system_prompt).substitute({
@@ -76,44 +97,30 @@ class GCalAPIAgent(APIAgent):
             LLMMessage(message_role="user", content=user_prompt_str),
         ]
 
-        print("Preparing to call LLM for action determination.")
+        print("[GCal Agent] Preparing to call LLM for action determination.")
 
         # Call the LLM
         agent_call = await call_llm(
             messages=messages,
             provider=provider,
             model=model,
-            max_tokens=512  # Adjust as needed
+            max_tokens=512
         )
 
-        print(f"LLM Response: {agent_call.llm_response}")
+        print(f"[GCal Agent] LLM Response: {agent_call.llm_response}")
 
         chosen_action = None
-
         if agent_call.parsed_output:
             for parsed in agent_call.parsed_output:
                 if isinstance(parsed, dict) and "action_type" in parsed:
                     try:
-                        action_type_str = parsed.get("action_type", "").upper()
-                        # Map string -> APIActionType
-                        action_type_mapping = {
-                            "STOP": APIActionType.STOP,
-                            "CALENDAR_LIST_CALENDARS": APIActionType.CALENDAR_LIST_CALENDARS,
-                            "CALENDAR_CREATE_EVENT": APIActionType.CALENDAR_CREATE_EVENT,
-                            "CALENDAR_LIST_EVENTS": APIActionType.CALENDAR_LIST_EVENTS,
-                            "CALENDAR_UPDATE_EVENT": APIActionType.CALENDAR_UPDATE_EVENT,
-                            "CALENDAR_DELETE_EVENT": APIActionType.CALENDAR_DELETE_EVENT,
-                        }
-                        action_type = action_type_mapping.get(action_type_str, APIActionType.STOP)
-
+                        action_type = APIActionType.from_string(parsed["action_type"])
                         chosen_action = APIAction(
                             action_type=action_type,
                             reason=parsed.get("reason", "No reason provided"),
                             parameters=parsed.get("parameters", None)
                         )
-                        print(f"Chosen APIAction: {chosen_action.action_type} | Reason: {chosen_action.reason}")
                         break
-
                     except Exception as e:
                         print("Error mapping Calendar action type:", e)
                         continue
@@ -131,46 +138,44 @@ class GCalAPIAgent(APIAgent):
     async def handle_actions(self, action: APIAction):
         """
         Execute or handle the given APIAction.
-        No 'REQUEST_USER_INPUT' is handled here.
         """
         action_type = action.action_type
         action_reason = action.reason
 
-        print(f"Handling APIAction: {action_type} | Reason: {action_reason}")
+        print(f"[GCal Agent] Handling action: {action_type} | Reason: {action_reason}")
 
         if action_type == APIActionType.STOP:
-            # The agent is done.
             final_answer = []
             if action.parameters:
                 final_answer = action.parameters.get("final_answer", [])
 
+            # Execute final sub-actions if any
             if final_answer:
-                print("Executing final sub-actions from STOP:")
+                print("[GCal Agent] STOP with final sub-actions => executing them now:")
                 for idx, (subaction_str, subparams) in enumerate(final_answer, start=1):
                     subaction_type = APIActionType.from_string(subaction_str)
-                    print(f"{idx}. {subaction_str} => {subparams}")
+                    print(f"  - Sub-action {idx}: {subaction_type}")
                     try:
-                        # Optionally perform each sub-action
                         result = self.api_handler.perform_action(APIAction(
                             action_type=subaction_type,
                             reason="Final batch sub-action",
                             parameters=subparams
                         ))
-                        print("   Sub-action result:", result)
+                        print("    Sub-action result:", result)
                     except Exception as e:
-                        print("   Sub-action error:", e)
+                        print("    Sub-action error:", e)
 
             await self.output_queue.put(('exit_message', "GCal Agent has stopped."))
             self.stop()
 
         else:
-            # Perform the single-step Calendar action
+            # Perform the single Calendar action
             try:
                 result = self.api_handler.perform_action(action)
                 success = True
-                print(f"API call result: {result}")
+                print(f"[GCal Agent] API call result: {result}")
             except Exception as e:
-                print(f"API call failed: {e}")
+                print(f"[GCal Agent] API call failed: {e}")
                 success = False
 
             if not success:
@@ -180,9 +185,10 @@ class GCalAPIAgent(APIAgent):
             else:
                 self.failed_count = 0
                 # Store the action and result in memory
+                call_str = f"{action_type.value} with parameters: {action.parameters}"
                 new_memory = APILinearMemory(
                     self.api,
-                    call=action_type.value,
+                    call=call_str,
                     received=str(result)
                 )
                 self.action_mem.append(new_memory)
@@ -190,6 +196,5 @@ class GCalAPIAgent(APIAgent):
 
 if __name__ == "__main__":
     # Example usage
-    # Instantiate an agent for Google Calendar
-    agent = GCalAPIAgent(task="create two all-day events on Jan 28, 2025, called 'one' and 'two'")
+    agent = GCalAPIAgent(task="What 210 events do I have?")
     asyncio.run(agent.run())

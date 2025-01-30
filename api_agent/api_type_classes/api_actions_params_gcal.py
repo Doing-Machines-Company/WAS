@@ -27,6 +27,7 @@ class CalendarCreateEventParams:
 
 @dataclass
 class CalendarListEventsParams:
+    calendarId: Optional[str] = None  # <-- add this
     maxResults: int = 10
     timeMin: Optional[Union[str, datetime]] = None
     timeMax: Optional[Union[str, datetime]] = None

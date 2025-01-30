@@ -1,17 +1,12 @@
 # api_actions_params_gtasks.py
 
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
-
-"""
-Define only the parameter dataclasses for Google Tasks actions.
-We will *not* redefine the calendar param classes here.
-"""
+from typing import Optional, Dict, Any, Union
 
 @dataclass
 class TasksListTasklistsParams:
     maxResults: Optional[int] = None
-    # e.g., pageToken or other optional fields as needed
+    # You can add pageToken or other optional fields if needed
 
 @dataclass
 class TasksGetTasklistParams:
@@ -29,7 +24,6 @@ class TasksUpdateTasklistParams:
 @dataclass
 class TasksDeleteTasklistParams:
     tasklist_id: str
-
 
 @dataclass
 class TasksListTasksParams:
@@ -52,13 +46,14 @@ class TasksCreateTaskParams:
     tasklist_id: str
     title: str
     notes: Optional[str] = None
-    due: Optional[str] = None  # Could be RFC3339 dateTime or just YYYY-MM-DD
+    due: Optional[str] = None  # RFC3339 or YYYY-MM-DD
 
 @dataclass
 class TasksUpdateTaskParams:
     tasklist_id: str
     task_id: str
     fields_to_update: Dict[str, Any] = field(default_factory=dict)
+    # e.g. {"title": "...", "notes": "...", "due": "...", "status": "...", etc.}
 
 @dataclass
 class TasksDeleteTaskParams:

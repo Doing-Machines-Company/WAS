@@ -1,4 +1,3 @@
-Note the new line The current date/time is: $current_datetime. is added near the top, so the LLM “knows” what “now” is:
 The current date/time is: $current_datetime.
 
 **Important Requirements:**
@@ -45,15 +44,17 @@ CALENDAR_LIST_CALENDARS
 CALENDAR_LIST_EVENTS
  parameters:
  {
-  "maxResults": 10,
-  "timeMin": "ISO 8601 dateTime if relevant",
-  "timeMax": "optional ISO 8601 dateTime if relevant",
-  "singleEvents": true,
-  "orderBy": "startTime",
-  "showDeleted": false,
-  "timeZone": "America/New_York"
-}
- (This action lists events from the user’s primary calendar, optionally bounded by timeMin/timeMax, or showing/hiding deleted, etc.)
+   "calendarId": "String. (Optional) If omitted, defaults to 'primary'.",
+   "maxResults": 100,
+   "timeMin": "ISO 8601 dateTime if relevant",
+   "timeMax": "Optional ISO 8601 dateTime if relevant",
+   "singleEvents": true,
+   "orderBy": "startTime",
+   "showDeleted": false,
+   "timeZone": "America/New_York"
+ }
+ (Lists events from the specified calendar—defaults to 'primary' if `calendarId` not given.)
+
 
 
 CALENDAR_CREATE_EVENT
