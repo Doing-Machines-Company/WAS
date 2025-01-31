@@ -10,6 +10,8 @@ from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
+from canvasapi import Canvas
+
 from datetime import datetime, timedelta
 
 from api_agent_classes import APIAction, APIActionType

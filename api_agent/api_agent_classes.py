@@ -85,17 +85,17 @@ class APIActionType(enum.Enum):
     TASKS_MOVE_TASK = ("tasks_move_task", True)
 
     # Canvas
-    CANVAS_LIST_COURSES = "canvas_list_courses"
-    CANVAS_LIST_ASSIGNMENTS = "canvas_list_assignments"
-    CANVAS_GET_ASSIGNMENT_DETAILS = "canvas_get_assignment_details"
-    CANVAS_LIST_MODULES = "canvas_list_modules"
-    CANVAS_GET_MODULE_ITEMS = "canvas_get_module_items"
-    CANVAS_GET_GRADES = "canvas_get_grades"
-    CANVAS_GET_SUBMISSION_HISTORY = "canvas_get_submission_history"
-    CANVAS_LIST_PAGES = "canvas_list_pages"
-    CANVAS_GET_PAGE = "canvas_get_page"
-    CANVAS_LIST_FILES = "canvas_list_files"
-    CANVAS_GET_FILE = "canvas_get_file"
+    CANVAS_LIST_COURSES = ("canvas_list_courses", True)
+    CANVAS_LIST_ASSIGNMENTS = ("canvas_list_assignments", True)
+    CANVAS_GET_ASSIGNMENT_DETAILS = ("canvas_get_assignment_details", True)
+    CANVAS_LIST_MODULES = ("canvas_list_modules", True)
+    CANVAS_GET_MODULE_ITEMS = ("canvas_get_module_items", True)
+    CANVAS_GET_GRADES = ("canvas_get_grades", True)
+    CANVAS_GET_SUBMISSION_HISTORY = ("canvas_get_submission_history", True)
+    CANVAS_LIST_PAGES = ("canvas_list_pages", True)
+    CANVAS_GET_PAGE = ("canvas_get_page", True)
+    CANVAS_LIST_FILES = ("canvas_list_files", True)
+    CANVAS_GET_FILE = ("canvas_get_file", True)
     
     @staticmethod
     def from_string(action_type_str: str) -> "APIActionType":

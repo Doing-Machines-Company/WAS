@@ -28,20 +28,33 @@ def cerebras_call(messages: List[LLMMessage], model: str, max_tokens: int) -> st
 
 
 def anthropic_call(messages: List[LLMMessage], model: str, max_tokens: int) -> str:
-    system_segments = "".join([msg.content for msg in messages if msg.message_role == "system"])
-    user_segments = [{"role": "user", "content": msg.content} for msg in messages if msg.message_role == "user"]
+    """
+    Corrected version: ensures each 'content' is a string, not a dict or list.
+    """
+    # Collect system messages (if any) into one string:
+    system_segments = [msg.content for msg in messages if msg.message_role == "system"]
+    system_text = "\n".join(system_segments)
 
+    # Collect user messages as a list of {"role": "user", "content": "..."}:
+    user_segments = [
+        {"role": "user", "content": msg.content}
+        for msg in messages
+        if msg.message_role == "user"
+    ]
+
+    # Now call the Anthropic client correctly:
     message = anthropic_client.messages.create(
         model=model,
         max_tokens=max_tokens,
         temperature=0,
-        # Combine system segments into a single string
-        system="\n".join(system_segments),
-        # Convert user segments into the expected list[{"role": "user", "content": ...}]
-        messages=[{"role": "user", "content": seg} for seg in user_segments]
+        system=system_text,
+        # Pass user_segments directly, so "content" is just the user text string
+        messages=user_segments
     )
 
+    # Return the LLM text (adjust if your library returns it differently):
     return message.content[0].text
+
 
 
 def openai_call(messages: List[LLMMessage], model: str, max_tokens: int) -> str:
