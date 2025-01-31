@@ -36,12 +36,13 @@ assignments = course.get_assignments()
 filtered_assignments = []
 for assignment in assignments:
     filtered_assignment = {
-        'id': assignment.id,
-        'name': assignment.name,
-        'due_at': assignment.due_at,
-        'points_possible': assignment.points_possible,
-        'submission_types': assignment.submission_types
-    }
+                'course name': str(course), 
+                'assignment id': assignment.id,
+                'name': assignment.name,
+                'due_at': assignment.due_at,
+                'points_possible': assignment.points_possible,
+                'submission_types': assignment.submission_types
+            }
     assignment_updated_at = datetime.strptime(assignment.updated_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
     if assignment_updated_at > filter_date:
         filtered_assignments.append(filtered_assignment)

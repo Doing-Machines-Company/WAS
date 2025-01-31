@@ -716,7 +716,8 @@ class CanvasAPIHandler:
         filtered_assignments = []
         for assignment in assignments:
             filtered_assignment = {
-                'id': assignment.id,
+                'course name': str(course), 
+                'assignment id': assignment.id,
                 'name': assignment.name,
                 'due_at': assignment.due_at,
                 'points_possible': assignment.points_possible,
@@ -732,6 +733,7 @@ class CanvasAPIHandler:
         course = self.service.get_course(params.course_id)
         assignment = course.get_assignment(params.assignment_id)
         detailed_assignment = {
+            'course name': str(course), 
             'id': assignment.id,
             'name': assignment.name,
             'description': assignment.description,
@@ -758,25 +760,33 @@ class CanvasAPIHandler:
         module = course.get_module(params.module_id)
         return list(module.get_module_items(include=params.include))
 
-    def get_grades(self, params: CanvasGetGradesParams) -> Any:
+    def get_grades(self, params: CanvasGetGradesParams) -> dict:
         """
         Get grades for the current user in a course.
+        Returns a dictionary containing assignment grades.
         """
         course = self.service.get_course(params.course_id)
 
         # Fetch assignments and grades
         assignments = course.get_assignments()
+        grades_data = []
+
         for assignment in assignments:
             # Fetch the submission for the authenticated user
             submission = assignment.get_submission('self')
             grade = submission.grade
             score = submission.score
             points_possible = assignment.points_possible
-            print(f"Assignment: {assignment.name}")
-            print(f"  Grade: {grade}")
-            print(f"  Score: {score}")
-            print(f"  Points Possible: {points_possible}")
-            print("-" * 40)
+            
+            grades_data.append({
+                'course name': str(course), 
+                "assignment_name": assignment.name,
+                "grade": grade,
+                "score": score,
+                "points_possible": points_possible
+            })
+
+        return {"course_id": params.course_id, "grades": grades_data}
     def get_submission_history(self, params: CanvasGetSubmissionHistoryParams) -> Any:
         """
         Get submission history for an assignment.
@@ -806,12 +816,6 @@ class CanvasAPIHandler:
         for page in pages:
             print(page)
         input()
-        # while True:
-        #     try:
-        #         page = next(pages)
-        #         all_pages.append(page)
-        #     except StopIteration:
-        #         break
         
         return all_pages
     def get_page(self, params: CanvasGetPageParams) -> Any:
