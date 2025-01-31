@@ -1,24 +1,25 @@
-# main.py
+# test_canvas_agent.py
 
 import asyncio
 import logging
 
 from canvas_api_agent import CanvasAPIAgent
-from api_functions import CanvasAPIHandler
 
 logging.basicConfig(level=logging.INFO)
 
+
 async def main():
-    # canvas_handler = CanvasAPIHandler()
+    # Instantiate the Canvas agent
     agent = CanvasAPIAgent()
-    print(agent.task)
-    # action = await agent.call_action()
-    # print(action.parsed_output)
-    # courses = canvas_handler.perform_action(action.parsed_output)
-    # print(courses)
-    # # Let it run for 2 minutes
-    # agent.stop()
+    print("Agent task:", agent.task)
+
+    # Run the agent. It will loop, call the LLM for next actions, etc.
+    # You can stop it manually or let the STOP action from LLM end it.
     await agent.run()
+
+    # Optionally, do any post-run checks or prints
+    print("Agent run has completed.")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

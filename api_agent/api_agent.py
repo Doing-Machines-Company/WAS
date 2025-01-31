@@ -44,8 +44,7 @@ class APIAgent(ABC):
         self.context_info = ""  # May be needed by the child class
         self.item_context_pairs = ""  # May be needed by the child class
 
-        # Initialize the correct API handler
-        self.api_handler = self.initialize_api_handler()
+        self.initialize_api_handler()
 
     @abstractmethod
     def initialize_api_handler(self):

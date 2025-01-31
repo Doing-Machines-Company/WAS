@@ -37,7 +37,7 @@ class GCalAPIAgent(APIAgent):
 
     def initialize_api_handler(self):
         """Initialize the Google Calendar API handler."""
-        return GoogleCalendarAPIHandler()
+        self.api_handler = GoogleCalendarAPIHandler()
 
     async def setup(self):
         """

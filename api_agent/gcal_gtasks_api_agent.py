@@ -33,15 +33,11 @@ class GCalGTasksAPIAgent(APIAgent):
         user_prompt_path = os.path.join("api_prompts/gtasks+gcal", "google_calendar_tasks_user.txt")
         self.user_prompt_template = self._load_file(user_prompt_path)
 
+
+    def initialize_api_handler(self):
         # Initialize separate handlers for each
         self.gcal_handler = GoogleCalendarAPIHandler()
         self.gtasks_handler = GoogleTasksAPIHandler()
-
-    def initialize_api_handler(self):
-        # The base class expects one "main" handler, so just return the calendar handler by default.
-        # We'll dispatch tasks actions manually in _dispatch_action.
-        # return self.gcal_handler
-        return None
 
     def _load_file(self, file_path: str) -> str:
         if not os.path.exists(file_path):
@@ -76,8 +72,6 @@ class GCalGTasksAPIAgent(APIAgent):
             print("Error fetching task lists in GCalGTasksAPIAgent:", e)
             self.all_tasklists = []
 
-    def initialize_index(self):
-        pass
 
     async def call_action(self, provider: str = "anthropic", model: str = "claude-3-5-sonnet-latest") -> AgentCall:
         memory_text = ""

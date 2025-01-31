@@ -33,7 +33,7 @@ class GmailAPIAgent(APIAgent):
 
     def initialize_api_handler(self):
         """Initialize the Gmail API handler."""
-        return GmailAPIHandler()
+        self.api_handler = GmailAPIHandler()
 
     async def setup(self):
         """Setup tasks specific to GmailAPIAgent."""
