@@ -700,169 +700,179 @@ class CanvasAPIHandler:
 
         else:
             raise ValueError(f"Canvas: Unsupported action type: {action.action_type}")
-    def list_courses(self, params: CanvasListCoursesParams) -> Any:
+    def list_courses(self, params: CanvasListCoursesParams) -> any:
         """
-        Lists active courses for a given user
-
+        Lists active courses for a given user.
         """
-        return [str(course) for course in self.service.get_courses(enrollment_state='active')]
+        try:
+            courses = self.service.get_courses(enrollment_state='active')
+            return [str(course) for course in courses]
+        except Exception as e:
+            return {"error": f"Error retrieving courses: {str(e)}"}
 
-    def list_assignments(self, params: CanvasListAssignmentsParams) -> Any:
+    def list_assignments(self, params: CanvasListAssignmentsParams) -> any:
         """
         List assignments for a course with optional includes.
         """
-        course = self.service.get_course(params.course_id)
-        assignments = course.get_assignments(include=params.include)
+        try:
+            course = self.service.get_course(params.course_id)
+            assignments = course.get_assignments(include=params.include)
+        except Exception as e:
+            return {"error": f"Error retrieving assignments: {str(e)}"}
+
         filtered_assignments = []
         for assignment in assignments:
             filtered_assignment = {
-                'course name': str(course), 
-                'assignment id': assignment.id,
-                'name': assignment.name,
-                'due_at': assignment.due_at,
-                'points_possible': assignment.points_possible,
-                'submission_types': assignment.submission_types
+                'course name': str(course),
+                'assignment id': getattr(assignment, 'id', None),
+                'name': getattr(assignment, 'name', None),
+                'due_at': getattr(assignment, 'due_at', None),
+                'points_possible': getattr(assignment, 'points_possible', None),
+                'submission_types': getattr(assignment, 'submission_types', None)
             }
             filtered_assignments.append(filtered_assignment)
         return filtered_assignments
 
-    def get_assignment_details(self, params: CanvasGetAssignmentDetailsParams) -> Any:
+
+    def get_assignment_details(self, params: CanvasGetAssignmentDetailsParams) -> any:
         """
         Get detailed information about a specific assignment.
         """
-        course = self.service.get_course(params.course_id)
-        assignment = course.get_assignment(params.assignment_id)
+        try:
+            course = self.service.get_course(params.course_id)
+            assignment = course.get_assignment(params.assignment_id)
+        except Exception as e:
+            return {"error": f"Error retrieving assignment details: {str(e)}"}
+
         detailed_assignment = {
-            'course name': str(course), 
-            'id': assignment.id,
-            'name': assignment.name,
-            'description': assignment.description,
-            'due_at': assignment.due_at,
-            'points_possible': assignment.points_possible,
-            'submission_types': assignment.submission_types
+            'course name': str(course),
+            'id': getattr(assignment, 'id', None),
+            'name': getattr(assignment, 'name', None),
+            'description': getattr(assignment, 'description', None),
+            'due_at': getattr(assignment, 'due_at', None),
+            'points_possible': getattr(assignment, 'points_possible', None),
+            'submission_types': getattr(assignment, 'submission_types', None)
         }
         return detailed_assignment
 
 
 
-    def list_modules(self, params: CanvasListModulesParams) -> Any:
+
+    def list_modules(self, params: CanvasListModulesParams) -> any:
         """
         List all modules in a course with optional includes.
         """
-        course = self.service.get_course(params.course_id)
-        return list(course.get_modules(include=params.include))
+        try:
+            course = self.service.get_course(params.course_id)
+            modules = list(course.get_modules(include=params.include))
+            return modules
+        except Exception as e:
+            return {"error": f"Error retrieving modules: {str(e)}"}
 
-    def get_module_items(self, params: CanvasGetModuleItemsParams) -> Any:
+    def get_module_items(self, params: CanvasGetModuleItemsParams) -> any:
         """
         Get items within a specific module.
         """
-        course = self.service.get_course(params.course_id)
-        module = course.get_module(params.module_id)
-        return list(module.get_module_items(include=params.include))
+        try:
+            course = self.service.get_course(params.course_id)
+            module = course.get_module(params.module_id)
+            items = list(module.get_module_items(include=params.include))
+            return items
+        except Exception as e:
+            return {"error": f"Error retrieving module items: {str(e)}"}
 
     def get_grades(self, params: CanvasGetGradesParams) -> dict:
         """
         Get grades for the current user in a course.
         Returns a dictionary containing assignment grades.
         """
-        course = self.service.get_course(params.course_id)
+        try:
+            course = self.service.get_course(params.course_id)
+            assignments = course.get_assignments()
+        except Exception as e:
+            return {"error": f"Error retrieving course or assignments: {str(e)}"}
 
-        # Fetch assignments and grades
-        assignments = course.get_assignments()
         grades_data = []
-
         for assignment in assignments:
-            # Fetch the submission for the authenticated user
-            submission = assignment.get_submission('self')
-            grade = submission.grade
-            score = submission.score
-            points_possible = assignment.points_possible
-            
+            # Use a try/except for the API call that might fail (e.g., access disabled)
+            try:
+                submission = assignment.get_submission('self')
+            except Exception:
+                submission = None
+
+            grade = getattr(submission, 'grade', None) if submission else None
+            score = getattr(submission, 'score', None) if submission else None
+            points_possible = getattr(assignment, 'points_possible', None)
+            assignment_name = getattr(assignment, 'name', 'Unknown')
+
             grades_data.append({
-                'course name': str(course), 
-                "assignment_name": assignment.name,
+                'course name': str(course),
+                "assignment_name": assignment_name,
                 "grade": grade,
                 "score": score,
                 "points_possible": points_possible
             })
 
-        return {"course_id": params.course_id, "grades": grades_data}
-    def get_submission_history(self, params: CanvasGetSubmissionHistoryParams) -> Any:
+        return {"course_id": params.course_id, "grades": grades_data}    
+    
+    def get_submission_history(self, params: CanvasGetSubmissionHistoryParams) -> any:
         """
         Get submission history for an assignment.
         """
-        course = self.service.get_course(params.course_id)
-        assignment = course.get_assignment(params.assignment_id)
-        return assignment.get_submission(
-            self.service.get_current_user().id, include=params.include
-        )
+        try:
+            course = self.service.get_course(params.course_id)
+            assignment = course.get_assignment(params.assignment_id)
+            history = assignment.get_submission(
+                self.service.get_current_user().id, include=params.include
+            )
+            return history
+        except Exception as e:
+            return {"error": f"Error retrieving submission history: {str(e)}"}
 
-    def list_pages(self, params: CanvasListPagesParams) -> Any:
+
+    def list_pages(self, params: CanvasListPagesParams) -> any:
         """
         List all wiki pages in a course.
-        
-        Args:
-            params: CanvasListPagesParams containing course_id and optional search parameters
-            
-        Returns:
-            list: All pages in the course
         """
-        course = self.service.get_course(params.course_id)
-        all_pages = []
         try:
+            course = self.service.get_course(params.course_id)
             pages = course.get_pages(per_page=100)
+            return list(pages)
         except Exception as e:
-            input(e)
-        for page in pages:
-            print(page)
-        input()
-        
-        return all_pages
-    def get_page(self, params: CanvasGetPageParams) -> Any:
+            return {"error": f"Error retrieving pages: {str(e)}"}
+    def get_page(self, params: CanvasGetPageParams) -> any:
         """
         Get a specific page by URL or ID.
-        
-        Args:
-            params: CanvasGetPageParams containing course_id and page_url/page_id
-            
-        Returns:
-            Page: The requested page object
         """
-        course = self.service.get_course(params.course_id)
-        return course.get_page(params.page_url)
+        try:
+            course = self.service.get_course(params.course_id)
+            page = course.get_page(params.page_url)
+            return page
+        except Exception as e:
+            return {"error": f"Error retrieving page: {str(e)}"}
 
-    def list_files(self, params: CanvasListFilesParams) -> Any:
+    def list_files(self, params: CanvasListFilesParams) -> any:
         """
         List files in a course.
-        
-        Args:
-            params: CanvasListFilesParams containing course_id and optional search parameters
-            
-        Returns:
-            list: Files in the course matching search criteria
         """
-        course = self.service.get_course(params.course_id)
-        return list(course.get_files())
-    
+        try:
+            course = self.service.get_course(params.course_id)
+            files = list(course.get_files())
+            return files
+        except Exception as e:
+            return {"error": f"Error retrieving files: {str(e)}"}
+        
     def get_file(self, params: CanvasGetFileParams) -> bytes:
         """
         Download a file from Canvas and return its raw bytes.
         Suitable for passing directly to LLMs or other processors.
-        
-        Args:
-            params: CanvasGetFileParams containing course_id and file_id
-            
-        Returns:
-            bytes: Raw file content
-            
-        Raises:
-            Exception: If file download fails
         """
-        course = self.service.get_course(params.course_id)
-        file = course.get_file(params.file_id)
-        
-        response = requests.get(file.url)
-        if response.status_code != 200:
-            raise Exception(f"Failed to download file: {response.status_code}")
-        
-        return response.content
+        try:
+            course = self.service.get_course(params.course_id)
+            file = course.get_file(params.file_id)
+            response = requests.get(file.url)
+            if response.status_code != 200:
+                raise Exception(f"Failed to download file: {response.status_code}")
+            return response.content
+        except Exception as e:
+            raise Exception(f"Error retrieving file: {str(e)}")
