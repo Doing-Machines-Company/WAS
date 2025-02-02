@@ -13,7 +13,13 @@ from api_type_classes.api_actions_params_gmail import GmailGetMessageParams
 
 logger = logging.getLogger(__name__)
 
+"""
 
+THIS IS VERY IMPORTANT, THE BEHAVIOR OF THIS SCRIPT IS BROKEN
+
+Deleted emails currently aren't being updated and parsed out of the event cache correctly.
+
+"""
 class GmailNewMailAgent(PassiveAPIAgent):
     """
     A 'passive' agent that:
