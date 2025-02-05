@@ -19,7 +19,7 @@ class GCalGTasksAPIAgent(APIAgent):
     def __init__(self, task="", fast_mode=False, retry_cap=10):
         super().__init__(fast_mode=fast_mode, api="google_calendar", retry_cap=retry_cap)
         self.task = task
-        self.current_datetime = datetime.now(timezone.utc).isoformat()
+        self.current_datetime = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
         # We'll hold both calendars and tasks lists
         self.all_calendars = []
@@ -218,6 +218,6 @@ class GCalGTasksAPIAgent(APIAgent):
 if __name__ == "__main__":
     # Simple test
     agent = GCalGTasksAPIAgent(
-        task="I need to complete homework by June 1, and I have a doctor's appointment on June 1 at 10 AM."
+        task="I need to complete homework by March 1, and I have a doctor's appointment on June 1 at 10 AM."
     )
     asyncio.run(agent.run())
