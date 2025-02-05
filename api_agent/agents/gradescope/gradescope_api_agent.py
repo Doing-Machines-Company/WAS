@@ -26,7 +26,7 @@ class GradescopeAPIAgent(APIAgent):
         # Load the user prompt template from another file
         user_prompt_path = os.path.join(project_root, "api_agent", "api_prompts", "gradescope", "gradescope_user.txt")
         self.gradescope_user_prompt_template = self.load_file(user_prompt_path)
-
+        self.poll_output = []
     def load_file(self, file_path: str) -> str:
         """Utility method to read the entire content of a text file."""
         if not os.path.exists(file_path):
@@ -165,7 +165,7 @@ class GradescopeAPIAgent(APIAgent):
                             reason="final_subaction",
                             parameters=subparams
                         )
-                        self._perform_gradescope_action(sub_action)
+                        self._perform_gradescope_action(sub_action, is_final = True)
                     except Exception as e:
                         print("[Gradescope Agent] Error executing final sub-action:", e)
 
@@ -190,13 +190,13 @@ class GradescopeAPIAgent(APIAgent):
         else:
             self._perform_gradescope_action(action)
 
-    def _perform_gradescope_action(self, action: APIAction):
+    def _perform_gradescope_action(self, action: APIAction, is_final: bool = False):
         """
         Dispatch a Gradescope API action and record the result in memory.
         """
         try:
             result = self.api_handler.perform_action(action)
-            print(f"[Gradescope Agent] API call result: {result}")
+            # print(f"[Gradescope Agent] API call result: {result}")
             success = True
         except Exception as e:
             print(f"[Gradescope Agent] API call failed: {e}")
@@ -216,4 +216,13 @@ class GradescopeAPIAgent(APIAgent):
                 call=call_str,
                 received=str(result)
             )
-            self.action_mem.append(new_memory)
+            if is_final:
+                self.poll_output.append(new_memory)
+            else:
+                self.action_mem.append(new_memory)
+
+    def get_poll_output(self):
+        """
+        Return a list of poll function calls and their outputs
+        """
+        return self.poll_output
