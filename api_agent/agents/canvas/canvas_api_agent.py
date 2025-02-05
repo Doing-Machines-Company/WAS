@@ -26,7 +26,7 @@ class CanvasAPIAgent(APIAgent):
         # Load the user prompt template from another file
         user_prompt_path = os.path.join(project_root, "api_agent", "api_prompts", "canvas", "canvas_user.txt")
         self.canvas_user_prompt_template = self.load_file(user_prompt_path)
-
+        self.poll_output = []
     def load_file(self, file_path: str) -> str:
         """Utility method to read the entire content of a text file."""
         if not os.path.exists(file_path):
@@ -183,7 +183,7 @@ class CanvasAPIAgent(APIAgent):
                             reason="final_subaction",
                             parameters=subparams
                         )
-                        self._perform_canvas_action(sub_action)
+                        self._perform_canvas_action(sub_action, is_final = True)
                     except Exception as e:
                         print("[Canvas Agent] Error executing final sub-action:", e)
 
@@ -208,13 +208,13 @@ class CanvasAPIAgent(APIAgent):
         else:
             self._perform_canvas_action(action)
 
-    def _perform_canvas_action(self, action: APIAction):
+    def _perform_canvas_action(self, action: APIAction, is_final: bool = False):
         """
-        Dispatch a Canvas API action and record the result in memory.
+        Dispatch a Canvas API action and record the result in memory or final output
         """
         try:
             result = self.api_handler.perform_action(action)
-            print(f"[Canvas Agent] API call result: {result}")
+            # print(f"[Canvas Agent] API call result: {result}")
             success = True
         except Exception as e:
             print(f"[Canvas Agent] API call failed: {e}")
@@ -234,4 +234,13 @@ class CanvasAPIAgent(APIAgent):
                 call=call_str,
                 received=str(result)
             )
-            self.action_mem.append(new_memory)
+            if is_final:
+                self.poll_output.append(new_memory)
+            else:
+                self.action_mem.append(new_memory)
+    
+    def get_poll_output(self):
+        """
+        Return a list of poll function calls and their outputs
+        """
+        return self.poll_output

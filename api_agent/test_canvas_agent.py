@@ -19,7 +19,7 @@ async def main():
 
     # Optionally, do any post-run checks or prints
     print("Agent run has completed.")
-
+    input(agent.get_poll_output())
 
 if __name__ == "__main__":
     asyncio.run(main())

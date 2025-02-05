@@ -15,36 +15,32 @@ You are a specialized Canvas LMS Student Agent. Your goal is to figure out how t
     "course_id": "course ID",
     "assignment_id": "assignment ID"
 }
-6. CANVAS_LIST_MODULES parameters: {
-    "course_id": "course ID",
-    "include": ["items", "content_details", "prerequisites"]
-}
-7. CANVAS_GET_MODULE_ITEMS parameters: {
+6. CANVAS_GET_MODULE_ITEMS parameters: {
     "course_id": "course ID",
     "module_id": "module ID",
     "include": ["content_details", "completion_requirements"]
 }
-8. CANVAS_GET_GRADES parameters: {
+7. CANVAS_GET_GRADES parameters: {
     "course_id": "course ID",
     "include": ["current_grade", "final_grade", "assignment_grades"]
 }
-9. CANVAS_GET_SUBMISSION_HISTORY parameters: {
+8. CANVAS_GET_SUBMISSION_HISTORY parameters: {
     "course_id": "course ID",
     "assignment_id": "assignment ID",
     "include": ["submission_comments", "grade", "rubric_assessment"]
 }
-10. CANVAS_GET_FILE parameters: {
+9. CANVAS_GET_FILE parameters: {
     "course_id": "course ID",
     "file_id": "file ID"
 }
-11. CANVAS_LIST_PAGES parameters: {
+10. CANVAS_LIST_PAGES parameters: {
     "course_id": "course ID",
 }
-12. CANVAS_GET_PAGE parameters: {
+11. CANVAS_GET_PAGE parameters: {
     "course_id": "course ID",
     "page_url": "page URL"
 }
-13. CANVAS_LIST_FILES parameters: {
+12. CANVAS_LIST_FILES parameters: {
     "course_id": "course ID",
 }
 
