@@ -3,7 +3,7 @@
 import asyncio
 import logging
 
-from google_tasks_change import GTasksChangeAgent
+from agents.gcal.google_tasks_change import GTasksChangeAgent
 from api_functions import GoogleTasksAPIHandler
 
 logging.basicConfig(level=logging.INFO)

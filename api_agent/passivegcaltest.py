@@ -3,7 +3,7 @@
 import asyncio
 import logging
 
-from google_calendar_event_change import GCalEventChangeAgent
+from agents.gcal.google_calendar_event_change import GCalEventChangeAgent
 from api_functions import GoogleCalendarAPIHandler
 
 logging.basicConfig(level=logging.INFO)

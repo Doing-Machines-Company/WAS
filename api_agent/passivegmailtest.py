@@ -4,7 +4,7 @@ import asyncio
 import logging
 from datetime import datetime
 
-from gmail_new_mail_agent import GmailNewMailAgent
+from agents.gmail.gmail_new_mail_agent import GmailNewMailAgent
 from api_functions import GmailAPIHandler
 
 logging.basicConfig(level=logging.INFO)
