@@ -12,5 +12,6 @@ WAS
 nohup.out
 uvicorn.log
 canvas.json
+gradescope.json
 api_agent/credentials.json
 api_agent/token.pickle

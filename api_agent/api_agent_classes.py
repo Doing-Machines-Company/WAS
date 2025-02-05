@@ -10,7 +10,7 @@ class APIType(enum.Enum):
     GMAIL = "gmail"
     GOOGLE_CALENDAR = "google_calendar"
     CANVAS = "canvas"
-
+    GRADESCOPE = "gradescope"
     @classmethod
     def from_string(cls, api_str: str) -> 'APIType':
         """
@@ -97,6 +97,10 @@ class APIActionType(enum.Enum):
     CANVAS_LIST_FILES = ("canvas_list_files", True)
     CANVAS_GET_FILE = ("canvas_get_file", True)
     
+    # Gradescope
+    GRADESCOPE_LIST_COURSES = ("gradescope_list_courses", True)
+    GRADESCOPE_LIST_ASSIGNMENTS = ("gradescope_list_assignments", True)
+
     @staticmethod
     def from_string(action_type_str: str) -> "APIActionType":
         # Convert to uppercase just to be sure we match (e.g. "calendar_create_event" -> "CALENDAR_CREATE_EVENT")

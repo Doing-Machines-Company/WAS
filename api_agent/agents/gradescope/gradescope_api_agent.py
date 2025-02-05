@@ -1,4 +1,4 @@
-# canvas_api_agent.py
+# gradescope_api_agent.py
 
 import os
 import string
@@ -7,25 +7,25 @@ from api_agent import APIAgent
 from api_agent_classes import APIAction, APIActionType, APILinearMemory
 from api_llm_handling import AgentCall, LLMMessage
 from call_llm import call_llm
-from api_functions import CanvasAPIHandler
+from api_functions import GradescopeAPIHandler
 
 
-class CanvasAPIAgent(APIAgent):
-    def __init__(self, task="Track my Canvas courses", fast_mode=False, retry_cap=10):
+class GradescopeAPIAgent(APIAgent):
+    def __init__(self, task="Track my Gradescope courses", fast_mode=False, retry_cap=10):
         """
-        Initialize the CanvasAPIAgent with a default task if none is provided.
+        Initialize the GradescopeAPIAgent with a default task if none is provided.
         """
-        super().__init__(fast_mode=fast_mode, api="canvas", retry_cap=retry_cap)
+        super().__init__(fast_mode=fast_mode, api="gradescope", retry_cap=retry_cap)
         self.task = task  # You can override or set differently if desired
         current_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.abspath(os.path.join(current_dir, os.path.pardir, os.path.pardir, os.path.pardir))
-
         # Load the system prompt from a dedicated file
-        system_prompt_path = os.path.join(project_root, "api_agent", "api_prompts", "canvas", "canvas_system.txt")
-        self.canvas_system_prompt = self.load_file(system_prompt_path)
+        system_prompt_path = os.path.join(project_root, "api_agent", "api_prompts", "gradescope", "gradescope_system.txt")
+        self.gradescope_system_prompt = self.load_file(system_prompt_path)
+
         # Load the user prompt template from another file
-        user_prompt_path = os.path.join(project_root, "api_agent", "api_prompts", "canvas", "canvas_user.txt")
-        self.canvas_user_prompt_template = self.load_file(user_prompt_path)
+        user_prompt_path = os.path.join(project_root, "api_agent", "api_prompts", "gradescope", "gradescope_user.txt")
+        self.gradescope_user_prompt_template = self.load_file(user_prompt_path)
 
     def load_file(self, file_path: str) -> str:
         """Utility method to read the entire content of a text file."""
@@ -35,8 +35,8 @@ class CanvasAPIAgent(APIAgent):
             return f.read()
 
     def initialize_api_handler(self):
-        """Initialize the Canvas API handler."""
-        self.api_handler = CanvasAPIHandler()
+        """Initialize the Gradescope API handler."""
+        self.api_handler = GradescopeAPIHandler()
 
     async def setup(self):
         """
@@ -49,7 +49,7 @@ class CanvasAPIAgent(APIAgent):
         self, provider="cerebras", model="llama-3.3-70b"
     ) -> AgentCall:
         """
-        Asks the LLM to decide the next Canvas action.
+        Asks the LLM to decide the next Gradescope action.
         Returns an AgentCall (which includes the chosen APIAction).
         """
 
@@ -68,16 +68,16 @@ class CanvasAPIAgent(APIAgent):
         }
 
         # Perform string template substitution on the user prompt
-        user_prompt_str = string.Template(self.canvas_user_prompt_template).substitute(
+        user_prompt_str = string.Template(self.gradescope_user_prompt_template).substitute(
             user_replacements
         )
 
-        print("[Canvas Agent] Calling LLM for next action ...")
+        print("[Gradescope Agent] Calling LLM for next action ...")
 
         # Call the LLM asynchronously
         agent_call = await call_llm(
             messages=[
-                LLMMessage(message_role="system", content=self.canvas_system_prompt),
+                LLMMessage(message_role="system", content=self.gradescope_system_prompt),
                 LLMMessage(message_role="user", content=user_prompt_str),
             ],
             provider=provider,
@@ -85,7 +85,7 @@ class CanvasAPIAgent(APIAgent):
             max_tokens=8192,  # Adjust as needed
         )
 
-        print("[Canvas Agent] LLM response:", agent_call.llm_response)
+        print("[Gradescope Agent] LLM response:", agent_call.llm_response)
 
         # Attempt to parse out the chosen action from the LLM
         chosen_action = None
@@ -99,17 +99,8 @@ class CanvasAPIAgent(APIAgent):
                         action_type_mapping = {
                             "STOP": APIActionType.STOP,
                             "REQUEST_USER_INPUT": APIActionType.REQUEST_USER_INPUT,
-                            "CANVAS_LIST_COURSES": APIActionType.CANVAS_LIST_COURSES,
-                            "CANVAS_LIST_ASSIGNMENTS": APIActionType.CANVAS_LIST_ASSIGNMENTS,
-                            "CANVAS_GET_ASSIGNMENT_DETAILS": APIActionType.CANVAS_GET_ASSIGNMENT_DETAILS,
-                            "CANVAS_LIST_MODULES": APIActionType.CANVAS_LIST_MODULES,
-                            "CANVAS_GET_MODULE_ITEMS": APIActionType.CANVAS_GET_MODULE_ITEMS,
-                            "CANVAS_GET_GRADES": APIActionType.CANVAS_GET_GRADES,
-                            "CANVAS_GET_SUBMISSION_HISTORY": APIActionType.CANVAS_GET_SUBMISSION_HISTORY,
-                            "CANVAS_GET_FILE": APIActionType.CANVAS_GET_FILE,
-                            "CANVAS_LIST_PAGES": APIActionType.CANVAS_LIST_PAGES,
-                            "CANVAS_GET_PAGE": APIActionType.CANVAS_GET_PAGE,
-                            "CANVAS_LIST_FILES": APIActionType.CANVAS_LIST_FILES,
+                            "GRADESCOPE_LIST_COURSES": APIActionType.GRADESCOPE_LIST_COURSES,
+                            "GRADESCOPE_LIST_ASSIGNMENTS": APIActionType.GRADESCOPE_LIST_ASSIGNMENTS,
                         }
                         action_type = action_type_mapping.get(
                             action_type_str,
@@ -123,7 +114,7 @@ class CanvasAPIAgent(APIAgent):
                         )
                         break  # Stop after we successfully parse one action
                     except Exception as e:
-                        print("[Canvas Agent] Error mapping action type:", e)
+                        print("[Gradescope Agent] Error mapping action type:", e)
                         continue
 
         # If no valid action was parsed, default to STOP
@@ -141,7 +132,7 @@ class CanvasAPIAgent(APIAgent):
         """
         Handle the chosen action returned from the LLM.
         """
-        print(f"[Canvas Agent] Handling action => {action.action_type} | Reason: {action.reason}")
+        print(f"[Gradescope Agent] Handling action => {action.action_type} | Reason: {action.reason}")
 
         if action.action_type == APIActionType.STOP:
             # The LLM might provide a final_answer with sub-actions
@@ -150,31 +141,22 @@ class CanvasAPIAgent(APIAgent):
                 final_answer = action.parameters.get("final_answer", [])
 
             if final_answer:
-                print("[Canvas Agent] STOP with final sub-actions => executing them now:")
+                print("[Gradescope Agent] STOP with final sub-actions => executing them now:")
                 for idx, (subaction_str, subparams) in enumerate(final_answer, start=1):
                     try:
                         sub_type_str = subaction_str.upper().strip()
                         # Map sub_type_str to an APIActionType
                         action_type_mapping = {
                             "REQUEST_USER_INPUT": APIActionType.REQUEST_USER_INPUT,
-                            "CANVAS_LIST_COURSES": APIActionType.CANVAS_LIST_COURSES,
-                            "CANVAS_LIST_ASSIGNMENTS": APIActionType.CANVAS_LIST_ASSIGNMENTS,
-                            "CANVAS_GET_ASSIGNMENT_DETAILS": APIActionType.CANVAS_GET_ASSIGNMENT_DETAILS,
-                            "CANVAS_LIST_MODULES": APIActionType.CANVAS_LIST_MODULES,
-                            "CANVAS_GET_MODULE_ITEMS": APIActionType.CANVAS_GET_MODULE_ITEMS,
-                            "CANVAS_GET_GRADES": APIActionType.CANVAS_GET_GRADES,
-                            "CANVAS_GET_SUBMISSION_HISTORY": APIActionType.CANVAS_GET_SUBMISSION_HISTORY,
-                            "CANVAS_GET_FILE": APIActionType.CANVAS_GET_FILE,
-                            "CANVAS_LIST_PAGES": APIActionType.CANVAS_LIST_PAGES,
-                            "CANVAS_GET_PAGE": APIActionType.CANVAS_GET_PAGE,
-                            "CANVAS_LIST_FILES": APIActionType.CANVAS_LIST_FILES,
+                            "GRADESCOPE_LIST_COURSES": APIActionType.GRADESCOPE_LIST_COURSES,
+                            "GRADESCOPE_LIST_ASSIGNMENTS": APIActionType.GRADESCOPE_LIST_ASSIGNMENTS,
                         }
                         sub_action_type = action_type_mapping.get(
                             sub_type_str, APIActionType.STOP
                         )
 
                         # If subparams is just a single ID, wrap it in a dict if needed
-                        # e.g. ["CANVAS_LIST_ASSIGNMENTS", "12345"] -> {"course_id": "12345"}
+                        # e.g. ["GRADESCOPE_LIST_ASSIGNMENTS", "12345"] -> {"course_id": "12345"}
                         if not isinstance(subparams, dict):
                             subparams = {"course_id": str(subparams)}
 
@@ -183,17 +165,17 @@ class CanvasAPIAgent(APIAgent):
                             reason="final_subaction",
                             parameters=subparams
                         )
-                        self._perform_canvas_action(sub_action)
+                        self._perform_gradescope_action(sub_action)
                     except Exception as e:
-                        print("[Canvas Agent] Error executing final sub-action:", e)
+                        print("[Gradescope Agent] Error executing final sub-action:", e)
 
             # Send a stop message to any listeners
-            await self.output_queue.put(('exit_message', "Canvas Agent has stopped."))
+            await self.output_queue.put(('exit_message', "Gradescope Agent has stopped."))
             self.stop()
 
         elif action.action_type == APIActionType.REQUEST_USER_INPUT:
             # Example: ask user for more info
-            print("[Canvas Agent] Received REQUEST_USER_INPUT action. Asking user ...")
+            print("[Gradescope Agent] Received REQUEST_USER_INPUT action. Asking user ...")
             # Potentially you could do:
             # question = action.reason or "Any additional information needed?"
             # user_answer = await self.ask_user(question)
@@ -206,25 +188,25 @@ class CanvasAPIAgent(APIAgent):
             self.action_mem.append(new_memory)
 
         else:
-            self._perform_canvas_action(action)
+            self._perform_gradescope_action(action)
 
-    def _perform_canvas_action(self, action: APIAction):
+    def _perform_gradescope_action(self, action: APIAction):
         """
-        Dispatch a Canvas API action and record the result in memory.
+        Dispatch a Gradescope API action and record the result in memory.
         """
         try:
             result = self.api_handler.perform_action(action)
-            print(f"[Canvas Agent] API call result: {result}")
+            print(f"[Gradescope Agent] API call result: {result}")
             success = True
         except Exception as e:
-            print(f"[Canvas Agent] API call failed: {e}")
+            print(f"[Gradescope Agent] API call failed: {e}")
             success = False
 
         # Update memory if success/failure
         if not success:
             self.failed_count += 1
             if self.failed_count > self.retry_cap:
-                print("[Canvas Agent] Retry cap exceeded, stopping agent.")
+                print("[Gradescope Agent] Retry cap exceeded, stopping agent.")
                 self.stop()
         else:
             self.failed_count = 0
