@@ -1,4 +1,4 @@
-Here is your action memory so far:
+Here are the calls that have been made so far, and their results:
 $memory
 
 Currently available calendars:
@@ -14,9 +14,10 @@ Your goal is to interpret the items from this **external API** (in `$task`), dec
 Reason step-by-step using Chain-of-Thought (CoT) to do so.
 
 Remember:
+- Use your memory to guide you, it tells you what you've called and what you've received from those calls.
 - If you need to fetch more information first (e.g., listing tasks or events to check duplicates), do so with **one** action.
 - Once you have all necessary information, finalize your plan with a single `"STOP"` action and a `"final_answer"` array containing all sub-actions to be performed.
 - Make sure to provide times in **RFC 3339** format if applicable.
 - Remember you can only use exactly **one** action per response, unless using the final `"STOP"`.
 
-Now, provide your action in valid JSON (triple backticks). If no parameters are needed, use `"parameters": {}` or `"parameters": null`.
+Now, provide your action in valid JSON (within triple backticks). If no parameters are needed, use `"parameters": {}` or `"parameters": null`.

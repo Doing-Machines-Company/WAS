@@ -39,18 +39,23 @@ async def main():
 
     input(poll_out)
 
-    for i in range(0, len(poll_out), 10):
-        cur_chunk = poll_out[i:i + 10]
+    step_size = 1
+
+    for i in range(0, len(poll_out), step_size):
+        cur_chunk = poll_out[i:i + step_size]
         task_string = ""
         for i, linmem in enumerate(cur_chunk):
             task_string += f"{i})\nCall: \n{linmem.call}\nReceived: \n{linmem.received}\n"
         input(task_string)
-        agent = GCalGTasksAPIAgent(
-            task=cur_chunk,
-            from_user=False
-        )
-        await agent.run()
-        break
+        skip = input("SKIP?")
+        if skip == "":
+            agent = GCalGTasksAPIAgent(
+                task=task_string,
+                from_user=False
+            )
+            await agent.run()
+        else:
+            continue
 
 
 if __name__ == "__main__":

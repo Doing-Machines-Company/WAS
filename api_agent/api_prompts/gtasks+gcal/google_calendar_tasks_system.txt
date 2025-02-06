@@ -38,6 +38,7 @@ You are a unified **Google Calendar + Google Tasks** Agent. Follow these rules s
        ]
      }
    }
+   ```
 
 That single STOP action completes your entire plan.
 

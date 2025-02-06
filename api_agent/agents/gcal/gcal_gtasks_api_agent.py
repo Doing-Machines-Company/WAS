@@ -104,6 +104,8 @@ class GCalGTasksAPIAgent(APIAgent):
         ]
 
         print("[Unified Agent] Calling LLM for next action ...")
+        print(user_prompt_str)
+        input("LOOK AT USER PROMPT")
         agent_call = await call_llm(
             messages=messages,
             provider=provider,
@@ -112,6 +114,7 @@ class GCalGTasksAPIAgent(APIAgent):
         )
 
         print("[Unified Agent] LLM Response:", agent_call.llm_response)
+        input("LOOK AT LLM RESPONSE")
 
         chosen_action = None
         if agent_call.parsed_output:

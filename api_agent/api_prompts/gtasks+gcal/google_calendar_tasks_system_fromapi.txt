@@ -40,6 +40,7 @@ Follow these rules strictly:
        ]
      }
    }
+   ```
 
 That single STOP action completes your entire plan.
 

@@ -34,7 +34,7 @@ async def call_llm(
     messages: List[LLMMessage],
     provider: str = "cerebras",
     model: str = "llama-3.3-70b",
-    max_tokens: int = 512
+    max_tokens: int = 5000
 ) -> AgentCall:
     """
     Calls the specified LLM provider with the given messages.
