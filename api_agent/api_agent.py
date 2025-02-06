@@ -8,9 +8,11 @@ from api_llm_handling import AgentCall
 from api_agent_classes import APIType
 
 class APIAgent(ABC):
-    def __init__(self, fast_mode=False, api="generic", retry_cap=10):
+    def __init__(self, fast_mode=False, api="generic", retry_cap=10, from_user=True):
         """Initialize a generic API-based LLM agent."""
         self.api = APIType.from_string(api)
+
+        self.from_user = from_user
 
         # Control events
         self.stop_event = asyncio.Event()

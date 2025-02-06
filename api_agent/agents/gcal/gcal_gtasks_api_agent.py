@@ -16,8 +16,8 @@ class GCalGTasksAPIAgent(APIAgent):
     """
     A unified agent that can handle both Google Calendar events and Google Tasks items.
     """
-    def __init__(self, task="", fast_mode=False, retry_cap=10):
-        super().__init__(fast_mode=fast_mode, api="google_calendar", retry_cap=retry_cap)
+    def __init__(self, task="", fast_mode=False, retry_cap=10, from_user=True):
+        super().__init__(fast_mode=fast_mode, api="google_calendar", retry_cap=retry_cap, from_user=from_user)
         self.task = task
         self.current_datetime = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
@@ -25,13 +25,22 @@ class GCalGTasksAPIAgent(APIAgent):
         self.all_calendars = []
         self.all_tasklists = []
 
-        # Load the system prompt
-        system_prompt_path = os.path.join("api_prompts/gtasks+gcal", "google_calendar_tasks_system.txt")
-        self.system_prompt_str = self._load_file(system_prompt_path)
+        if self.from_user:
+            # Load the system prompt
+            system_prompt_path = os.path.join("api_prompts/gtasks+gcal", "google_calendar_tasks_system.txt")
+            self.system_prompt_str = self._load_file(system_prompt_path)
 
-        # Load the user prompt template
-        user_prompt_path = os.path.join("api_prompts/gtasks+gcal", "google_calendar_tasks_user.txt")
-        self.user_prompt_template = self._load_file(user_prompt_path)
+            # Load the user prompt template
+            user_prompt_path = os.path.join("api_prompts/gtasks+gcal", "google_calendar_tasks_user.txt")
+            self.user_prompt_template = self._load_file(user_prompt_path)
+        else:
+            # Load the system prompt
+            system_prompt_path = os.path.join("api_prompts/gtasks+gcal", "google_calendar_tasks_system_fromapi.txt")
+            self.system_prompt_str = self._load_file(system_prompt_path)
+
+            # Load the user prompt template
+            user_prompt_path = os.path.join("api_prompts/gtasks+gcal", "google_calendar_tasks_user_fromapi.txt")
+            self.user_prompt_template = self._load_file(user_prompt_path)
 
 
     def initialize_api_handler(self):
