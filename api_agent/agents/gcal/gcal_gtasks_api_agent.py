@@ -110,7 +110,7 @@ class GCalGTasksAPIAgent(APIAgent):
             messages=messages,
             provider=provider,
             model=model,
-            max_tokens=512
+            max_tokens=5000
         )
 
         print("[Unified Agent] LLM Response:", agent_call.llm_response)
