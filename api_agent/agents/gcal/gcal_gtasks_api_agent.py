@@ -17,11 +17,12 @@ class GCalGTasksAPIAgent(APIAgent):
     """
     A unified agent that can handle both Google Calendar events and Google Tasks items.
     """
-    def __init__(self, task="", fast_mode=False, retry_cap=10, from_user=True, user_timezone="America/New_York"):
+    def __init__(self, task="", fast_mode=False, retry_cap=10, from_user=True, user_timezone="America/New_York", use_ampm=True):
         super().__init__(fast_mode=fast_mode, api="google_calendar", retry_cap=retry_cap, from_user=from_user)
         self.task = task
         self.current_datetime = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
         self.user_timezone = user_timezone
+        self.use_ampm = use_ampm
 
         # We'll hold both calendars and tasks lists
         self.all_calendars = []
@@ -256,8 +257,12 @@ class GCalGTasksAPIAgent(APIAgent):
 
                 # If there's a time portion originally, show it in the title
                 if "T" in original_due_str:
-                    # local_time_str = dt_local.strftime("%H:%M %Z")
-                    local_time_str = dt_local.strftime("%b %d %H:%M %Z")
+                    if self.use_ampm:
+                        # Format using AM/PM notation, e.g., "Mar 01 10:00 AM PDT"
+                        local_time_str = dt_local.strftime("%b %d %I:%M %p %Z")
+                    else:
+                        # Format using 24-hour time, e.g., "Mar 01 10:00 PDT"
+                        local_time_str = dt_local.strftime("%b %d %H:%M %Z")
                     title = f"{title} (Due {local_time_str})".strip()
 
                 # 3) For the API call, build an RFC3339 date/time using the local date but zeroed time.
@@ -268,6 +273,9 @@ class GCalGTasksAPIAgent(APIAgent):
 
                 # 4) Append the original UTC date/time to the notes
                 notes = notes.rstrip() + f"\n(UTC: {original_due_str})"
+
+            else:
+                print(f"[Unified Agent] NO {original_due_str}")
 
             # Append "created by inbound.fyi" to notes
             if "created by inbound.fyi" not in notes:

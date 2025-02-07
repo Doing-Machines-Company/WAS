@@ -19,5 +19,6 @@ Remember:
 - Once you have all necessary information, finalize your plan with a single `"STOP"` action and a `"final_answer"` array containing all sub-actions to be performed.
 - Make sure to provide times in **RFC 3339** format if applicable.
 - Remember you can only use exactly **one** action per response, unless using the final `"STOP"`.
+- Only supply datetimes for due or event times, never inside descriptions or titles.etc
 
 Now, provide your action in valid JSON (within triple backticks). If no parameters are needed, use `"parameters": {}` or `"parameters": null`.
