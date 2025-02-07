@@ -4,6 +4,7 @@ import os
 import string
 import asyncio
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from api_agent import APIAgent
 from api_agent_classes import APIAction, APIActionType, APILinearMemory
@@ -16,10 +17,11 @@ class GCalGTasksAPIAgent(APIAgent):
     """
     A unified agent that can handle both Google Calendar events and Google Tasks items.
     """
-    def __init__(self, task="", fast_mode=False, retry_cap=10, from_user=True):
+    def __init__(self, task="", fast_mode=False, retry_cap=10, from_user=True, user_timezone="America/New_York"):
         super().__init__(fast_mode=fast_mode, api="google_calendar", retry_cap=retry_cap, from_user=from_user)
         self.task = task
         self.current_datetime = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        self.user_timezone = user_timezone
 
         # We'll hold both calendars and tasks lists
         self.all_calendars = []
@@ -178,6 +180,9 @@ class GCalGTasksAPIAgent(APIAgent):
                     self.stop()
             else:
                 self.failed_count = 0
+                if result is None:
+                    print("[Unified Agent] Result from _dispatch_action is None (skipping).")
+
                 # Log the action => include parameters in the memory's "call"
                 call_str = f"{action.action_type.value} with parameters: {action.parameters}"
                 new_memory = APILinearMemory(
@@ -187,11 +192,92 @@ class GCalGTasksAPIAgent(APIAgent):
                 )
                 self.action_mem.append(new_memory)
 
+
+    def _parse_utc_datetime_or_date(self, dt_str: str) -> datetime:
+        """
+        Attempt to parse 'dt_str' as an RFC3339 (or ISO) datetime in UTC.
+        If there's no time component, interpret it as that date at 00:00 UTC.
+        """
+        if "T" not in dt_str:
+            # e.g. "2025-09-07"
+            dt_str = dt_str.strip() + "T00:00:00Z"
+        return datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+
     def _dispatch_action(self, action: APIAction):
         """
-        Route the action to either the Calendar API handler or the Tasks API handler.
-        Returns the API result so we can store in memory.
+        Before sending actions to GoogleCalendarAPIHandler or GoogleTasksAPIHandler:
+         - If the event/task is "old" (start/due < now in UTC), skip creation.
+         - For tasks, we base the due date on the *local* date, i.e. if it is the previous day local,
+           then 'due' is that local day.
+         - Insert "(Due local_time_str)" in the title if a time is present.
+         - Append "(UTC: ...)" to notes with the original input string.
+         - Always append "created by inbound.fyi".
         """
+        now_utc = datetime.now(timezone.utc)
+
+        # ---------------------------
+        # 1) Calendar events
+        # ---------------------------
+        if action.action_type in [APIActionType.CALENDAR_CREATE_EVENT, APIActionType.CALENDAR_UPDATE_EVENT]:
+            params = action.parameters
+            desc = params.get("description", "") or ""
+
+            start_val = params.get("start")
+            if start_val:
+                event_start_utc = self._parse_utc_datetime_or_date(start_val)
+                if event_start_utc < now_utc:
+                    print("Event is in the past, skipping creation/update.")
+                    return None
+
+            # Append "created by inbound.fyi" to description
+            if "created by inbound.fyi" not in desc:
+                desc = (desc + "\ncreated by inbound.fyi").strip()
+            params["description"] = desc
+
+        # ---------------------------
+        # 2) Tasks
+        # ---------------------------
+        elif action.action_type in [APIActionType.TASKS_CREATE_TASK, APIActionType.TASKS_UPDATE_TASK]:
+            params = action.parameters
+            notes = params.get("notes", "") or ""
+            title = params.get("title", "") or ""
+            original_due_str = params.get("due")
+
+            if original_due_str:
+                # 1) Parse in UTC to check if it's in the past
+                due_utc = self._parse_utc_datetime_or_date(original_due_str)
+                if due_utc < now_utc:
+                    print("Task due date is in the past, skipping creation/update.")
+                    return None
+
+                # 2) Convert UTC -> local time
+                #    We'll use the *local date* as the day for the task
+                dt_local = due_utc.astimezone(ZoneInfo(self.user_timezone))
+
+                # If there's a time portion originally, show it in the title
+                if "T" in original_due_str:
+                    # local_time_str = dt_local.strftime("%H:%M %Z")
+                    local_time_str = dt_local.strftime("%b %d %H:%M %Z")
+                    title = f"{title} (Due {local_time_str})".strip()
+
+                # 3) For the API call, build an RFC3339 date/time using the local date but zeroed time.
+                local_date_str = dt_local.strftime("%Y-%m-%d")  # e.g. "2025-09-06"
+                final_due = f"{local_date_str}T00:00:00.000Z"
+                params["due"] = final_due
+                params["title"] = title
+
+                # 4) Append the original UTC date/time to the notes
+                notes = notes.rstrip() + f"\n(UTC: {original_due_str})"
+
+            # Append "created by inbound.fyi" to notes
+            if "created by inbound.fyi" not in notes:
+                notes = (notes + "\ncreated by inbound.fyi").strip()
+
+            params["notes"] = notes
+
+        # ---------------------------
+        # Dispatch to API Handler
+        # ---------------------------
         ctype = action.action_type
         if ctype in [
             APIActionType.CALENDAR_LIST_CALENDARS,
@@ -200,7 +286,6 @@ class GCalGTasksAPIAgent(APIAgent):
             APIActionType.CALENDAR_UPDATE_EVENT,
             APIActionType.CALENDAR_DELETE_EVENT
         ]:
-            # Calendar action
             result = self.gcal_handler.perform_action(action)
             print("  [Calendar Action] result =", result)
             return result
@@ -219,7 +304,6 @@ class GCalGTasksAPIAgent(APIAgent):
             APIActionType.TASKS_CLEAR_COMPLETED_TASKS,
             APIActionType.TASKS_MOVE_TASK
         ]:
-            # Tasks action
             result = self.gtasks_handler.perform_action(action)
             print("  [Tasks Action] result =", result)
             return result
@@ -230,6 +314,7 @@ class GCalGTasksAPIAgent(APIAgent):
 if __name__ == "__main__":
     # Simple test
     agent = GCalGTasksAPIAgent(
-        task="I need to complete homework by March 1, and I have a doctor's appointment on June 1 at 10 AM."
+        task="I need to complete homework by March 1, and I have a doctor's appointment on June 1 at 10 AM.",
+        user_timezone="America/Los_Angeles"
     )
     asyncio.run(agent.run())
