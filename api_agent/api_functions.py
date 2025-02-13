@@ -391,7 +391,6 @@ class GoogleCalendarAPIHandler:
         start_obj = self._parse_date_or_datetime(params.start)
         end_obj = self._parse_date_or_datetime(params.end)
 
-        # If user wants all-day and start == end, shift end +1 day
         if "date" in start_obj and "date" in end_obj and (start_obj["date"] == end_obj["date"]):
             from datetime import datetime, timedelta
             start_date = datetime.strptime(start_obj["date"], "%Y-%m-%d").date()
@@ -400,7 +399,7 @@ class GoogleCalendarAPIHandler:
 
         event = {
             'summary': params.summary,
-            'description': params.description or "",  # fallback to empty if None
+            'description': params.description or "",
             'location': params.location or ""
         }
 
@@ -412,7 +411,6 @@ class GoogleCalendarAPIHandler:
         event['start'] = start_obj
         event['end'] = end_obj
 
-        # Optional fields
         if params.colorId:
             event['colorId'] = params.colorId
         if params.transparency:
@@ -420,8 +418,12 @@ class GoogleCalendarAPIHandler:
         if params.visibility:
             event['visibility'] = params.visibility
 
-        # For simplicity, always use "primary" calendar
-        created = self.service.events().insert(calendarId='primary', body=event).execute()
+        # <--- MODIFICATION: allow using params.calendarId if provided --->
+        calendar_id = getattr(params, 'calendarId', None)
+        if not calendar_id:
+            calendar_id = 'primary'
+
+        created = self.service.events().insert(calendarId=calendar_id, body=event).execute()
         return created
 
     def list_events(self, params: CalendarListEventsParams) -> Any:

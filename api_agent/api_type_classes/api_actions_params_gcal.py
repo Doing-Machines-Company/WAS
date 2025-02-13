@@ -16,6 +16,8 @@ class CalendarCreateEventParams:
     description: Optional[str] = None
     location: Optional[str] = None
 
+    calendarId: str = None
+
     start: Optional[Union[str, datetime]] = None
     end: Optional[Union[str, datetime]] = None
     timeZone: str = "America/New_York"
