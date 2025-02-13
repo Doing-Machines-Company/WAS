@@ -1,26 +1,25 @@
-Here is your action memory so far:
-$memory
+All future events (unrolled from all calendars):
+$future_events
 
-Currently available calendars:
-$available_calendars
-
-Currently available task lists:
-$available_tasklists
+All future tasks (unrolled from all tasklists):
+$future_tasks
 
 User's main request:
 $task
 
-Decide your next single action in valid JSON (triple backticks) from the list in the system instructions.
-Reason step-by-step using Chain-of-Thought (CoT) to do so.
+You can:
+- Check the existing future events/tasks to avoid duplicates.
+- Only create new events on the "inbound.fyi" calendar.
+- Only create new tasks on the "inbound.fyi" tasklist.
+- Use the local time for tasks in the title (plus UTC in notes) if they have a specific time.
+- If you need more info, do a single step like `CALENDAR_LIST_EVENTS` or `TASKS_LIST_TASKS`.
+- When you have everything, finalize with a single `"STOP"` containing a `"final_answer"` array of sub-actions.
 
-- You may use either a Calendar action (e.g. `CALENDAR_LIST_EVENTS`, `CALENDAR_CREATE_EVENT`, etc.) if the user’s request refers to a scheduled date/time.
-- Or, use a Tasks action (e.g. `TASKS_LIST_TASKS`, `TASKS_CREATE_TASK`, etc.) if the user’s request refers to to-do items or due dates.
-- If you need to fetch more information first (e.g. listing tasks or events to check duplicates), do that in one single action.
-- When you have **all** the info you need and are ready to perform everything at once, output **one** `STOP` action with a `"final_answer"` array containing all the sub-actions.
+Reason step-by-step using Chain-of-Thought (CoT) to complete the user's main request.
+Output your action in **valid JSON** within triple backticks. Only **one** `action_type` unless final `"STOP"`.
 
 Remember:
-1. You can only use **one** `action_type` in this response unless using `STOP`.
-2. Output must be valid JSON enclosed by triple backticks.
-3. Check carefully for duplicates in both events (future) and tasks (uncompleted or relevant to the user’s chosen list).
-4. If no parameters are needed, return `"parameters": {}` or `"parameters": null`.
-5. All times and dates used should be in RFC 3339 format
+1. Output must be valid JSON enclosed by triple backticks.
+2. Check carefully for duplicates in both events (future) and tasks (uncompleted or relevant to the user’s chosen list).
+3. If no parameters are needed, return `"parameters": {}` or `"parameters": null`.
+4. All times and dates used should be in RFC 3339 format

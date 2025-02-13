@@ -7,47 +7,69 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from api_agent import APIAgent
-from api_agent_classes import APIAction, APIActionType, APILinearMemory
+from api_agent_classes import APIAction, APIActionType
 from api_llm_handling import LLMMessage, AgentCall
 from call_llm import call_llm
 
 from api_functions import GoogleCalendarAPIHandler, GoogleTasksAPIHandler
 
+
 class GCalGTasksAPIAgent(APIAgent):
     """
-    A unified agent that can handle both Google Calendar events and Google Tasks items.
+    A unified agent that can handle both Google Calendar events and Google Tasks items,
+    fetching fresh data from both APIs each time we call the LLM. No memory is stored.
     """
-    def __init__(self, task="", fast_mode=False, retry_cap=10, from_user=True, user_timezone="America/New_York", use_ampm=True):
+
+    def __init__(
+        self,
+        task="",
+        fast_mode=False,
+        retry_cap=10,
+        from_user=True,
+        user_timezone="America/New_York",
+        use_ampm=True
+    ):
         super().__init__(fast_mode=fast_mode, api="google_calendar", retry_cap=retry_cap, from_user=from_user)
         self.task = task
-        self.current_datetime = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-        self.user_timezone = user_timezone
+        self.current_datetime = (
+            datetime.now(timezone.utc)
+            .replace(microsecond=0)
+            .isoformat()
+            .replace("+00:00", "Z")
+        )
+
+        # If no explicit user_timezone given, default to America/New_York
+        self.user_timezone = user_timezone if user_timezone else "America/New_York"
         self.use_ampm = use_ampm
 
-        # We'll hold both calendars and tasks lists
-        self.all_calendars = []
-        self.all_tasklists = []
+        # We keep references to the inbound.fyi calendar/tasklist IDs
+        self.inbound_fyi_calendar_id = None
+        self.inbound_fyi_tasklist_id = None
 
+        # For dynamic data each time we call the LLM:
+        self.future_events = []
+        self.future_tasks = []
+
+        # Load system & user prompts
         if self.from_user:
-            # Load the system prompt
+            # system prompt
             system_prompt_path = os.path.join("api_prompts/gtasks+gcal", "google_calendar_tasks_system.txt")
             self.system_prompt_str = self._load_file(system_prompt_path)
 
-            # Load the user prompt template
+            # user prompt
             user_prompt_path = os.path.join("api_prompts/gtasks+gcal", "google_calendar_tasks_user.txt")
             self.user_prompt_template = self._load_file(user_prompt_path)
         else:
-            # Load the system prompt
+            # system prompt
             system_prompt_path = os.path.join("api_prompts/gtasks+gcal", "google_calendar_tasks_system_fromapi.txt")
             self.system_prompt_str = self._load_file(system_prompt_path)
 
-            # Load the user prompt template
+            # user prompt
             user_prompt_path = os.path.join("api_prompts/gtasks+gcal", "google_calendar_tasks_user_fromapi.txt")
             self.user_prompt_template = self._load_file(user_prompt_path)
 
-
     def initialize_api_handler(self):
-        # Initialize separate handlers for each
+        # Initialize the separate handlers
         self.gcal_handler = GoogleCalendarAPIHandler()
         self.gtasks_handler = GoogleTasksAPIHandler()
 
@@ -58,43 +80,132 @@ class GCalGTasksAPIAgent(APIAgent):
             return f.read()
 
     async def setup(self):
-        # 1) Fetch all calendars
+        """
+        Initial (once) setup, if needed. Currently empty because
+        we fetch inbound.fyi and tasks/events every time we call the LLM.
+        """
+        pass
+
+    async def call_action(self, provider: str = "anthropic", model: str = "claude-3-5-sonnet-latest") -> AgentCall:
+        """
+        Before each LLM call, fetch the latest data:
+          - find/create inbound.fyi calendar & tasklist
+          - list all calendars + tasks
+          - unroll future events and tasks
+        Then build the prompt without memory.
+        """
+        await self._find_or_create_inbound_fyi_calendar()
+        await self._find_or_create_inbound_fyi_tasklist()
+
+        # Collect all calendar IDs
         try:
             list_calendars_action = APIAction(
                 action_type=APIActionType.CALENDAR_LIST_CALENDARS,
-                reason="Fetch all calendars for unified agent context",
+                reason="Fetch updated calendar list",
                 parameters={}
             )
-            cals = self.gcal_handler.perform_action(list_calendars_action)
-            self.all_calendars = cals if isinstance(cals, list) else []
+            all_cals = self.gcal_handler.perform_action(list_calendars_action)
+            # Now fetch upcoming events for each
+            self.future_events = []
+            now_utc_iso = datetime.now(timezone.utc).isoformat() + "Z"
+            if isinstance(all_cals, list):
+                for cal in all_cals:
+                    cal_id = cal.get("id")
+                    if not cal_id:
+                        continue
+                    list_events_action = APIAction(
+                        action_type=APIActionType.CALENDAR_LIST_EVENTS,
+                        reason="Fetch future events for LLM context",
+                        parameters={
+                            "calendarId": cal_id,
+                            "maxResults": 100,
+                            "timeMin": now_utc_iso,
+                            "singleEvents": True,
+                            "orderBy": "startTime",
+                            "showDeleted": False
+                        }
+                    )
+                    events_result = self.gcal_handler.perform_action(list_events_action)
+                    if isinstance(events_result, list):
+                        for evt in events_result:
+                            # skip cancelled
+                            if evt.get("status") == "cancelled":
+                                continue
+                            self.future_events.append({
+                                "calendarId": cal_id,
+                                "eventId": evt.get("id"),
+                                "summary": evt.get("summary"),
+                                "start": evt.get("start"),
+                                "end": evt.get("end")
+                            })
         except Exception as e:
-            print("Error fetching calendars in GCalGTasksAPIAgent:", e)
-            self.all_calendars = []
+            print("Error fetching calendars/events for LLM context:", e)
+            self.future_events = []
 
-        # 2) Fetch all task lists
+        # Collect all tasklists
         try:
             list_tasklists_action = APIAction(
                 action_type=APIActionType.TASKS_LIST_TASKLISTS,
-                reason="Fetch all task lists for unified agent context",
+                reason="Fetch updated tasklist list",
                 parameters={}
             )
-            tls = self.gtasks_handler.perform_action(list_tasklists_action)
-            self.all_tasklists = tls if isinstance(tls, list) else []
+            all_tasklists = self.gtasks_handler.perform_action(list_tasklists_action)
+            # Now fetch tasks
+            self.future_tasks = []
+            if isinstance(all_tasklists, list):
+                for tlist in all_tasklists:
+                    tlist_id = tlist.get("id")
+                    if not tlist_id:
+                        continue
+                    try:
+                        list_tasks_action = APIAction(
+                            action_type=APIActionType.TASKS_LIST_TASKS,
+                            reason="Fetch tasks for LLM context",
+                            parameters={
+                                "tasklist_id": tlist_id,
+                                "showCompleted": False,
+                                "showDeleted": False,
+                                "showHidden": False,
+                                "maxResults": 100
+                            }
+                        )
+                        tasks_result = self.gtasks_handler.perform_action(list_tasks_action)
+                        now_utc = datetime.now(timezone.utc)
+                        if isinstance(tasks_result, list):
+                            for tsk in tasks_result:
+                                due_str = tsk.get("due")
+                                if not due_str:
+                                    self.future_tasks.append({
+                                        "tasklist_id": tlist_id,
+                                        "task_id": tsk.get("id"),
+                                        "title": tsk.get("title"),
+                                        "notes": tsk.get("notes"),
+                                        "due": None
+                                    })
+                                else:
+                                    try:
+                                        due_dt = self._parse_utc_datetime_or_date(due_str)
+                                        if due_dt >= now_utc:
+                                            self.future_tasks.append({
+                                                "tasklist_id": tlist_id,
+                                                "task_id": tsk.get("id"),
+                                                "title": tsk.get("title"),
+                                                "notes": tsk.get("notes"),
+                                                "due": due_str
+                                            })
+                                    except:
+                                        pass
+                    except Exception as e2:
+                        print(f"Error listing tasks for tasklist {tlist_id}:", e2)
         except Exception as e:
-            print("Error fetching task lists in GCalGTasksAPIAgent:", e)
-            self.all_tasklists = []
+            print("Error fetching tasklists/tasks for LLM context:", e)
+            self.future_tasks = []
 
-
-    async def call_action(self, provider: str = "anthropic", model: str = "claude-3-5-sonnet-latest") -> AgentCall:
-        memory_text = ""
-        for i, mem in enumerate(self.action_mem):
-            memory_text += f"- Step {i+1} => Called: {mem.call} | Received: {mem.received}\n"
-
+        # Build user/system prompts (no memory)
         user_prompt_str = string.Template(self.user_prompt_template).substitute({
-            "memory": memory_text.strip(),
-            "task": self.task if self.task else "",
-            "available_calendars": str(self.all_calendars),
-            "available_tasklists": str(self.all_tasklists),
+            "task": self.task,
+            "future_events": str(self.future_events),
+            "future_tasks": str(self.future_tasks),
         })
 
         system_prompt_str = string.Template(self.system_prompt_str).substitute({
@@ -136,6 +247,7 @@ class GCalGTasksAPIAgent(APIAgent):
                         continue
 
         if not chosen_action:
+            # fallback if no parsed action
             chosen_action = APIAction(
                 action_type=APIActionType.STOP,
                 reason="No valid action or parsing failure",
@@ -146,6 +258,9 @@ class GCalGTasksAPIAgent(APIAgent):
         return agent_call
 
     async def handle_actions(self, action: APIAction):
+        """
+        Perform the action. No memory is stored.
+        """
         print(f"[Unified Agent] Handling action => {action.action_type} | Reason: {action.reason}")
 
         if action.action_type == APIActionType.STOP:
@@ -163,6 +278,7 @@ class GCalGTasksAPIAgent(APIAgent):
                     except Exception as e:
                         print("[Unified Agent] Error executing final sub-action:", e)
 
+            # Then we stop
             await self.output_queue.put(('exit_message', "GCal+Tasks Agent has stopped."))
             self.stop()
 
@@ -170,58 +286,46 @@ class GCalGTasksAPIAgent(APIAgent):
             # Single-step
             try:
                 result = self._dispatch_action(action)
-                success = True
             except Exception as e:
                 print("[Unified Agent] Error performing API action:", e)
-                success = False
-
-            if not success:
                 self.failed_count += 1
                 if self.failed_count > self.retry_cap:
                     self.stop()
-            else:
-                self.failed_count = 0
-                if result is None:
-                    print("[Unified Agent] Result from _dispatch_action is None (skipping).")
+                return
 
-                # Log the action => include parameters in the memory's "call"
-                call_str = f"{action.action_type.value} with parameters: {action.parameters}"
-                new_memory = APILinearMemory(
-                    api_type=self.api,
-                    call=call_str,
-                    received=str(result) if result else ""
-                )
-                self.action_mem.append(new_memory)
+            self.failed_count = 0  # reset on success
 
-
+    # -- Helper to parse UTC times into datetime objects --
     def _parse_utc_datetime_or_date(self, dt_str: str) -> datetime:
-        """
-        Attempt to parse 'dt_str' as an RFC3339 (or ISO) datetime in UTC.
-        If there's no time component, interpret it as that date at 00:00 UTC.
-        """
         if "T" not in dt_str:
-            # e.g. "2025-09-07"
             dt_str = dt_str.strip() + "T00:00:00Z"
         return datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
 
+    # -- Dispatch the final action to the appropriate API Handler --
     def _dispatch_action(self, action: APIAction):
-        """
-        Before sending actions to GoogleCalendarAPIHandler or GoogleTasksAPIHandler:
-         - If the event/task is "old" (start/due < now in UTC), skip creation.
-         - For tasks, we base the due date on the *local* date, i.e. if it is the previous day local,
-           then 'due' is that local day.
-         - Insert "(Due local_time_str)" in the title if a time is present.
-         - Append "(UTC: ...)" to notes with the original input string.
-         - Always append "created by inbound.fyi".
-        """
         now_utc = datetime.now(timezone.utc)
 
-        # ---------------------------
-        # 1) Calendar events
-        # ---------------------------
-        if action.action_type in [APIActionType.CALENDAR_CREATE_EVENT, APIActionType.CALENDAR_UPDATE_EVENT]:
+        # For creation: force inbound.fyi usage
+        if action.action_type == APIActionType.CALENDAR_CREATE_EVENT:
+            params = action.parameters
+            # if not set, use user timezone
+            if "timeZone" not in params or not params["timeZone"]:
+                params["timeZone"] = self.user_timezone
+            params["calendarId"] = self.inbound_fyi_calendar_id
+
+        elif action.action_type == APIActionType.TASKS_CREATE_TASK:
+            params = action.parameters
+            params["tasklist_id"] = self.inbound_fyi_tasklist_id
+
+        # Then do the date/time post-processing as before
+        ctype = action.action_type
+
+        # 1) Calendar
+        if ctype in [APIActionType.CALENDAR_CREATE_EVENT]: # maybe APIActionType.CALENDAR_UPDATE_EVENT?
             params = action.parameters
             desc = params.get("description", "") or ""
+            if "timeZone" not in params or not params["timeZone"]:
+                params["timeZone"] = self.user_timezone
 
             start_val = params.get("start")
             if start_val:
@@ -230,74 +334,54 @@ class GCalGTasksAPIAgent(APIAgent):
                     print("Event is in the past, skipping creation/update.")
                     return None
 
-            # Append "created by inbound.fyi" to description
+            # append "created by inbound.fyi" if not present
             if "created by inbound.fyi" not in desc:
                 desc = (desc + "\ncreated by inbound.fyi").strip()
             params["description"] = desc
 
-        # ---------------------------
         # 2) Tasks
-        # ---------------------------
-        elif action.action_type in [APIActionType.TASKS_CREATE_TASK, APIActionType.TASKS_UPDATE_TASK]:
+        elif ctype in [APIActionType.TASKS_CREATE_TASK, APIActionType.TASKS_UPDATE_TASK]:
             params = action.parameters
             notes = params.get("notes", "") or ""
             title = params.get("title", "") or ""
             original_due_str = params.get("due")
 
             if original_due_str:
-                # 1) Parse in UTC to check if it's in the past
                 due_utc = self._parse_utc_datetime_or_date(original_due_str)
                 if due_utc < now_utc:
                     print("Task due date is in the past, skipping creation/update.")
                     return None
 
-                # 2) Convert UTC -> local time
-                #    We'll use the *local date* as the day for the task
                 dt_local = due_utc.astimezone(ZoneInfo(self.user_timezone))
 
-                # If there's a time portion originally, show it in the title
+                # if there's a time portion, add it to the title
                 if "T" in original_due_str:
                     if self.use_ampm:
-                        # Format using AM/PM notation, e.g., "Mar 01 10:00 AM PDT"
                         local_time_str = dt_local.strftime("%b %d %I:%M %p %Z")
                     else:
-                        # Format using 24-hour time, e.g., "Mar 01 10:00 PDT"
                         local_time_str = dt_local.strftime("%b %d %H:%M %Z")
                     title = f"{title} (Due {local_time_str})".strip()
 
-                # 3) For the API call, build an RFC3339 date/time using the local date but zeroed time.
-                local_date_str = dt_local.strftime("%Y-%m-%d")  # e.g. "2025-09-06"
+                local_date_str = dt_local.strftime("%Y-%m-%d")
                 final_due = f"{local_date_str}T00:00:00.000Z"
                 params["due"] = final_due
                 params["title"] = title
-
-                # 4) Append the original UTC date/time to the notes
                 notes = notes.rstrip() + f"\n(UTC: {original_due_str})"
 
-            else:
-                print(f"[Unified Agent] NO {original_due_str}")
-
-            # Append "created by inbound.fyi" to notes
             if "created by inbound.fyi" not in notes:
                 notes = (notes + "\ncreated by inbound.fyi").strip()
 
             params["notes"] = notes
 
-        # ---------------------------
-        # Dispatch to API Handler
-        # ---------------------------
-        ctype = action.action_type
+        # dispatch to correct API
         if ctype in [
             APIActionType.CALENDAR_LIST_CALENDARS,
             APIActionType.CALENDAR_LIST_EVENTS,
             APIActionType.CALENDAR_CREATE_EVENT,
             APIActionType.CALENDAR_UPDATE_EVENT,
-            APIActionType.CALENDAR_DELETE_EVENT
+            APIActionType.CALENDAR_DELETE_EVENT,
         ]:
-            result = self.gcal_handler.perform_action(action)
-            print("  [Calendar Action] result =", result)
-            return result
-
+            return self.gcal_handler.perform_action(action)
         elif ctype in [
             APIActionType.TASKS_LIST_TASKLISTS,
             APIActionType.TASKS_GET_TASKLIST,
@@ -312,17 +396,76 @@ class GCalGTasksAPIAgent(APIAgent):
             APIActionType.TASKS_CLEAR_COMPLETED_TASKS,
             APIActionType.TASKS_MOVE_TASK
         ]:
-            result = self.gtasks_handler.perform_action(action)
-            print("  [Tasks Action] result =", result)
-            return result
+            return self.gtasks_handler.perform_action(action)
         else:
             print("[Unified Agent] Unrecognized action type:", ctype)
             return None
 
+    async def _find_or_create_inbound_fyi_calendar(self):
+        """
+        Look for a calendar named "inbound.fyi". If not found, create it.
+        Store the calendarId in self.inbound_fyi_calendar_id.
+        """
+        # list all calendars
+        try:
+            result = self.gcal_handler.service.calendarList().list().execute()
+            items = result.get("items", [])
+            found_id = None
+            for c in items:
+                if c.get("summary") == "inbound.fyi":
+                    found_id = c["id"]
+                    break
+            if found_id:
+                self.inbound_fyi_calendar_id = found_id
+                return
+            # Not found => create
+            new_cal = self.gcal_handler.service.calendars().insert(body={
+                "summary": "inbound.fyi"
+            }).execute()
+            new_id = new_cal.get("id")
+            # add it to calendarList
+            self.gcal_handler.service.calendarList().insert(body={
+                "id": new_id
+            }).execute() # you shouldn't actually NEED to do this, but this is just a redundancy
+            self.inbound_fyi_calendar_id = new_id
+            print(f"Created dedicated calendar inbound.fyi with ID={new_id}")
+        except Exception as e:
+            print("Error in _find_or_create_inbound_fyi_calendar:", e)
+            self.inbound_fyi_calendar_id = "primary"  # fallback
+
+    async def _find_or_create_inbound_fyi_tasklist(self):
+        """
+        Look for a task list named "inbound.fyi". If not found, create it.
+        Store the ID in self.inbound_fyi_tasklist_id.
+        """
+        try:
+            tlists = self.gtasks_handler.service.tasklists().list().execute()
+            items = tlists.get("items", [])
+            found_id = None
+            for tl in items:
+                if tl.get("title") == "inbound.fyi":
+                    found_id = tl["id"]
+                    break
+            if found_id:
+                self.inbound_fyi_tasklist_id = found_id
+                return
+            # Not found => create
+            new_tl = self.gtasks_handler.service.tasklists().insert(body={
+                "title": "inbound.fyi"
+            }).execute()
+            new_id = new_tl.get("id")
+            print(f"Created dedicated tasklist inbound.fyi with ID={new_id}")
+            self.inbound_fyi_tasklist_id = new_id
+        except Exception as e:
+            print("Error in _find_or_create_inbound_fyi_tasklist:", e)
+            # fallback if creation fails
+            self.inbound_fyi_tasklist_id = None
+
+
 if __name__ == "__main__":
-    # Simple test
+    # Simple usage test
     agent = GCalGTasksAPIAgent(
-        task="I need to complete homework by March 1, and I have a doctor's appointment on June 1 at 10 AM.",
+        task="I need to write a new blog post by tomorrow at 5 pm, and schedule a meeting on March 8 at 2 pm.",
         user_timezone="America/Los_Angeles"
     )
     asyncio.run(agent.run())

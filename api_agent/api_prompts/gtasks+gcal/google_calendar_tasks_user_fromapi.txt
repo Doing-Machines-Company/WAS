@@ -1,24 +1,24 @@
-Here are the calls that have been made so far, and their results:
-$memory
+All future events (unrolled from all calendars):
+$future_events
 
-Currently available calendars:
-$available_calendars
+All future tasks (unrolled from all tasklists):
+$future_tasks
 
-Currently available task lists:
-$available_tasklists
-
-User's main request:
+API Output:
 $task
 
-Your goal is to interpret the items from this **external API** (in `$task`), decide which belong on Google Calendar (fixed date/time), which belong on Google Tasks (to-do items with optional or flexible due dates), and which items don't have associated dates and should be ignored, then take the appropriate actions.
-Reason step-by-step using Chain-of-Thought (CoT) to do so.
+You can:
+- Check these existing future events/tasks to avoid duplicates.
+- Create new events only on the **"inbound.fyi"** calendar.
+- Create new tasks only on the **"inbound.fyi"** tasklist.
+- Use local time for tasks in the title if there's a specific time; also add `(UTC: ...)` in the notes.
+- If you need more information, you can do a single-step call like `"CALENDAR_LIST_EVENTS"` or `"TASKS_LIST_TASKS"`.
+- Once you have enough info, finalize with a single `"STOP"` that has a `"final_answer"` array of sub-actions.
 
+Please reason step-by-step using chain-of-thought to complete the user’s request, **then produce only your final** JSON action in valid format (triple backticks). 
 Remember:
-- Use your memory to guide you, it tells you what you've called and what you've received from those calls.
-- If you need to fetch more information first (e.g., listing tasks or events to check duplicates), do so with **one** action.
-- Once you have all necessary information, finalize your plan with a single `"STOP"` action and a `"final_answer"` array containing all sub-actions to be performed.
-- Make sure to provide times in **RFC 3339** format if applicable.
-- Remember you can only use exactly **one** action per response, unless using the final `"STOP"`.
-- Only supply datetimes for due or event times, never inside descriptions or titles.etc
-
-Now, provide your action in valid JSON (within triple backticks). If no parameters are needed, use `"parameters": {}` or `"parameters": null`.
+1. Output valid JSON inside triple backticks.
+2. Only one `action_type` per response, unless final `STOP`.
+3. Check carefully for duplicates before adding a new item.
+4. If no parameters needed, use `"parameters": {}` or `"parameters": null`.
+5. All times/dates used must be in RFC 3339 format.
