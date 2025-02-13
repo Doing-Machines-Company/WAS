@@ -325,14 +325,17 @@ class GCalGTasksAPIAgent(APIAgent):
 
     def _dispatch_action(self, action: APIAction):
         now_utc = datetime.now(timezone.utc)
+        params = action.parameters
+        if "calendarId" in params and params["calendarId"] == "inbound.fyi":
+            params["calendarId"] = self.inbound_fyi_calendar_id
+        if "tasklist_id" in params and params["tasklist_id"] == "inbound.fyi":
+            params["tasklist_id"] = self.inbound_fyi_tasklist_id
 
         # For creation: force inbound.fyi usage
         if action.action_type == APIActionType.CALENDAR_CREATE_EVENT:
-            params = action.parameters
             params["calendarId"] = self.inbound_fyi_calendar_id
 
         elif action.action_type == APIActionType.TASKS_CREATE_TASK:
-            params = action.parameters
             params["tasklist_id"] = self.inbound_fyi_tasklist_id
 
         # Then do the date/time post-processing as before
@@ -340,7 +343,6 @@ class GCalGTasksAPIAgent(APIAgent):
 
         # For creating/updating events:
         if ctype in [APIActionType.CALENDAR_CREATE_EVENT]:
-            params = action.parameters
             start_val = params.get("start")
             if start_val:
                 event_start_utc = self._parse_utc_datetime_or_date(start_val)
@@ -358,7 +360,6 @@ class GCalGTasksAPIAgent(APIAgent):
 
         # For creating/updating tasks:
         if ctype in [APIActionType.TASKS_CREATE_TASK, APIActionType.TASKS_UPDATE_TASK]:
-            params = action.parameters
             notes = params.get("notes", "") or ""
             title = params.get("title", "") or ""
             original_due_str = params.get("due")
