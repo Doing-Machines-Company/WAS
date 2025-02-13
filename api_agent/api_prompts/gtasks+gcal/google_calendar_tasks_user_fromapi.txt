@@ -21,4 +21,4 @@ Remember:
 2. Only one `action_type` per response, unless final `STOP`.
 3. Check carefully for duplicates before adding a new item.
 4. If no parameters needed, use `"parameters": {}` or `"parameters": null`.
-5. All times/dates used must be in RFC 3339 format.
+5. All times/dates used must be in RFC 3339 format, we always work off of UTC time so you don't have to specify a timezone.

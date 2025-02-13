@@ -33,7 +33,6 @@ Here are the **recognized actions** this agent may produce (exact JSON shapes sh
     "location": "...",
     "start": "YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ (RFC3339)",
     "end": "YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ (RFC3339)",
-    "timeZone": "e.g. 'America/New_York'",
     "colorId": "(optional)",
     "transparency": "(optional)",
     "visibility": "(optional)"
@@ -45,6 +44,7 @@ CALENDAR_UPDATE_EVENT
   "action_type": "CALENDAR_UPDATE_EVENT",
   "reason": "...",
   "parameters": {
+    "calendarId": "ID of the calendar (must be 'inbound.fyi' for new events)",
     "event_id": "Existing event ID",
     "fields_to_update": { "...": "..." }
   }
@@ -55,6 +55,7 @@ CALENDAR_DELETE_EVENT
   "action_type": "CALENDAR_DELETE_EVENT",
   "reason": "...",
   "parameters": {
+    "calendarId": "ID of the calendar (must be 'inbound.fyi' for new events)",
     "event_id": "Existing event ID"
   }
 }

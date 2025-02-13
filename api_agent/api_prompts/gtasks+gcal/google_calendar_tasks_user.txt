@@ -22,4 +22,4 @@ Remember:
 1. Output must be valid JSON enclosed by triple backticks.
 2. Check carefully for duplicates in both events (future) and tasks (uncompleted or relevant to the user’s chosen list).
 3. If no parameters are needed, return `"parameters": {}` or `"parameters": null`.
-4. All times and dates used should be in RFC 3339 format
+4. All times and dates used should be in RFC 3339 format, we always work off of UTC time so you don't have to specify a timezone.

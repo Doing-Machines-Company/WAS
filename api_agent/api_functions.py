@@ -473,21 +473,29 @@ class GoogleCalendarAPIHandler:
         return response.get('items', [])
 
     def update_event(self, params: CalendarUpdateEventParams) -> Any:
-        event = self.service.events().get(calendarId='primary', eventId=params.event_id).execute()
+        cal_id = params.calendarId or 'primary'  # fallback to 'primary' if not set
+
+        event = self.service.events().get(
+            calendarId=cal_id,
+            eventId=params.event_id
+        ).execute()
 
         for key, val in params.fields_to_update.items():
             event[key] = val
 
         updated = self.service.events().update(
-            calendarId='primary',
+            calendarId=cal_id,
             eventId=params.event_id,
             body=event
         ).execute()
+
         return updated
 
     def delete_event(self, params: CalendarDeleteEventParams) -> Any:
+        cal_id = params.calendarId or 'primary'  # fallback to 'primary' if not set
+
         self.service.events().delete(
-            calendarId='primary',
+            calendarId=cal_id,
             eventId=params.event_id
         ).execute()
         return {"status": "deleted", "event_id": params.event_id}

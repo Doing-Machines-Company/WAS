@@ -20,7 +20,7 @@ class CalendarCreateEventParams:
 
     start: Optional[Union[str, datetime]] = None
     end: Optional[Union[str, datetime]] = None
-    timeZone: str = "America/New_York"
+    timeZone: str = None
 
     colorId: Optional[str] = None
     transparency: Optional[str] = None
@@ -42,7 +42,9 @@ class CalendarListEventsParams:
 class CalendarUpdateEventParams:
     event_id: str
     fields_to_update: Dict[str, Any]
+    calendarId: Optional[str] = None
 
 @dataclass
 class CalendarDeleteEventParams:
     event_id: str
+    calendarId: Optional[str] = None

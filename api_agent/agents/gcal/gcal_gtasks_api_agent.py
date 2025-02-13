@@ -323,8 +323,8 @@ class GCalGTasksAPIAgent(APIAgent):
         if action.action_type == APIActionType.CALENDAR_CREATE_EVENT:
             params = action.parameters
             # if not set, use user timezone
-            if "timeZone" not in params or not params["timeZone"]:
-                params["timeZone"] = self.user_timezone
+            # if "timeZone" not in params or not params["timeZone"]:
+            #     params["timeZone"] = self.user_timezone
             params["calendarId"] = self.inbound_fyi_calendar_id
 
         elif action.action_type == APIActionType.TASKS_CREATE_TASK:
@@ -335,11 +335,10 @@ class GCalGTasksAPIAgent(APIAgent):
         ctype = action.action_type
 
         # For creating/updating events:
-        if ctype in [APIActionType.CALENDAR_CREATE_EVENT, APIActionType.CALENDAR_UPDATE_EVENT]:
+        if ctype in [APIActionType.CALENDAR_CREATE_EVENT]:
             params = action.parameters
-            desc = params.get("description", "") or ""
-            if "timeZone" not in params or not params["timeZone"]:
-                params["timeZone"] = self.user_timezone
+            # if "timeZone" not in params or not params["timeZone"]:
+            #     params["timeZone"] = self.user_timezone
 
             start_val = params.get("start")
             if start_val:
@@ -349,6 +348,10 @@ class GCalGTasksAPIAgent(APIAgent):
                     return None
 
             # append "created by inbound.fyi"
+            desc = params.get("description", "")
+            if not isinstance(desc, str):
+                # Convert to string or fallback
+                desc = str(desc)
             if "created by inbound.fyi" not in desc:
                 desc = (desc + "\ncreated by inbound.fyi").strip()
             params["description"] = desc
