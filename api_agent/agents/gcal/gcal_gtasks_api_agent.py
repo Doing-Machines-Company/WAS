@@ -24,6 +24,9 @@ class GCalGTasksAPIAgent(APIAgent):
       - avoids microsecond or double 'Z' issues in timeMin,
       - and puts everything into self.future_events / self.future_tasks unfiltered
         except for skipping canceled events and skipping tasks that have a past due date or are completed.
+
+    Updated to group events by their calendarId and tasks by their tasklistId
+    when passing the data into the LLM prompt.
     """
 
     def __init__(
@@ -109,7 +112,7 @@ class GCalGTasksAPIAgent(APIAgent):
           - find/create inbound.fyi calendar & tasklist
           - list all calendars + tasks
           - unroll future events and tasks (storing the full dict from the API)
-        Then build the prompt with no memory.
+        Then build the prompt with no memory, but grouped by ID.
         """
         await self._find_or_create_inbound_fyi_calendar()
         await self._find_or_create_inbound_fyi_tasklist()
@@ -156,7 +159,8 @@ class GCalGTasksAPIAgent(APIAgent):
                             # skip cancelled
                             if evt.get("status") == "cancelled":
                                 continue
-                            # Store the FULL event object
+                            # embed the calendar ID so we can group them later
+                            evt["calendarId"] = cal_id
                             self.future_events.append(evt)
                 except Exception as e:
                     print(f"Error fetching events from calendar {cal_id}:", e)
@@ -206,16 +210,21 @@ class GCalGTasksAPIAgent(APIAgent):
                                         continue
                                 except:
                                     pass
-                            # store the FULL task object
+                            # embed the tasklist ID so we can group them
+                            tsk["tasklistId"] = tlist_id
                             self.future_tasks.append(tsk)
                 except Exception as e2:
                     print(f"Error listing tasks for tasklist {tlist_id}:", e2)
 
+        # -- Now group events by calendarId and tasks by tasklistId for clarity --
+        grouped_events_text = self._format_events_grouped_by_calendar_id(self.future_events)
+        grouped_tasks_text = self._format_tasks_grouped_by_tasklist_id(self.future_tasks)
+
         # Build user/system prompts (no memory)
         user_prompt_str = string.Template(self.user_prompt_template).substitute({
             "task": self.task,
-            "future_events": str(self.future_events),
-            "future_tasks": str(self.future_tasks),
+            "future_events": grouped_events_text,
+            "future_tasks": grouped_tasks_text,
         })
 
         system_prompt_str = string.Template(self.system_prompt_str).substitute({
@@ -305,7 +314,6 @@ class GCalGTasksAPIAgent(APIAgent):
 
             self.failed_count = 0  # reset on success
 
-    # -- Helper to parse UTC times into datetime objects --
     def _parse_utc_datetime_or_date(self, dt_str: str) -> datetime:
         """
         If dt_str is just YYYY-MM-DD, interpret as that day at 00:00Z.
@@ -315,16 +323,12 @@ class GCalGTasksAPIAgent(APIAgent):
             dt_str = dt_str.strip() + "T00:00:00Z"
         return datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
 
-    # -- Dispatch the final action to the appropriate API Handler --
     def _dispatch_action(self, action: APIAction):
         now_utc = datetime.now(timezone.utc)
 
         # For creation: force inbound.fyi usage
         if action.action_type == APIActionType.CALENDAR_CREATE_EVENT:
             params = action.parameters
-            # if not set, use user timezone
-            # if "timeZone" not in params or not params["timeZone"]:
-            #     params["timeZone"] = self.user_timezone
             params["calendarId"] = self.inbound_fyi_calendar_id
 
         elif action.action_type == APIActionType.TASKS_CREATE_TASK:
@@ -337,20 +341,16 @@ class GCalGTasksAPIAgent(APIAgent):
         # For creating/updating events:
         if ctype in [APIActionType.CALENDAR_CREATE_EVENT]:
             params = action.parameters
-            # if "timeZone" not in params or not params["timeZone"]:
-            #     params["timeZone"] = self.user_timezone
-
             start_val = params.get("start")
             if start_val:
                 event_start_utc = self._parse_utc_datetime_or_date(start_val)
                 if event_start_utc < now_utc:
-                    print("Event is in the past, skipping creation/update.")
+                    print("Event is in the past, skipping creation.")
                     return None
 
             # append "created by inbound.fyi"
             desc = params.get("description", "")
             if not isinstance(desc, str):
-                # Convert to string or fallback
                 desc = str(desc)
             if "created by inbound.fyi" not in desc:
                 desc = (desc + "\ncreated by inbound.fyi").strip()
@@ -463,6 +463,66 @@ class GCalGTasksAPIAgent(APIAgent):
         except Exception as e:
             print("Error in _find_or_create_inbound_fyi_tasklist:", e)
             self.inbound_fyi_tasklist_id = None
+
+    def _format_events_grouped_by_calendar_id(self, events):
+        """
+        Create a string grouping events by their 'calendarId'.
+        """
+        if not events:
+            return "No future events found."
+
+        # Group them
+        grouped = {}
+        for e in events:
+            c_id = e.get("calendarId", "unknown_calendar")
+            grouped.setdefault(c_id, []).append(e)
+
+        lines = []
+        for calendar_id, evts in grouped.items():
+            lines.append(f"\n=== Calendar ID: {calendar_id} ===")
+            if not evts:
+                lines.append("  (No events)")
+            else:
+                for evt in evts:
+                    summary = evt.get("summary", "Untitled event")
+                    start = evt.get("start", {})
+                    end = evt.get("end", {})
+                    lines.append(
+                        f"  Event: {summary}\n"
+                        f"    Start: {start}\n"
+                        f"    End:   {end}\n"
+                    )
+        return "\n".join(lines)
+
+    def _format_tasks_grouped_by_tasklist_id(self, tasks):
+        """
+        Create a string grouping tasks by their 'tasklistId'.
+        """
+        if not tasks:
+            return "No future tasks found."
+
+        # Group them
+        grouped = {}
+        for t in tasks:
+            tl_id = t.get("tasklistId", "unknown_tasklist")
+            grouped.setdefault(tl_id, []).append(t)
+
+        lines = []
+        for tasklist_id, tlist_tasks in grouped.items():
+            lines.append(f"\n=== Tasklist ID: {tasklist_id} ===")
+            if not tlist_tasks:
+                lines.append("  (No tasks)")
+            else:
+                for tsk in tlist_tasks:
+                    title = tsk.get("title", "Untitled task")
+                    due = tsk.get("due", "No due date")
+                    notes = tsk.get("notes", "")
+                    lines.append(
+                        f"  Task: {title}\n"
+                        f"    Due: {due}\n"
+                        f"    Notes: {notes}\n"
+                    )
+        return "\n".join(lines)
 
 
 if __name__ == "__main__":
