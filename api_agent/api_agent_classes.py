@@ -66,6 +66,7 @@ class APIActionType(enum.Enum):
     CALENDAR_LIST_EVENTS = ("calendar_list_events", True)
     CALENDAR_UPDATE_EVENT = ("calendar_update_event", False)
     CALENDAR_DELETE_EVENT = ("calendar_delete_event", False)
+    CALENDAR_MOVE_EVENT = ("calendar_move_event", True)
 
     # Google Tasks
     # Tasklists

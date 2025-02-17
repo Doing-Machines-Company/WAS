@@ -48,3 +48,9 @@ class CalendarUpdateEventParams:
 class CalendarDeleteEventParams:
     event_id: str
     calendarId: Optional[str] = None
+
+@dataclass
+class CalendarMoveEventParams:
+    sourceCalendarId: str
+    event_id: str
+    destinationCalendarId: str

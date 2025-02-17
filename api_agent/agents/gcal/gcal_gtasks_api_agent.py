@@ -244,7 +244,7 @@ class GCalGTasksAPIAgent(APIAgent):
 
         print("[Unified Agent] Calling LLM for next action ...")
         print(user_prompt_str)
-        input("LOOK AT USER PROMPT")
+        # input("LOOK AT USER PROMPT")
         agent_call = await call_llm(
             messages=messages,
             provider=provider,
@@ -253,7 +253,7 @@ class GCalGTasksAPIAgent(APIAgent):
         )
 
         print("[Unified Agent] LLM Response:", agent_call.llm_response)
-        input("LOOK AT LLM RESPONSE")
+        # input("LOOK AT LLM RESPONSE")
 
         chosen_action = None
         if agent_call.parsed_output:
@@ -339,33 +339,48 @@ class GCalGTasksAPIAgent(APIAgent):
         # For the calendarId (if present):
         if "calendarId" in params:
             cid = params["calendarId"]
-            # If LLM used "inbound.fyi", we already handle that below,
-            # but let's just unify everything to the enumerations:
-            if cid == "inbound.fyi":
-                cid = "inbound_fyi_calendar"
+            # # Replace "inbound.fyi" -> "inbound_fyi_calendar" label if used
+            # if cid == "inbound.fyi":
+            #     cid = "inbound_fyi_calendar"
 
-            # If the LLM gave us an enumerated ID or special label, swap to real
+            # If the LLM gave an enumerated or special ID, swap to the real one:
             if cid in self.calendar_id_map:
                 params["calendarId"] = self.calendar_id_map[cid]
 
-        # For event_id (if present):
-        # The LLM might reference "event_3", etc. We look up the real eventID + calendarId
-        if "event_id" in params:
-            e_id = params["event_id"]
-            if e_id in self.event_id_map:
-                real_cal_id, real_evt_id = self.event_id_map[e_id]
-                params["event_id"] = real_evt_id  # The actual event ID
-                # Also ensure the correct calendarId is used
-                params["calendarId"] = real_cal_id
+            # *** For CALENDAR_MOVE_EVENT, we also have 'destinationCalendarId' ***
+        if "destinationCalendarId" in params:
+            dest_cid = params["destinationCalendarId"]
+            # if dest_cid == "inbound.fyi":
+            #     dest_cid = "inbound_fyi_calendar"
+
+            if dest_cid in self.calendar_id_map:
+                params["destinationCalendarId"] = self.calendar_id_map[dest_cid]
+
+        if "sourceCalendarId" in params:
+            source_cid = params["sourceCalendarId"]
+            # if source_cid == "inbound.fyi":
+            #     source_cid = "inbound_fyi_calendar"
+
+            if source_cid in self.calendar_id_map:
+                params["sourceCalendarId"] = self.calendar_id_map[source_cid]
 
         # For the tasklist_id (if present):
         if "tasklist_id" in params:
             tl_id = params["tasklist_id"]
-            if tl_id == "inbound.fyi":
-                tl_id = "inbound_fyi_tasklist"
+            # if tl_id == "inbound.fyi":
+            #     tl_id = "inbound_fyi_tasklist"
 
             if tl_id in self.tasklist_id_map:
                 params["tasklist_id"] = self.tasklist_id_map[tl_id]
+
+            # *** For TASKS_MOVE_TASK, we also have 'destinationTasklist' ***
+        if "destinationTasklist" in params:
+            dest_tlid = params["destinationTasklist"]
+            # if dest_tlid == "inbound.fyi":
+            #     dest_tlid = "inbound_fyi_tasklist"
+
+            if dest_tlid in self.tasklist_id_map:
+                params["destinationTasklist"] = self.tasklist_id_map[dest_tlid]
 
         # For the task_id (if present):
         if "task_id" in params:
@@ -375,6 +390,17 @@ class GCalGTasksAPIAgent(APIAgent):
                 params["task_id"] = real_task_id  # The actual task ID
                 # Also ensure the correct tasklist_id is used
                 params["tasklist_id"] = real_tl_id
+
+        # If the LLM references an event by enumerated ID, e.g. "event_3"
+        if "event_id" in params:
+            e_id = params["event_id"]
+            # If we’ve stored a mapping from enumerated event ID -> (actual_calendar_id, actual_event_id)
+            if e_id in self.event_id_map:
+                real_cal_id, real_evt_id = self.event_id_map[e_id]
+                # Overwrite the event_id
+                params["event_id"] = real_evt_id
+                # # Also ensure the correct calendarId is used
+                # params["calendarId"] = real_cal_id
 
         # For creation commands: force inbound.fyi usage
         ctype = action.action_type
@@ -479,6 +505,7 @@ class GCalGTasksAPIAgent(APIAgent):
             APIActionType.CALENDAR_CREATE_EVENT,
             APIActionType.CALENDAR_UPDATE_EVENT,
             APIActionType.CALENDAR_DELETE_EVENT,
+            APIActionType.CALENDAR_MOVE_EVENT
         ]:
             return self.gcal_handler.perform_action(action)
         elif ctype in [

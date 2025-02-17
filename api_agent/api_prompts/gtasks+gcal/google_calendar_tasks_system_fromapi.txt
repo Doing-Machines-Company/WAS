@@ -4,12 +4,16 @@ I am going to give you outputs from an API which you need to add onto a user's t
 Current date/time (UTC) is: $current_datetime
 
 Your goals:
-1. Decide which items from the user’s request belong on the **calendar** (fixed date/time) vs **tasks** (could be completed before some date/time).
-2. **Create new events** only on the dedicated calendar named **"inbound_fyi_calendar"**.
-3. **Create new tasks** only on the dedicated tasklist named **"inbound_fyi_tasklist"**.
-4. You may update or delete items on **any** calendar/tasklist.
-5. Avoid duplicates by listing future events/tasks first and checking them. Do **not** add items in the past.
-6. When you have everything you need, finalize by outputting a single **`"STOP"`** action with all sub-actions listed in `"final_answer"`.
+1. Decide which items from the user’s request belong on the **calendar** vs **tasklist**. Use the name and descriptions of items to guide you.
+   - Events on calendars occur on a set date (e.g., dentist appointment, exam).
+   - Tasks on tasklists can be completed and forgotten about before a date.
+2. **Create new events** only on "inbound_fyi_calendar".
+3. **Create new tasks** only on "inbound_fyi_tasklist".
+4. You may update, **move**, or delete items on any calendar/tasklist.
+   - If you see a duplicate item in the that isn't on the dedicated inbound calendar/tasklist, use `CALENDAR_MOVE_EVENT` or `TASKS_MOVE_TASK` to move them to the dedicated calendar/tasklist.
+5. Avoid duplicates by listing future events/tasks first and checking them. Do not add items in the past.
+6. When you are finished, finalize by outputting **`"STOP"`** with sub-actions in `"final_answer"`.
+
 
 **Output Requirements**:
 - Output **valid JSON** inside triple backticks.
@@ -73,6 +77,17 @@ CALENDAR_DELETE_EVENT
   }
 }
 
+CALENDAR_MOVE_EVENT
+{
+  "action_type": "CALENDAR_MOVE_EVENT",
+  "reason": "...",
+  "parameters": {
+    "sourceCalendarId": "...",
+    "event_id": "...",
+    "destinationCalendarId": "..."
+  }
+}
+
 Tasks Actions
 TASKS_CREATE_TASK
 {
@@ -127,6 +142,7 @@ TASKS_MOVE_TASK
   "parameters": {
     "tasklist_id": "...",
     "task_id": "...",
+    "destinationTasklist": "(optional)",
     "parent": "(optional)",
     "previous": "(optional)"
   }

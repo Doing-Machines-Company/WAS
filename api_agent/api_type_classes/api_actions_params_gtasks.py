@@ -70,3 +70,4 @@ class TasksMoveTaskParams:
     task_id: str
     parent: Optional[str] = None
     previous: Optional[str] = None
+    destinationTasklist: Optional[str] = None
