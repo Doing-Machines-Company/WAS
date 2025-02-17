@@ -26,7 +26,7 @@ class GCalGTasksAPIAgent(APIAgent):
         except for skipping canceled events and skipping tasks that have a past due date or are completed.
 
     Updated to group events by their calendarId and tasks by their tasklistId
-    when passing the data into the LLM prompt.
+    when passing the data into the LLM prompt, and use enumerated IDs.
     """
 
     def __init__(
@@ -61,6 +61,13 @@ class GCalGTasksAPIAgent(APIAgent):
         # Each LLM invocation we rebuild these
         self.future_events = []
         self.future_tasks = []
+
+        # Mappings so we can replace enumerated IDs <-> actual IDs
+        # or special inbound.fyi labels <-> actual IDs
+        self.calendar_id_map = {}  # e.g. {"calendar_1": "actual_calendar_id", "inbound_fyi_calendar": "actual_id"}
+        self.event_id_map = {}     # e.g. {"event_1": ("actual_calendar_id", "actual_event_id")}
+        self.tasklist_id_map = {}  # e.g. {"tasklist_2": "actual_tasklist_id", "inbound_fyi_tasklist": "actual_id"}
+        self.task_id_map = {}      # e.g. {"task_4": ("actual_tasklist_id", "actual_task_id")}
 
         # Load system & user prompts
         if self.from_user:
@@ -147,7 +154,7 @@ class GCalGTasksAPIAgent(APIAgent):
                         parameters={
                             "calendarId": cal_id,
                             "timeMin": time_min_iso,
-                            "maxResults": 2500,  # allow more results
+                            "maxResults": 2500,
                             "singleEvents": True,
                             "orderBy": "startTime",
                             "showDeleted": False
@@ -177,7 +184,7 @@ class GCalGTasksAPIAgent(APIAgent):
         except Exception as e:
             print("Error listing tasklists:", e)
 
-        # 4) For each tasklist, fetch tasks (uncompleted if showCompleted=False, etc.)
+        # 4) For each tasklist, fetch tasks
         self.future_tasks = []
         if isinstance(all_tasklists, list):
             now_utc_dt = datetime.now(timezone.utc)
@@ -210,7 +217,6 @@ class GCalGTasksAPIAgent(APIAgent):
                                         continue
                                 except:
                                     pass
-                            # embed the tasklist ID so we can group them
                             tsk["tasklistId"] = tlist_id
                             self.future_tasks.append(tsk)
                 except Exception as e2:
@@ -325,23 +331,60 @@ class GCalGTasksAPIAgent(APIAgent):
 
     def _dispatch_action(self, action: APIAction):
         now_utc = datetime.now(timezone.utc)
-        params = action.parameters
-        if "calendarId" in params and params["calendarId"] == "inbound.fyi":
-            params["calendarId"] = self.inbound_fyi_calendar_id
-        if "tasklist_id" in params and params["tasklist_id"] == "inbound.fyi":
-            params["tasklist_id"] = self.inbound_fyi_tasklist_id
+        params = action.parameters or {}
 
-        # For creation: force inbound.fyi usage
-        if action.action_type == APIActionType.CALENDAR_CREATE_EVENT:
-            params["calendarId"] = self.inbound_fyi_calendar_id
+        # ---------------------------------------------------------------------
+        # NEW: Swap enumerated/special IDs in `params` with actual IDs.
+        # ---------------------------------------------------------------------
+        # For the calendarId (if present):
+        if "calendarId" in params:
+            cid = params["calendarId"]
+            # If LLM used "inbound.fyi", we already handle that below,
+            # but let's just unify everything to the enumerations:
+            if cid == "inbound.fyi":
+                cid = "inbound_fyi_calendar"
 
-        elif action.action_type == APIActionType.TASKS_CREATE_TASK:
+            # If the LLM gave us an enumerated ID or special label, swap to real
+            if cid in self.calendar_id_map:
+                params["calendarId"] = self.calendar_id_map[cid]
+
+        # For event_id (if present):
+        # The LLM might reference "event_3", etc. We look up the real eventID + calendarId
+        if "event_id" in params:
+            e_id = params["event_id"]
+            if e_id in self.event_id_map:
+                real_cal_id, real_evt_id = self.event_id_map[e_id]
+                params["event_id"] = real_evt_id  # The actual event ID
+                # Also ensure the correct calendarId is used
+                params["calendarId"] = real_cal_id
+
+        # For the tasklist_id (if present):
+        if "tasklist_id" in params:
+            tl_id = params["tasklist_id"]
+            if tl_id == "inbound.fyi":
+                tl_id = "inbound_fyi_tasklist"
+
+            if tl_id in self.tasklist_id_map:
+                params["tasklist_id"] = self.tasklist_id_map[tl_id]
+
+        # For the task_id (if present):
+        if "task_id" in params:
+            t_id = params["task_id"]
+            if t_id in self.task_id_map:
+                real_tl_id, real_task_id = self.task_id_map[t_id]
+                params["task_id"] = real_task_id  # The actual task ID
+                # Also ensure the correct tasklist_id is used
+                params["tasklist_id"] = real_tl_id
+
+        # For creation commands: force inbound.fyi usage
+        ctype = action.action_type
+        if ctype == APIActionType.CALENDAR_CREATE_EVENT:
+            # Always put in inbound.fyi
+            params["calendarId"] = self.inbound_fyi_calendar_id
+        elif ctype == APIActionType.TASKS_CREATE_TASK:
             params["tasklist_id"] = self.inbound_fyi_tasklist_id
 
         # Then do the date/time post-processing as before
-        ctype = action.action_type
-
-        # For creating/updating events:
         if ctype in [APIActionType.CALENDAR_CREATE_EVENT]:
             start_val = params.get("start")
             if start_val:
@@ -358,37 +401,76 @@ class GCalGTasksAPIAgent(APIAgent):
                 desc = (desc + "\ncreated by inbound.fyi").strip()
             params["description"] = desc
 
-        # For creating/updating tasks:
         if ctype in [APIActionType.TASKS_CREATE_TASK, APIActionType.TASKS_UPDATE_TASK]:
-            notes = params.get("notes", "") or ""
-            title = params.get("title", "") or ""
-            original_due_str = params.get("due")
+            if ctype == APIActionType.TASKS_CREATE_TASK:
+                # Handle top-level fields for creation
+                notes = params.get("notes", "") or ""
+                title = params.get("title", "") or ""
+                original_due_str = params.get("due")
 
-            if original_due_str:
-                due_utc = self._parse_utc_datetime_or_date(original_due_str)
-                if due_utc < now_utc:
-                    print("Task due date is in the past, skipping creation/update.")
-                    return None
+                if original_due_str:
+                    due_utc = self._parse_utc_datetime_or_date(original_due_str)
+                    if due_utc < now_utc:
+                        print("Task due date is in the past, skipping creation/update.")
+                        return None
 
-                dt_local = due_utc.astimezone(ZoneInfo(self.user_timezone))
-                if "T" in original_due_str:
-                    # if there's a time portion, add it to the title
-                    if self.use_ampm:
-                        local_time_str = dt_local.strftime("%b %d %I:%M %p %Z")
-                    else:
-                        local_time_str = dt_local.strftime("%b %d %H:%M %Z")
-                    title = f"{title} (Due {local_time_str})".strip()
+                    dt_local = due_utc.astimezone(ZoneInfo(self.user_timezone))
+                    if "T" in original_due_str:
+                        # if there's a time portion, add it to the title
+                        if self.use_ampm:
+                            local_time_str = dt_local.strftime("%b %d %I:%M %p %Z")
+                        else:
+                            local_time_str = dt_local.strftime("%b %d %H:%M %Z")
+                        title = f"{title} (Due {local_time_str})".strip()
 
-                local_date_str = dt_local.strftime("%Y-%m-%d")
-                final_due = f"{local_date_str}T00:00:00.000Z"
-                params["due"] = final_due
+                    local_date_str = dt_local.strftime("%Y-%m-%d")
+                    final_due = f"{local_date_str}T00:00:00.000Z"
+                    params["due"] = final_due
+                    params["title"] = title
+                    notes = notes.rstrip() + f"\n(UTC: {original_due_str})"
+
+                if "created by inbound.fyi" not in notes:
+                    notes = (notes + "\ncreated by inbound.fyi").strip()
+
+                # Now put them back in params so the create action sees them
+                params["notes"] = notes
                 params["title"] = title
-                notes = notes.rstrip() + f"\n(UTC: {original_due_str})"
 
-            if "created by inbound.fyi" not in notes:
-                notes = (notes + "\ncreated by inbound.fyi").strip()
+            elif ctype == APIActionType.TASKS_UPDATE_TASK:
+                # Handle fields_to_update for update
+                fields = params.get("fields_to_update", {})
+                notes = fields.get("notes", "") or ""
+                title = fields.get("title", "") or ""
+                original_due_str = fields.get("due")
 
-            params["notes"] = notes
+                # (same date/time logic, but on fields dict)
+                if original_due_str:
+                    due_utc = self._parse_utc_datetime_or_date(original_due_str)
+                    if due_utc < now_utc:
+                        print("Task due date is in the past, skipping update.")
+                        return None
+
+                    dt_local = due_utc.astimezone(ZoneInfo(self.user_timezone))
+                    if "T" in original_due_str:
+                        if self.use_ampm:
+                            local_time_str = dt_local.strftime("%b %d %I:%M %p %Z")
+                        else:
+                            local_time_str = dt_local.strftime("%b %d %H:%M %Z")
+                        title = f"{title} (Due {local_time_str})".strip()
+
+                    local_date_str = dt_local.strftime("%Y-%m-%d")
+                    final_due = f"{local_date_str}T00:00:00.000Z"
+                    fields["due"] = final_due
+                    fields["title"] = title
+                    notes = notes.rstrip() + f"\n(UTC: {original_due_str})"
+
+                if "created by inbound.fyi" not in notes:
+                    notes = (notes + "\ncreated by inbound.fyi").strip()
+
+                fields["notes"] = notes
+                fields["title"] = title
+                # Put the updated dict back in params
+                params["fields_to_update"] = fields
 
         # Now delegate to correct API
         if ctype in [
@@ -465,12 +547,64 @@ class GCalGTasksAPIAgent(APIAgent):
             print("Error in _find_or_create_inbound_fyi_tasklist:", e)
             self.inbound_fyi_tasklist_id = None
 
+    # -------------------------------------------------------------------------
+    # Helper methods to format event/task fields
+    # -------------------------------------------------------------------------
+    def _format_event_fields(self, evt):
+        """Return a list of lines for an event's fields, skipping empty fields."""
+        lines = []
+        summary = evt.get("summary")
+        if summary:
+            lines.append(f"summary: {summary}")
+
+        description = evt.get("description")
+        if description:
+            lines.append(f"description: {description}")
+
+        start_val = evt.get("start")
+        if start_val:
+            lines.append(f"start: {start_val}")
+
+        end_val = evt.get("end")
+        if end_val:
+            lines.append(f"end: {end_val}")
+
+        return lines
+
+    def _format_task_fields(self, tsk):
+        """Return a list of lines for a task's fields, skipping empty fields."""
+        lines = []
+        title = tsk.get("title")
+        if title:
+            lines.append(f"title: {title}")
+
+        due = tsk.get("due")
+        if due:
+            lines.append(f"due: {due}")
+
+        notes = tsk.get("notes")
+        if notes:
+            lines.append(f"notes: {notes}")
+
+        return lines
+
+    # -------------------------------------------------------------------------
+    # MODIFIED: _format_events_grouped_by_calendar_id
+    # -------------------------------------------------------------------------
     def _format_events_grouped_by_calendar_id(self, events):
         """
         Create a string grouping events by their 'calendarId'.
+        - We give the special label "inbound_fyi_calendar" to self.inbound_fyi_calendar_id.
+        - Other calendars are enumerated: "calendar_1", "calendar_2", ...
+        - Events within each calendar are enumerated "event_1", "event_2", ...
+        - We store the enumerated -> real ID mappings in self.calendar_id_map and self.event_id_map.
         """
         if not events:
             return "No future events found."
+
+        # Clear out old mappings
+        self.calendar_id_map.clear()
+        self.event_id_map.clear()
 
         # Group them
         grouped = {}
@@ -478,51 +612,104 @@ class GCalGTasksAPIAgent(APIAgent):
             c_id = e.get("calendarId", "unknown_calendar")
             grouped.setdefault(c_id, []).append(e)
 
+        # Sort the calendar IDs so enumeration is consistent
+        unique_calendar_ids = sorted(grouped.keys())
+
         lines = []
-        for calendar_id, evts in grouped.items():
-            lines.append(f"\n=== Calendar ID: {calendar_id} ===")
-            if not evts:
-                lines.append("  (No events)")
+        event_counter = 1
+        calendar_counter = 1
+
+        for actual_cid in unique_calendar_ids:
+            # Decide enumerated calendar ID:
+            if actual_cid == self.inbound_fyi_calendar_id:
+                enumerated_cid = "inbound_fyi_calendar"  # <-- special label
             else:
-                for evt in evts:
-                    summary = evt.get("summary", "Untitled event")
-                    start = evt.get("start", {})
-                    end = evt.get("end", {})
-                    lines.append(
-                        f"  Event: {summary}\n"
-                        f"    Start: {start}\n"
-                        f"    End:   {end}\n"
-                    )
+                enumerated_cid = f"calendar_{calendar_counter}"
+                calendar_counter += 1
+
+            # Record mapping
+            self.calendar_id_map[enumerated_cid] = actual_cid
+
+            evts_in_calendar = grouped[actual_cid]
+            lines.append(f"\n=== {enumerated_cid} ===")
+
+            if not evts_in_calendar:
+                lines.append("  (No events)")
+                continue
+
+            for evt in evts_in_calendar:
+                enumerated_eid = f"event_{event_counter}"
+                event_counter += 1
+
+                actual_eid = evt.get("id", "")
+                self.event_id_map[enumerated_eid] = (actual_cid, actual_eid)
+
+                field_lines = self._format_event_fields(evt)
+
+                lines.append(f"  {enumerated_eid}:")
+                for fline in field_lines:
+                    lines.append(f"    {fline}")
+
         return "\n".join(lines)
 
+    # -------------------------------------------------------------------------
+    # MODIFIED: _format_tasks_grouped_by_tasklist_id
+    # -------------------------------------------------------------------------
     def _format_tasks_grouped_by_tasklist_id(self, tasks):
         """
         Create a string grouping tasks by their 'tasklistId'.
+        - We give the special label "inbound_fyi_tasklist" to self.inbound_fyi_tasklist_id.
+        - Other tasklists are enumerated: "tasklist_1", "tasklist_2", ...
+        - Tasks are enumerated: "task_1", "task_2", ...
+        - We store enumerated -> real ID mappings in self.tasklist_id_map and self.task_id_map.
         """
         if not tasks:
             return "No future tasks found."
 
-        # Group them
+        # Clear old mappings
+        self.tasklist_id_map.clear()
+        self.task_id_map.clear()
+
         grouped = {}
         for t in tasks:
             tl_id = t.get("tasklistId", "unknown_tasklist")
             grouped.setdefault(tl_id, []).append(t)
 
+        unique_tasklist_ids = sorted(grouped.keys())
+
         lines = []
-        for tasklist_id, tlist_tasks in grouped.items():
-            lines.append(f"\n=== Tasklist ID: {tasklist_id} ===")
-            if not tlist_tasks:
-                lines.append("  (No tasks)")
+        task_counter = 1
+        tasklist_counter = 1
+
+        for actual_tl_id in unique_tasklist_ids:
+            # Decide enumerated tasklist ID:
+            if actual_tl_id == self.inbound_fyi_tasklist_id:
+                enumerated_tl_id = "inbound_fyi_tasklist"  # <-- special label
             else:
-                for tsk in tlist_tasks:
-                    title = tsk.get("title", "Untitled task")
-                    due = tsk.get("due", "No due date")
-                    notes = tsk.get("notes", "")
-                    lines.append(
-                        f"  Task: {title}\n"
-                        f"    Due: {due}\n"
-                        f"    Notes: {notes}\n"
-                    )
+                enumerated_tl_id = f"tasklist_{tasklist_counter}"
+                tasklist_counter += 1
+
+            self.tasklist_id_map[enumerated_tl_id] = actual_tl_id
+
+            tasks_in_list = grouped[actual_tl_id]
+            lines.append(f"\n=== {enumerated_tl_id} ===")
+
+            if not tasks_in_list:
+                lines.append("  (No tasks)")
+                continue
+
+            for tsk in tasks_in_list:
+                enumerated_tid = f"task_{task_counter}"
+                task_counter += 1
+
+                actual_tid = tsk.get("id", "")
+                self.task_id_map[enumerated_tid] = (actual_tl_id, actual_tid)
+
+                field_lines = self._format_task_fields(tsk)
+                lines.append(f"  {enumerated_tid}:")
+                for fline in field_lines:
+                    lines.append(f"    {fline}")
+
         return "\n".join(lines)
 
 
