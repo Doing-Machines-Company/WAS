@@ -80,7 +80,7 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
         """Initialize the appropriate API handler based on self.api."""
         pass
 
-    async def call_action(self, provider: str = "openai", model: str = "gpt-4") -> AgentCall:
+    async def call_action(self, provider: str = "anthropic", model: str = "claude-3-5-sonnet-latest") -> AgentCall:
         """
         1) Fetch the user's future events + tasks from Supabase
         2) Enumerate them
@@ -117,6 +117,10 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
         system_prompt_str = string.Template(self.system_prompt_str).substitute({
             "current_datetime": self.current_datetime
         })
+        print(system_prompt_str)
+        input("CHECK!")
+        print(user_prompt_str)
+        input("CHECK!")
 
         messages = [
             LLMMessage("system", system_prompt_str),

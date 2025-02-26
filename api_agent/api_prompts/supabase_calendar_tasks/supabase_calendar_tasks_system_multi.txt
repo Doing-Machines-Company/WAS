@@ -28,6 +28,7 @@ STOP { "action_type": "STOP", "reason": "..." }
 
 Rules:
 - Output valid JSON in triple backticks, either `[ ... ]` for multiple actions or a single object with `"action_type": "STOP"`.
+- You may not use STOP inside a list with other actions.
 - **If** `"STOP"` is present, that is your **only** action (the entire output).
 - Check existing future events/tasks for duplicates before creating new ones.
 - Do not embed date/time info in titles/notes/descriptions; only in official `start`, `end`, or `due` fields.
