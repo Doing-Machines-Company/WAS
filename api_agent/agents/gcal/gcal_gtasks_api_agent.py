@@ -96,7 +96,7 @@ class GCalGTasksAPIAgent(APIAgent):
             self.user_prompt_template = self._load_file(user_prompt_path)
 
     def initialize_api_handler(self):
-        # Initialize the separate handlers
+        # Initialize the separate supabase_cal_task
         self.gcal_handler = GoogleCalendarAPIHandler()
         self.gtasks_handler = GoogleTasksAPIHandler()
 

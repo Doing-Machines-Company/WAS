@@ -1,0 +1,11 @@
+All future events:
+${future_events}
+
+All future tasks:
+${future_tasks}
+
+User request:
+${task}
+
+Produce valid JSON inside triple backticks.
+You can output multiple actions in a JSON array, or a single STOP object (and no other actions).
