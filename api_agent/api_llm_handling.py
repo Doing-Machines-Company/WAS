@@ -24,4 +24,4 @@ class AgentCall:
     """
     messages: List[LLMMessage]           # UPDATED: store the entire list of messages
     llm_response: Any
-    parsed_output: Optional[List[Union[dict, list, str]]] = None
+    parsed_output: Optional[List[Any]] = None

@@ -117,10 +117,6 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
         system_prompt_str = string.Template(self.system_prompt_str).substitute({
             "current_datetime": self.current_datetime
         })
-        print(system_prompt_str)
-        input("CHECK!")
-        print(user_prompt_str)
-        input("CHECK!")
 
         messages = [
             LLMMessage("system", system_prompt_str),
@@ -138,69 +134,120 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
 
         # 4) parse the response => array of actions
         parsed_actions = []
-        llm_out = agent_call.parsed_output
 
-        if isinstance(llm_out, list):
-            # The LLM might provide multiple actions
-            for item in llm_out:
-                if isinstance(item, dict) and "action_type" in item:
+        for llm_out in agent_call.parsed_output:
+            if isinstance(llm_out, list):
+                # The LLM might provide multiple actions
+                for item in llm_out:
+                    if isinstance(item, dict) and "action_type" in item:
+                        try:
+                            atype = APIActionType.from_string(item["action_type"])
+                            new_action = APIAction(
+                                action_type=atype,
+                                reason=item.get("reason", ""),
+                                parameters=item.get("parameters", {})
+                            )
+                            parsed_actions.append(new_action)
+                        except Exception as e:
+                            print("Ignoring unrecognized action:", e)
+
+            elif isinstance(llm_out, dict):
+                # Possibly a single STOP
+                if "action_type" in llm_out:
                     try:
-                        atype = APIActionType.from_string(item["action_type"])
+                        atype = APIActionType.from_string(llm_out["action_type"])
                         new_action = APIAction(
                             action_type=atype,
-                            reason=item.get("reason", ""),
-                            parameters=item.get("parameters", {})
+                            reason=llm_out.get("reason", ""),
+                            parameters=llm_out.get("parameters", {})
                         )
                         parsed_actions.append(new_action)
                     except Exception as e:
-                        print("Ignoring unrecognized action:", e)
+                        print("Unrecognized single dict action:", e)
 
-        elif isinstance(llm_out, dict):
-            # Possibly a single STOP
-            if "action_type" in llm_out:
-                try:
-                    atype = APIActionType.from_string(llm_out["action_type"])
-                    new_action = APIAction(
-                        action_type=atype,
-                        reason=llm_out.get("reason", ""),
-                        parameters=llm_out.get("parameters", {})
-                    )
-                    parsed_actions.append(new_action)
-                except Exception as e:
-                    print("Unrecognized single dict action:", e)
-
-        else:
-            print("No recognized JSON. Defaulting to STOP.")
-            parsed_actions = [APIAction(APIActionType.STOP, "fallback no-action")]
+            else:
+                print("No recognized JSON. Defaulting to STOP.")
+                parsed_actions = [APIAction(APIActionType.STOP, "fallback no-action")]
 
         agent_call.parsed_output = parsed_actions
         return agent_call
 
     async def handle_actions(self, actions):
         """
-        `actions` is a list of APIAction objects.
-        If any action == STOP, we do not do anything else.
-        Otherwise we run them all (in parallel or sequentially).
+        Only stop if STOP is present AND all the other actions succeed.
+        If any action fails, we do NOT stop, and we re-enter the loop.
         """
-        stop_action = next((a for a in actions if a.action_type == APIActionType.STOP), None)
-        if stop_action:
-            # If STOP is present => skip any other actions, just STOP
-            print("[Supabase Agent Multi] Received STOP => stopping now.")
-            await self.output_queue.put(('exit_message', "Supabase Agent Multi has stopped."))
-            self.stop()
-            return
+        # Check if STOP is present
+        stop_action_present = any(a.action_type == APIActionType.STOP for a in actions)
 
-        # Otherwise, run all actions in parallel
-        tasks = [self._dispatch_action(a) for a in actions]
+        # Separate out dispatchable actions (everything except STOP)
+        dispatchable_actions = [a for a in actions if a.action_type != APIActionType.STOP]
+
+        # Dispatch all non-STOP actions in parallel
+        tasks = [self._dispatch_action(a) for a in dispatchable_actions]
+
+        # We'll consider everything successful only if:
+        #  - No exceptions were raised
+        #  - Each result passes our custom 'success' check for that action type
+        all_succeeded = True
+        results = []
+
         try:
             results = await asyncio.gather(*tasks)
             print("[Supabase Agent Multi] Completed parallel actions =>", results)
-            self.failed_count = 0
         except Exception as e:
             print("[Supabase Agent Multi] Error in parallel actions =>", e)
+            all_succeeded = False
+
+        input("WHAT?c")
+        if all_succeeded:
+            # Check each action+result with our custom success criteria
+            for action, result in zip(dispatchable_actions, results):
+                if not self.check_action_success(action.action_type, result):
+                    all_succeeded = False
+                    break
+
+        if all_succeeded:
+            self.failed_count = 0
+            # Only stop if STOP was present + everything else succeeded
+            if stop_action_present:
+                print("[Supabase Agent Multi] All actions succeeded + STOP => stopping now.")
+                await self.output_queue.put(
+                    ('exit_message', "Supabase Agent Multi has stopped.")
+                )
+                self.stop()
+        else:
+            # If anything failed, do not stop
             self.failed_count += 1
             if self.failed_count > self.retry_cap:
                 self.stop()
+            else:
+                print("[Supabase Agent Multi] Some action(s) failed => continuing, not stopping.")
+
+    @staticmethod
+    def check_action_success(action_type: APIActionType, result: Any) -> bool:
+        """
+        A helper that decides if the action was successful by examining
+        the result object returned from the handler. Different action types
+        may require different checks, so adjust accordingly.
+        """
+        # 1) If the handler explicitly returned {'error': ...}, mark as failure:
+        if isinstance(result, dict) and 'error' in result:
+            return False
+
+        # 2) For "delete" actions, check whether rows_deleted is nonzero
+        if action_type in [APIActionType.SUPABASE_DELETE_CALENDAR_EVENT,
+                           APIActionType.SUPABASE_DELETE_TASK]:
+            if isinstance(result, dict) and result.get('rows_deleted', 0) == 0:
+                return False
+
+        # 3) For "update" actions, check for an updated record
+        if action_type in [APIActionType.SUPABASE_UPDATE_CALENDAR_EVENT,
+                           APIActionType.SUPABASE_UPDATE_TASK]:
+            if isinstance(result, dict) and not result.get('id'):
+                return False
+
+        return True
 
     async def _dispatch_action(self, action: APIAction) -> Any:
         """
@@ -288,7 +335,7 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
 if __name__ == "__main__":
     # Example usage:
     agent = SupabaseCalendarTasksAPIAgentMulti(
-        task="Add a new 'Clean my desk' task, and schedule a dentist appointment tomorrow at 10am. Then STOP.",
+        task="Add a new 'Clean my desk' task.",
         user_id="123e4567-e89b-12d3-a456-426614174000"
     )
     asyncio.run(agent.run())
