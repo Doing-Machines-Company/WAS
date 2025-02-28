@@ -5,7 +5,7 @@ from supabase._async.client import AsyncClient as Client, create_client
 from api_agent_classes import APIAction, APIActionType
 
 # Import your param classes
-from supabase_calendar_tasks_params import (
+from api_type_classes.supabase_calendar_tasks_params import (
     SupabaseListCalendarEventsParams,
     SupabaseCreateCalendarEventParams,
     SupabaseUpdateCalendarEventParams,

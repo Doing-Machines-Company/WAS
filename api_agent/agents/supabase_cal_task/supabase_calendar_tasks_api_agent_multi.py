@@ -9,7 +9,7 @@ from api_agent_classes import APIAction, APIActionType
 from api_llm_handling import LLMMessage, AgentCall
 from call_llm import call_llm
 
-from supabase_calendar_tasks_handler import SupabaseCalendarTasksHandler
+from handlers.supabase_calendar_tasks_handler import SupabaseCalendarTasksHandler
 
 
 class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
