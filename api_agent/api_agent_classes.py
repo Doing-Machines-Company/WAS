@@ -11,6 +11,7 @@ class APIType(enum.Enum):
     GOOGLE_CALENDAR = "google_calendar"
     CANVAS = "canvas"
     GRADESCOPE = "gradescope"
+    SUPABASE_CAL_TASKS = "supabase_calendar_tasks"
     @classmethod
     def from_string(cls, api_str: str) -> 'APIType':
         """
@@ -66,6 +67,7 @@ class APIActionType(enum.Enum):
     CALENDAR_LIST_EVENTS = ("calendar_list_events", True)
     CALENDAR_UPDATE_EVENT = ("calendar_update_event", False)
     CALENDAR_DELETE_EVENT = ("calendar_delete_event", False)
+    CALENDAR_MOVE_EVENT = ("calendar_move_event", True)
 
     # Google Tasks
     # Tasklists
@@ -100,6 +102,16 @@ class APIActionType(enum.Enum):
     # Gradescope
     GRADESCOPE_LIST_COURSES = ("gradescope_list_courses", True)
     GRADESCOPE_LIST_ASSIGNMENTS = ("gradescope_list_assignments", True)
+
+    SUPABASE_LIST_CALENDAR_EVENTS = ("supabase_list_calendar_events", True)
+    SUPABASE_CREATE_CALENDAR_EVENT = ("supabase_create_calendar_event", False)
+    SUPABASE_UPDATE_CALENDAR_EVENT = ("supabase_update_calendar_event", False)
+    SUPABASE_DELETE_CALENDAR_EVENT = ("supabase_delete_calendar_event", False)
+
+    SUPABASE_LIST_TASKS = ("supabase_list_tasks", True)
+    SUPABASE_CREATE_TASK = ("supabase_create_task", False)
+    SUPABASE_UPDATE_TASK = ("supabase_update_task", False)
+    SUPABASE_DELETE_TASK = ("supabase_delete_task", False)
 
     @staticmethod
     def from_string(action_type_str: str) -> "APIActionType":

@@ -9,10 +9,8 @@ $task
 
 You can:
 - Check these existing future events/tasks to avoid duplicates.
-- Create new events only on the **"inbound.fyi"** calendar.
-- Create new tasks only on the **"inbound.fyi"** tasklist.
-- Use local time for tasks in the title if there's a specific time; also add `(UTC: ...)` in the notes.
-- If you need more information, you can do a single-step call like `"CALENDAR_LIST_EVENTS"` or `"TASKS_LIST_TASKS"`.
+- Create new events only on the **"inbound_fyi_calendar"** calendar.
+- Create new tasks only on the **"inbound_fyi_tasklist"** tasklist.
 - Once you have enough info, finalize with a single `"STOP"` that has a `"final_answer"` array of sub-actions.
 
 Please reason step-by-step using chain-of-thought to complete the user’s request, **then produce only your final** JSON action in valid format (triple backticks). 
@@ -22,3 +20,5 @@ Remember:
 3. Check carefully for duplicates before adding a new item.
 4. If no parameters needed, use `"parameters": {}` or `"parameters": null`.
 5. All times/dates used must be in RFC 3339 format, we always work off of UTC time so you don't have to specify a timezone.
+6. Do not add datetime information inside descriptions/titles/notes.
+

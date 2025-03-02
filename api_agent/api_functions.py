@@ -45,7 +45,8 @@ from api_type_classes.api_actions_params_gcal import (
     CalendarCreateEventParams,
     CalendarListEventsParams,
     CalendarUpdateEventParams,
-    CalendarDeleteEventParams
+    CalendarDeleteEventParams,
+    CalendarMoveEventParams
 )
 
 # Tasks param classes
@@ -80,7 +81,7 @@ from api_type_classes.api_actions_params_canvas import (
 )
 
 from api_type_classes.api_actions_params_gradescope import (
-    GradescopeListAssignmentsParams, 
+    GradescopeListAssignmentsParams,
     GradescopeListCoursesParams
 )
 SCOPES = [
@@ -341,6 +342,10 @@ class GoogleCalendarAPIHandler:
             params = CalendarDeleteEventParams(**(action.parameters or {}))
             return self.delete_event(params)
 
+        elif action.action_type == APIActionType.CALENDAR_MOVE_EVENT:
+            params = CalendarMoveEventParams(**(action.parameters or {}))
+            return self.move_event(params)
+
         else:
             raise ValueError(f"Calendar: Unsupported action type: {action.action_type}")
 
@@ -505,6 +510,17 @@ class GoogleCalendarAPIHandler:
         ).execute()
         return {"status": "deleted", "event_id": params.event_id}
 
+    def move_event(self, params: CalendarMoveEventParams) -> Any:
+        """
+        Moves an event from 'sourceCalendarId' to 'destinationCalendarId' using
+        the Calendar API's events().move() endpoint.
+        """
+        return self.service.events().move(
+            calendarId=params.sourceCalendarId,
+            eventId=params.event_id,
+            destination=params.destinationCalendarId
+        ).execute()
+
 
 # ---------------------------------------------------------------------------
 #                           GoogleTasksAPIHandler
@@ -643,16 +659,19 @@ class GoogleTasksAPIHandler:
         return {"status": "cleared_completed", "tasklist_id": p.tasklist_id}
 
     def _move_task(self, p: TasksMoveTaskParams) -> Any:
-        request_args = {
-            "tasklist": p.tasklist_id,
-            "task": p.task_id,
-        }
-        if p.parent:
-            request_args["parent"] = p.parent
-        if p.previous:
-            request_args["previous"] = p.previous
+        """
+        Moves a task within the same list OR across different lists,
+        using the optional 'destinationTasklist' query parameter.
+        """
+        return self.service.tasks().move(
+            tasklist=p.tasklist_id,
+            task=p.task_id,
+            parent=p.parent,
+            previous=p.previous,
+            destinationTasklist=p.destinationTasklist
+        ).execute()
 
-        return self.service.tasks().move(**request_args).execute()
+
 # --------------------------------------------------------
 # Canvas
 # --------------------------------------------------------
@@ -693,7 +712,7 @@ class CanvasAPIHandler:
         elif action.action_type == APIActionType.CANVAS_GET_SUBMISSION_HISTORY:
             params = CanvasGetSubmissionHistoryParams(**(action.parameters or {}))
             return self.get_submission_history(params)
-        
+
         elif action.action_type == APIActionType.CANVAS_LIST_COURSES:
             params = CanvasListCoursesParams(**(action.parameters or {}))
             return await self.list_courses(params)
@@ -709,7 +728,7 @@ class CanvasAPIHandler:
         elif action.action_type == APIActionType.CANVAS_LIST_FILES:
             params = CanvasListFilesParams(**(action.parameters or {}))
             return self.list_files(params)
-        
+
         elif action.action_type == APIActionType.CANVAS_GET_FILE:
             params = CanvasGetFileParams(**(action.parameters or {}))
             return self.get_file(params)
@@ -859,8 +878,8 @@ class CanvasAPIHandler:
                 "points_possible": points_possible
             })
 
-        return {"course_id": params.course_id, "grades": grades_data}    
-    
+        return {"course_id": params.course_id, "grades": grades_data}
+
     def get_submission_history(self, params: CanvasGetSubmissionHistoryParams) -> any:
         """
         Get submission history for an assignment.
@@ -907,7 +926,7 @@ class CanvasAPIHandler:
             return files
         except Exception as e:
             return {"error": f"Error retrieving files: {str(e)}"}
-        
+
     def get_file(self, params: CanvasGetFileParams) -> bytes:
         """
         Download a file from Canvas and return its raw bytes.
@@ -948,7 +967,7 @@ class GradescopeAPIHandler:
         elif action.action_type == APIActionType.GRADESCOPE_LIST_ASSIGNMENTS:
             params = GradescopeListAssignmentsParams(**(action.parameters or {}))
             return self.list_assignments(params)
-        
+
         else:
             raise ValueError(f"Gradescope: Unsupported action type: {action.action_type}")
     def list_courses(self, params: GradescopeListCoursesParams) -> any:

@@ -1,0 +1,10 @@
+All future events:
+${future_events}
+
+All future tasks:
+${future_tasks}
+
+User request:
+${task}
+
+Produce valid JSON inside triple backticks.
