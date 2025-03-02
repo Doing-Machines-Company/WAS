@@ -88,9 +88,9 @@ async def main():
                 if google_credentials.get("access_token") and google_credentials.get("scope") and google_credentials.get("refresh_token"):
                     authenticated_google_credentials = Credentials(token = google_credentials["access_token"],
                                                                     refresh_token=google_credentials["refresh_token"], 
-                                                                    token_uri = os.getenv('CLIENT_ID'),
-                                                                    client_id = os.getenv('CLIENT_SECRET'),
-                                                                    client_secret = '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',
+                                                                    token_uri = 'https://oauth2.googleapis.com/token',
+                                                                    client_id = os.getenv('CLIENT_ID'),
+                                                                    client_secret = os.getenv('CLIENT_SECRET'),
                                                                     scopes = google_credentials["scope"].split())
                 else:
                     continue
