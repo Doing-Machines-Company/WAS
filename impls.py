@@ -26,7 +26,6 @@ load_dotenv()
 api_key = os.getenv('OPENAI_API_KEY')
 
 client = OpenAI(api_key=api_key)
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/home/cem/.config/gcloud/application_default_credentials.json"
 
 class BaseAgent(Agent):
     '''

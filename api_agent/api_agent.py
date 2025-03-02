@@ -8,7 +8,7 @@ from api_llm_handling import AgentCall
 from api_agent_classes import APIType
 
 class APIAgent(ABC):
-    def __init__(self, fast_mode=False, api="generic", retry_cap=10, from_user=True):
+    def __init__(self, fast_mode=False, api="generic", retry_cap=10, from_user=True, credentials = None):
         """Initialize a generic API-based LLM agent."""
         self.api = APIType.from_string(api)
 
@@ -46,6 +46,9 @@ class APIAgent(ABC):
         self.context_info = ""  # May be needed by the child class
         self.item_context_pairs = ""  # May be needed by the child class
 
+        #store credentials in user object
+        self.credentials = credentials
+        
         self.initialize_api_handler()
 
     @abstractmethod

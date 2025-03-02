@@ -2,20 +2,21 @@
 
 import os
 import string
-
+import asyncio
 from api_agent import APIAgent
 from api_agent_classes import APIAction, APIActionType, APILinearMemory
 from api_llm_handling import AgentCall, LLMMessage
 from call_llm import call_llm
 from api_functions import CanvasAPIHandler
 
+from typing import List, Tuple, Dict, Any
 
 class CanvasAPIAgent(APIAgent):
-    def __init__(self, task="Track my Canvas courses", fast_mode=False, retry_cap=10):
+    def __init__(self, task="Track my Canvas courses", fast_mode=False, retry_cap=10, credentials = None):
         """
         Initialize the CanvasAPIAgent with a default task if none is provided.
         """
-        super().__init__(fast_mode=fast_mode, api="canvas", retry_cap=retry_cap)
+        super().__init__(fast_mode=fast_mode, api="canvas", retry_cap=retry_cap, credentials = credentials)
         self.task = task  # You can override or set differently if desired
         current_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.abspath(os.path.join(current_dir, os.path.pardir, os.path.pardir, os.path.pardir))
@@ -36,7 +37,7 @@ class CanvasAPIAgent(APIAgent):
 
     def initialize_api_handler(self):
         """Initialize the Canvas API handler."""
-        self.api_handler = CanvasAPIHandler()
+        self.api_handler = CanvasAPIHandler(self.credentials)
 
     async def setup(self):
         """
@@ -151,7 +152,8 @@ class CanvasAPIAgent(APIAgent):
 
             if final_answer:
                 print("[Canvas Agent] STOP with final sub-actions => executing them now:")
-                for idx, (subaction_str, subparams) in enumerate(final_answer, start=1):
+
+                async def execute_sub_action(subaction_str: str, subparams: Any):
                     try:
                         sub_type_str = subaction_str.upper().strip()
                         # Map sub_type_str to an APIActionType
@@ -169,9 +171,7 @@ class CanvasAPIAgent(APIAgent):
                             "CANVAS_GET_PAGE": APIActionType.CANVAS_GET_PAGE,
                             "CANVAS_LIST_FILES": APIActionType.CANVAS_LIST_FILES,
                         }
-                        sub_action_type = action_type_mapping.get(
-                            sub_type_str, APIActionType.STOP
-                        )
+                        sub_action_type = action_type_mapping.get(sub_type_str, APIActionType.STOP)
 
                         # If subparams is just a single ID, wrap it in a dict if needed
                         # e.g. ["CANVAS_LIST_ASSIGNMENTS", "12345"] -> {"course_id": "12345"}
@@ -183,13 +183,19 @@ class CanvasAPIAgent(APIAgent):
                             reason="final_subaction",
                             parameters=subparams
                         )
-                        self._perform_canvas_action(sub_action, is_final = True)
+                        await self._perform_canvas_action(sub_action, is_final=True)
                     except Exception as e:
-                        print("[Canvas Agent] Error executing final sub-action:", e)
+                        print(f"[Canvas Agent] Error executing final sub-action", e)
+
+                # Execute all sub-actions in parallel
+                tasks = [execute_sub_action(subaction_str, subparams) 
+                        for (subaction_str, subparams) in final_answer]
+                await asyncio.gather(*tasks)
 
             # Send a stop message to any listeners
             await self.output_queue.put(('exit_message', "Canvas Agent has stopped."))
             self.stop()
+
 
         elif action.action_type == APIActionType.REQUEST_USER_INPUT:
             # Example: ask user for more info
@@ -206,15 +212,15 @@ class CanvasAPIAgent(APIAgent):
             self.action_mem.append(new_memory)
 
         else:
-            self._perform_canvas_action(action)
+            await self._perform_canvas_action(action)
 
-    def _perform_canvas_action(self, action: APIAction, is_final: bool = False):
+    async def _perform_canvas_action(self, action: APIAction, is_final: bool = False):
         """
         Dispatch a Canvas API action and record the result in memory or final output
         """
         try:
-            result = self.api_handler.perform_action(action)
-            # print(f"[Canvas Agent] API call result: {result}")
+            result = await self.api_handler.perform_action(action)
+            # input(f"[Canvas Agent] API call result: {result}")
             success = True
         except Exception as e:
             print(f"[Canvas Agent] API call failed: {e}")

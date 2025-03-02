@@ -35,9 +35,9 @@ class GCalAPIAgent(APIAgent):
         with open(file_path, "r", encoding="utf-8") as f:
             return f.read()
 
-    def initialize_api_handler(self):
+    def initialize_api_handler(self, credentials = None):
         """Initialize the Google Calendar API handler."""
-        self.api_handler = GoogleCalendarAPIHandler()
+        self.api_handler = GoogleCalendarAPIHandler(credentials)
 
     async def setup(self):
         """

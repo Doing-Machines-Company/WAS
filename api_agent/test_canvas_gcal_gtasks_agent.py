@@ -1,11 +1,14 @@
 # test_canvas_gcal_gtasks_agent.py
-
+import os
 import asyncio
 import logging
-
+import dotenv
+import supabase
 from agents.canvas.canvas_api_agent import CanvasAPIAgent
 from agents.gcal.gcal_gtasks_api_agent import GCalGTasksAPIAgent
+from agents.gradescope.gradescope_api_agent import GradescopeAPIAgent
 
+from google.oauth2.credentials import Credentials
 
 logging.basicConfig(level=logging.INFO)
 
@@ -23,51 +26,90 @@ if __name__ == "__main__":
 
 
 """
+dotenv.load_dotenv()
 
 async def main():
-    # # Instantiate the Canvas agent
-    # agent = CanvasAPIAgent()
-    # print("Agent task:", agent.task)
-    #
-    # # Run the agent. It will loop, call the LLM for next actions, etc.
-    # # You can stop it manually or let the STOP action from LLM end it.
-    # await agent.run()
-    #
-    # # Optionally, do any post-run checks or prints
-    # print("Agent run has completed.")
-    # poll_out = agent.get_poll_output()
-    #
-    # input(poll_out)
-    #
-    # step_size = 1
-    #
-    # for i in range(0, len(poll_out), step_size):
-    #     cur_chunk = poll_out[i:i + step_size]
-    #     task_string = ""
-    #     for i, linmem in enumerate(cur_chunk):
-    #         task_string += f"{i})\nCall: \n{linmem.call}\nReceived: \n{linmem.received}\n"
-    #     input(task_string)
-    #     skip = input("SKIP?")
-    #     if skip == "":
-    #         agent = GCalGTasksAPIAgent(
-    #             task=task_string,
-    #             from_user=False
-    #         )
-    #         await agent.run()
-    #     else:
-    #         continue
-    call = "canvas_list_assignments with parameters {'course_id': '36003', 'include': ['due_at', 'rubric', 'submission']}"
-    # received = "[{'course name': '85211-A Cognitive Psychology (36003)', 'assignment id': 630236, 'name': 'Quiz 1', 'due_at': '2025-09-07T03:59:59Z', 'points_possible': 50.0, 'submission_types': ['online_quiz']}, {'course name': '85211-A Cognitive Psychology (36003)', 'assignment id': 636844, 'name': 'Quiz 2', 'due_at': '2025-09-14T16:20:00Z', 'points_possible': 50.0, 'submission_types': ['online_quiz']}, {'course name': '85211-A Cognitive Psychology (36003)', 'assignment id': 640241, 'name': 'Quiz 3', 'due_at': '2025-09-21T16:20:00Z', 'points_possible': 50.0, 'submission_types': ['online_quiz']}, {'course name': '85211-A Cognitive Psychology (36003)', 'assignment id': 641508, 'name': 'Quiz 4', 'due_at': '2025-10-05T16:20:00Z', 'points_possible': 50.0, 'submission_types': ['online_quiz']}, {'course name': '85211-A Cognitive Psychology (36003)', 'assignment id': 641511, 'name': 'Quiz 5', 'due_at': '2025-10-12T16:20:00Z', 'points_possible': 50.0, 'submission_types': ['online_quiz']}, {'course name': '85211-A Cognitive Psychology (36003)', 'assignment id': 641527, 'name': 'Quiz 6', 'due_at': '2025-10-26T16:20:00Z', 'points_possible': 50.0, 'submission_types': ['online_quiz']}, {'course name': '85211-A Cognitive Psychology (36003)', 'assignment id': 641525, 'name': 'Quiz 7', 'due_at': '2025-11-16T17:20:00Z', 'points_possible': 50.0, 'submission_types': ['online_quiz']}, {'course name': '85211-A Cognitive Psychology (36003)', 'assignment id': 641526, 'name': 'Quiz 8', 'due_at': '2025-11-30T17:20:00Z', 'points_possible': 50.0, 'submission_types': ['online_quiz']}, {'course name': '85211-A Cognitive Psychology (36003)', 'assignment id': 651877, 'name': 'Quiz 9', 'due_at': '2025-12-01T17:20:00Z', 'points_possible': 50.0, 'submission_types': ['online_quiz']}, {'course name': '85211-A Cognitive Psychology (36003)', 'assignment id': 610447, 'name': 'Exam I: Learning', 'due_at': '2025-09-28T03:59:00Z', 'points_possible': 200.0, 'submission_types': ['online_quiz']}, {'course name': '85211-A Cognitive Psychology (36003)', 'assignment id': 610449, 'name': 'Exam 2: Attention', 'due_at': '2025-11-06T17:20:00Z', 'points_possible': 200.0, 'submission_types': ['online_quiz']}, {'course name': '85211-A Cognitive Psychology (36003)', 'assignment id': 610438, 'name': 'Exam 3: Language and Higher Cognition ', 'due_at': '2025-12-06T17:20:00Z', 'points_possible': 200.0, 'submission_types': ['online_quiz']}, {'course name': '85211-A Cognitive Psychology (36003)', 'assignment id': 610452, 'name': 'Homework 1A', 'due_at': '2025-09-12T13:30:00Z', 'points_possible': 10.0, 'submission_types': ['none']}, {'course name': '85211-A Cognitive Psychology (36003)', 'assignment id': 610446, 'name': 'Homework 1B', 'due_at': '2025-09-21T15:59:00Z', 'points_possible': 90.0, 'submission_types': ['online_quiz']}, {'course name': '85211-A Cognitive Psychology (36003)', 'assignment id': 610440, 'name': 'Homework 2', 'due_at': '2025-10-27T00:20:00Z', 'points_possible': 100.0, 'submission_types': ['online_quiz']}, {'course name': '85211-A Cognitive Psychology (36003)', 'assignment id': 610441, 'name': 'Homework 3', 'due_at': '2025-11-30T17:20:00Z', 'points_possible': 100.0, 'submission_types': ['online_quiz']}]"
-    received = "[{'course name': '85211-A Cognitive Psychology (36003)', 'assignment id': 630236, 'name': 'Homework 1', 'due_at': '2025-09-07T03:59:59Z', 'points_possible': 50.0, 'submission_types': ['online_quiz']}]"
+    valid_emails = {'cadatepe@andrew.cmu.edu'}
+    url: str = os.environ.get("SUPABASE_URL")
+    key: str = os.environ.get("SUPABASE_KEY")
+    client: supabase.Client = supabase.create_client(url, key)
 
-    task_string = f"1)\nCall: \n{call}\nReceived: \n{received}\n"
+    users = client.table("users").select("user_id").execute().data
+    for user_id in users:
+        response = client.rpc("get_user", {"user_id_param": user_id["user_id"]}).execute()
+        if response.data:  # Ensure we got a record back
+            record = response.data[0]  # Get the user record
+            google_credentials = record.get("google_credentials")
+            gradescope_credentials = record.get("gradescope_credentials")
+            canvas_token = record.get("canvas_token")
+            canvas_domain = record.get("canvas_domain")
+            # Optionally, if you only need the canvas token string:
+            canvas_token_str = canvas_token.get("token") if canvas_token else None
+            if record.get("email") not in valid_emails:
+                continue
+            print("Email:", record.get("email"))
+            print("Google Credentials:", google_credentials)
+            print("Gradescope Credentials:", gradescope_credentials)
+            print("Canvas Token:", canvas_token_str)
+            print("Canvas Domain", canvas_domain)
+            poll_out = []
+            try:
+                # try:
+                #     if gradescope_credentials and gradescope_credentials.get('email') and gradescope_credentials.get('password'):
+                #         gradescope_agent = GradescopeAPIAgent(credentials = gradescope_credentials)
+                    
+                #         print("Agent task:", gradescope_agent.task)
+                    
+                #         await gradescope_agent.run()
+                #         print("Agent run has completed.")
+                #         poll_out_gradescope = gradescope_agent.get_poll_output()
+                #         # input(poll_out_gradescope)
+                #         poll_out.extend(poll_out_gradescope)
+                # except Exception as e:
+                #     print("Error running gradescope agent", e)
+                
+                try:
+                    if canvas_domain and canvas_token_str:
+                        canvas_agent = CanvasAPIAgent(credentials = {'url': 'https://' + canvas_domain, 'token': canvas_token_str})
+                    
+                        print("Agent task:", canvas_agent.task)
+                    
+                        await canvas_agent.run()
+                        print("Agent run has completed.")
+                        poll_out_canvas = canvas_agent.get_poll_output()
+                        input(poll_out_canvas)
+                        poll_out.extend(poll_out_canvas)
 
-    agent = GCalGTasksAPIAgent(
-        task=task_string,
-        from_user=False
-    )
-    await agent.run()
+                except Exception as e:
+                    print("Error running canvas agent", e)
 
+                step_size = 1
+
+                if google_credentials.get("access_token") and google_credentials.get("scope") and google_credentials.get("refresh_token"):
+                    authenticated_google_credentials = Credentials(token = google_credentials["access_token"],
+                                                                    refresh_token=google_credentials["refresh_token"], 
+                                                                    token_uri = os.getenv('CLIENT_ID'),
+                                                                    client_id = os.getenv('CLIENT_SECRET'),
+                                                                    client_secret = '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',
+                                                                    scopes = google_credentials["scope"].split())
+                else:
+                    continue
+                for i in range(0, len(poll_out), step_size):
+                    cur_chunk = poll_out[i:i + step_size]
+                    task_string = ""
+                    for i, linmem in enumerate(cur_chunk):
+                        task_string += f"{i})\nCall: \n{linmem.call}\nReceived: \n{linmem.received}\n"
+                        gcalgtasks_agent = GCalGTasksAPIAgent(
+                                task=task_string,
+                                from_user=False,
+                                credentials = authenticated_google_credentials
+                            )
+                        await gcalgtasks_agent.run()
+            except Exception as e:
+                print(e)
 
 if __name__ == "__main__":
     asyncio.run(main())
+    
+
+        

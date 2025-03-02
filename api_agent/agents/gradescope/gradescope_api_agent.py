@@ -11,11 +11,11 @@ from api_functions import GradescopeAPIHandler
 
 
 class GradescopeAPIAgent(APIAgent):
-    def __init__(self, task="Track my Gradescope courses", fast_mode=False, retry_cap=10):
+    def __init__(self, task="Track my Gradescope courses", fast_mode=False, retry_cap=10, credentials = None):
         """
         Initialize the GradescopeAPIAgent with a default task if none is provided.
         """
-        super().__init__(fast_mode=fast_mode, api="gradescope", retry_cap=retry_cap)
+        super().__init__(fast_mode=fast_mode, api="gradescope", retry_cap=retry_cap, credentials = credentials)
         self.task = task  # You can override or set differently if desired
         current_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.abspath(os.path.join(current_dir, os.path.pardir, os.path.pardir, os.path.pardir))
@@ -36,7 +36,7 @@ class GradescopeAPIAgent(APIAgent):
 
     def initialize_api_handler(self):
         """Initialize the Gradescope API handler."""
-        self.api_handler = GradescopeAPIHandler()
+        self.api_handler = GradescopeAPIHandler(self.credentials)
 
     async def setup(self):
         """

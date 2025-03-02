@@ -36,13 +36,15 @@ class GCalGTasksAPIAgent(APIAgent):
             retry_cap=10,
             from_user=True,
             user_timezone="America/New_York",
-            use_ampm=True
+            use_ampm=True,
+            credentials=None
     ):
         super().__init__(
             fast_mode=fast_mode,
             api="google_calendar",
             retry_cap=retry_cap,
-            from_user=from_user
+            from_user=from_user,
+            credentials=credentials
         )
         self.task = task
 
@@ -90,8 +92,8 @@ class GCalGTasksAPIAgent(APIAgent):
 
     def initialize_api_handler(self):
         # Initialize the separate handlers
-        self.gcal_handler = GoogleCalendarAPIHandler()
-        self.gtasks_handler = GoogleTasksAPIHandler()
+        self.gcal_handler = GoogleCalendarAPIHandler(self.credentials)
+        self.gtasks_handler = GoogleTasksAPIHandler(self.credentials)
 
     def _load_file(self, file_path: str) -> str:
         if not os.path.exists(file_path):
@@ -238,7 +240,7 @@ class GCalGTasksAPIAgent(APIAgent):
 
         print("[Unified Agent] Calling LLM for next action ...")
         print(user_prompt_str)
-        input("LOOK AT USER PROMPT")
+        # input("LOOK AT USER PROMPT")
         agent_call = await call_llm(
             messages=messages,
             provider=provider,
@@ -247,7 +249,7 @@ class GCalGTasksAPIAgent(APIAgent):
         )
 
         print("[Unified Agent] LLM Response:", agent_call.llm_response)
-        input("LOOK AT LLM RESPONSE")
+        # input("LOOK AT LLM RESPONSE")
 
         chosen_action = None
         if agent_call.parsed_output:
