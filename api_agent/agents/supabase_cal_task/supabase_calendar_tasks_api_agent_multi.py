@@ -1,3 +1,5 @@
+# supabase_calendar_tasks_api_agent_multi.py
+
 import os
 import asyncio
 import string
@@ -118,6 +120,9 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
             "current_datetime": self.current_datetime
         })
 
+        print(user_prompt_str)
+        input("LOOK AT PROMPT")
+
         messages = [
             LLMMessage("system", system_prompt_str),
             LLMMessage("user", user_prompt_str),
@@ -199,7 +204,6 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
             print("[Supabase Agent Multi] Error in parallel actions =>", e)
             all_succeeded = False
 
-        input("WHAT?c")
         if all_succeeded:
             # Check each action+result with our custom success criteria
             for action, result in zip(dispatchable_actions, results):
@@ -252,19 +256,38 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
     async def _dispatch_action(self, action: APIAction) -> Any:
         """
         Convert enumerated ID => real DB ID, attach user_id, then dispatch to supabase.
+        Before dispatching create actions, check that any provided datetime is not stale.
         """
         params = action.parameters or {}
 
-        # If referencing enumerated "event_x" or "task_x", swap to real DB ID
+        # Resolve enumerated IDs.
         if "event_id" in params and params["event_id"] in self.event_id_map:
             params["event_id"] = self.event_id_map[params["event_id"]]
         if "task_id" in params and params["task_id"] in self.task_id_map:
             params["task_id"] = self.task_id_map[params["task_id"]]
 
-        # Force the user_id internally, so the LLM never sees or modifies another user's data
+        # Force the user_id internally.
         params["user_id"] = self.user_id
 
-        # Execute
+        # Check for create actions and skip if any provided datetime is stale.
+        if action.action_type == APIActionType.SUPABASE_CREATE_CALENDAR_EVENT:
+            # if "start" in params and params["start"]:
+            #     if self._is_datetime_stale(params["start"]):
+            #         print("Skipping calendar event creation because start date is stale.")
+            #         return {"skipped": True, "reason": "Stale start date"}
+            if "end" in params and params["end"]:
+                if self._is_datetime_stale(params["end"]):
+                    print("Skipping calendar event creation because end date is stale.")
+                    return {"skipped": True, "reason": "Stale end date"}
+
+        if action.action_type == APIActionType.SUPABASE_CREATE_TASK:
+            # The due date is now optional; only check if provided.
+            if "due" in params and params["due"]:
+                if self._is_datetime_stale(params["due"]):
+                    print("Skipping task creation because due date is stale.")
+                    return {"skipped": True, "reason": "Stale due date"}
+
+        # Execute the action.
         return await self.supabase_handler.perform_action(
             APIAction(
                 action_type=action.action_type,
@@ -272,6 +295,22 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
                 parameters=params
             )
         )
+
+    def _is_datetime_stale(self, date_str: str) -> bool:
+        """
+        Given an ISO date string, returns True if the datetime is before the current datetime.
+        """
+        try:
+            # Convert 'Z' to '+00:00' for fromisoformat, if needed.
+            if date_str.endswith("Z"):
+                date_obj = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            else:
+                date_obj = datetime.fromisoformat(date_str)
+            return date_obj < self.current_datetime_obj
+        except Exception as e:
+            print("Error parsing date:", e)
+            # If the date cannot be parsed, you may choose to treat it as non-stale.
+            return False
 
     def _format_enumerated_events(self, events):
         """
