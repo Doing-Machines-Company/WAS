@@ -45,6 +45,7 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
         self.user_id = user_id
 
         now_utc = datetime.now(timezone.utc).replace(microsecond=0)
+        self.current_datetime_obj = now_utc
         self.current_datetime = now_utc.isoformat().replace("+00:00", "Z")
         self.current_datetime_obj = now_utc
 

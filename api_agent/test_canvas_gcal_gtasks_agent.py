@@ -85,15 +85,15 @@ async def main():
 
                 step_size = 1
 
-                if google_credentials.get("access_token") and google_credentials.get("scope") and google_credentials.get("refresh_token"):
-                    authenticated_google_credentials = Credentials(token = google_credentials["access_token"],
-                                                                    refresh_token=google_credentials["refresh_token"], 
-                                                                    token_uri = 'https://oauth2.googleapis.com/token',
-                                                                    client_id = os.getenv('CLIENT_ID'),
-                                                                    client_secret = os.getenv('CLIENT_SECRET'),
-                                                                    scopes = google_credentials["scope"].split())
-                else:
-                    continue
+                # if google_credentials.get("access_token") and google_credentials.get("scope") and google_credentials.get("refresh_token"):
+                #     authenticated_google_credentials = Credentials(token = google_credentials["access_token"],
+                #                                                     refresh_token=google_credentials["refresh_token"], 
+                #                                                     token_uri = 'https://oauth2.googleapis.com/token',
+                #                                                     client_id = os.getenv('CLIENT_ID'),
+                #                                                     client_secret = os.getenv('CLIENT_SECRET'),
+                #                                                     scopes = google_credentials["scope"].split())
+                # else:
+                #     continue
                 for i in range(0, len(poll_out), step_size):
                     cur_chunk = poll_out[i:i + step_size]
                     task_string = ""
