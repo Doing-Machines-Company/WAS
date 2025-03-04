@@ -7,7 +7,7 @@ import supabase
 from agents.canvas.canvas_api_agent import CanvasAPIAgent
 from agents.gcal.gcal_gtasks_api_agent import GCalGTasksAPIAgent
 from agents.gradescope.gradescope_api_agent import GradescopeAPIAgent
-
+from agents.supabase_cal_task.supabase_calendar_tasks_api_agent_multi import SupabaseCalendarTasksAPIAgentMulti
 from google.oauth2.credentials import Credentials
 
 logging.basicConfig(level=logging.INFO)
@@ -99,12 +99,17 @@ async def main():
                     task_string = ""
                     for i, linmem in enumerate(cur_chunk):
                         task_string += f"{i})\nCall: \n{linmem.call}\nReceived: \n{linmem.received}\n"
-                        gcalgtasks_agent = GCalGTasksAPIAgent(
-                                task=task_string,
-                                from_user=False,
-                                credentials = authenticated_google_credentials
-                            )
-                        await gcalgtasks_agent.run()
+                        # gcalgtasks_agent = GCalGTasksAPIAgent(
+                        #         task=task_string,
+                        #         from_user=False,
+                        #         credentials = authenticated_google_credentials
+                        #     )
+                        # await gcalgtasks_agent.run()
+                        supabase_agent = SupabaseCalendarTasksAPIAgentMulti(
+                            task = task_string,
+                            user_id = user_id["user_id"]
+                        )
+                        await supabase_agent.run()
             except Exception as e:
                 print(e)
 
