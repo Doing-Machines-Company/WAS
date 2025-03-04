@@ -2,13 +2,15 @@
 
 import os
 import string
+import asyncio 
 
 from api_agent import APIAgent
 from api_agent_classes import APIAction, APIActionType, APILinearMemory
 from api_llm_handling import AgentCall, LLMMessage
 from call_llm import call_llm
-from api_functions import GradescopeAPIHandler
+from agents.gradescope.gradescope_api_handler import GradescopeAPIHandler
 
+from typing import List, Tuple, Dict, Any
 
 class GradescopeAPIAgent(APIAgent):
     def __init__(self, task="Track my Gradescope courses", fast_mode=False, retry_cap=10, credentials = None):
@@ -142,18 +144,17 @@ class GradescopeAPIAgent(APIAgent):
 
             if final_answer:
                 print("[Gradescope Agent] STOP with final sub-actions => executing them now:")
-                for idx, (subaction_str, subparams) in enumerate(final_answer, start=1):
+
+                async def execute_sub_action(subaction_str: str, subparams: Any):
                     try:
                         sub_type_str = subaction_str.upper().strip()
-                        # Map sub_type_str to an APIActionType
+                        # Map sub_type_str to an APIActionType for Gradescope
                         action_type_mapping = {
                             "REQUEST_USER_INPUT": APIActionType.REQUEST_USER_INPUT,
                             "GRADESCOPE_LIST_COURSES": APIActionType.GRADESCOPE_LIST_COURSES,
                             "GRADESCOPE_LIST_ASSIGNMENTS": APIActionType.GRADESCOPE_LIST_ASSIGNMENTS,
                         }
-                        sub_action_type = action_type_mapping.get(
-                            sub_type_str, APIActionType.STOP
-                        )
+                        sub_action_type = action_type_mapping.get(sub_type_str, APIActionType.STOP)
 
                         # If subparams is just a single ID, wrap it in a dict if needed
                         # e.g. ["GRADESCOPE_LIST_ASSIGNMENTS", "12345"] -> {"course_id": "12345"}
@@ -165,21 +166,22 @@ class GradescopeAPIAgent(APIAgent):
                             reason="final_subaction",
                             parameters=subparams
                         )
-                        self._perform_gradescope_action(sub_action, is_final = True)
+                        await self._perform_gradescope_action(sub_action, is_final=True)
                     except Exception as e:
                         print("[Gradescope Agent] Error executing final sub-action:", e)
+
+                # Execute all sub-actions in parallel
+                tasks = [execute_sub_action(subaction_str, subparams) 
+                        for (subaction_str, subparams) in final_answer]
+                await asyncio.gather(*tasks)
 
             # Send a stop message to any listeners
             await self.output_queue.put(('exit_message', "Gradescope Agent has stopped."))
             self.stop()
 
         elif action.action_type == APIActionType.REQUEST_USER_INPUT:
-            # Example: ask user for more info
             print("[Gradescope Agent] Received REQUEST_USER_INPUT action. Asking user ...")
-            # Potentially you could do:
-            # question = action.reason or "Any additional information needed?"
-            # user_answer = await self.ask_user(question)
-            # Then store user_answer or do next steps
+            # Example: Ask user for additional information
             new_memory = APILinearMemory(
                 self.api,
                 call="REQUEST_USER_INPUT",
@@ -188,14 +190,14 @@ class GradescopeAPIAgent(APIAgent):
             self.action_mem.append(new_memory)
 
         else:
-            self._perform_gradescope_action(action)
+            await self._perform_gradescope_action(action)
 
-    def _perform_gradescope_action(self, action: APIAction, is_final: bool = False):
+    async def _perform_gradescope_action(self, action: APIAction, is_final: bool = False):
         """
         Dispatch a Gradescope API action and record the result in memory.
         """
         try:
-            result = self.api_handler.perform_action(action)
+            result = await self.api_handler.perform_action(action)
             # print(f"[Gradescope Agent] API call result: {result}")
             success = True
         except Exception as e:
