@@ -3,11 +3,13 @@
 import os
 import string
 import asyncio
+
 from api_agent import APIAgent
 from api_agent_classes import APIAction, APIActionType, APILinearMemory
 from api_llm_handling import AgentCall, LLMMessage
 from call_llm import call_llm
-from api_functions import CanvasAPIHandler
+from agents.canvas.canvas_api_handler import CanvasAPIHandler
+#Canvas param classes
 
 from typing import List, Tuple, Dict, Any
 
