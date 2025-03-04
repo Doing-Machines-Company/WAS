@@ -135,8 +135,8 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
         # call LLM
         agent_call = await call_llm(
             messages=messages,
-            provider=provider,
-            model=model,
+            provider="google",
+            model="gemini-2.0-flash",
             max_tokens=3000
         )
         print("[Supabase Agent Multi] LLM response:", agent_call.llm_response)

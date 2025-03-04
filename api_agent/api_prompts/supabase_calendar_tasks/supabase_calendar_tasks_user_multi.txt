@@ -10,4 +10,4 @@ ${task}
 Current date/time (UTC) is:
 ${current_datetime}
 
-Produce valid JSON inside triple backticks.
+First follow all the reasoning steps using chain of thought, step-by-step. Then produce valid JSON inside triple backticks.

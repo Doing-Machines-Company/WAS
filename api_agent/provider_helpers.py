@@ -12,6 +12,7 @@ from initialize_clients import (
     openai_client,
     google_client
 )
+from google.genai import types
 
 
 # Async Cerebras call
@@ -76,26 +77,36 @@ async def together_call(messages: List[LLMMessage], model: str, max_tokens: int)
 
 # Async Google call
 async def google_call(messages: List[LLMMessage], model: str, max_tokens: int) -> str:
-    system_text = "\n".join([msg.content for msg in messages if msg.message_role == "system"])
-    user_text = "\n".join([msg.content for msg in messages if msg.message_role == "user"])
-    # Combine system and user texts as needed
-    full_text = user_text.strip() if not system_text else f"{system_text.strip()}\n{user_text.strip()}"
+    # Extract system and user messages separately
+    system_text = "\n".join(
+        [msg.content for msg in messages if msg.message_role == "system"]
+    ).strip()
+    user_text = "\n".join(
+        [msg.content for msg in messages if msg.message_role == "user"]
+    ).strip()
 
-    generation_config = {
+    # Use only the user text as the main content
+    full_text = user_text
+
+    # Build the config and include the system instruction if available
+    config = {
         "temperature": 0,
         "top_p": 1,
         "top_k": 40,
         "max_output_tokens": max_tokens,
         "response_mime_type": "text/plain",
     }
+    if system_text:
+        config["system_instruction"] = system_text
 
-    # Using the async call via the genai client
+    # Make the async call with the updated config
     response = await google_client.aio.models.generate_content(
         model=model,
         contents=full_text,
-        generation_config=generation_config
+        config=config
     )
     return response.text
+
 
 
 # Helper function for extracting JSON blocks remains unchanged

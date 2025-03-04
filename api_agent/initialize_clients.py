@@ -6,8 +6,8 @@ from together import AsyncTogether
 from openai import AsyncOpenAI
 from anthropic import AsyncAnthropic
 # import google.generativeai as genai
-import google.generativeai as google_client
-
+# import google.generativeai as google_client
+from google import genai
 
 # Initialize Async Cerebras Client
 cerebras_client = AsyncCerebras(api_key=os.environ.get("CEREBRAS_API_KEY"))
@@ -21,4 +21,4 @@ openai_client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 # Initialize Async Anthropic Client
 anthropic_client = AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
-google_client.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
+google_client = genai.Client(api_key=os.environ.get("GOOGLE_API_KEY"))
