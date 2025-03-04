@@ -54,19 +54,19 @@ async def main():
             print("Canvas Domain", canvas_domain)
             poll_out = []
             try:
-                # try:
-                #     if gradescope_credentials and gradescope_credentials.get('email') and gradescope_credentials.get('password'):
-                #         gradescope_agent = GradescopeAPIAgent(credentials = gradescope_credentials)
+                try:
+                    if gradescope_credentials and gradescope_credentials.get('email') and gradescope_credentials.get('password'):
+                        gradescope_agent = GradescopeAPIAgent(credentials = gradescope_credentials)
                     
-                #         print("Agent task:", gradescope_agent.task)
+                        print("Agent task:", gradescope_agent.task)
                     
-                #         await gradescope_agent.run()
-                #         print("Agent run has completed.")
-                #         poll_out_gradescope = gradescope_agent.get_poll_output()
-                #         # input(poll_out_gradescope)
-                #         poll_out.extend(poll_out_gradescope)
-                # except Exception as e:
-                #     print("Error running gradescope agent", e)
+                        await gradescope_agent.run()
+                        print("Agent run has completed.")
+                        poll_out_gradescope = gradescope_agent.get_poll_output()
+                        input(poll_out_gradescope)
+                        poll_out.extend(poll_out_gradescope)
+                except Exception as e:
+                    print("Error running gradescope agent", e)
                 
                 try:
                     if canvas_domain and canvas_token_str:

@@ -21,6 +21,7 @@ class CanvasAPIHandler:
         self.service = self.create_service(credentials)
         self.base_url = credentials["url"].rstrip('/')  # e.g., "https://canvas.example.com"
         self.headers = {"Authorization": f"Bearer {credentials['token']}"}
+        self.session = aiohttp.ClientSession(headers=self.headers)
     def create_service(self, credentials) -> Canvas:
         if not credentials:
             raise Exception("Canvas credentials for user not found")
@@ -84,13 +85,12 @@ class CanvasAPIHandler:
         # The Canvas API supports filtering courses by enrollment state.
         query_params = {"enrollment_state": "active"}
         try:
-            async with aiohttp.ClientSession(headers=self.headers) as session:
-                async with session.get(url, params=query_params) as response:
-                    response.raise_for_status()
-                    courses = await response.json()
-                    # Adjust the output as needed; here we assume each course JSON object
-                    # has a 'name' or similar attribute for a string representation.
-                    return [{"id": course['id'], "name": course['name']} for course in courses]
+            async with self.session.get(url, params=query_params) as response:
+                response.raise_for_status()
+                courses = await response.json()
+                # Adjust the output as needed; here we assume each course JSON object
+                # has a 'name' or similar attribute for a string representation.
+                return [{"id": course['id'], "name": course['name']} for course in courses]
         except Exception as e:
             return {"error": f"Error retrieving courses: {str(e)}"}
 
@@ -101,22 +101,21 @@ class CanvasAPIHandler:
         try:
             # Retrieve course details first.
             course_url = f"{self.base_url}/api/v1/courses/{params.course_id}"
-            async with aiohttp.ClientSession(headers=self.headers) as session:
-                async with session.get(course_url) as course_resp:
-                    course_resp.raise_for_status()
-                    course = await course_resp.json()
+            async with self.session.get(course_url) as course_resp:
+                course_resp.raise_for_status()
+                course = await course_resp.json()
 
-                # Build query parameters. If 'include' is provided as a list,
-                # the Canvas API expects repeated keys such as include[]=submission_types.
-                query_params = {}
-                if params.include:
-                    # If params.include is a list, we build a list of tuples.
-                    query_params = [("include[]", inc) for inc in params.include]
+            # Build query parameters. If 'include' is provided as a list,
+            # the Canvas API expects repeated keys such as include[]=submission_types.
+            query_params = {}
+            if params.include:
+                # If params.include is a list, we build a list of tuples.
+                query_params = [("include[]", inc) for inc in params.include]
 
-                assignment_url = f"{self.base_url}/api/v1/courses/{params.course_id}/assignments"
-                async with session.get(assignment_url, params=query_params) as assign_resp:
-                    assign_resp.raise_for_status()
-                    assignments = await assign_resp.json()
+            assignment_url = f"{self.base_url}/api/v1/courses/{params.course_id}/assignments"
+            async with self.session.get(assignment_url, params=query_params) as assign_resp:
+                assign_resp.raise_for_status()
+                assignments = await assign_resp.json()
 
             filtered_assignments = []
             for assignment in assignments:
@@ -140,14 +139,13 @@ class CanvasAPIHandler:
         try:
             course_url = f"{self.base_url}/api/v1/courses/{params.course_id}"
             assignment_url = f"{self.base_url}/api/v1/courses/{params.course_id}/assignments/{params.assignment_id}"
-            async with aiohttp.ClientSession(headers=self.headers) as session:
-                async with session.get(course_url) as course_resp:
-                    course_resp.raise_for_status()
-                    course = await course_resp.json()
+            async with self.session.get(course_url) as course_resp:
+                course_resp.raise_for_status()
+                course = await course_resp.json()
 
-                async with session.get(assignment_url) as assign_resp:
-                    assign_resp.raise_for_status()
-                    assignment = await assign_resp.json()
+            async with self.session.get(assignment_url) as assign_resp:
+                assign_resp.raise_for_status()
+                assignment = await assign_resp.json()
 
             detailed_assignment = {
                 'course name': course.get("name", ""),
