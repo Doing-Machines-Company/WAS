@@ -46,6 +46,7 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
 
         now_utc = datetime.now(timezone.utc).replace(microsecond=0)
         self.current_datetime = now_utc.isoformat().replace("+00:00", "Z")
+        self.current_datetime_obj = now_utc
 
         # Mappings from enumerated "event_x" -> actual DB ID
         self.event_id_map = {}
@@ -115,10 +116,12 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
             "task": self.task,
             "future_events": enumerated_events_str,
             "future_tasks": enumerated_tasks_str,
-        })
-        system_prompt_str = string.Template(self.system_prompt_str).substitute({
             "current_datetime": self.current_datetime
         })
+        # system_prompt_str = string.Template(self.system_prompt_str).substitute({
+        #
+        # })
+        system_prompt_str = self.system_prompt_str
 
         print(user_prompt_str)
         input("LOOK AT PROMPT")

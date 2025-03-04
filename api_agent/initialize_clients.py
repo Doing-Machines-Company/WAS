@@ -1,29 +1,24 @@
 # initialize_clients.py
 
 import os
-import anthropic
-from cerebras.cloud.sdk import Cerebras
-from together import Together
-from groq import Groq
-from openai import OpenAI
+from cerebras.cloud.sdk import AsyncCerebras
+from together import AsyncTogether
+from openai import AsyncOpenAI
+from anthropic import AsyncAnthropic
+# import google.generativeai as genai
 import google.generativeai as google_client
 
-# Initialize Anthropic Client
-anthropic_client = anthropic.Anthropic(
-    api_key=os.environ.get("ANTHROPIC_API_KEY")
-)
 
-# Initialize Cerebras Client
-cerebras_client = Cerebras(api_key=os.environ.get("CEREBRAS_API_KEY"))
+# Initialize Async Cerebras Client
+cerebras_client = AsyncCerebras(api_key=os.environ.get("CEREBRAS_API_KEY"))
 
-# Initialize Together Client
-together_client = Together(api_key=os.environ.get('TOGETHER_API_KEY'))
+# Initialize Async Together Client
+together_client = AsyncTogether(api_key=os.environ.get('TOGETHER_API_KEY'))
 
-# Initialize Groq Client
-groq_client = Groq()
+# Initialize Async OpenAI Client
+openai_client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-# Initialize OpenAI Client
-openai_client = OpenAI()
+# Initialize Async Anthropic Client
+anthropic_client = AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
-# Initialize Google Client
 google_client.configure(api_key=os.environ.get("GOOGLE_API_KEY"))

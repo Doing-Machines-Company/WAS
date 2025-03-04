@@ -7,4 +7,7 @@ ${future_tasks}
 API output:
 ${task}
 
+Current date/time (UTC) is:
+${current_datetime}
+
 Produce valid JSON inside triple backticks.

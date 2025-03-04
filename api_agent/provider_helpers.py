@@ -1,22 +1,23 @@
 # provider_helpers.py
 
-import re
 import json
+import json5
+import re
 from typing import List
 from api_llm_handling import LLMMessage
 from initialize_clients import (
     anthropic_client,
     cerebras_client,
     together_client,
-    groq_client,
     openai_client,
     google_client
 )
 
 
-def cerebras_call(messages: List[LLMMessage], model: str, max_tokens: int) -> str:
+# Async Cerebras call
+async def cerebras_call(messages: List[LLMMessage], model: str, max_tokens: int) -> str:
     formatted_messages = [{"role": msg.message_role, "content": msg.content} for msg in messages]
-    completion = cerebras_client.chat.completions.create(
+    completion = await cerebras_client.chat.completions.create(
         messages=formatted_messages,
         model=model,
         stream=False,
@@ -27,39 +28,26 @@ def cerebras_call(messages: List[LLMMessage], model: str, max_tokens: int) -> st
     return completion.choices[0].message.content
 
 
-def anthropic_call(messages: List[LLMMessage], model: str, max_tokens: int) -> str:
-    """
-    Corrected version: ensures each 'content' is a string, not a dict or list.
-    """
-    # Collect system messages (if any) into one string:
+# Async Anthropic call
+async def anthropic_call(messages: List[LLMMessage], model: str, max_tokens: int) -> str:
     system_segments = [msg.content for msg in messages if msg.message_role == "system"]
     system_text = "\n".join(system_segments)
+    user_segments = [{"role": "user", "content": msg.content} for msg in messages if msg.message_role == "user"]
 
-    # Collect user messages as a list of {"role": "user", "content": "..."}:
-    user_segments = [
-        {"role": "user", "content": msg.content}
-        for msg in messages
-        if msg.message_role == "user"
-    ]
-
-    # Now call the Anthropic client correctly:
-    message = anthropic_client.messages.create(
+    message = await anthropic_client.messages.create(
         model=model,
         max_tokens=max_tokens,
         temperature=0,
         system=system_text,
-        # Pass user_segments directly, so "content" is just the user text string
         messages=user_segments
     )
-
-    # Return the LLM text (adjust if your library returns it differently):
     return message.content[0].text
 
 
-
-def openai_call(messages: List[LLMMessage], model: str, max_tokens: int) -> str:
+# Async OpenAI call
+async def openai_call(messages: List[LLMMessage], model: str, max_tokens: int) -> str:
     openai_msgs = [{"role": msg.message_role, "content": msg.content} for msg in messages]
-    completion = openai_client.chat.completions.create(
+    completion = await openai_client.chat.completions.create(
         model=model,
         temperature=0,
         max_tokens=max_tokens,
@@ -68,10 +56,11 @@ def openai_call(messages: List[LLMMessage], model: str, max_tokens: int) -> str:
     return completion.choices[0].message.content
 
 
-def together_call(messages: List[LLMMessage], model: str, max_tokens: int) -> str:
+# Async Together call
+async def together_call(messages: List[LLMMessage], model: str, max_tokens: int) -> str:
     together_msgs = [{"role": msg.message_role, "content": msg.content} for msg in messages if
                      msg.message_role == "user"]
-    response = together_client.chat.completions.create(
+    response = await together_client.chat.completions.create(
         model=model,
         messages=together_msgs,
         max_tokens=max_tokens,
@@ -85,23 +74,12 @@ def together_call(messages: List[LLMMessage], model: str, max_tokens: int) -> st
     return response.choices[0].message.content
 
 
-def groq_call(messages: List[LLMMessage], model: str, max_tokens: int) -> str:
-    groq_msgs = [{"role": msg.message_role, "content": msg.content} for msg in messages]
-    completion = groq_client.chat.completions.create(
-        model=model,
-        messages=groq_msgs,
-        temperature=0,
-        max_tokens=max_tokens,
-        top_p=1,
-        stream=False,
-        stop=None,
-    )
-    return completion.choices[0].message.content
-
-
-def google_call(messages: List[LLMMessage], model: str, max_tokens: int) -> str:
+# Async Google call
+async def google_call(messages: List[LLMMessage], model: str, max_tokens: int) -> str:
     system_text = "\n".join([msg.content for msg in messages if msg.message_role == "system"])
     user_text = "\n".join([msg.content for msg in messages if msg.message_role == "user"])
+    # Combine system and user texts as needed
+    full_text = user_text.strip() if not system_text else f"{system_text.strip()}\n{user_text.strip()}"
 
     generation_config = {
         "temperature": 0,
@@ -111,11 +89,29 @@ def google_call(messages: List[LLMMessage], model: str, max_tokens: int) -> str:
         "response_mime_type": "text/plain",
     }
 
-    model_instance = google_client.GenerativeModel(
-        model_name=model,
-        generation_config=generation_config,
-        system_instruction=system_text.strip()
+    # Using the async call via the genai client
+    response = await google_client.aio.models.generate_content(
+        model=model,
+        contents=full_text,
+        generation_config=generation_config
     )
+    return response.text
 
-    chat_session = model_instance.start_chat(history=[])
-    return chat_session.send_message(user_text.strip()).text
+
+# Helper function for extracting JSON blocks remains unchanged
+def extract_json(raw_response: str) -> List:
+    json_blocks = re.findall(
+        r"```json\s*(\{.*?\}|\[.*?\])\s*```",
+        raw_response,
+        re.DOTALL | re.IGNORECASE
+    )
+    results = []
+    for idx, block in enumerate(json_blocks, start=1):
+        try:
+            results.append(json5.loads(block.strip()))
+        except json5.JSONDecodeError as e:
+            try:
+                results.append(json.loads(block.strip()))
+            except json.JSONDecodeError:
+                results.append(block.strip())
+    return results
