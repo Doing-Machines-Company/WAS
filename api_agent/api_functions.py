@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 from api_agent_classes import APIAction, APIActionType
 
 # Gmail param classes
-from api_type_classes.api_actions_params_gmail import (
+from handler_parameters.api_actions_params_gmail import (
     # messages
     GmailListMessagesParams,
     GmailGetMessageParams,
@@ -38,7 +38,7 @@ from api_type_classes.api_actions_params_gmail import (
 )
 
 # Calendar param classes
-from api_type_classes.api_actions_params_gcal import (
+from handler_parameters.api_actions_params_gcal import (
     CalendarListCalendarsParams,
     CalendarCreateEventParams,
     CalendarListEventsParams,
@@ -48,7 +48,7 @@ from api_type_classes.api_actions_params_gcal import (
 )
 
 # Tasks param classes
-from api_type_classes.api_actions_params_gtasks import (
+from handler_parameters.api_actions_params_gtasks import (
     TasksListTasklistsParams,
     TasksGetTasklistParams,
     TasksCreateTasklistParams,

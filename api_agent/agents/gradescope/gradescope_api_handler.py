@@ -1,7 +1,7 @@
 from agents.gradescope.gradescopeapi.classes.connection import GSConnection
 
 
-from api_type_classes.api_actions_params_gradescope import (
+from handler_parameters.api_actions_params_gradescope import (
     GradescopeListAssignmentsParams,
     GradescopeListCoursesParams
 )

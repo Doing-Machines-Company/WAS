@@ -9,7 +9,7 @@ from googleapiclient.errors import HttpError
 from passive_api_agent import PassiveAPIAgent
 from api_agent_classes import APIAction, APIActionType
 from api_functions import GmailAPIHandler
-from api_type_classes.api_actions_params_gmail import GmailGetMessageParams
+from handler_parameters.api_actions_params_gmail import GmailGetMessageParams
 
 logger = logging.getLogger(__name__)
 

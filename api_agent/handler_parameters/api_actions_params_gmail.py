@@ -1,4 +1,4 @@
-# api_type_classes/api_actions_params_gmail.py
+# handler_parameters/api_actions_params_gmail.py
 
 from dataclasses import dataclass
 from typing import Optional, List

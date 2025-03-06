@@ -1,6 +1,6 @@
 from canvasapi import Canvas
 import aiohttp
-from api_type_classes.api_actions_params_canvas import (
+from handler_parameters.api_actions_params_canvas import (
     CanvasGetAssignmentDetailsParams,
     CanvasGetGradesParams,
     CanvasGetModuleItemsParams,
