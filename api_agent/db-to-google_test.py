@@ -1,28 +1,27 @@
+# db-to-google_test.py
+
 import os
 import asyncio
 import signal
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import Dict, Any
 
-# Import the authentication helper
-# from auth_google_calendar_tasks import authenticate
 from google.oauth2.credentials import Credentials
 
-# Import the handlers
 from handlers.supabase_calendar_tasks_handler import SupabaseCalendarTasksHandler
 from handlers.async_gcal_handler import AsyncGoogleCalendarAPIHandler
 
-# Import action classes
 from api_agent_classes import APIAction, APIActionType
-
-# Import parameter classes
 from handler_parameters.api_actions_params_gcal import CalendarCreateEventParams, CalendarListCalendarsParams
 
-# Default calendar name
+
 DEFAULT_CALENDAR_NAME = "inbound.fyi"
 
-# Global task list for proper cleanup
+# Track tasks so we can clean them up on shutdown
 pending_tasks = set()
+
+# We'll use an asyncio.Event to coordinate graceful shutdown
+shutdown_event = asyncio.Event()
 
 
 async def find_or_create_calendar(gcal_handler, calendar_name: str) -> str:
@@ -87,7 +86,6 @@ async def sync_supabase_to_gcal(
         )
     )
 
-    # Track statistics for reporting
     stats = {
         "total_events": len(supabase_events),
         "events_synced": 0,
@@ -106,8 +104,7 @@ async def sync_supabase_to_gcal(
         print(f"Processing event: {event_name} (ID: {event_id})")
 
         # Skip events that have already been synced unless they've been updated since
-        if "gcal_event_id" in event.get("metadata", {}) and not event.get("metadata", {}).get("updated_since_sync",
-                                                                                              False):
+        if "gcal_event_id" in event.get("metadata", {}) and not event.get("metadata", {}).get("updated_since_sync", False):
             stats["events_skipped"] += 1
             stats["details"].append({
                 "event_id": event_id,
@@ -145,14 +142,9 @@ async def sync_supabase_to_gcal(
                 )
             )
 
-            # Update Supabase event with Google Calendar event ID if successful
             if gcal_event and "id" in gcal_event:
                 print(f"  - Event created successfully. GCal ID: {gcal_event['id']}")
-
-                # Get existing metadata or initialize empty dict
                 metadata = event.get("metadata", {}) or {}
-
-                # Update metadata with Google Calendar event ID and sync timestamp
                 metadata.update({
                     "gcal_event_id": gcal_event["id"],
                     "gcal_html_link": gcal_event.get("htmlLink", ""),
@@ -161,8 +153,6 @@ async def sync_supabase_to_gcal(
                 })
 
                 print(f"  - Updating Supabase event with sync metadata")
-
-                # Update the Supabase event with the new metadata
                 await supabase_handler.perform_action(
                     APIAction(
                         action_type=APIActionType.SUPABASE_UPDATE_CALENDAR_EVENT,
@@ -180,7 +170,7 @@ async def sync_supabase_to_gcal(
                 "event_id": event_id,
                 "name": event_name,
                 "status": "synced",
-                "gcal_event_id": gcal_event.get("id")
+                "gcal_event_id": gcal_event.get("id") if gcal_event else None
             })
             print(f"  - Sync complete for event: {event_name}")
 
@@ -255,7 +245,6 @@ async def process_user_id(supabase_handler, user_id):
             print(f"\nStarting sync for user_id: {user_id}")
             print(f"Target Google Calendar: {calendar_id}")
 
-            # Run the sync
             await sync_supabase_to_gcal(
                 supabase_handler=supabase_handler,
                 gcal_handler=gcal_handler,
@@ -284,7 +273,6 @@ async def handle_broadcast(supabase_handler, payload):
 
     if "userId" in payload["payload"]:
         print(f"✅ Processing userId: {payload['payload']['userId']}")
-        # Create a task and add it to our pending tasks set for proper cleanup
         task = asyncio.create_task(process_user_id(supabase_handler, payload["payload"]["userId"]))
         pending_tasks.add(task)
         task.add_done_callback(pending_tasks.discard)
@@ -292,14 +280,13 @@ async def handle_broadcast(supabase_handler, payload):
         print("❌ Invalid payload: Missing 'userId'")
 
 
-async def shutdown(supabase_client, channel, loop):
+async def shutdown(supabase_client, channel):
     """
     Properly shut down the application and cancel all pending tasks.
 
     Args:
         supabase_client: The Supabase client to close
         channel: The Supabase channel to unsubscribe from
-        loop: The asyncio event loop
     """
     print("Shutting down...")
 
@@ -307,23 +294,27 @@ async def shutdown(supabase_client, channel, loop):
     for task in pending_tasks:
         task.cancel()
 
-    # Wait for all tasks to complete with a timeout
     if pending_tasks:
+        # Wait for all tasks to complete with a timeout
         await asyncio.wait(pending_tasks, timeout=5)
 
     # Unsubscribe from the channel
     if channel:
         try:
             await channel.unsubscribe()
-            print("Unsubscribed from channel")
+            print("Unsubscribed from channel.")
         except Exception as e:
             print(f"Error unsubscribing from channel: {str(e)}")
 
-    # Close the Supabase client connection if needed
+    # Close or clean up your Supabase client here if needed
+    print("Shutdown complete.")
 
-    # Stop the event loop
-    loop.stop()
-    print("Shutdown complete")
+
+def request_shutdown():
+    """
+    Signal handler callback to set the shutdown event
+    """
+    shutdown_event.set()
 
 
 async def main():
@@ -331,14 +322,8 @@ async def main():
     Main entry point for the application.
 
     Initializes the Supabase handler, subscribes to the channel,
-    and listens for broadcast events.
+    and listens for broadcast events. Runs until a shutdown event is triggered.
     """
-    # Get the current event loop
-    loop = asyncio.get_event_loop()
-
-    # Set up signal handlers for graceful shutdown
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, lambda: asyncio.create_task(shutdown(supabase_client, channel, loop)))
 
     # Check required environment variables for Supabase
     if not os.getenv("SUPABASE_URL") or not os.getenv("SUPABASE_KEY"):
@@ -351,15 +336,11 @@ async def main():
     # Initialize Supabase handler - do this only once
     supabase_handler = SupabaseCalendarTasksHandler()
     await supabase_handler.init_client()
-
-    # Get the async client from the handler
     supabase_client = supabase_handler.client
 
-    # Subscribe to the channel and listen for events
     print(f"Connecting to Supabase realtime channel: 'sync'")
     channel = supabase_client.channel("sync")
 
-    # Define status callback - must be a regular function, not async
     def on_status_change(status, error=None):
         if error:
             print(f"❌ Channel error: {error}")
@@ -369,36 +350,32 @@ async def main():
                 print("✅ Successfully subscribed to 'sync'!")
                 print("🔍 Listening for 'db-to-google' broadcast events...")
 
-    # Define broadcast callback - must be a regular function, not async
     def on_broadcast(payload):
-        # Create a task and add it to our pending tasks set for proper cleanup
         task = asyncio.create_task(handle_broadcast(supabase_handler, payload))
         pending_tasks.add(task)
         task.add_done_callback(pending_tasks.discard)
 
-    # Set up the channel subscription with verbose logging
     print("Registering 'db-to-google' event handler...")
     channel.on_broadcast(event="db-to-google", callback=on_broadcast)
 
-    # Subscribe to the channel with status callback
     print("Subscribing to channel...")
     await channel.subscribe(callback=on_status_change)
 
     print("\n🚀 LISTENER ACTIVE - Waiting for events on 'sync'")
     print("▶️ Listening for 'db-to-google' broadcast events...")
-    print("▶️ Press Ctrl+C to exit.")
+    print("▶️ Press Ctrl+C to exit (Unix) or close the terminal (Windows).")
 
-    try:
-        # Keep the script running indefinitely
-        while True:
-            await asyncio.sleep(1)
-    except Exception as e:
-        print(f"Unexpected error: {str(e)}")
-    finally:
-        # If we get here through an exception, ensure we clean up
-        await shutdown(supabase_client, channel, loop)
+    # Keep running until the shutdown_event is set
+    while not shutdown_event.is_set():
+        await asyncio.sleep(1)
+
+    # Once we're here, we've been asked to shut down
+    await shutdown(supabase_client, channel)
 
 
 if __name__ == "__main__":
-    # Run the async main function
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        # Catch KeyboardInterrupt (especially on Windows) and exit gracefully
+        print("\nKeyboardInterrupt received. Exiting...")
