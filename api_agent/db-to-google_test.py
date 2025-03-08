@@ -12,7 +12,7 @@ from handlers.supabase_calendar_tasks_handler import SupabaseCalendarTasksHandle
 from handlers.async_gcal_handler import AsyncGoogleCalendarAPIHandler
 
 from api_agent_classes import APIAction, APIActionType
-from handler_parameters.api_actions_params_gcal import CalendarCreateEventParams, CalendarListCalendarsParams
+from handler_parameters.api_actions_params_gcal import CalendarCreateEventParams, CalendarListCalendarsParams, CalendarCreateCalendarParams
 
 
 DEFAULT_CALENDAR_NAME = "inbound.fyi"
@@ -25,16 +25,6 @@ shutdown_event = asyncio.Event()
 
 
 async def find_or_create_calendar(gcal_handler, calendar_name: str) -> str:
-    """
-    Find a calendar by name or create it if it doesn't exist.
-
-    Args:
-        gcal_handler: Instance of AsyncGoogleCalendarAPIHandler
-        calendar_name: Name of the calendar to find or create
-
-    Returns:
-        str: The ID of the found or created calendar
-    """
     print(f"Looking for calendar: '{calendar_name}'...")
 
     # List existing calendars
@@ -46,15 +36,24 @@ async def find_or_create_calendar(gcal_handler, calendar_name: str) -> str:
         )
     )
 
-    # Check if calendar exists
+    # Check if the calendar already exists
     for calendar in calendars:
         if calendar.get('summary') == calendar_name:
             print(f"Found existing calendar: '{calendar_name}' (ID: {calendar['id']})")
             return calendar['id']
 
-    # Calendar not found, use primary calendar as fallback
-    print(f"Calendar '{calendar_name}' not found. Using 'primary' calendar as fallback.")
-    return 'primary'
+    # Calendar not found; create a new one
+    print(f"Calendar '{calendar_name}' not found. Creating new calendar...")
+    new_calendar = await gcal_handler.perform_action(
+        APIAction(
+            action_type=APIActionType.CALENDAR_CREATE_CALENDAR,
+            reason=f"Creating calendar '{calendar_name}'",
+            parameters=vars(CalendarCreateCalendarParams(summary=calendar_name, timeZone="UTC"))
+        )
+    )
+    print(f"Created calendar: '{calendar_name}' (ID: {new_calendar['id']})")
+    return new_calendar['id']
+
 
 
 async def sync_supabase_to_gcal(
