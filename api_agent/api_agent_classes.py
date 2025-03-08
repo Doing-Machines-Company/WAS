@@ -63,6 +63,7 @@ class APIActionType(enum.Enum):
 
     # Google Calendar
     CALENDAR_LIST_CALENDARS = ("calendar_list_calendars", True)
+    CALENDAR_CREATE_CALENDAR = ("calendar_create_calendar", True)
     CALENDAR_CREATE_EVENT = ("calendar_create_event", False)
     CALENDAR_LIST_EVENTS = ("calendar_list_events", True)
     CALENDAR_UPDATE_EVENT = ("calendar_update_event", False)

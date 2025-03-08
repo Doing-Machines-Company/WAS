@@ -12,6 +12,7 @@ from api_agent_classes import APIAction, APIActionType
 # Calendar param classes
 from handler_parameters.api_actions_params_gcal import (
     CalendarListCalendarsParams,
+    CalendarCreateCalendarParams,
     CalendarCreateEventParams,
     CalendarListEventsParams,
     CalendarUpdateEventParams,
@@ -95,6 +96,10 @@ class AsyncGoogleCalendarAPIHandler:
             params = CalendarListCalendarsParams(**(action.parameters or {}))
             return await self.list_calendars(params)
 
+        elif action.action_type == APIActionType.CALENDAR_CREATE_CALENDAR:
+            params = CalendarCreateCalendarParams(**(action.parameters or {}))
+            return await self.create_calendar(params)
+
         elif action.action_type == APIActionType.CALENDAR_CREATE_EVENT:
             params = CalendarCreateEventParams(**(action.parameters or {}))
             return await self.create_event(params)
@@ -166,6 +171,18 @@ class AsyncGoogleCalendarAPIHandler:
             # Fallback = now
             now_iso = datetime.utcnow().isoformat() + "Z"
             return {"dateTime": now_iso}
+
+    async def create_calendar(self, params: CalendarCreateCalendarParams) -> Any:
+        """
+        Creates a brand new calendar under the authenticated user's account.
+        """
+        # According to Google Calendar API docs, you do:
+        # POST to /calendars with { "summary": "...", "timeZone": "..." }
+        body = {
+            "summary": params.summary,
+            "timeZone": params.timeZone
+        }
+        return await self._make_request("POST", "/calendars", json_data=body)
 
     async def create_event(self, params: CalendarCreateEventParams) -> Any:
         """Create a new event in the specified calendar"""

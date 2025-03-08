@@ -11,26 +11,11 @@ from google.oauth2.credentials import Credentials
 from handlers.supabase_calendar_tasks_handler import SupabaseCalendarTasksHandler
 from handlers.async_gcal_handler import AsyncGoogleCalendarAPIHandler
 
-# NEW: Imports for Google Tasks
-from handlers.async_gtasks_handler import AsyncGoogleTasksAPIHandler
 from api_agent_classes import APIAction, APIActionType
+from handler_parameters.api_actions_params_gcal import CalendarCreateEventParams, CalendarListCalendarsParams
 
-# Calendar param classes
-from handler_parameters.api_actions_params_gcal import (
-    CalendarCreateEventParams,
-    CalendarListCalendarsParams
-)
-
-# NEW: Tasks param classes
-from handler_parameters.api_actions_params_gtasks import (
-    TasksListTasklistsParams,
-    TasksCreateTasklistParams,
-    TasksCreateTaskParams
-)
 
 DEFAULT_CALENDAR_NAME = "inbound.fyi"
-# NEW: Tasklist name to use or create
-DEFAULT_TASKLIST_NAME = "inbound.fyi"
 
 # Track tasks so we can clean them up on shutdown
 pending_tasks = set()
@@ -70,54 +55,6 @@ async def find_or_create_calendar(gcal_handler, calendar_name: str) -> str:
     # Calendar not found, use primary calendar as fallback
     print(f"Calendar '{calendar_name}' not found. Using 'primary' calendar as fallback.")
     return 'primary'
-
-
-# NEW: Find or create a tasklist by name
-async def find_or_create_tasklist(gtasks_handler, tasklist_name: str) -> str:
-    """
-    Find a tasklist by title or create it if it doesn't exist.
-
-    Args:
-        gtasks_handler: Instance of AsyncGoogleTasksAPIHandler
-        tasklist_name: Name of the tasklist to find or create
-
-    Returns:
-        str: The ID of the found or created tasklist
-    """
-    print(f"Looking for tasklist: '{tasklist_name}'...")
-
-    # List existing tasklists
-    tasklists = await gtasks_handler.perform_action(
-        APIAction(
-            action_type=APIActionType.TASKS_LIST_TASKLISTS,
-            reason=f"Looking for tasklist '{tasklist_name}'",
-            parameters=vars(TasksListTasklistsParams())
-        )
-    )
-
-    # Check if tasklist exists
-    for tl in tasklists:
-        if tl.get('title') == tasklist_name:
-            print(f"Found existing tasklist: '{tasklist_name}' (ID: {tl['id']})")
-            return tl['id']
-
-    # Tasklist not found, create one
-    print(f"Tasklist '{tasklist_name}' not found. Creating a new tasklist...")
-    new_tl = await gtasks_handler.perform_action(
-        APIAction(
-            action_type=APIActionType.TASKS_CREATE_TASKLIST,
-            reason=f"Creating tasklist '{tasklist_name}'",
-            parameters=vars(TasksCreateTasklistParams(title=tasklist_name))
-        )
-    )
-
-    if new_tl and "id" in new_tl:
-        print(f"Created new tasklist '{tasklist_name}' (ID: {new_tl['id']})")
-        return new_tl['id']
-
-    # As a fallback, if creation fails, return '@default'
-    print("Tasklist creation failed. Defaulting to '@default' tasklist.")
-    return "@default"
 
 
 async def sync_supabase_to_gcal(
@@ -167,8 +104,7 @@ async def sync_supabase_to_gcal(
         print(f"Processing event: {event_name} (ID: {event_id})")
 
         # Skip events that have already been synced unless they've been updated since
-        if "gcal_event_id" in event.get("metadata", {}) and not event.get("metadata", {}).get("updated_since_sync",
-                                                                                              False):
+        if "gcal_event_id" in event.get("metadata", {}) and not event.get("metadata", {}).get("updated_since_sync", False):
             stats["events_skipped"] += 1
             stats["details"].append({
                 "event_id": event_id,
@@ -257,138 +193,13 @@ async def sync_supabase_to_gcal(
     return stats
 
 
-# NEW: Sync tasks from Supabase to Google Tasks
-async def sync_supabase_to_gtasks(
-        supabase_handler,
-        gtasks_handler,
-        user_id: str,
-        tasklist_id: str = "@default"
-) -> Dict[str, Any]:
+async def process_user_id(supabase_handler, user_id):
     """
-    Sync tasks from Supabase to Google Tasks.
+    Process a user_id by syncing their Supabase calendar to Google Calendar.
 
     Args:
         supabase_handler: Instance of SupabaseCalendarTasksHandler
-        gtasks_handler: Instance of AsyncGoogleTasksAPIHandler
-        user_id: Supabase user ID to filter tasks by
-        tasklist_id: Google tasklist ID to add tasks to (default: '@default')
-
-    Returns:
-        Dictionary with sync statistics
-    """
-    # Get all tasks for the user from Supabase
-    supabase_tasks = await supabase_handler.perform_action(
-        APIAction(
-            action_type=APIActionType.SUPABASE_LIST_TASKS,
-            reason="Fetching tasks for sync",
-            parameters={"user_id": user_id}
-        )
-    )
-
-    stats = {
-        "total_tasks": len(supabase_tasks),
-        "tasks_synced": 0,
-        "tasks_skipped": 0,
-        "sync_errors": 0,
-        "details": []
-    }
-
-    print(f"Found {len(supabase_tasks)} tasks in Supabase")
-
-    # Process each Supabase task
-    for task in supabase_tasks:
-        task_name = task.get("name", "(Unnamed task)")
-        task_id = task.get("id")
-
-        print(f"Processing task: {task_name} (ID: {task_id})")
-
-        meta = task.get("metadata", {}) or {}
-        if "gtasks_task_id" in meta and not meta.get("updated_since_sync", False):
-            # Already synced (and not updated) -> skip
-            stats["tasks_skipped"] += 1
-            stats["details"].append({
-                "task_id": task_id,
-                "name": task_name,
-                "status": "skipped",
-                "reason": "Already synced"
-            })
-            print(f"  - Skipping: Already synced to Google Tasks")
-            continue
-
-        try:
-            # Prepare fields for Google Tasks creation
-            due_date = task.get("due")  # Could be "YYYY-MM-DD" or RFC3339
-            description = task.get("description", "")
-
-            create_task_params = {
-                "tasklist_id": tasklist_id,
-                "title": task_name,
-                "notes": description,
-            }
-            if due_date:
-                create_task_params["due"] = due_date
-
-            print(f"  - Creating task in Google Tasks: {task_name}")
-            gtask = await gtasks_handler.perform_action(
-                APIAction(
-                    action_type=APIActionType.TASKS_CREATE_TASK,
-                    reason=f"Creating task '{task_name}' in Google Tasks",
-                    parameters=create_task_params
-                )
-            )
-
-            if gtask and "id" in gtask:
-                print(f"  - Task created successfully. GTasks ID: {gtask['id']}")
-                meta.update({
-                    "gtasks_task_id": gtask["id"],
-                    "last_synced": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-                    "updated_since_sync": False
-                })
-
-                print(f"  - Updating Supabase task with sync metadata")
-                await supabase_handler.perform_action(
-                    APIAction(
-                        action_type=APIActionType.SUPABASE_UPDATE_TASK,
-                        reason=f"Updating task '{task_name}' with sync metadata",
-                        parameters={
-                            "task_id": task_id,
-                            "user_id": user_id,
-                            "fields_to_update": {"metadata": meta}
-                        }
-                    )
-                )
-
-            stats["tasks_synced"] += 1
-            stats["details"].append({
-                "task_id": task_id,
-                "name": task_name,
-                "status": "synced",
-                "gtasks_task_id": gtask.get("id") if gtask else None
-            })
-            print(f"  - Sync complete for task: {task_name}")
-
-        except Exception as e:
-            print(f"  - ERROR syncing task: {str(e)}")
-            stats["sync_errors"] += 1
-            stats["details"].append({
-                "task_id": task_id,
-                "name": task_name,
-                "status": "error",
-                "error": str(e)
-            })
-
-    print("\nTasks Sync Summary:")
-    print(f"Total tasks: {stats['total_tasks']}")
-    print(f"Synced: {stats['tasks_synced']}")
-    print(f"Skipped: {stats['tasks_skipped']}")
-    print(f"Errors: {stats['sync_errors']}")
-
-    return stats
-
-
-async def process_user_id(supabase_handler, user_id):
-    """
-    Process a user_id by syncing their Supabase calendar and tasks to Google.
+        user_id: The ID of the user whose calendar should be synced
     """
     print(f"Processing userId: {user_id}")
 
@@ -423,14 +234,17 @@ async def process_user_id(supabase_handler, user_id):
             scopes=google_credentials["scope"].split()
         )
 
-        # 1) Sync to Google Calendar
+        # Initialize Google Calendar handler
         print("Initializing Google Calendar handler...")
         async with AsyncGoogleCalendarAPIHandler(authenticated_google_credentials) as gcal_handler:
-            # Find/create the target calendar
+
+            # Find or create the target calendar
             calendar_id = await find_or_create_calendar(gcal_handler, DEFAULT_CALENDAR_NAME)
 
-            print(f"\nStarting calendar sync for user_id: {user_id}")
+            # Perform the sync
+            print(f"\nStarting sync for user_id: {user_id}")
             print(f"Target Google Calendar: {calendar_id}")
+
             await sync_supabase_to_gcal(
                 supabase_handler=supabase_handler,
                 gcal_handler=gcal_handler,
@@ -438,26 +252,10 @@ async def process_user_id(supabase_handler, user_id):
                 gcal_id=calendar_id
             )
 
-        # 2) Sync to Google Tasks
-        print(f"\n=== Syncing Supabase Tasks to Google Tasks for user {user_id} ===\n")
-
-        async with AsyncGoogleTasksAPIHandler(authenticated_google_credentials) as gtasks_handler:
-            # Find/create the target tasklist
-            tasklist_id = await find_or_create_tasklist(gtasks_handler, DEFAULT_TASKLIST_NAME)
-
-            print(f"\nStarting tasks sync for user_id: {user_id}")
-            print(f"Target Google Tasklist: {tasklist_id}")
-            await sync_supabase_to_gtasks(
-                supabase_handler=supabase_handler,
-                gtasks_handler=gtasks_handler,
-                user_id=user_id,
-                tasklist_id=tasklist_id
-            )
-
-        print("\nAll syncs complete!")
+            print("\nSync complete!")
 
     except Exception as e:
-        print(f"Error syncing calendar/tasks for user {user_id}: {str(e)}")
+        print(f"Error syncing calendar for user {user_id}: {str(e)}")
 
 
 async def handle_broadcast(supabase_handler, payload):
@@ -533,7 +331,7 @@ async def main():
         print("Please set these environment variables and try again.")
         return 1
 
-    print("\n=== Supabase to Google Calendar/Tasks Sync Listener ===\n")
+    print("\n=== Supabase to Google Calendar Sync Listener ===\n")
 
     # Initialize Supabase handler - do this only once
     supabase_handler = SupabaseCalendarTasksHandler()
