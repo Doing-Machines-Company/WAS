@@ -2,7 +2,6 @@
 
 import os
 import asyncio
-import signal
 from datetime import datetime, timezone
 from typing import Dict, Any
 
@@ -386,36 +385,30 @@ async def process_user_id(supabase_handler, user_id):
         )
 
         # Initialize Google Calendar handler
-        print("Initializing Google Calendar handler...")
-        async with AsyncGoogleCalendarAPIHandler(authenticated_google_credentials) as gcal_handler:
-            # Find or create the target calendar
-            calendar_id = await find_or_create_calendar(gcal_handler, DEFAULT_CALENDAR_NAME)
+        # Use both handlers in parallel with a single context manager group
+        async with AsyncGoogleCalendarAPIHandler(authenticated_google_credentials) as gcal_handler, \
+                AsyncGoogleTasksAPIHandler(authenticated_google_credentials) as gtasks_handler:
 
-            # Perform the calendar sync
-            print(f"\nStarting calendar sync for user_id: {user_id}")
-            print(f"Target Google Calendar: {calendar_id}")
-
-            await sync_supabase_to_gcal(
-                supabase_handler=supabase_handler,
-                gcal_handler=gcal_handler,
-                user_id=user_id,
-                gcal_id=calendar_id
+            # First find/create the calendar and tasklist in parallel
+            calendar_id, tasklist_id = await asyncio.gather(
+                find_or_create_calendar(gcal_handler, DEFAULT_CALENDAR_NAME),
+                find_or_create_tasklist(gtasks_handler, DEFAULT_TASKLIST_NAME)
             )
 
-        ### CHANGES BELOW: Start up a Google Tasks handler in same flow ###
-        print("Initializing Google Tasks handler...")
-        async with AsyncGoogleTasksAPIHandler(authenticated_google_credentials) as gtasks_handler:
-            tasklist_id = await find_or_create_tasklist(gtasks_handler, DEFAULT_TASKLIST_NAME)
-
-            # Perform the tasks sync
-            print(f"\nStarting tasks sync for user_id: {user_id}")
-            print(f"Target Google Tasklist: {tasklist_id}")
-
-            await sync_supabase_tasks_to_gtasks(
-                supabase_handler=supabase_handler,
-                gtasks_handler=gtasks_handler,
-                user_id=user_id,
-                tasklist_id=tasklist_id
+            # Then run both syncs in parallel
+            calendar_stats, tasks_stats = await asyncio.gather(
+                sync_supabase_to_gcal(
+                    supabase_handler=supabase_handler,
+                    gcal_handler=gcal_handler,
+                    user_id=user_id,
+                    gcal_id=calendar_id
+                ),
+                sync_supabase_tasks_to_gtasks(
+                    supabase_handler=supabase_handler,
+                    gtasks_handler=gtasks_handler,
+                    user_id=user_id,
+                    tasklist_id=tasklist_id
+                )
             )
 
         print("\nSync complete!")
@@ -465,13 +458,6 @@ async def shutdown(supabase_client, channel):
             print(f"Error unsubscribing from channel: {str(e)}")
 
     print("Shutdown complete.")
-
-
-def request_shutdown():
-    """
-    Signal handler callback to set the shutdown event
-    """
-    shutdown_event.set()
 
 
 async def main():
