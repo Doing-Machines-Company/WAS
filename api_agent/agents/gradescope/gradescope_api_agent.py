@@ -231,6 +231,6 @@ class GradescopeAPIAgent(APIAgent):
     
     async def cleanup(self):
         """Cleanup any resources if needed."""
-        self.api_handler.close()
+        await self.api_handler.close()
         gc.collect()
         self.cleaned_up.set()
