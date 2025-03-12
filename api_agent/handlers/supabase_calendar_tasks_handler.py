@@ -2,7 +2,7 @@
 
 import os
 from typing import Any, List, Dict
-
+import dotenv
 from supabase._async.client import AsyncClient as Client, create_client
 from api_agent_classes import APIAction, APIActionType
 
@@ -17,6 +17,7 @@ from handler_parameters.supabase_calendar_tasks_params import (
     SupabaseUpdateTaskParams,
     SupabaseDeleteTaskParams
 )
+dotenv.load_dotenv()
 
 
 class SupabaseCalendarTasksHandler:

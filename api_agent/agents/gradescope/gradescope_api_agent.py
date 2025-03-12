@@ -3,7 +3,7 @@
 import os
 import string
 import asyncio 
-
+import gc
 from api_agent import APIAgent
 from api_agent_classes import APIAction, APIActionType, APILinearMemory
 from api_llm_handling import AgentCall, LLMMessage
@@ -13,7 +13,7 @@ from agents.gradescope.gradescope_api_handler import GradescopeAPIHandler
 from typing import List, Tuple, Dict, Any
 
 class GradescopeAPIAgent(APIAgent):
-    def __init__(self, task="Track my Gradescope courses", fast_mode=False, retry_cap=10, credentials = None):
+    def __init__(self, task="Track my Gradescope courses from most recent term", fast_mode=False, retry_cap=10, credentials = None):
         """
         Initialize the GradescopeAPIAgent with a default task if none is provided.
         """
@@ -48,7 +48,7 @@ class GradescopeAPIAgent(APIAgent):
         pass
 
     async def call_action(
-        self, provider="cerebras", model="llama-3.3-70b"
+        self, provider="google", model="gemini-2.0-flash"
     ) -> AgentCall:
         """
         Asks the LLM to decide the next Gradescope action.
@@ -198,7 +198,7 @@ class GradescopeAPIAgent(APIAgent):
         """
         try:
             result = await self.api_handler.perform_action(action)
-            # print(f"[Gradescope Agent] API call result: {result}")
+            input(f"[Gradescope Agent] API call result: {result}")
             success = True
         except Exception as e:
             print(f"[Gradescope Agent] API call failed: {e}")
@@ -228,3 +228,9 @@ class GradescopeAPIAgent(APIAgent):
         Return a list of poll function calls and their outputs
         """
         return self.poll_output
+    
+    async def cleanup(self):
+        """Cleanup any resources if needed."""
+        await self.api_handler.close()
+        gc.collect()
+        self.cleaned_up.set()

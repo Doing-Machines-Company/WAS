@@ -12,7 +12,7 @@ class GradescopeAPIHandler:
     def __init__(self, credentials):
         self.connection = None
         self.credentials = credentials
-
+        self.courses = None
     async def create_connection(self) -> GSConnection:
         if not self.credentials:
             raise Exception("Gradescope credentials for user not found.")
@@ -45,8 +45,8 @@ class GradescopeAPIHandler:
         formatted_courses = []
         try:
             courses_dict = await account.get_courses()
-            courses = courses_dict['student']
-            for course_id, course_obj in courses.items():
+            self.courses = courses_dict['student']
+            for course_id, course_obj in self.courses.items():
                 formatted_courses.append(f"(Course ID: {course_id}, Course Object: {course_obj})")
             return formatted_courses
         except Exception as e:
@@ -58,9 +58,13 @@ class GradescopeAPIHandler:
         """
         account = self.connection.account
         try:
-            course_info_dict = await account.get_courses()
-            course_info = course_info_dict['student'][params.course_id]
+            if not self.courses:
+                course_info_dict = await account.get_courses()
+                self.courses = course_info_dict['student']
+            course_info = self.courses[params.course_id]
             assignments = await account.get_assignments(params.course_id)
             return f"Course: {course_info}, Assignments: {assignments}"
         except Exception as e:
             return {"error": f"Error retrieving assignments from Gradescope: {str(e)}"}
+    async def close(self):
+        await self.connection.close()

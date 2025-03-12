@@ -7,13 +7,16 @@ import aiohttp
 
 async def get_auth_token_init_gradescope_session(
     session: aiohttp.ClientSession,
+    proxy_auth: aiohttp.BasicAuth,
     gradescope_base_url: str = DEFAULT_GRADESCOPE_BASE_URL,
 ) -> str:
     """
     Go to homepage to parse hidden authenticity token and to set initial "_gradescope_session" cookie
     """
     # Go to homepage and set initial "_gradescope_session" cookie.
-    async with session.get(gradescope_base_url) as homepage_resp:
+    proxy_url = "https://pr.oxylabs.io:7777"
+
+    async with session.get(gradescope_base_url, proxy = proxy_url, proxy_auth = proxy_auth) as homepage_resp:
         homepage_text = await homepage_resp.text()
     
     homepage_soup = BeautifulSoup(homepage_text, "html.parser")
@@ -27,6 +30,7 @@ async def get_auth_token_init_gradescope_session(
 
 async def login_set_session_cookies(
     session: aiohttp.ClientSession,
+    proxy_auth: aiohttp.BasicAuth,
     email: str,
     password: str,
     auth_token: str,
@@ -44,9 +48,10 @@ async def login_set_session_cookies(
         "session[remember_me_sso]": 0,
         "authenticity_token": auth_token,
     }
+    proxy_url = "https://pr.oxylabs.io:7777"
 
     # Send the POST request to the login endpoint.
-    async with session.post(GS_LOGIN_ENDPOINT, params=login_data) as login_resp:
+    async with session.post(GS_LOGIN_ENDPOINT, params=login_data, proxy = proxy_url, proxy_auth = proxy_auth) as login_resp:
         login_resp_text = await login_resp.text()
         # Check for a redirect in the response history (302 Found)
         if login_resp.history and login_resp.history[0].status == 302:
