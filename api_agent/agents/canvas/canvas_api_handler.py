@@ -111,7 +111,7 @@ class CanvasAPIHandler:
             if params.include:
                 # If params.include is a list, we build a list of tuples.
                 query_params = [("include[]", inc) for inc in params.include]
-
+            query_params.append(("per_page", 100))
             assignment_url = f"{self.base_url}/api/v1/courses/{params.course_id}/assignments"
             async with self.session.get(assignment_url, params=query_params) as assign_resp:
                 assign_resp.raise_for_status()
