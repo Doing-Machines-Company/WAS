@@ -5,7 +5,7 @@ import asyncio
 import argparse
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Any, Tuple
-
+import dotenv 
 # Import the authentication helper
 from auth_google_calendar_tasks import authenticate
 
@@ -25,7 +25,7 @@ from handler_parameters.api_actions_params_gcal import CalendarCreateEventParams
 DEFAULT_USER_ID = "28d65756-a289-4a0d-8a97-d5f8e3a3fbc7"
 DEFAULT_CALENDAR_NAME = "inbound.fyi"
 
-
+dotenv.load_dotenv()
 async def create_dummy_supabase_event(supabase_handler, user_id: str) -> Dict[str, Any]:
     """
     Create a dummy test event in Supabase calendar with the current timestamp.
