@@ -340,9 +340,9 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
                 lines.append(f"  description: {desc}")
             lines.append(f"  start: {evt['start']}")
             lines.append(f"  end: {evt['end']}")
-            metadata = evt.get("metadata", {})
-            if metadata:
-                lines.append(f"  metadata: {metadata}")
+            # metadata = evt.get("metadata", {})
+            # if metadata:
+            #     lines.append(f"  metadata: {metadata}")
             lines.append("")
         return "\n".join(lines)
 
@@ -370,9 +370,9 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
             status_str = "completed" if tsk.get("status") else "incomplete"
             lines.append(f"  status: {status_str}")
 
-            metadata = tsk.get("metadata", {})
-            if metadata:
-                lines.append(f"  metadata: {metadata}")
+            # metadata = tsk.get("metadata", {})
+            # if metadata:
+            #     lines.append(f"  metadata: {metadata}")
             lines.append("")
         return "\n".join(lines)
 
