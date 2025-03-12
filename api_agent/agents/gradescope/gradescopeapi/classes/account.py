@@ -15,13 +15,17 @@ from agents.gradescope.gradescopeapi.classes._helpers._course_helpers import (
 )
 from agents.gradescope.gradescopeapi.classes.assignments import Assignment
 from agents.gradescope.gradescopeapi.classes.member import Member
-
-
+from proxy_utils import create_proxy_auth
+import os 
+import dotenv 
 import asyncio
-
+import aiohttp
+import time 
+dotenv.load_dotenv()
 class Account:
-    def __init__(self, session, gradescope_base_url: str = DEFAULT_GRADESCOPE_BASE_URL):
+    def __init__(self, session, proxy_auth, gradescope_base_url: str = DEFAULT_GRADESCOPE_BASE_URL):
         self.session = session
+        self.proxy_auth = proxy_auth
         self.gradescope_base_url = gradescope_base_url
 
     async def get_courses(self) -> dict:
@@ -35,14 +39,17 @@ class Account:
             RuntimeError: If request to account page fails.
         """
         endpoint = f"{self.gradescope_base_url}/account"
+        # proxy_username = f"customer-{os.getenv('OXYLABS_USERNAME')}-cc-us-sessid-0338703999-sesstime-5"
+        # proxy_password = os.getenv('OXYLABS_PASSWORD')
+        # proxy_auth = aiohttp.BasicAuth(proxy_username, proxy_password)
+        proxy_url = "https://pr.oxylabs.io:7777"
 
-        async with self.session.get(endpoint) as response:
+        async with self.session.get(endpoint, proxy = proxy_url, proxy_auth = self.proxy_auth) as response:
             if response.status != 200:
                 raise RuntimeError(
                     f"Failed to access account page on Gradescope. Status code: {response.status}"
                 )
             response_text = await response.text()
-
         soup = BeautifulSoup(response_text, "html.parser")
 
         # Determine if the user is solely a student or instructor.
@@ -77,11 +84,10 @@ class Account:
         membership_endpoint = f"{self.gradescope_base_url}/courses/{course_id}/memberships"
 
         if not course_id:
-            raise Exception("Invalid Course ID")
-
+            raise Exception("Invalid Course ID")        
         try:
             # Await the async helper that verifies page authorization.
-            membership_resp = await check_page_auth(self.session, membership_endpoint)
+            membership_resp = await check_page_auth(self.session, self.proxy_auth, membership_endpoint)
             membership_text = await membership_resp.text()
             membership_soup = BeautifulSoup(membership_text, "html.parser")
 
@@ -103,7 +109,7 @@ class Account:
             raise Exception("Invalid Course ID")
 
         course_endpoint = f"{self.gradescope_base_url}/courses/{course_id}"
-        coursepage_text = await check_page_auth(self.session, course_endpoint)
+        coursepage_text = await check_page_auth(self.session, self.proxy_auth ,course_endpoint )
         coursepage_soup = BeautifulSoup(coursepage_text, "html.parser")
 
         # Try instructor view first; if no assignments found, try student view.
@@ -128,7 +134,7 @@ class Account:
         ASSIGNMENT_ENDPOINT = f"{self.gradescope_base_url}/courses/{course_id}/assignments/{assignment_id}"
         ASSIGNMENT_SUBMISSIONS_ENDPOINT = f"{ASSIGNMENT_ENDPOINT}/review_grades"
 
-        submissions_resp = await check_page_auth(self.session, ASSIGNMENT_SUBMISSIONS_ENDPOINT)
+        submissions_resp = await check_page_auth(self.session, self.proxy_auth, ASSIGNMENT_SUBMISSIONS_ENDPOINT)
         submissions_text = await submissions_resp.text()
         submissions_soup = BeautifulSoup(submissions_text, "html.parser")
 
@@ -161,7 +167,7 @@ class Account:
         ASSIGNMENT_ENDPOINT = f"{self.gradescope_base_url}/courses/{course_id}/assignments/{assignment_id}"
         ASSIGNMENT_SUBMISSIONS_ENDPOINT = f"{ASSIGNMENT_ENDPOINT}/review_grades"
 
-        submissions_resp = await check_page_auth(self.session, ASSIGNMENT_SUBMISSIONS_ENDPOINT)
+        submissions_resp = await check_page_auth(self.session, self.proxy_auth, ASSIGNMENT_SUBMISSIONS_ENDPOINT)
         submissions_text = await submissions_resp.text()
         submissions_soup = BeautifulSoup(submissions_text, "html.parser")
 
@@ -193,7 +199,7 @@ class Account:
         QUESTION_ENDPOINT = f"{self.gradescope_base_url}/courses/{course_id}/questions/{question_id}"
         ASSIGNMENT_SUBMISSIONS_ENDPOINT = f"{QUESTION_ENDPOINT}/submissions"
 
-        submissions_resp = await check_page_auth(self.session, ASSIGNMENT_SUBMISSIONS_ENDPOINT)
+        submissions_resp = await check_page_auth(self.session, self.proxy_auth, ASSIGNMENT_SUBMISSIONS_ENDPOINT)
         submissions_text = await submissions_resp.text()
         submissions_soup = BeautifulSoup(submissions_text, "html.parser")
 

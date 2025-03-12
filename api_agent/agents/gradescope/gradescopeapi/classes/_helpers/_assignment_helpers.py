@@ -8,12 +8,14 @@ from agents.gradescope.gradescopeapi.classes.assignments import Assignment
 
 import aiohttp
 
-async def check_page_auth(session: aiohttp.ClientSession, endpoint: str):
+async def check_page_auth(session: aiohttp.ClientSession, proxy_auth, endpoint: str):
     """
     Raises Exception if user not logged in or doesn't have appropriate authorities.
     Returns the response if otherwise good.
     """
-    async with session.get(endpoint) as resp:
+    proxy_url = "https://pr.oxylabs.io:7777"
+
+    async with session.get(endpoint, proxy = proxy_url, proxy_auth = proxy_auth) as resp:
         # Unauthorized (HTTP 401)
         if resp.status == 401:
             text = await resp.text()
