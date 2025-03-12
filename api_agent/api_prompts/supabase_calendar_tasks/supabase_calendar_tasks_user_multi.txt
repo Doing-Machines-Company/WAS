@@ -1,7 +1,7 @@
-All future events:
+Existing future events:
 ${future_events}
 
-All future tasks:
+Existing future tasks:
 ${future_tasks}
 
 API output:

@@ -147,7 +147,7 @@ class APIAction:
     """
 
     action_type: APIActionType
-    reason: Optional[str] = None
+    reason: str = ""
     parameters: Optional[Any] = None
 
     @property
