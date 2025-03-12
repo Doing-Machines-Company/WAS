@@ -11,6 +11,12 @@ class CalendarListCalendarsParams:
     showHidden: Optional[bool] = None
 
 @dataclass
+class CalendarCreateCalendarParams:
+    """New param class for creating a new calendar."""
+    summary: str
+    timeZone: str = "UTC"
+
+@dataclass
 class CalendarCreateEventParams:
     summary: str  # Still required if you want a summary at minimum
     description: Optional[str] = None
