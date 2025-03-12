@@ -269,6 +269,8 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
             params["event_id"] = self.event_id_map[params["event_id"]]
         if "task_id" in params and params["task_id"] in self.task_id_map:
             params["task_id"] = self.task_id_map[params["task_id"]]
+        if "metadata" in params and params["metadata"] is None:
+            params["metadata"] = {}
 
         # Force the user_id internally.
         params["user_id"] = self.user_id
