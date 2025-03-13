@@ -3,14 +3,16 @@
 import os
 from datetime import datetime, timezone, timedelta
 import google.auth.transport.requests
+from dateutil.parser import isoparse  # Importing the alternative parser
+
 
 async def refresh_google_token_if_needed(
-    record: dict,
-    authenticated_google_credentials,
-    google_credentials: dict,
-    supabase_handler,
-    user_id: str,
-    force_refresh: bool = False
+        record: dict,
+        authenticated_google_credentials,
+        google_credentials: dict,
+        supabase_handler,
+        user_id: str,
+        force_refresh: bool = False
 ) -> bool:
     """
     Checks if the Google access token is expired or about to expire (within 5 minutes)
@@ -31,7 +33,8 @@ async def refresh_google_token_if_needed(
     should_refresh = force_refresh
     access_expires_at_str = record.get("google_access_expires_at")
     if access_expires_at_str and not force_refresh:
-        access_expires_at = datetime.fromisoformat(access_expires_at_str)
+        # Use dateutil's isoparse to handle flexible ISO 8601 strings
+        access_expires_at = isoparse(access_expires_at_str)
         if access_expires_at - datetime.now(timezone.utc) < timedelta(minutes=5):
             should_refresh = True
 
@@ -50,7 +53,6 @@ async def refresh_google_token_if_needed(
         updated_google_credentials = google_credentials.copy()
         updated_google_credentials["access_token"] = new_token
 
-        # Update the database with new token details
         await supabase_handler.client.rpc("set_user_google_credentials", {
             "user_id_param": user_id,
             "token": updated_google_credentials,
