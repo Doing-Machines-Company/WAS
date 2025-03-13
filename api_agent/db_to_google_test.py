@@ -2,11 +2,10 @@
 
 import os
 import asyncio
-from datetime import datetime, timezone
-from typing import Dict, Any
+from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 
-
+import google.auth.transport.requests
 from google.oauth2.credentials import Credentials
 
 from handlers.supabase_calendar_tasks_handler import SupabaseCalendarTasksHandler
@@ -60,7 +59,6 @@ async def find_or_create_calendar(gcal_handler, calendar_name: str) -> str:
     return new_calendar['id']
 
 
-### CHANGES BELOW ###
 async def find_or_create_tasklist(gtasks_handler, tasklist_name: str) -> str:
     """
     Look for a Google Tasklist named 'tasklist_name'; if not found, create it.
@@ -101,7 +99,7 @@ async def sync_supabase_to_gcal(
         user_id: str,
         gcal_id: str = 'primary',
         time_zone: str = None
-) -> Dict[str, Any]:
+) -> dict:
     """
     Syncs calendar events from Supabase to Google Calendar.
     """
@@ -203,14 +201,16 @@ async def sync_supabase_to_gcal(
             print(f"  - Sync complete for event: {event_name}")
 
         except Exception as e:
-            print(f"  - ERROR syncing event: {str(e)}")
+            err_str = str(e)
+            print(f"  - ERROR syncing event: {err_str}")
             stats["sync_errors"] += 1
             stats["details"].append({
                 "event_id": event_id,
                 "name": event_name,
                 "status": "error",
-                "error": str(e)
+                "error": err_str
             })
+            # Here you could add additional handling for invalid token errors if needed
 
     print("\nSync Summary:")
     print(f"Total events: {stats['total_events']}")
@@ -221,14 +221,13 @@ async def sync_supabase_to_gcal(
     return stats
 
 
-### CHANGES BELOW ###
 async def sync_supabase_tasks_to_gtasks(
         supabase_handler,
         gtasks_handler,
         user_id: str,
         tasklist_id: str,
         time_zone: str = "America/New_York"
-) -> Dict[str, Any]:
+) -> dict:
     """
     Syncs tasks from Supabase to Google Tasks.
     """
@@ -340,14 +339,16 @@ async def sync_supabase_tasks_to_gtasks(
             print(f"  - Sync complete for task: {task_name}")
 
         except Exception as e:
-            print(f"  - ERROR syncing task: {str(e)}")
+            err_str = str(e)
+            print(f"  - ERROR syncing task: {err_str}")
             stats["sync_errors"] += 1
             stats["details"].append({
                 "task_id": task_id,
                 "name": task_name,
                 "status": "error",
-                "error": str(e)
+                "error": err_str
             })
+            # Here you could add additional handling for invalid token errors if needed
 
     print("\nTasks Sync Summary:")
     print(f"Total tasks: {stats['total_tasks']}")
@@ -370,9 +371,6 @@ async def process_user_id(supabase_handler, user_id):
 
         # Get user and check Google credentials
         response = await supabase_handler.client.rpc("get_user", {"user_id_param": user_id}).execute()
-        # print(response)
-        # input("LOOK AT RESPONSE")
-
         if not response.data:
             print(f"❌ User {user_id} not found in database")
             return
@@ -385,7 +383,8 @@ async def process_user_id(supabase_handler, user_id):
         if not google_credentials or not (
             google_credentials.get("access_token") and
             google_credentials.get("scope") and
-            google_credentials.get("refresh_token")):
+            google_credentials.get("refresh_token")
+        ):
             print(f"❌ User {user_id} does not have valid Google credentials. Aborting sync.")
             return
 
@@ -399,38 +398,115 @@ async def process_user_id(supabase_handler, user_id):
             scopes=google_credentials["scope"].split()
         )
 
-        # Initialize Google Calendar handler
-        # Use both handlers in parallel with a single context manager group
-        async with AsyncGoogleCalendarAPIHandler(authenticated_google_credentials) as gcal_handler, \
-                AsyncGoogleTasksAPIHandler(authenticated_google_credentials) as gtasks_handler:
+        # Check if the token is expiring in the next 5 minutes
+        access_expires_at_str = record.get("google_access_expires_at")
+        if access_expires_at_str:
+            access_expires_at = datetime.fromisoformat(access_expires_at_str)
+            if access_expires_at - datetime.now(timezone.utc) < timedelta(minutes=5):
+                print("Access token expiring soon. Refreshing token before proceeding...")
+                try:
+                    request_obj = google.auth.transport.requests.Request()
+                    authenticated_google_credentials.refresh(request_obj)
+                except Exception as refresh_error:
+                    print(f"Error refreshing token: {refresh_error}")
+                    return
+                # Update DB with new token and expiry values
+                new_token = authenticated_google_credentials.token
+                new_expiry = authenticated_google_credentials.expiry
+                refresh_expiry = record.get("google_refresh_expires_at")
+                updated_google_credentials = google_credentials.copy()
+                updated_google_credentials["access_token"] = new_token
+                await supabase_handler.client.rpc("set_user_google_credentials", {
+                    "user_id_param": user_id,
+                    "token": updated_google_credentials,
+                    "access_expiry": new_expiry.isoformat(),
+                    "refresh_expiry": refresh_expiry
+                }).execute()
+                print("Database updated with new Google credentials.")
 
-            # First find/create the calendar and tasklist in parallel
-            calendar_id, tasklist_id = await asyncio.gather(
-                find_or_create_calendar(gcal_handler, DEFAULT_CALENDAR_NAME),
-                find_or_create_tasklist(gtasks_handler, DEFAULT_TASKLIST_NAME)
-            )
+        # Initialize Google Calendar and Tasks handlers
+        try:
+            async with AsyncGoogleCalendarAPIHandler(authenticated_google_credentials) as gcal_handler, \
+                    AsyncGoogleTasksAPIHandler(authenticated_google_credentials) as gtasks_handler:
 
-            # Then run both syncs in parallel
-            calendar_stats, tasks_stats = await asyncio.gather(
-                sync_supabase_to_gcal(
-                    supabase_handler=supabase_handler,
-                    gcal_handler=gcal_handler,
-                    user_id=user_id,
-                    gcal_id=calendar_id
-                ),
-                sync_supabase_tasks_to_gtasks(
-                    supabase_handler=supabase_handler,
-                    gtasks_handler=gtasks_handler,
-                    user_id=user_id,
-                    tasklist_id=tasklist_id,
-                    time_zone=user_timezone
+                # First find/create the calendar and tasklist in parallel
+                calendar_id, tasklist_id = await asyncio.gather(
+                    find_or_create_calendar(gcal_handler, DEFAULT_CALENDAR_NAME),
+                    find_or_create_tasklist(gtasks_handler, DEFAULT_TASKLIST_NAME)
                 )
-            )
 
-        print("\nSync complete!")
+                # Then run both syncs in parallel
+                calendar_stats, tasks_stats = await asyncio.gather(
+                    sync_supabase_to_gcal(
+                        supabase_handler=supabase_handler,
+                        gcal_handler=gcal_handler,
+                        user_id=user_id,
+                        gcal_id=calendar_id
+                    ),
+                    sync_supabase_tasks_to_gtasks(
+                        supabase_handler=supabase_handler,
+                        gtasks_handler=gtasks_handler,
+                        user_id=user_id,
+                        tasklist_id=tasklist_id,
+                        time_zone=user_timezone
+                    )
+                )
+
+            print("\nSync complete!")
+
+        except Exception as e:
+            # Check for invalid token error and try to refresh once
+            err_str = str(e)
+            if "Invalid Credentials" in err_str or "invalid" in err_str.lower():
+                print("Detected invalid/expired token error during sync. Attempting to refresh token...")
+                try:
+                    request_obj = google.auth.transport.requests.Request()
+                    authenticated_google_credentials.refresh(request_obj)
+                except Exception as refresh_error:
+                    print(f"Failed to refresh token: {refresh_error}. Exiting sync for user {user_id}.")
+                    return
+                # Update DB with new token and expiry values
+                new_token = authenticated_google_credentials.token
+                new_expiry = authenticated_google_credentials.expiry
+                refresh_expiry = record.get("google_refresh_expires_at")
+                updated_google_credentials = google_credentials.copy()
+                updated_google_credentials["access_token"] = new_token
+                await supabase_handler.client.rpc("set_user_google_credentials", {
+                    "user_id_param": user_id,
+                    "token": updated_google_credentials,
+                    "access_expiry": new_expiry.isoformat(),
+                    "refresh_expiry": refresh_expiry
+                }).execute()
+                print("Database updated with refreshed token. Retrying sync...")
+
+                # Retry syncing once more with refreshed credentials
+                async with AsyncGoogleCalendarAPIHandler(authenticated_google_credentials) as gcal_handler, \
+                        AsyncGoogleTasksAPIHandler(authenticated_google_credentials) as gtasks_handler:
+                    calendar_id, tasklist_id = await asyncio.gather(
+                        find_or_create_calendar(gcal_handler, DEFAULT_CALENDAR_NAME),
+                        find_or_create_tasklist(gtasks_handler, DEFAULT_TASKLIST_NAME)
+                    )
+                    calendar_stats, tasks_stats = await asyncio.gather(
+                        sync_supabase_to_gcal(
+                            supabase_handler=supabase_handler,
+                            gcal_handler=gcal_handler,
+                            user_id=user_id,
+                            gcal_id=calendar_id
+                        ),
+                        sync_supabase_tasks_to_gtasks(
+                            supabase_handler=supabase_handler,
+                            gtasks_handler=gtasks_handler,
+                            user_id=user_id,
+                            tasklist_id=tasklist_id,
+                            time_zone=user_timezone
+                        )
+                    )
+                print("\nSync complete!")
+            else:
+                print(f"Error syncing calendar/tasks for user {user_id}: {err_str}")
 
     except Exception as e:
-        print(f"Error syncing calendar/tasks for user {user_id}: {str(e)}")
+        print(f"Error processing user {user_id}: {str(e)}")
 
 
 async def handle_broadcast(supabase_handler, payload):
