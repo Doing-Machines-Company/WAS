@@ -199,7 +199,7 @@ class GradescopeAPIAgent(APIAgent):
         """
         try:
             result = await self.api_handler.perform_action(action)
-            input(f"[Gradescope Agent] API call result: {result}")
+            # input(f"[Gradescope Agent] API call result: {result}")
             success = True
         except Exception as e:
             print(f"[Gradescope Agent] API call failed: {e}")
@@ -208,6 +208,8 @@ class GradescopeAPIAgent(APIAgent):
         # Update memory if success/failure
         if not success:
             self.failed_count += 1
+            await self.api_handler.close()
+            self.api_handler.connection = None 
             if self.failed_count > self.retry_cap:
                 print("[Gradescope Agent] Retry cap exceeded, stopping agent.")
                 self.stop()

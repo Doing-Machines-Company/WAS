@@ -163,7 +163,7 @@ async def process_user(record):
 async def main():
     global canvas_session
 
-    valid_emails = {'cadatepe@andrew.cmu.edu'}
+    valid_emails = {'cadatepe@andrew.cmu.edu', 'jamesc3@andrew.cmu.edu'}
     url: str = os.environ.get("SUPABASE_URL")
     key: str = os.environ.get("SUPABASE_KEY")
     client: supabase.Client = supabase.create_client(url, key)
