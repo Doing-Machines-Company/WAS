@@ -4,6 +4,8 @@ import os
 import asyncio
 from datetime import datetime, timezone
 from typing import Dict, Any
+from zoneinfo import ZoneInfo
+
 
 from google.oauth2.credentials import Credentials
 
@@ -224,7 +226,8 @@ async def sync_supabase_tasks_to_gtasks(
         supabase_handler,
         gtasks_handler,
         user_id: str,
-        tasklist_id: str
+        tasklist_id: str,
+        time_zone: str = "America/New_York"
 ) -> Dict[str, Any]:
     """
     Syncs tasks from Supabase to Google Tasks.
@@ -271,13 +274,22 @@ async def sync_supabase_tasks_to_gtasks(
         try:
             due_str = None
             if task.get("due"):
-                # Google tasks `due` field is RFC3339 dateTime or YYYY-MM-DD
-                # if you only have date/time in UTC, you can do e.g.:
-                due_str = task["due"]
+                # Parse the UTC due date string (ensure "Z" is replaced with proper offset)
+                utc_due = datetime.fromisoformat(task["due"].replace("Z", "+00:00"))
+                # Convert to the user's local timezone
+                local_due = utc_due.astimezone(ZoneInfo(time_zone))
+                # Zero out the time by setting it to midnight in the local timezone
+                local_midnight = local_due.replace(hour=0, minute=0, second=0, microsecond=0)
+                # Build a full RFC3339 due string (e.g., "2021-09-30T00:00:00-04:00")
+                due_str = local_midnight.isoformat()
+                # Extract the local time in 12-hour format with AM/PM for use in the title
+                local_time_str = local_due.strftime("%I:%M %p")
+                # Append the local time to the task title
+                task_name = f"{task_name} (Due {local_time_str})"
 
             create_params = {
                 "tasklist_id": tasklist_id,
-                "title": task_name,
+                "title": task_name,  # now includes local hour and minutes if due was set
                 "notes": task.get("description", ""),
             }
             if due_str:
@@ -358,12 +370,15 @@ async def process_user_id(supabase_handler, user_id):
 
         # Get user and check Google credentials
         response = await supabase_handler.client.rpc("get_user", {"user_id_param": user_id}).execute()
+        # print(response)
+        # input("LOOK AT RESPONSE")
 
         if not response.data:
             print(f"❌ User {user_id} not found in database")
             return
 
         record = response.data[0]  # Get the user record
+        user_timezone = record.get("timezone", "America/New_York")
         google_credentials = record.get("google_credentials")
 
         # Check if the user has valid Google credentials
@@ -407,7 +422,8 @@ async def process_user_id(supabase_handler, user_id):
                     supabase_handler=supabase_handler,
                     gtasks_handler=gtasks_handler,
                     user_id=user_id,
-                    tasklist_id=tasklist_id
+                    tasklist_id=tasklist_id,
+                    time_zone=user_timezone
                 )
             )
 
