@@ -17,11 +17,11 @@ from typing import List, Tuple, Dict, Any
 from api_agent_classes import APIAction, APIActionType, APILinearMemory
 
 class CanvasAPIHandler:
-    def __init__(self, credentials):
+    def __init__(self, credentials, session):
         self.service = self.create_service(credentials)
         self.base_url = credentials["url"].rstrip('/')  # e.g., "https://canvas.example.com"
         self.headers = {"Authorization": f"Bearer {credentials['token']}"}
-        self.session = aiohttp.ClientSession(headers=self.headers)
+        self.session = session
     def create_service(self, credentials) -> Canvas:
         if not credentials:
             raise Exception("Canvas credentials for user not found")
@@ -85,7 +85,7 @@ class CanvasAPIHandler:
         # The Canvas API supports filtering courses by enrollment state.
         query_params = {"enrollment_state": "active"}
         try:
-            async with self.session.get(url, params=query_params) as response:
+            async with self.session.get(url, params=query_params, headers=self.headers) as response:
                 response.raise_for_status()
                 courses = await response.json()
                 # Adjust the output as needed; here we assume each course JSON object
@@ -101,7 +101,7 @@ class CanvasAPIHandler:
         try:
             # Retrieve course details first.
             course_url = f"{self.base_url}/api/v1/courses/{params.course_id}"
-            async with self.session.get(course_url) as course_resp:
+            async with self.session.get(course_url, headers=self.headers) as course_resp:
                 course_resp.raise_for_status()
                 course = await course_resp.json()
 
@@ -113,7 +113,7 @@ class CanvasAPIHandler:
                 query_params = [("include[]", inc) for inc in params.include]
             query_params.append(("per_page", 100))
             assignment_url = f"{self.base_url}/api/v1/courses/{params.course_id}/assignments"
-            async with self.session.get(assignment_url, params=query_params) as assign_resp:
+            async with self.session.get(assignment_url, params=query_params, headers=self.headers) as assign_resp:
                 assign_resp.raise_for_status()
                 assignments = await assign_resp.json()
 
@@ -139,11 +139,11 @@ class CanvasAPIHandler:
         try:
             course_url = f"{self.base_url}/api/v1/courses/{params.course_id}"
             assignment_url = f"{self.base_url}/api/v1/courses/{params.course_id}/assignments/{params.assignment_id}"
-            async with self.session.get(course_url) as course_resp:
+            async with self.session.get(course_url, headers=self.headers) as course_resp:
                 course_resp.raise_for_status()
                 course = await course_resp.json()
 
-            async with self.session.get(assignment_url) as assign_resp:
+            async with self.session.get(assignment_url, headers=self.headers) as assign_resp:
                 assign_resp.raise_for_status()
                 assignment = await assign_resp.json()
 
