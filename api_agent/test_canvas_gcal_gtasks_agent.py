@@ -4,12 +4,29 @@ import asyncio
 import logging
 import dotenv
 import supabase
+from datetime import datetime, timezone
 from agents.canvas.canvas_api_agent import CanvasAPIAgent
 from agents.gcal.gcal_gtasks_api_agent import GCalGTasksAPIAgent
 from agents.gradescope.gradescope_api_agent import GradescopeAPIAgent
 from agents.supabase_cal_task.supabase_calendar_tasks_api_agent_multi import SupabaseCalendarTasksAPIAgentMulti
 from google.oauth2.credentials import Credentials
 import aiohttp
+from db_to_google_test import (
+                find_or_create_calendar,
+                find_or_create_tasklist,
+                sync_supabase_to_gcal,
+                sync_supabase_tasks_to_gtasks
+            )
+
+# Initialize Supabase handler
+from handlers.supabase_calendar_tasks_handler import SupabaseCalendarTasksHandler
+from handlers.async_gcal_handler import AsyncGoogleCalendarAPIHandler
+from handlers.async_gtasks_handler import AsyncGoogleTasksAPIHandler
+
+# Default calendar and tasklist names
+DEFAULT_CALENDAR_NAME = "inbound.fyi"
+DEFAULT_TASKLIST_NAME = "inbound.fyi"
+            
 logging.basicConfig(level=logging.INFO)
 
 """
@@ -37,7 +54,7 @@ async def run_gradescope_agent(credentials):
             await gradescope_agent.run()
             print("Agent run has completed.")
             poll_output = gradescope_agent.get_poll_output()
-            input(poll_output)
+            # input(poll_output)
             return poll_output
     except Exception as e:
         print("Error running gradescope agent", e)
@@ -55,7 +72,7 @@ async def run_canvas_agent(domain, token, session):
             await canvas_agent.run()
             print("Agent run has completed.")
             poll_output = canvas_agent.get_poll_output()
-            input(poll_output)
+            # input(poll_output)
             return poll_output
     except Exception as e:
         print("Error running canvas agent", e)
@@ -73,16 +90,92 @@ async def run_supabase_agent(task_string, user_id):
         print("Error running supabase agent", e)
 
 async def process_polls(poll_data, user_id, step_size=1):
-    """Process poll outputs and run the Supabase agent."""
+    """Process poll outputs and run the Supabase agent in parallel."""
+    tasks = []
     for i in range(0, len(poll_data), step_size):
         cur_chunk = poll_data[i:i + step_size]
         task_string = ""
-        for i, linmem in enumerate(cur_chunk):
-            task_string += f"{i})\nCall: \n{linmem.call}\nReceived: \n{linmem.received}\n"
-            await run_supabase_agent(task_string, user_id)
+        for j, linmem in enumerate(cur_chunk):
+            task_string += f"{j})\nCall: \n{linmem.call}\nReceived: \n{linmem.received}\n"
+        tasks.append(run_supabase_agent(task_string, user_id))
+    
+    await asyncio.gather(*tasks)
+
+async def process_user(record):
+    """Process a single user's operations sequentially."""
+    try:
+        google_credentials = record.get("google_credentials")
+        gradescope_credentials = record.get("gradescope_credentials")
+        canvas_token = record.get("canvas_token")
+        canvas_domain = record.get("canvas_domain")
+        # Optionally, if you only need the canvas token string:
+        canvas_token_str = canvas_token.get("token") if canvas_token else None
+        
+        print("Processing user:", record.get("email"))
+        
+        # Run Gradescope agent
+        poll_out_gradescope = await run_gradescope_agent(gradescope_credentials)
+        await process_polls(poll_out_gradescope, record["user_id"])
+        
+        # Run Canvas agent (canvas_session is accessed from the global scope)
+        poll_out_canvas = await run_canvas_agent(canvas_domain, canvas_token_str, canvas_session)
+        await process_polls(poll_out_canvas, record["user_id"])
+        
+        # Sync Supabase calendar and tasks to Google
+        if google_credentials and google_credentials.get("access_token") and google_credentials.get("refresh_token") and google_credentials.get("scope"):
+            print(f"\n=== Syncing Supabase Calendar and Tasks to Google for user {record['user_id']} ===\n")
+            
+            # Create credentials object from stored token information
+            authenticated_google_credentials = Credentials(
+                token=google_credentials["access_token"],
+                refresh_token=google_credentials["refresh_token"],
+                token_uri='https://oauth2.googleapis.com/token',
+                client_id=os.getenv('CLIENT_ID'),
+                client_secret=os.getenv('CLIENT_SECRET'),
+                scopes=google_credentials["scope"].split()
+            )
+            
+            # Import additional functions from db-to-google_test.py
+            
+            
+            # Initialize the Supabase handler
+            supabase_handler = SupabaseCalendarTasksHandler()
+            await supabase_handler.init_client()
+            
+            # Use both handlers in parallel with a single context manager group
+            async with AsyncGoogleCalendarAPIHandler(authenticated_google_credentials) as gcal_handler, \
+                    AsyncGoogleTasksAPIHandler(authenticated_google_credentials) as gtasks_handler:
+                
+                # First find/create the calendar and tasklist in parallel
+                calendar_id, tasklist_id = await asyncio.gather(
+                    find_or_create_calendar(gcal_handler, DEFAULT_CALENDAR_NAME),
+                    find_or_create_tasklist(gtasks_handler, DEFAULT_TASKLIST_NAME)
+                )
+                
+                # Then run both syncs in parallel
+                calendar_stats, tasks_stats = await asyncio.gather(
+                    sync_supabase_to_gcal(
+                        supabase_handler=supabase_handler,
+                        gcal_handler=gcal_handler,
+                        user_id=record["user_id"],
+                        gcal_id=calendar_id
+                    ),
+                    sync_supabase_tasks_to_gtasks(
+                        supabase_handler=supabase_handler,
+                        gtasks_handler=gtasks_handler,
+                        user_id=record["user_id"],
+                        tasklist_id=tasklist_id
+                    )
+                )
+            
+            print("\nSync complete!")
+    except Exception as e:
+        print(f"Error processing user {record.get('email')}: {e}")
 
 async def main():
-    valid_emails = {'yutianch@andrew.cmu.edu'}
+    global canvas_session
+    
+    valid_emails = {'cadatepe@andrew.cmu.edu'}
     url: str = os.environ.get("SUPABASE_URL")
     key: str = os.environ.get("SUPABASE_KEY")
     client: supabase.Client = supabase.create_client(url, key)
@@ -90,39 +183,16 @@ async def main():
     users = client.rpc("get_users").execute()
     
     if users.data:
-        for record in users.data:
-            google_credentials = record.get("google_credentials")
-            gradescope_credentials = record.get("gradescope_credentials")
-            canvas_token = record.get("canvas_token")
-            canvas_domain = record.get("canvas_domain")
-            # Optionally, if you only need the canvas token string:
-            canvas_token_str = canvas_token.get("token") if canvas_token else None
-            
-            if record.get("email") not in valid_emails:
-                continue
-                
-            print("Email:", record.get("email"))
-            # print("Google Credentials:", google_credentials)
-            # print("Gradescope Credentials:", gradescope_credentials)
-            # print("Canvas Token:", canvas_token_str)
-            # print("Canvas Domain", canvas_domain)
-            
-            try:
-                poll_out = []
-                
-                # Run Gradescope agent
-                poll_out_gradescope = await run_gradescope_agent(gradescope_credentials)
-                poll_out.extend(poll_out_gradescope)
-                
-                # Run Canvas agent
-                poll_out_canvas = await run_canvas_agent(canvas_domain, canvas_token_str, canvas_session)
-                poll_out.extend(poll_out_canvas)
-                
-                # Process polls and run Supabase agent
-                await process_polls(poll_out, record["user_id"])
-                
-            except Exception as e:
-                print(e)
+        # Filter valid users
+        valid_users = [record for record in users.data if record.get("email") in valid_emails]
+        
+        # Process all users in parallel
+        await asyncio.gather(*[process_user(record) for record in valid_users])
+        
+    await canvas_session.close()
+
+# Global canvas_session that will be shared across all users
+canvas_session = None
 
 if __name__ == "__main__":
     asyncio.run(main())
