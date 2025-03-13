@@ -19,6 +19,9 @@ from handler_parameters.api_actions_params_gcal import (
     CalendarCreateCalendarParams
 )
 
+# Import the token refresh helper
+from google_token_utils import refresh_google_token_if_needed
+
 ### No change needed if you'd like same name for both ###
 DEFAULT_CALENDAR_NAME = "inbound.fyi"
 DEFAULT_TASKLIST_NAME = "inbound.fyi"  # we can reuse or define a new name
@@ -398,31 +401,8 @@ async def process_user_id(supabase_handler, user_id):
             scopes=google_credentials["scope"].split()
         )
 
-        # Check if the token is expiring in the next 5 minutes
-        access_expires_at_str = record.get("google_access_expires_at")
-        if access_expires_at_str:
-            access_expires_at = datetime.fromisoformat(access_expires_at_str)
-            if access_expires_at - datetime.now(timezone.utc) < timedelta(minutes=5):
-                print("Access token expiring soon. Refreshing token before proceeding...")
-                try:
-                    request_obj = google.auth.transport.requests.Request()
-                    authenticated_google_credentials.refresh(request_obj)
-                except Exception as refresh_error:
-                    print(f"Error refreshing token: {refresh_error}")
-                    return
-                # Update DB with new token and expiry values
-                new_token = authenticated_google_credentials.token
-                new_expiry = authenticated_google_credentials.expiry
-                refresh_expiry = record.get("google_refresh_expires_at")
-                updated_google_credentials = google_credentials.copy()
-                updated_google_credentials["access_token"] = new_token
-                await supabase_handler.client.rpc("set_user_google_credentials", {
-                    "user_id_param": user_id,
-                    "token": updated_google_credentials,
-                    "access_expiry": new_expiry.isoformat(),
-                    "refresh_expiry": refresh_expiry
-                }).execute()
-                print("Database updated with new Google credentials.")
+        # Check if the token is expiring soon and refresh if needed using our helper
+        await refresh_google_token_if_needed(record, authenticated_google_credentials, google_credentials, supabase_handler, user_id)
 
         # Initialize Google Calendar and Tasks handlers
         try:
@@ -455,31 +435,13 @@ async def process_user_id(supabase_handler, user_id):
             print("\nSync complete!")
 
         except Exception as e:
-            # Check for invalid token error and try to refresh once
             err_str = str(e)
+            # If an invalid credentials error is detected, force a refresh using our helper
             if "Invalid Credentials" in err_str or "invalid" in err_str.lower():
                 print("Detected invalid/expired token error during sync. Attempting to refresh token...")
-                try:
-                    request_obj = google.auth.transport.requests.Request()
-                    authenticated_google_credentials.refresh(request_obj)
-                except Exception as refresh_error:
-                    print(f"Failed to refresh token: {refresh_error}. Exiting sync for user {user_id}.")
-                    return
-                # Update DB with new token and expiry values
-                new_token = authenticated_google_credentials.token
-                new_expiry = authenticated_google_credentials.expiry
-                refresh_expiry = record.get("google_refresh_expires_at")
-                updated_google_credentials = google_credentials.copy()
-                updated_google_credentials["access_token"] = new_token
-                await supabase_handler.client.rpc("set_user_google_credentials", {
-                    "user_id_param": user_id,
-                    "token": updated_google_credentials,
-                    "access_expiry": new_expiry.isoformat(),
-                    "refresh_expiry": refresh_expiry
-                }).execute()
+                await refresh_google_token_if_needed(record, authenticated_google_credentials, google_credentials, supabase_handler, user_id, force_refresh=True)
                 print("Database updated with refreshed token. Retrying sync...")
 
-                # Retry syncing once more with refreshed credentials
                 async with AsyncGoogleCalendarAPIHandler(authenticated_google_credentials) as gcal_handler, \
                         AsyncGoogleTasksAPIHandler(authenticated_google_credentials) as gtasks_handler:
                     calendar_id, tasklist_id = await asyncio.gather(
