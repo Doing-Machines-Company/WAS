@@ -1,7 +1,7 @@
 # api_agent_classes.py
 
 import enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Optional
 
 
@@ -139,21 +139,28 @@ class APILinearMemory:
 
 @dataclass
 class APIAction:
-    """
-    Unified container for an action decided by an LLM:
-      - action_type: The enumerated action type (STOP, GMAIL_LIST_MESSAGES, GMAIL_DELETE_MESSAGE, etc.)
-      - reason: Why the LLM decided on this action
-      - parameters: Arbitrary data with the parameters for the API call
-    """
-
     action_type: APIActionType
     reason: str = ""
-    parameters: Optional[Any] = None
+    parameters: Optional[dict] = None
+    _immutable_params: tuple = field(init=False, repr=False)
+
+    def __post_init__(self):
+        if self.parameters is not None:
+            # Create a sorted tuple of items to ensure consistent ordering.
+            self._immutable_params = tuple(sorted(self.parameters.items()))
+        else:
+            self._immutable_params = tuple()
+
+    def __hash__(self) -> int:
+        # Use the immutable representation in the hash.
+        combined_str = f"{self.action_type.value}:{self._immutable_params}"
+        return hash(combined_str)
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, APIAction):
+            return NotImplemented
+        return (self.action_type.value, self._immutable_params) == (other.action_type.value, other._immutable_params)
 
     @property
     def is_safe(self) -> bool:
-        """
-        If the action is not destructive => True
-        If destructive => False
-        """
         return self.action_type.is_safe

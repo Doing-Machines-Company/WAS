@@ -281,13 +281,14 @@ class GCalGTasksAPIAgent(APIAgent):
                 parameters=None
             )
 
-        agent_call.parsed_output = chosen_action
+        agent_call.parsed_output = [chosen_action]
         return agent_call
 
-    async def handle_actions(self, action: APIAction):
+    async def handle_actions(self, actions: list[APIAction]):
         """
         Perform the action. No memory is stored.
         """
+        action = actions[0]
         print(f"[Unified Agent] Handling action => {action.action_type} | Reason: {action.reason}")
 
         if action.action_type == APIActionType.STOP:
