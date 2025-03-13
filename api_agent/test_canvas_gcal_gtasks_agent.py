@@ -11,7 +11,7 @@ from agents.gradescope.gradescope_api_agent import GradescopeAPIAgent
 from agents.supabase_cal_task.supabase_calendar_tasks_api_agent_multi import SupabaseCalendarTasksAPIAgentMulti
 from google.oauth2.credentials import Credentials
 import aiohttp
-from db_to_google_test import (
+from google_sync_utils import (
                 find_or_create_calendar,
                 find_or_create_tasklist,
                 sync_supabase_to_gcal,
