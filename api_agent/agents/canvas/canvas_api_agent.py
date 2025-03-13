@@ -14,10 +14,11 @@ from agents.canvas.canvas_api_handler import CanvasAPIHandler
 from typing import List, Tuple, Dict, Any
 
 class CanvasAPIAgent(APIAgent):
-    def __init__(self, task="Track my Canvas courses", fast_mode=False, retry_cap=10, credentials = None):
+    def __init__(self, task="Track my Canvas courses", fast_mode=False, retry_cap=10, credentials = None, session = None):
         """
         Initialize the CanvasAPIAgent with a default task if none is provided.
         """
+        self.session = session
         super().__init__(fast_mode=fast_mode, api="canvas", retry_cap=retry_cap, credentials = credentials)
         self.task = task  # You can override or set differently if desired
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -39,7 +40,7 @@ class CanvasAPIAgent(APIAgent):
 
     def initialize_api_handler(self):
         """Initialize the Canvas API handler."""
-        self.api_handler = CanvasAPIHandler(self.credentials)
+        self.api_handler = CanvasAPIHandler(self.credentials, self.session)
 
     async def setup(self):
         """
