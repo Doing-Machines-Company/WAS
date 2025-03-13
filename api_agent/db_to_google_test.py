@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from handlers.supabase_calendar_tasks_handler import SupabaseCalendarTasksHandler
 
 # Import the syncing function from the utils file
-from google_sync_utils import process_user_id
+from google_sync_utils import sync_user_to_google
 
 # Track tasks so we can clean them up on shutdown
 pending_tasks = set()
@@ -24,7 +24,7 @@ async def handle_broadcast(supabase_handler, payload):
 
     if "userId" in payload["payload"]:
         print(f"✅ Processing userId: {payload['payload']['userId']}")
-        task = asyncio.create_task(process_user_id(supabase_handler, payload["payload"]["userId"]))
+        task = asyncio.create_task(sync_user_to_google(supabase_handler, payload["payload"]["userId"]))
         pending_tasks.add(task)
         task.add_done_callback(pending_tasks.discard)
     else:
