@@ -132,13 +132,14 @@ class GCalAPIAgent(APIAgent):
                 parameters=None
             )
 
-        agent_call.parsed_output = chosen_action
+        agent_call.parsed_output = [chosen_action]
         return agent_call
 
-    async def handle_actions(self, action: APIAction):
+    async def handle_actions(self, actions: list[APIAction]):
         """
         Execute or handle the given APIAction.
         """
+        action = actions[0]
         action_type = action.action_type
         action_reason = action.reason
 

@@ -132,11 +132,11 @@ class GmailAPIAgent(APIAgent):
             )
 
         # Update the parsed_output with the chosen_action
-        agent_call.parsed_output = chosen_action
+        agent_call.parsed_output = [chosen_action]
 
         return agent_call
 
-    async def handle_actions(self, action: APIAction):
+    async def handle_actions(self, actions: list[APIAction]):
         """
         Handle the given APIAction. This includes executing the action using the API handler,
         managing user interactions, and updating memory.
@@ -144,6 +144,7 @@ class GmailAPIAgent(APIAgent):
         Args:
             action (APIAction): The action to handle.
         """
+        action = actions[0]
         action_type = action.action_type
         action_reason = action.reason
 

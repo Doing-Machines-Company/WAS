@@ -29,7 +29,7 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
         self,
         task="",
         fast_mode=False,
-        retry_cap=10,
+        retry_cap=4,
         from_user=True,
         user_id=None
     ):
@@ -125,7 +125,7 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
         system_prompt_str = self.system_prompt_str
 
         print(user_prompt_str)
-        input("LOOK AT PROMPT")
+        # input("LOOK AT PROMPT")
 
         messages = [
             LLMMessage("system", system_prompt_str),
@@ -181,11 +181,13 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
         agent_call.parsed_output = parsed_actions
         return agent_call
 
-    async def handle_actions(self, actions):
+    async def handle_actions(self, actions: list[APIAction]):
         """
         Only stop if STOP is present AND all the other actions succeed.
         If any action fails, we do NOT stop, and we re-enter the loop.
         """
+        # print(actions)
+        # input("LOOKING AT ACTIONS!")
         # Check if STOP is present
         stop_action_present = any(a.action_type == APIActionType.STOP for a in actions)
 

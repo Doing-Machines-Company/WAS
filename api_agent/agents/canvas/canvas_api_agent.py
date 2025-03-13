@@ -138,13 +138,14 @@ class CanvasAPIAgent(APIAgent):
                 parameters=None,
             )
 
-        agent_call.parsed_output = chosen_action
+        agent_call.parsed_output = [chosen_action]
         return agent_call
 
-    async def handle_actions(self, action: APIAction):
+    async def handle_actions(self, actions: list[APIAction]):
         """
         Handle the chosen action returned from the LLM.
         """
+        action = actions[0]
         print(f"[Canvas Agent] Handling action => {action.action_type} | Reason: {action.reason}")
 
         if action.action_type == APIActionType.STOP:
