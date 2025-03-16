@@ -1,4 +1,6 @@
 from agents.gradescope.gradescopeapi.classes.connection import GSConnection
+import datetime
+from datetime import timezone
 
 
 from handler_parameters.api_actions_params_gradescope import (
@@ -55,6 +57,7 @@ class GradescopeAPIHandler:
     async def list_assignments(self, params: GradescopeListAssignmentsParams) -> any:
         """
         List assignments for a course with optional includes.
+        Only returns assignments with due dates in the future.
         """
         account = self.connection.account
         try:
@@ -63,7 +66,21 @@ class GradescopeAPIHandler:
                 self.courses = course_info_dict['student']
             course_info = self.courses[params.course_id]
             assignments = await account.get_assignments(params.course_id)
-            return f"Course: {course_info}, Assignments: {assignments}"
+            
+            # Get current time in UTC
+            now = datetime.datetime.now(timezone.utc)
+            
+            # Filter out assignments with past due dates
+            future_assignments = []
+            for assignment in assignments:
+                # Check if due_date exists and is in the future
+                if assignment.due_date and assignment.due_date > now:
+                    future_assignments.append(assignment)
+                # If regular due date is in the past but late_due_date is in the future
+                elif assignment.late_due_date and assignment.late_due_date > now:
+                    future_assignments.append(assignment)
+            
+            return f"Course: {course_info}, Future Assignments: {future_assignments}"
         except Exception as e:
             return {"error": f"Error retrieving assignments from Gradescope: {str(e)}"}
     async def close(self):

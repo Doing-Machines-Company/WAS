@@ -1,5 +1,7 @@
 from canvasapi import Canvas
 import aiohttp
+import datetime
+from datetime import timezone
 from handler_parameters.api_actions_params_canvas import (
     CanvasGetAssignmentDetailsParams,
     CanvasGetGradesParams,
@@ -97,6 +99,7 @@ class CanvasAPIHandler:
     async def list_assignments(self, params: CanvasListAssignmentsParams) -> any:
         """
         Lists assignments for a course with optional includes.
+        Only returns assignments with due dates in the future.
         """
         try:
             # Retrieve course details first.
@@ -117,13 +120,27 @@ class CanvasAPIHandler:
                 assign_resp.raise_for_status()
                 assignments = await assign_resp.json()
 
+            # Get current time in UTC
+            now = datetime.datetime.now(timezone.utc)
+            
             filtered_assignments = []
             for assignment in assignments:
+                due_at = assignment.get("due_at")
+                
+                # Only include assignments with future due dates
+                if due_at:
+                    # Parse ISO 8601 timestamp
+                    due_date = datetime.datetime.fromisoformat(due_at.replace('Z', '+00:00'))
+                    
+                    # Skip assignments with past due dates
+                    if due_date <= now:
+                        continue
+                        
                 filtered_assignment = {
                     'course name': course.get("name", ""),
                     'assignment id': assignment.get("id"),
                     'name': assignment.get("name"),
-                    'due_at': assignment.get("due_at"),
+                    'due_at': due_at,
                     'points_possible': assignment.get("points_possible"),
                     'submission_types': assignment.get("submission_types")
                 }

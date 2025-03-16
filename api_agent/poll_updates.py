@@ -1,4 +1,4 @@
-# test_canvas_gcal_gtasks_agent.py
+# poll_updates.py
 import os
 import asyncio
 import logging
