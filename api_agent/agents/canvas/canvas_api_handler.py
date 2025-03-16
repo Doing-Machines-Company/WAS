@@ -85,7 +85,11 @@ class CanvasAPIHandler:
         """
         url = f"{self.base_url}/api/v1/courses"
         # The Canvas API supports filtering courses by enrollment state.
-        query_params = {"enrollment_state": "active"}
+        query_params = {
+        "enrollment_state": "active",
+        "per_page": 100  # Set to your desired number, up to the endpoint's limit
+    }
+
         try:
             async with self.session.get(url, params=query_params, headers=self.headers) as response:
                 response.raise_for_status()

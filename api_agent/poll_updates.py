@@ -116,8 +116,8 @@ async def process_user(record, session_for_thread):
         await process_polls(poll_out_gradescope, record["user_id"])
 
         # Run Canvas agent (use the thread's session)
-        # poll_out_canvas = await run_canvas_agent(canvas_domain, canvas_token_str, session_for_thread)
-        # await process_polls(poll_out_canvas, record["user_id"])
+        poll_out_canvas = await run_canvas_agent(canvas_domain, canvas_token_str, session_for_thread)
+        await process_polls(poll_out_canvas, record["user_id"])
 
         # Sync Supabase calendar and tasks to Google using sync_with_google_credentials
         if (google_credentials and google_credentials.get("access_token") and
@@ -243,7 +243,7 @@ async def main():
     global canvas_session
     canvas_session = aiohttp.ClientSession()
     
-    valid_emails = {'cadatepe@andrew.cmu.edu', 'jamesc3@andrew.cmu.edu'}
+    valid_emails = {'mperry2@andrew.cmu.edu'}
     url: str = os.environ.get("SUPABASE_URL")
     key: str = os.environ.get("SUPABASE_KEY")
     client: supabase.Client = supabase.create_client(url, key)
@@ -251,7 +251,7 @@ async def main():
 
     if users.data:
         # Filter valid users
-        valid_users = [record for record in users.data]
+        valid_users = [record for record in users.data if record.get("email") in valid_emails]
 
         # Process all users in parallel
         await asyncio.gather(*[process_user(record, canvas_session) for record in valid_users])
