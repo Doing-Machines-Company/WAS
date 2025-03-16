@@ -99,7 +99,7 @@ class CanvasAPIHandler:
     async def list_assignments(self, params: CanvasListAssignmentsParams) -> any:
         """
         Lists assignments for a course with optional includes.
-        Only returns assignments with due dates in the future.
+        Only returns assignments with due dates in the future and within the next two weeks.
         """
         try:
             # Retrieve course details first.
@@ -123,17 +123,20 @@ class CanvasAPIHandler:
             # Get current time in UTC
             now = datetime.datetime.now(timezone.utc)
             
+            # Calculate date two weeks from now
+            two_weeks_later = now + datetime.timedelta(weeks=2)
+            
             filtered_assignments = []
             for assignment in assignments:
                 due_at = assignment.get("due_at")
                 
-                # Only include assignments with future due dates
+                # Only include assignments with future due dates within the next two weeks
                 if due_at:
                     # Parse ISO 8601 timestamp
                     due_date = datetime.datetime.fromisoformat(due_at.replace('Z', '+00:00'))
                     
-                    # Skip assignments with past due dates
-                    if due_date <= now:
+                    # Skip assignments with past due dates or more than two weeks in the future
+                    if due_date <= now or due_date > two_weeks_later:
                         continue
                         
                 filtered_assignment = {

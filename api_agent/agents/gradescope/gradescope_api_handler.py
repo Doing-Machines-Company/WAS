@@ -57,7 +57,7 @@ class GradescopeAPIHandler:
     async def list_assignments(self, params: GradescopeListAssignmentsParams) -> any:
         """
         List assignments for a course with optional includes.
-        Only returns assignments with due dates in the future.
+        Only returns assignments with due dates in the future and within the next two weeks.
         """
         account = self.connection.account
         try:
@@ -70,14 +70,17 @@ class GradescopeAPIHandler:
             # Get current time in UTC
             now = datetime.datetime.now(timezone.utc)
             
-            # Filter out assignments with past due dates
+            # Calculate date two weeks from now
+            two_weeks_later = now + datetime.timedelta(weeks=2)
+            
+            # Filter assignments to only show those due within the next two weeks
             future_assignments = []
             for assignment in assignments:
-                # Check if due_date exists and is in the future
-                if assignment.due_date and assignment.due_date > now:
+                # Check if due_date exists and is within the next two weeks
+                if assignment.due_date and now < assignment.due_date <= two_weeks_later:
                     future_assignments.append(assignment)
-                # If regular due date is in the past but late_due_date is in the future
-                elif assignment.late_due_date and assignment.late_due_date > now:
+                # If regular due_date is in the past or more than two weeks away, but late_due_date is within the next two weeks
+                elif assignment.late_due_date and now < assignment.late_due_date <= two_weeks_later:
                     future_assignments.append(assignment)
             
             return f"Course: {course_info}, Future Assignments: {future_assignments}"
