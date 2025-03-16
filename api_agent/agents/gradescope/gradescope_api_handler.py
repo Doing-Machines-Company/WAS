@@ -87,4 +87,5 @@ class GradescopeAPIHandler:
         except Exception as e:
             return {"error": f"Error retrieving assignments from Gradescope: {str(e)}"}
     async def close(self):
-        await self.connection.close()
+        if self.connection:
+            await self.connection.close()

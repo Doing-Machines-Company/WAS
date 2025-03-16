@@ -35,6 +35,7 @@ class GSConnection:
             self.logged_in = True
             self.account = Account(self.session, self.proxy_auth, self.gradescope_base_url)
         else:
+            await self.session.close()
             raise ValueError("Invalid credentials.")
 
     async def close(self):
