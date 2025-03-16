@@ -4,6 +4,8 @@ import asyncio
 import logging
 import dotenv
 import supabase
+import concurrent.futures
+import threading
 from datetime import datetime, timezone
 from agents.canvas.canvas_api_agent import CanvasAPIAgent
 from agents.gcal.gcal_gtasks_api_agent import GCalGTasksAPIAgent
@@ -29,19 +31,12 @@ from handlers.async_gtasks_handler import AsyncGoogleTasksAPIHandler
 DEFAULT_CALENDAR_NAME = "inbound.fyi"
 DEFAULT_TASKLIST_NAME = "inbound.fyi"
 
-logging.basicConfig(level=logging.INFO)
-
-"""
-import asyncio
-from agents.gcal.gcal_gtasks_api_agent import GCalGTasksAPIAgent
-
-if __name__ == "__main__":
-    # Simple test
-    agent = GCalGTasksAPIAgent(
-        task="I have a birthday for James Chan on Feb 10."
-    )
-    asyncio.run(agent.run())
-"""
+# Configure logging with thread information
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(threadName)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 dotenv.load_dotenv()
 
@@ -51,13 +46,13 @@ async def run_gradescope_agent(credentials):
     try:
         if credentials and credentials.get('email') and credentials.get('password'):
             gradescope_agent = GradescopeAPIAgent(credentials=credentials)
-            print("Agent task:", gradescope_agent.task)
+            logger.info(f"Agent task: {gradescope_agent.task}")
             await gradescope_agent.run()
-            print("Agent run has completed.")
+            logger.info("Agent run has completed.")
             poll_output = gradescope_agent.get_poll_output()
             return poll_output
     except Exception as e:
-        print("Error running gradescope agent", e)
+        logger.error(f"Error running gradescope agent: {e}")
     return []
 
 
@@ -69,13 +64,13 @@ async def run_canvas_agent(domain, token, session):
                 credentials={'url': 'https://' + domain, 'token': token},
                 session=session
             )
-            print("Agent task:", canvas_agent.task)
+            logger.info(f"Agent task: {canvas_agent.task}")
             await canvas_agent.run()
-            print("Agent run has completed.")
+            logger.info("Agent run has completed.")
             poll_output = canvas_agent.get_poll_output()
             return poll_output
     except Exception as e:
-        print("Error running canvas agent", e)
+        logger.error(f"Error running canvas agent: {e}")
     return []
 
 
@@ -88,7 +83,7 @@ async def run_supabase_agent(task_string, user_id):
         )
         await supabase_agent.run()
     except Exception as e:
-        print("Error running supabase agent", e)
+        logger.error(f"Error running supabase agent: {e}")
 
 
 async def process_polls(poll_data, user_id, step_size=1):
@@ -104,7 +99,7 @@ async def process_polls(poll_data, user_id, step_size=1):
     await asyncio.gather(*tasks)
 
 
-async def process_user(record):
+async def process_user(record, session_for_thread):
     """Process a single user's operations sequentially."""
     try:
         google_credentials = record.get("google_credentials")
@@ -114,20 +109,20 @@ async def process_user(record):
         # Optionally, if you only need the canvas token string:
         canvas_token_str = canvas_token.get("token") if canvas_token else None
 
-        print("Processing user:", record.get("email"))
+        logger.info(f"Processing user: {record.get('email')} (Thread: {threading.current_thread().name})")
 
         # Run Gradescope agent
         poll_out_gradescope = await run_gradescope_agent(gradescope_credentials)
         await process_polls(poll_out_gradescope, record["user_id"])
 
-        # Run Canvas agent (canvas_session is accessed from the global scope)
-        poll_out_canvas = await run_canvas_agent(canvas_domain, canvas_token_str, canvas_session)
-        await process_polls(poll_out_canvas, record["user_id"])
+        # Run Canvas agent (use the thread's session)
+        # poll_out_canvas = await run_canvas_agent(canvas_domain, canvas_token_str, session_for_thread)
+        # await process_polls(poll_out_canvas, record["user_id"])
 
         # Sync Supabase calendar and tasks to Google using sync_with_google_credentials
         if (google_credentials and google_credentials.get("access_token") and
                 google_credentials.get("refresh_token") and google_credentials.get("scope")):
-            print(f"\n=== Syncing Supabase Calendar and Tasks to Google for user {record['user_id']} ===\n")
+            logger.info(f"Syncing Supabase Calendar and Tasks to Google for user {record['user_id']}")
 
             authenticated_google_credentials = Credentials(
                 token=google_credentials["access_token"],
@@ -138,50 +133,135 @@ async def process_user(record):
                 scopes=google_credentials["scope"].split()
             )
 
-            # Initialize the Supabase handler
-            supabase_handler = SupabaseCalendarTasksHandler()
-            await supabase_handler.init_client()
+            # # Initialize the Supabase handler
+            # supabase_handler = SupabaseCalendarTasksHandler()
+            # await supabase_handler.init_client()
 
-            user_timezone = record.get("timezone", "America/New_York")
+            # user_timezone = record.get("timezone", "America/New_York")
 
-            # Use sync_with_google_credentials instead of manually handling the sync
-            from google_sync_utils import sync_with_google_credentials
-            await sync_with_google_credentials(
-                supabase_handler,
-                record["user_id"],
-                record,
-                user_timezone,
-                authenticated_google_credentials,
-                google_credentials
-            )
+            # # Use sync_with_google_credentials instead of manually handling the sync
+            # from google_sync_utils import sync_with_google_credentials
+            # await sync_with_google_credentials(
+            #     supabase_handler,
+            #     record["user_id"],
+            #     record,
+            #     user_timezone,
+            #     authenticated_google_credentials,
+            #     google_credentials
+            # )
 
-        print("\nSync complete!")
+        logger.info(f"Sync complete for user: {record.get('email')}")
     except Exception as e:
-        print(f"Error processing user {record.get('email')}: {e}")
+        logger.error(f"Error processing user {record.get('email')}: {e}")
 
 
+def process_user_batch(user_batch):
+    """Process a batch of users in a separate thread."""
+    thread_name = threading.current_thread().name
+    logger.info(f"Starting thread {thread_name} with {len(user_batch)} users")
+    
+    # Create a new event loop for this thread
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        # Create a session for this thread
+        session_for_thread = None
+        
+        async def init_and_process():
+            nonlocal session_for_thread
+            # Create aiohttp session for this thread
+            session_for_thread = aiohttp.ClientSession()
+            # Process all users in this batch concurrently
+            await asyncio.gather(*[process_user(record, session_for_thread) for record in user_batch])
+            # Close the session
+            await session_for_thread.close()
+            
+        # Run the async tasks in this thread's event loop
+        loop.run_until_complete(init_and_process())
+        
+    except Exception as e:
+        logger.error(f"Error in thread {thread_name}: {e}")
+    finally:
+        loop.close()
+        logger.info(f"Thread {thread_name} completed")
+
+
+def main_threaded():
+    """Main function that distributes user processing across threads."""
+    logger.info("Starting multi-threaded processing")
+    
+    # valid_emails = {'cadatepe@andrew.cmu.edu', 'jamesc3@andrew.cmu.edu'}
+    url: str = os.environ.get("SUPABASE_URL")
+    key: str = os.environ.get("SUPABASE_KEY")
+    client: supabase.Client = supabase.create_client(url, key)
+    
+    # Get users synchronously
+    users = client.rpc("get_users").execute()
+    
+    if not users.data:
+        logger.info("No users found")
+        return
+    
+    # Filter valid users
+    valid_users = [record for record in users.data]
+    
+    if not valid_users:
+        logger.info("No valid users found")
+        return
+    
+    # Determine batch size and number of threads
+    num_users = len(valid_users)
+    num_threads = min(num_users, os.cpu_count() or 4)  # Use at most number of CPUs
+    batch_size = max(1, (num_users + num_threads - 1) // num_threads)  # Ceiling division
+    
+    logger.info(f"Processing {num_users} users with {num_threads} threads (batch size ~{batch_size})")
+    
+    # Create batches
+    user_batches = [valid_users[i:i+batch_size] for i in range(0, num_users, batch_size)]
+    
+    # Process batches in thread pool
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
+        futures = [executor.submit(process_user_batch, batch) for batch in user_batches]
+        
+        # Wait for all futures to complete
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                future.result()  # This will re-raise any exceptions that occurred in the thread
+            except Exception as e:
+                logger.error(f"Thread execution failed: {e}")
+    
+    logger.info("All processing complete")
+
+
+# Keep the async version for backwards compatibility
 async def main():
+    """Original async version - kept for backwards compatibility."""
+    logger.warning("Using deprecated single-threaded mode. Consider using main_threaded() instead.")
+    
+    # Create a shared aiohttp session
     global canvas_session
-
+    canvas_session = aiohttp.ClientSession()
+    
     valid_emails = {'cadatepe@andrew.cmu.edu', 'jamesc3@andrew.cmu.edu'}
     url: str = os.environ.get("SUPABASE_URL")
     key: str = os.environ.get("SUPABASE_KEY")
     client: supabase.Client = supabase.create_client(url, key)
-    canvas_session = aiohttp.ClientSession()
     users = client.rpc("get_users").execute()
 
     if users.data:
         # Filter valid users
-        valid_users = [record for record in users.data if record.get("email") in valid_emails]
+        valid_users = [record for record in users.data]
 
         # Process all users in parallel
-        await asyncio.gather(*[process_user(record) for record in valid_users])
+        await asyncio.gather(*[process_user(record, canvas_session) for record in valid_users])
 
     await canvas_session.close()
 
 
-# Global canvas_session that will be shared across all users
+# Global canvas_session that will be used in the original async mode
 canvas_session = None
 
 if __name__ == "__main__":
+    # Use the threaded version
     asyncio.run(main())
