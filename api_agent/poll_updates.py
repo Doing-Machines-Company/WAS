@@ -133,22 +133,22 @@ async def process_user(record, session_for_thread):
                 scopes=google_credentials["scope"].split()
             )
 
-            # # Initialize the Supabase handler
-            # supabase_handler = SupabaseCalendarTasksHandler()
-            # await supabase_handler.init_client()
+            # Initialize the Supabase handler
+            supabase_handler = SupabaseCalendarTasksHandler()
+            await supabase_handler.init_client()
 
-            # user_timezone = record.get("timezone", "America/New_York")
+            user_timezone = record.get("timezone", "America/New_York")
 
-            # # Use sync_with_google_credentials instead of manually handling the sync
-            # from google_sync_utils import sync_with_google_credentials
-            # await sync_with_google_credentials(
-            #     supabase_handler,
-            #     record["user_id"],
-            #     record,
-            #     user_timezone,
-            #     authenticated_google_credentials,
-            #     google_credentials
-            # )
+            # Use sync_with_google_credentials instead of manually handling the sync
+            from google_sync_utils import sync_with_google_credentials
+            await sync_with_google_credentials(
+                supabase_handler,
+                record["user_id"],
+                record,
+                user_timezone,
+                authenticated_google_credentials,
+                google_credentials
+            )
 
         logger.info(f"Sync complete for user: {record.get('email')}")
     except Exception as e:
@@ -243,7 +243,7 @@ async def main():
     global canvas_session
     canvas_session = aiohttp.ClientSession()
     
-    valid_emails = {'mperry2@andrew.cmu.edu'}
+    valid_emails = {'cadatepe@andrew.cmu.edu'}
     url: str = os.environ.get("SUPABASE_URL")
     key: str = os.environ.get("SUPABASE_KEY")
     client: supabase.Client = supabase.create_client(url, key)
@@ -251,8 +251,8 @@ async def main():
 
     if users.data:
         # Filter valid users
-        valid_users = [record for record in users.data if record.get("email") in valid_emails]
-
+        valid_users = [record for record in users.data if record.get('email') in valid_emails]
+        
         # Process all users in parallel
         await asyncio.gather(*[process_user(record, canvas_session) for record in valid_users])
 
