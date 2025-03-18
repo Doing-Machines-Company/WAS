@@ -58,6 +58,7 @@ class GradescopeAPIHandler:
         """
         List assignments for a course with optional includes.
         Only returns assignments with due dates in the future and within the next two weeks.
+        Due dates are converted to ISO 8601 (RFC 3339) format.
         """
         account = self.connection.account
         try:
@@ -76,12 +77,34 @@ class GradescopeAPIHandler:
             # Filter assignments to only show those due within the next two weeks
             future_assignments = []
             for assignment in assignments:
+                assignment_dict = assignment.__dict__.copy()
+                
+                # Convert datetime objects to UTC+0 and then to ISO 8601 (RFC 3339) format
+                if assignment.due_date:
+                    if assignment.due_date.tzinfo is None:
+                        assignment.due_date = assignment.due_date.replace(tzinfo=timezone.utc)
+                    else:
+                        assignment.due_date = assignment.due_date.astimezone(timezone.utc)
+                    assignment_dict['due_date'] = assignment.due_date.isoformat()
+                if assignment.late_due_date:
+                    if assignment.late_due_date.tzinfo is None:
+                        assignment.late_due_date = assignment.late_due_date.replace(tzinfo=timezone.utc)
+                    else:
+                        assignment.late_due_date = assignment.late_due_date.astimezone(timezone.utc)
+                    assignment_dict['late_due_date'] = assignment.late_due_date.isoformat()
+                if assignment.release_date:
+                    if assignment.release_date.tzinfo is None:
+                        assignment.release_date = assignment.release_date.replace(tzinfo=timezone.utc)
+                    else:
+                        assignment.release_date = assignment.release_date.astimezone(timezone.utc)
+                    assignment_dict['release_date'] = assignment.release_date.isoformat()
+                
                 # Check if due_date exists and is within the next two weeks
                 if assignment.due_date and now < assignment.due_date <= two_weeks_later:
-                    future_assignments.append(assignment)
+                    future_assignments.append(assignment_dict)
                 # If regular due_date is in the past or more than two weeks away, but late_due_date is within the next two weeks
                 elif assignment.late_due_date and now < assignment.late_due_date <= two_weeks_later:
-                    future_assignments.append(assignment)
+                    future_assignments.append(assignment_dict)
             
             return f"Course: {course_info}, Future Assignments: {future_assignments}"
         except Exception as e:
