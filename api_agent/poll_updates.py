@@ -12,6 +12,7 @@ from agents.gcal.gcal_gtasks_api_agent import GCalGTasksAPIAgent
 from agents.gradescope.gradescope_api_agent import GradescopeAPIAgent
 from agents.supabase_cal_task.supabase_calendar_tasks_api_agent_multi import SupabaseCalendarTasksAPIAgentMulti
 from google.oauth2.credentials import Credentials
+import time 
 import aiohttp
 
 # Import sync functions (for backwards compatibility, these may still be used elsewhere)
@@ -238,7 +239,7 @@ def main_threaded():
 async def main():
     """Original async version - kept for backwards compatibility."""
     logger.warning("Using deprecated single-threaded mode. Consider using main_threaded() instead.")
-    
+    start = time.time()
     # Create a shared aiohttp session
     global canvas_session
     canvas_session = aiohttp.ClientSession()
@@ -257,7 +258,7 @@ async def main():
         await asyncio.gather(*[process_user(record, canvas_session) for record in valid_users])
 
     await canvas_session.close()
-
+    print("Syncing ", len(valid_users), " took ", time.time() - start)
 
 # Global canvas_session that will be used in the original async mode
 canvas_session = None

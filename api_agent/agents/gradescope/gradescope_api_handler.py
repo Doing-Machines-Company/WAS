@@ -99,6 +99,11 @@ class GradescopeAPIHandler:
                         assignment.release_date = assignment.release_date.astimezone(timezone.utc)
                     assignment_dict['release_date'] = assignment.release_date.isoformat()
                 
+                # Add the html_url to the assignment dictionary
+                # Format: https://www.gradescope.com/courses/{course_id}/assignments/{assignment_id}
+                # but for now, we actually like to link to the course page
+                assignment_dict['html_url'] = f"https://www.gradescope.com/courses/{params.course_id}"
+                
                 # Check if due_date exists and is within the next two weeks
                 if assignment.due_date and now < assignment.due_date <= two_weeks_later:
                     future_assignments.append(assignment_dict)

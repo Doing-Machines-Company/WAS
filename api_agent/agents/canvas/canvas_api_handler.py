@@ -144,15 +144,15 @@ class CanvasAPIHandler:
                         continue
                         
                 filtered_assignment = {
-                    'course name': course.get("name", ""),
                     'assignment id': assignment.get("id"),
                     'name': assignment.get("name"),
                     'due_at': due_at,
                     'points_possible': assignment.get("points_possible"),
-                    'submission_types': assignment.get("submission_types")
+                    'submission_types': assignment.get("submission_types"),
+                    'html_url': assignment.get("html_url")
                 }
                 filtered_assignments.append(filtered_assignment)
-            return filtered_assignments
+            return {'Course name': course.get("name", ""), 'Future Assignments' : filtered_assignments}
         except Exception as e:
             return {"error": f"Error retrieving assignments: {str(e)}"}
 
