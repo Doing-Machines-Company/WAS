@@ -25,6 +25,7 @@ class SupabaseCreateCalendarEventParams:
     end: str
     description: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
+    source: Optional[Dict[str, Any]] = None
 
 @dataclass
 class SupabaseUpdateCalendarEventParams:
@@ -65,6 +66,7 @@ class SupabaseCreateTaskParams:
     description: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
     send_notification: bool = False
+    source: Optional[Dict[str, Any]] = None
 
 @dataclass
 class SupabaseUpdateTaskParams:

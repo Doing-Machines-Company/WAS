@@ -96,6 +96,12 @@ class SupabaseCalendarTasksHandler:
         """
         Insert a new row in the 'calendar' table.
         """
+        # Initialize source with creation:agent
+        source = {"creation": "agent"}
+        # Add previous source data if it exists
+        if params.source is not None:
+            source.update(params.source)
+            
         row = {
             "user_id": params.user_id,
             "name": params.name,
@@ -103,6 +109,7 @@ class SupabaseCalendarTasksHandler:
             "end": params.end,
             "description": params.description,
             "metadata": params.metadata,
+            "source": source,
         }
 
         response = await self.client.table("calendar").insert(row).execute()
@@ -161,6 +168,12 @@ class SupabaseCalendarTasksHandler:
         """
         Insert a new row in the 'tasks' table.
         """
+        # Initialize source with creation:agent
+        source = {"creation": "agent"}
+        # Add previous source data if it exists
+        if params.source is not None:
+            source.update(params.source)
+            
         row = {
             "user_id": params.user_id,
             "name": params.name,
@@ -168,6 +181,7 @@ class SupabaseCalendarTasksHandler:
             "description": params.description,
             "metadata": params.metadata,
             "send_notification": params.send_notification,
+            "source": source,
         }
         response = await self.client.table("tasks").insert(row).execute()
         inserted = response.data
