@@ -14,7 +14,7 @@ from agents.canvas.canvas_api_handler import CanvasAPIHandler
 from typing import List, Tuple, Dict, Any
 
 class CanvasAPIAgent(APIAgent):
-    def __init__(self, task="Track my Canvas courses", fast_mode=False, retry_cap=10, credentials = None, session = None):
+    def __init__(self, task="Track my Canvas courses", fast_mode=False, retry_cap=3, credentials = None, session = None):
         """
         Initialize the CanvasAPIAgent with a default task if none is provided.
         """
@@ -50,7 +50,7 @@ class CanvasAPIAgent(APIAgent):
         pass
 
     async def call_action(
-        self, provider="cerebras", model="llama-3.3-70b"
+        self, provider: str = "google", model: str = "gemini-2.0-flash"
     ) -> AgentCall:
         """
         Asks the LLM to decide the next Canvas action.

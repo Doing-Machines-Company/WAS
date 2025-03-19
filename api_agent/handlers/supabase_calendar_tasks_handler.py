@@ -122,7 +122,35 @@ class SupabaseCalendarTasksHandler:
         """
         Update an existing calendar event by id and user_id.
         """
-        query = self.client.table("calendar").update(params.fields_to_update).eq("id", params.event_id)
+        fields_to_update = params.fields_to_update.copy()
+        
+        # If links is being updated, we need to preserve other metadata
+        if "links" in fields_to_update:
+            # First get the current event to access its metadata
+            query = self.client.table("calendar").select("*").eq("id", params.event_id)
+            if params.user_id:
+                query = query.eq("user_id", params.user_id)
+            response = await query.execute()
+            current_event = response.data
+            
+            if not current_event:
+                return {"error": f"No event found with id={params.event_id} for user={params.user_id}"}
+            
+            # Get current metadata or empty dict if none
+            current_metadata = current_event[0].get("metadata", {}) or {}
+            
+            # Create metadata field if not in fields_to_update
+            if "metadata" not in fields_to_update:
+                fields_to_update["metadata"] = current_metadata
+            
+            # Update only the links key in metadata
+            fields_to_update["metadata"]["links"] = fields_to_update["links"]
+            
+            # Remove top-level links as it's now in metadata
+            del fields_to_update["links"]
+        
+        # Perform the update with our modified fields
+        query = self.client.table("calendar").update(fields_to_update).eq("id", params.event_id)
         if params.user_id:
             query = query.eq("user_id", params.user_id)
         response = await query.execute()
@@ -193,7 +221,35 @@ class SupabaseCalendarTasksHandler:
         """
         Update a task in the 'tasks' table by id and user_id.
         """
-        query = self.client.table("tasks").update(params.fields_to_update).eq("id", params.task_id)
+        fields_to_update = params.fields_to_update.copy()
+        
+        # If links is being updated, we need to preserve other metadata
+        if "links" in fields_to_update:
+            # First get the current task to access its metadata
+            query = self.client.table("tasks").select("*").eq("id", params.task_id)
+            if params.user_id:
+                query = query.eq("user_id", params.user_id)
+            response = await query.execute()
+            current_task = response.data
+            
+            if not current_task:
+                return {"error": f"No task found with id={params.task_id} for user={params.user_id}"}
+            
+            # Get current metadata or empty dict if none
+            current_metadata = current_task[0].get("metadata", {}) or {}
+            
+            # Create metadata field if not in fields_to_update
+            if "metadata" not in fields_to_update:
+                fields_to_update["metadata"] = current_metadata
+            
+            # Update only the links key in metadata
+            fields_to_update["metadata"]["links"] = fields_to_update["links"]
+            
+            # Remove top-level links as it's now in metadata
+            del fields_to_update["links"]
+        
+        # Perform the update with our modified fields
+        query = self.client.table("tasks").update(fields_to_update).eq("id", params.task_id)
         if params.user_id:
             query = query.eq("user_id", params.user_id)
         response = await query.execute()

@@ -13,7 +13,7 @@ from agents.gradescope.gradescope_api_handler import GradescopeAPIHandler
 from typing import List, Tuple, Dict, Any
 
 class GradescopeAPIAgent(APIAgent):
-    def __init__(self, task="Track my Gradescope courses from most recent term", fast_mode=False, retry_cap=10, credentials = None):
+    def __init__(self, task="Track my Gradescope courses from most recent term", fast_mode=False, retry_cap=3, credentials = None):
         """
         Initialize the GradescopeAPIAgent with a default task if none is provided.
         """

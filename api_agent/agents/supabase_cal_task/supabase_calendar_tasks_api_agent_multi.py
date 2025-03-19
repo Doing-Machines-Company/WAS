@@ -29,7 +29,7 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
         self,
         task="",
         fast_mode=False,
-        retry_cap=4,
+        retry_cap=3,
         from_user=True,
         user_id=None
     ):
@@ -84,7 +84,7 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
         """Initialize the appropriate API handler based on self.api."""
         pass
 
-    async def call_action(self, provider: str = "anthropic", model: str = "claude-3-5-sonnet-latest") -> AgentCall:
+    async def call_action(self, provider: str = "google", model: str = "gemini-2.0-flash") -> AgentCall:
         """
         1) Fetch the user's future events + tasks from Supabase
         2) Enumerate them
@@ -135,8 +135,8 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
         # call LLM
         agent_call = await call_llm(
             messages=messages,
-            provider="google",
-            model="gemini-2.0-flash",
+            provider=provider,
+            model=model,
             max_tokens=3000
         )
         print("[Supabase Agent Multi] LLM response:", agent_call.llm_response)
@@ -273,6 +273,16 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
             params["task_id"] = self.task_id_map[params["task_id"]]
         if "metadata" in params and params["metadata"] is None:
             params["metadata"] = {}
+            
+        # Handle links in parameters
+        if "links" in params:
+            # Create or update metadata if needed
+            if "metadata" not in params:
+                params["metadata"] = {}
+            # Set links in metadata, preserving other metadata fields
+            params["metadata"]["links"] = params["links"]
+            # Remove links from top-level parameters as it goes into metadata
+            del params["links"]
 
         # Force the user_id internally.
         params["user_id"] = self.user_id
@@ -342,9 +352,14 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
                 lines.append(f"  description: {desc}")
             lines.append(f"  start: {evt['start']}")
             lines.append(f"  end: {evt['end']}")
-            # metadata = evt.get("metadata", {})
-            # if metadata:
-            #     lines.append(f"  metadata: {metadata}")
+            
+            # Display links if present in metadata
+            metadata = evt.get("metadata", {})
+            if metadata and "links" in metadata:
+                links = metadata["links"]
+                if links:
+                    lines.append(f"  links: {links}")
+                    
             lines.append("")
         return "\n".join(lines)
 
@@ -372,9 +387,13 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
             status_str = "completed" if tsk.get("status") else "incomplete"
             lines.append(f"  status: {status_str}")
 
-            # metadata = tsk.get("metadata", {})
-            # if metadata:
-            #     lines.append(f"  metadata: {metadata}")
+            # Display links if present in metadata
+            metadata = tsk.get("metadata", {})
+            if metadata and "links" in metadata:
+                links = metadata["links"]
+                if links:
+                    lines.append(f"  links: {links}")
+                    
             lines.append("")
         return "\n".join(lines)
 

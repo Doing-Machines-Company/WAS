@@ -24,7 +24,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Define fallback model if needed
-FALLBACK_MODEL = "claude-3-5-sonnet-latest"
+FALLBACK_MODEL = "gpt-4o-mini"
 
 async def call_llm(
     messages: List[LLMMessage],
@@ -59,11 +59,11 @@ async def call_llm(
 
     except Exception as e:
         logger.error(f"Error with provider '{provider}': {e}")
-        # Fallback logic: try Anthropic if not already using it.
-        if provider != "anthropic":
-            logger.info(f"Falling back to Anthropic with model '{FALLBACK_MODEL}'")
+        # Fallback logic: try OpenAI if not already using it.
+        if provider != "openai":
+            logger.info(f"Falling back to OpenAI with model '{FALLBACK_MODEL}'")
             try:
-                raw_response = await anthropic_call(messages, FALLBACK_MODEL, max_tokens)
+                raw_response = await openai_call(messages, FALLBACK_MODEL, max_tokens)
                 parsed_output = extract_json(raw_response)
                 return AgentCall(
                     messages=messages,
@@ -71,7 +71,7 @@ async def call_llm(
                     parsed_output=parsed_output
                 )
             except Exception as fallback_e:
-                logger.error(f"Fallback to Anthropic failed: {fallback_e}")
+                logger.error(f"Fallback to OpenAI failed: {fallback_e}")
 
         return AgentCall(
             messages=messages,
