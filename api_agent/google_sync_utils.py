@@ -437,3 +437,116 @@ async def sync_user_to_google(supabase_handler, user_id):
         authenticated_google_credentials,
         google_credentials
     )
+
+
+async def delete_inbound_calendar_and_tasks(gcal_handler, gtasks_handler):
+    """
+    Delete all events from the inbound.fyi calendar and all tasks from the inbound.fyi tasklist.
+    
+    Args:
+        gcal_handler: Initialized Google Calendar API handler
+        gtasks_handler: Initialized Google Tasks API handler
+        
+    Returns:
+        dict: Summary of deleted items
+    """
+    deleted_events = 0
+    deleted_tasks = 0
+    
+    # Find the inbound calendar
+    print(f"Looking for calendar: '{DEFAULT_CALENDAR_NAME}'...")
+    calendar_id = None
+    
+    calendars = await gcal_handler.perform_action(
+        APIAction(
+            action_type=APIActionType.CALENDAR_LIST_CALENDARS,
+            reason=f"Looking for calendar '{DEFAULT_CALENDAR_NAME}'",
+            parameters=vars(CalendarListCalendarsParams())
+        )
+    )
+
+    print(calendars)
+    input("DICK!")
+    
+    for calendar in calendars:
+        if calendar.get('summary') == DEFAULT_CALENDAR_NAME:
+            print(calendar)
+            input("DICK2")
+            calendar_id = calendar['id']
+            print(f"Found inbound.fyi calendar (ID: {calendar_id})")
+            break
+            
+    # Find the inbound tasklist
+    print(f"Looking for tasklist: '{DEFAULT_TASKLIST_NAME}'...")
+    tasklist_id = None
+    
+    tasklists = await gtasks_handler.perform_action(
+        APIAction(
+            action_type=APIActionType.TASKS_LIST_TASKLISTS,
+            reason=f"Looking for tasklist '{DEFAULT_TASKLIST_NAME}'",
+            parameters={}
+        )
+    )
+    
+    for tasklist in tasklists:
+        if tasklist.get('title') == DEFAULT_TASKLIST_NAME:
+            tasklist_id = tasklist['id']
+            print(f"Found inbound.fyi tasklist (ID: {tasklist_id})")
+            break
+    
+    # Delete all events from the inbound calendar
+    if calendar_id:
+        events = await gcal_handler.perform_action(
+            APIAction(
+                action_type=APIActionType.CALENDAR_LIST_EVENTS,
+                reason=f"Listing events from inbound.fyi calendar",
+                parameters={"calendarId": calendar_id, "singleEvents": True}
+            )
+        )
+        
+        print(f"Found {len(events)} events in inbound.fyi calendar")
+        
+        for event in events:
+            print(f"Deleting event: {event.get('summary', '(Unnamed event)')} (ID: {event['id']})")
+            await gcal_handler.perform_action(
+                APIAction(
+                    action_type=APIActionType.CALENDAR_DELETE_EVENT,
+                    reason=f"Deleting event from inbound.fyi calendar",
+                    parameters={"calendarId": calendar_id, "event_id": event['id']}
+                )
+            )
+            deleted_events += 1
+    else:
+        print(f"No inbound.fyi calendar found. Nothing to delete.")
+    
+    # Delete all tasks from the inbound tasklist
+    if tasklist_id:
+        tasks = await gtasks_handler.perform_action(
+            APIAction(
+                action_type=APIActionType.TASKS_LIST_TASKS,
+                reason=f"Listing tasks from inbound.fyi tasklist",
+                parameters={"tasklist_id": tasklist_id}
+            )
+        )
+
+        print(f"Found {len(tasks)} tasks in inbound.fyi tasklist")
+        
+        for task in tasks:
+            print(f"Deleting task: {task.get('title', '(Unnamed task)')} (ID: {task['id']})")
+            await gtasks_handler.perform_action(
+                APIAction(
+                    action_type=APIActionType.TASKS_DELETE_TASK,
+                    reason=f"Deleting task from inbound.fyi tasklist",
+                    parameters={"tasklist_id": tasklist_id, "task_id": task['id']}
+                )
+            )
+            deleted_tasks += 1
+    else:
+        print(f"No inbound.fyi tasklist found. Nothing to delete.")
+        
+    return {
+        "deleted_events": deleted_events,
+        "deleted_tasks": deleted_tasks,
+        "calendar_id": calendar_id,
+        "tasklist_id": tasklist_id
+    }
