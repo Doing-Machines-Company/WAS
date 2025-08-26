@@ -84,7 +84,7 @@ class SupabaseCalendarTasksAPIAgentMulti(APIAgent):
         """Initialize the appropriate API handler based on self.api."""
         pass
 
-    async def call_action(self, provider: str = "google", model: str = "gemini-2.0-flash") -> AgentCall:
+    async def call_action(self, provider: str = "google", model: str = "gemini-2.5-flash-lite") -> AgentCall:
         """
         1) Fetch the user's future events + tasks from Supabase
         2) Enumerate them

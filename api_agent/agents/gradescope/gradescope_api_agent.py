@@ -48,7 +48,7 @@ class GradescopeAPIAgent(APIAgent):
         pass
 
     async def call_action(
-        self, provider="google", model="gemini-2.0-flash"
+        self, provider="google", model="gemini-2.5-flash-lite"
     ) -> AgentCall:
         """
         Asks the LLM to decide the next Gradescope action.

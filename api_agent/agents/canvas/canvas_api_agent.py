@@ -50,7 +50,7 @@ class CanvasAPIAgent(APIAgent):
         pass
 
     async def call_action(
-        self, provider: str = "google", model: str = "gemini-2.0-flash"
+        self, provider: str = "google", model: str = "gemini-2.5-flash-lite"
     ) -> AgentCall:
         """
         Asks the LLM to decide the next Canvas action.

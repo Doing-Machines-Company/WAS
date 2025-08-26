@@ -121,35 +121,35 @@ async def process_user(record, session_for_thread):
         await process_polls(poll_out_canvas, record["user_id"])
 
         # Sync Supabase calendar and tasks to Google using sync_with_google_credentials
-        if (google_credentials and google_credentials.get("access_token") and
-                google_credentials.get("refresh_token") and google_credentials.get("scope")):
-            logger.info(f"Syncing Supabase Calendar and Tasks to Google for user {record['user_id']}")
+        # if (google_credentials and google_credentials.get("access_token") and
+        #         google_credentials.get("refresh_token") and google_credentials.get("scope")):
+        #     logger.info(f"Syncing Supabase Calendar and Tasks to Google for user {record['user_id']}")
 
-            authenticated_google_credentials = Credentials(
-                token=google_credentials["access_token"],
-                refresh_token=google_credentials["refresh_token"],
-                token_uri='https://oauth2.googleapis.com/token',
-                client_id=os.getenv('CLIENT_ID'),
-                client_secret=os.getenv('CLIENT_SECRET'),
-                scopes=google_credentials["scope"].split()
-            )
+        #     authenticated_google_credentials = Credentials(
+        #         token=google_credentials["access_token"],
+        #         refresh_token=google_credentials["refresh_token"],
+        #         token_uri='https://oauth2.googleapis.com/token',
+        #         client_id=os.getenv('CLIENT_ID'),
+        #         client_secret=os.getenv('CLIENT_SECRET'),
+        #         scopes=google_credentials["scope"].split()
+        #     )
 
-            # Initialize the Supabase handler
-            supabase_handler = SupabaseCalendarTasksHandler()
-            await supabase_handler.init_client()
+        #     # Initialize the Supabase handler
+        #     supabase_handler = SupabaseCalendarTasksHandler()
+        #     await supabase_handler.init_client()
 
-            user_timezone = record.get("timezone", "America/New_York")
+        #     user_timezone = record.get("timezone", "America/New_York")
 
-            # Use sync_with_google_credentials instead of manually handling the sync
-            from google_sync_utils import sync_with_google_credentials
-            await sync_with_google_credentials(
-                supabase_handler,
-                record["user_id"],
-                record,
-                user_timezone,
-                authenticated_google_credentials,
-                google_credentials
-            )
+        #     # Use sync_with_google_credentials instead of manually handling the sync
+        #     from google_sync_utils import sync_with_google_credentials
+        #     await sync_with_google_credentials(
+        #         supabase_handler,
+        #         record["user_id"],
+        #         record,
+        #         user_timezone,
+        #         authenticated_google_credentials,
+        #         google_credentials
+        #     )
 
         logger.info(f"Sync complete for user: {record.get('email')}")
     except Exception as e:
@@ -249,11 +249,11 @@ async def main():
     key: str = os.environ.get("SUPABASE_KEY")
     client: supabase.Client = supabase.create_client(url, key)
     users = client.rpc("get_users").execute()
-
+    
     if users.data:
-        # Filter valid users
         valid_users = [record for record in users.data if record.get('email') in valid_emails]
-        
+        # Filter valid users
+        input(valid_users)
         # Process all users in parallel
         await asyncio.gather(*[process_user(record, canvas_session) for record in valid_users])
 
