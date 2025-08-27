@@ -12,6 +12,8 @@ from agents.gcal.gcal_gtasks_api_agent import GCalGTasksAPIAgent
 from agents.gradescope.gradescope_api_agent import GradescopeAPIAgent
 from agents.supabase_cal_task.supabase_calendar_tasks_api_agent_multi import SupabaseCalendarTasksAPIAgentMulti
 from google.oauth2.credentials import Credentials
+from supabase._async.client import create_client
+
 import time 
 import aiohttp
 
@@ -151,6 +153,14 @@ async def process_user(record, session_for_thread):
         #         google_credentials
         #     )
 
+        # Update last_synced timestamp
+        url: str = os.environ.get("SUPABASE_URL")
+        key: str = os.environ.get("SUPABASE_KEY")
+        async_client = await create_client(url, key)
+        
+        current_time = datetime.now(timezone.utc).isoformat()
+        await async_client.table("users").update({"last_synced": current_time}).eq("user_id", record["user_id"]).execute()
+        
         logger.info(f"Sync complete for user: {record.get('email')}")
     except Exception as e:
         logger.error(f"Error processing user {record.get('email')}: {e}")
