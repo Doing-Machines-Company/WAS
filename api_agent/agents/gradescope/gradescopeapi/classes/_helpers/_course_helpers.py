@@ -38,7 +38,7 @@ def get_courses_info(
     all_courses = {}
 
     # find heading for defined user_type's courses
-    courses = soup.find("h1", class_="pageHeading", string=user_type)
+    courses = soup.find("h2", class_="pageHeading", string=user_type)
 
     # if no courses found, return empty dictionary
     if courses is None:
