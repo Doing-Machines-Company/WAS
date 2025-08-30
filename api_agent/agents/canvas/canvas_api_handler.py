@@ -114,7 +114,7 @@ class CanvasAPIHandler:
 
             # Build query parameters. If 'include' is provided as a list,
             # the Canvas API expects repeated keys such as include[]=submission_types.
-            query_params = {}
+            query_params = []
             if params.include:
                 # If params.include is a list, we build a list of tuples.
                 query_params = [("include[]", inc) for inc in params.include]
@@ -130,7 +130,8 @@ class CanvasAPIHandler:
             # Calculate date two weeks from now
             two_weeks_later = now + datetime.timedelta(weeks=2)
             
-            filtered_assignments = []
+            # Standardize the assignment format
+            standardized_assignments = []
             for assignment in assignments:
                 due_at = assignment.get("due_at")
                 
@@ -143,16 +144,22 @@ class CanvasAPIHandler:
                     if due_date <= now or due_date > two_weeks_later:
                         continue
                         
-                filtered_assignment = {
-                    'assignment id': assignment.get("id"),
+                standardized_assignment = {
+                    'assignment_id': assignment.get("id"),
                     'name': assignment.get("name"),
                     'due_at': due_at,
                     'points_possible': assignment.get("points_possible"),
                     'submission_types': assignment.get("submission_types"),
                     'html_url': assignment.get("html_url")
                 }
-                filtered_assignments.append(filtered_assignment)
-            return {'Course name': course.get("name", ""), 'Future Assignments' : filtered_assignments}
+                standardized_assignments.append(standardized_assignment)
+            
+            return {
+                'course_name': course.get("name", ""),
+                'course_id': params.course_id,
+                'platform': 'canvas',
+                'assignments': standardized_assignments
+            }
         except Exception as e:
             return {"error": f"Error retrieving assignments: {str(e)}"}
 

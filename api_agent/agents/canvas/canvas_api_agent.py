@@ -254,3 +254,76 @@ class CanvasAPIAgent(APIAgent):
         Return a list of poll function calls and their outputs
         """
         return self.poll_output
+    
+    async def get_all_assignments_deterministic(self):
+        """
+        Deterministically get all assignments for all courses without LLM involvement.
+        Returns standardized poll output for supabase agent.
+        """
+        poll_output = []
+        
+        try:
+            # Initialize API handler if not done
+            if not hasattr(self, 'api_handler'):
+                self.initialize_api_handler()
+            
+            # Get all courses
+            courses_action = APIAction(
+                action_type=APIActionType.CANVAS_LIST_COURSES,
+                reason="Get all courses",
+                parameters={}
+            )
+            courses_result = await self.api_handler.perform_action(courses_action)
+            
+            # Create memory entry for courses
+            # courses_memory = APILinearMemory(
+            #     self.api,
+            #     call="CANVAS_LIST_COURSES with parameters {}",
+            #     received=str(courses_result)
+            # )
+            # poll_output.append(courses_memory)
+            
+            # Extract course IDs from the result
+            if isinstance(courses_result, list):
+                # Create assignment actions for all courses
+                async def get_course_assignments(course):
+                    if isinstance(course, dict) and 'id' in course:
+                        course_id = str(course['id'])
+                        assignments_action = APIAction(
+                            action_type=APIActionType.CANVAS_LIST_ASSIGNMENTS,
+                            reason=f"Get assignments for course {course_id}",
+                            parameters={"course_id": course_id, "include": ["due_at", "rubric", "submission"]}
+                        )
+                        assignments_result = await self.api_handler.perform_action(assignments_action)
+                        
+                        # Only create memory entry if there are assignments
+                        if (isinstance(assignments_result, dict) and 
+                            assignments_result.get('assignments') and 
+                            len(assignments_result['assignments']) > 0):
+                            assignments_memory = APILinearMemory(
+                                self.api,
+                                call=f"CANVAS_LIST_ASSIGNMENTS with parameters {{'course_id': '{course_id}', 'include': ['due_at', 'rubric', 'submission']}}",
+                                received=str(assignments_result)
+                            )
+                            return assignments_memory
+                    return None
+                
+                # Execute all assignment fetches in parallel
+                assignment_tasks = [get_course_assignments(course) for course in courses_result]
+                assignment_results = await asyncio.gather(*assignment_tasks)
+                
+                # Add only non-empty results to poll_output
+                for result in assignment_results:
+                    if result is not None:
+                        poll_output.append(result)
+            
+        except Exception as e:
+            print(f"[Canvas Agent] Error in deterministic assignment retrieval: {e}")
+            error_memory = APILinearMemory(
+                self.api,
+                call="CANVAS_DETERMINISTIC_RETRIEVAL",
+                received=f"Error: {str(e)}"
+            )
+            poll_output.append(error_memory)
+        
+        return poll_output

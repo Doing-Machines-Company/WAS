@@ -45,14 +45,13 @@ dotenv.load_dotenv()
 
 
 async def run_gradescope_agent(credentials):
-    """Run the Gradescope agent with the provided credentials."""
+    """Run the Gradescope agent deterministically without LLM involvement."""
     try:
         if credentials and credentials.get('email') and credentials.get('password'):
             gradescope_agent = GradescopeAPIAgent(credentials=credentials)
-            logger.info(f"Agent task: {gradescope_agent.task}")
-            await gradescope_agent.run()
-            logger.info("Agent run has completed.")
-            poll_output = gradescope_agent.get_poll_output()
+            logger.info("Running Gradescope agent deterministically")
+            poll_output = await gradescope_agent.get_all_assignments_deterministic()
+            await gradescope_agent.cleanup()
             return poll_output
     except Exception as e:
         logger.error(f"Error running gradescope agent: {e}")
@@ -60,17 +59,15 @@ async def run_gradescope_agent(credentials):
 
 
 async def run_canvas_agent(domain, token, session):
-    """Run the Canvas agent with the provided domain and token."""
+    """Run the Canvas agent deterministically without LLM involvement."""
     try:
         if domain and token:
             canvas_agent = CanvasAPIAgent(
                 credentials={'url': 'https://' + domain, 'token': token},
                 session=session
             )
-            logger.info(f"Agent task: {canvas_agent.task}")
-            await canvas_agent.run()
-            logger.info("Agent run has completed.")
-            poll_output = canvas_agent.get_poll_output()
+            logger.info("Running Canvas agent deterministically")
+            poll_output = await canvas_agent.get_all_assignments_deterministic()
             return poll_output
     except Exception as e:
         logger.error(f"Error running canvas agent: {e}")
@@ -116,6 +113,7 @@ async def process_user(record, session_for_thread):
 
         # Run Gradescope agent
         poll_out_gradescope = await run_gradescope_agent(gradescope_credentials)
+        input(poll_out_gradescope)
         await process_polls(poll_out_gradescope, record["user_id"])
 
         # Run Canvas agent (use the thread's session)

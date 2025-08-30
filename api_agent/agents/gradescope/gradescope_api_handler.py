@@ -49,7 +49,8 @@ class GradescopeAPIHandler:
             courses_dict = await account.get_courses()
             self.courses = courses_dict['student']
             for course_id, course_obj in self.courses.items():
-                formatted_courses.append(f"(Course ID: {course_id}, Course Object: {course_obj})")
+                course_name = course_obj.full_name if hasattr(course_obj, 'full_name') else str(course_obj)
+                formatted_courses.append({"id": course_id, "name": course_name})
             return formatted_courses
         except Exception as e:
             return {"error": f"Error retrieving courses from Gradescope: {str(e)}"}
@@ -111,7 +112,26 @@ class GradescopeAPIHandler:
                 elif assignment.late_due_date and now < assignment.late_due_date <= two_weeks_later:
                     future_assignments.append(assignment_dict)
             
-            return f"Course: {course_info}, Future Assignments: {future_assignments}"
+            # Standardize the return format to match Canvas
+            standardized_assignments = []
+            for assignment_dict in future_assignments:
+                standardized_assignment = {
+                    'assignment_id': assignment_dict.get('assignment_id'),
+                    'name': assignment_dict.get('name'),
+                    'due_at': assignment_dict.get('due_date'),
+                    'late_due_at': assignment_dict.get('late_due_date'),
+                    'release_at': assignment_dict.get('release_date'),
+                    'points_possible': assignment_dict.get('max_grade'),
+                    'html_url': assignment_dict.get('html_url')
+                }
+                standardized_assignments.append(standardized_assignment)
+            
+            return {
+                'course_name': course_info.full_name if hasattr(course_info, 'full_name') else str(course_info),
+                'course_id': params.course_id,
+                'platform': 'gradescope',
+                'assignments': standardized_assignments
+            }
         except Exception as e:
             return {"error": f"Error retrieving assignments from Gradescope: {str(e)}"}
     async def close(self):
