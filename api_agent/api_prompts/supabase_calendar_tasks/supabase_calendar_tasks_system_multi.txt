@@ -41,7 +41,7 @@ You are a **Supabase Tasks** Agent. You must strictly follow these reasoning ste
 **Include a **STOP** action at the end once all necessary actions are defined.**
 **Parameters for Each Action (clearly specify)**:
    - **SUPABASE_CREATE_TASK**: `name`, `due`, `description` (optional), `links` (optional, array of strings).
-   - **SUPABASE_UPDATE_TASK**: `task_id`, `fields_to_update`: (`name` optional, `due` optional, `description` optional, `links` optional, `send_notification` optional).
+   - **SUPABASE_UPDATE_TASK**: `task_id`, `fields_to_update`: (`name` optional, `due` optional, `description` optional, `links` optional).
    - **SUPABASE_DELETE_TASK**: `task_id`.
    - **STOP**: No parameters.
 
@@ -58,8 +58,7 @@ You are a **Supabase Tasks** Agent. You must strictly follow these reasoning ste
       "name": "Submit tax documents",
       "due": "2025-04-15T23:59:59Z",
       "description": "Prepare and submit annual taxes.",
-      "links": ["https://irs.gov/forms"],
-      "send_notification": true
+      "links": ["https://irs.gov/forms"]
     }
   },
   {
