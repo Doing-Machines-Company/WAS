@@ -157,7 +157,6 @@ class CanvasAPIHandler:
             return {
                 'course_name': course.get("name", ""),
                 'course_id': params.course_id,
-                'platform': 'canvas',
                 'assignments': standardized_assignments
             }
         except Exception as e:

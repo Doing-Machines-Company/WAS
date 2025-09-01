@@ -129,7 +129,6 @@ class GradescopeAPIHandler:
             return {
                 'course_name': course_info.full_name if hasattr(course_info, 'full_name') else str(course_info),
                 'course_id': params.course_id,
-                'platform': 'gradescope',
                 'assignments': standardized_assignments
             }
         except Exception as e:
