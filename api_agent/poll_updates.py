@@ -3,6 +3,7 @@ import os
 import asyncio
 import logging
 import dotenv
+dotenv.load_dotenv()
 import supabase
 import concurrent.futures
 import threading
@@ -41,7 +42,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-dotenv.load_dotenv()
 
 
 async def run_gradescope_agent(credentials):
@@ -130,7 +130,7 @@ async def process_user(record, session_for_thread):
         # Run Gradescope agent
         logger.info(f"Starting Gradescope polling for user {record.get('email')}")
         poll_out_gradescope = await run_gradescope_agent(gradescope_credentials)
-        input(poll_out_gradescope)
+        # input(poll_out_gradescope)
         await process_polls(poll_out_gradescope, record["user_id"])
 
         # Run Canvas agent (use the thread's session)
@@ -278,7 +278,7 @@ async def main():
     users = client.rpc("get_users").execute()
     
     if users.data:
-        valid_users = [record for record in users.data if record.get('email') in valid_emails]
+        valid_users = [record for record in users.data]
         # Filter valid users
         input(valid_users)
         # Process all users in parallel
