@@ -17,6 +17,7 @@ from supabase._async.client import create_client
 
 import time 
 import aiohttp
+import traceback
 
 # Import sync functions (for backwards compatibility, these may still be used elsewhere)
 from google_sync_utils import (
@@ -59,6 +60,11 @@ async def run_gradescope_agent(credentials):
             logger.warning("Gradescope credentials missing or incomplete")
     except Exception as e:
         logger.error(f"Error running gradescope agent: {e}")
+        await log_error_to_supabase(
+            user_id=credentials.get('user_id') if credentials else None,
+            error_type="gradescope_agent_error",
+            error_message=str(e)
+        )
     return []
 
 
@@ -79,6 +85,12 @@ async def run_canvas_agent(domain, token, session):
             logger.warning("Canvas domain or token missing")
     except Exception as e:
         logger.error(f"Error running canvas agent: {e}")
+        await log_error_to_supabase(
+            user_id=None,  # Canvas doesn't have user_id in this context
+            error_type="canvas_agent_error",
+            error_message=str(e),
+            error_details={"domain": domain}
+        )
     return []
 
 
@@ -94,6 +106,11 @@ async def run_supabase_agent(task_string, user_id):
         logger.info(f"Supabase agent completed for user {user_id}")
     except Exception as e:
         logger.error(f"Error running supabase agent for user {user_id}: {e}")
+        await log_error_to_supabase(
+            user_id=user_id,
+            error_type="supabase_agent_error",
+            error_message=str(e)
+        )
 
 
 async def process_polls(poll_data, user_id, step_size=1):
@@ -126,6 +143,10 @@ async def process_user(record, session_for_thread):
         canvas_token_str = canvas_token.get("token") if canvas_token else None
 
         logger.info(f"Processing user: {record.get('email')} (Thread: {threading.current_thread().name})")
+
+        # # TEST ERROR - Remove this after testing
+        # if record.get('email') == 'jamesc3@andrew.cmu.edu':
+        #     raise Exception("TEST ERROR: This is an artificial error for testing error logging")
 
         # Run Gradescope agent
         logger.info(f"Starting Gradescope polling for user {record.get('email')}")
@@ -181,6 +202,12 @@ async def process_user(record, session_for_thread):
         logger.info(f"Sync complete for user: {record.get('email')}")
     except Exception as e:
         logger.error(f"Error processing user {record.get('email')}: {e}")
+        await log_error_to_supabase(
+            user_id=record.get("user_id"),
+            error_type="user_processing_error",
+            error_message=str(e),
+            error_details={"email": record.get('email')}
+        )
 
 
 def process_user_batch(user_batch):
@@ -271,7 +298,7 @@ async def main():
     global canvas_session
     canvas_session = aiohttp.ClientSession()
     
-    valid_emails = {'cadatepe@andrew.cmu.edu'}
+    valid_emails = {'jamesc3@andrew.cmu.edu'}
     url: str = os.environ.get("SUPABASE_URL")
     key: str = os.environ.get("SUPABASE_KEY")
     client: supabase.Client = supabase.create_client(url, key)
@@ -289,6 +316,25 @@ async def main():
 
 # Global canvas_session that will be used in the original async mode
 canvas_session = None
+
+
+async def log_error_to_supabase(user_id, error_type, error_message, error_details=None):
+    """Log errors to Supabase error_logs table."""
+    try:
+        url: str = os.environ.get("SUPABASE_URL")
+        key: str = os.environ.get("SUPABASE_KEY")
+        async_client = await create_client(url, key)
+        
+        error_data = {
+            "user_id": user_id,
+            "error_type": error_type,
+            "error_message": str(error_message),
+            "error_details": error_details or {"traceback": traceback.format_exc()}
+        }
+        
+        await async_client.table("error_logs").insert(error_data).execute()
+    except Exception as e:
+        logger.error(f"Failed to log error to Supabase: {e}")
 
 if __name__ == "__main__":
     # Use the threaded version
