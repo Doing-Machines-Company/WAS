@@ -48,11 +48,15 @@ async def run_gradescope_agent(credentials):
     """Run the Gradescope agent deterministically without LLM involvement."""
     try:
         if credentials and credentials.get('email') and credentials.get('password'):
+            logger.info(f"Starting Gradescope agent for {credentials.get('email')}")
             gradescope_agent = GradescopeAPIAgent(credentials=credentials)
             logger.info("Running Gradescope agent deterministically")
             poll_output = await gradescope_agent.get_all_assignments_deterministic()
             await gradescope_agent.cleanup()
+            logger.info(f"Gradescope agent completed, found {len(poll_output)} assignments")
             return poll_output
+        else:
+            logger.warning("Gradescope credentials missing or incomplete")
     except Exception as e:
         logger.error(f"Error running gradescope agent: {e}")
     return []
@@ -62,13 +66,17 @@ async def run_canvas_agent(domain, token, session):
     """Run the Canvas agent deterministically without LLM involvement."""
     try:
         if domain and token:
+            logger.info(f"Starting Canvas agent for domain {domain}")
             canvas_agent = CanvasAPIAgent(
                 credentials={'url': 'https://' + domain, 'token': token},
                 session=session
             )
             logger.info("Running Canvas agent deterministically")
             poll_output = await canvas_agent.get_all_assignments_deterministic()
+            logger.info(f"Canvas agent completed, found {len(poll_output)} assignments")
             return poll_output
+        else:
+            logger.warning("Canvas domain or token missing")
     except Exception as e:
         logger.error(f"Error running canvas agent: {e}")
     return []
@@ -77,17 +85,24 @@ async def run_canvas_agent(domain, token, session):
 async def run_supabase_agent(task_string, user_id):
     """Run the Supabase Calendar Tasks agent."""
     try:
+        logger.info(f"Starting Supabase agent for user {user_id}")
         supabase_agent = SupabaseCalendarTasksAPIAgentMulti(
             task=task_string,
             user_id=user_id
         )
         await supabase_agent.run()
+        logger.info(f"Supabase agent completed for user {user_id}")
     except Exception as e:
-        logger.error(f"Error running supabase agent: {e}")
+        logger.error(f"Error running supabase agent for user {user_id}: {e}")
 
 
 async def process_polls(poll_data, user_id, step_size=1):
     """Process poll outputs and run the Supabase agent in parallel."""
+    if not poll_data:
+        logger.info(f"No poll data to process for user {user_id}")
+        return
+        
+    logger.info(f"Processing {len(poll_data)} poll items for user {user_id} in chunks of {step_size}")
     tasks = []
     for i in range(0, len(poll_data), step_size):
         cur_chunk = poll_data[i:i + step_size]
@@ -97,6 +112,7 @@ async def process_polls(poll_data, user_id, step_size=1):
         tasks.append(run_supabase_agent(task_string, user_id))
 
     await asyncio.gather(*tasks)
+    logger.info(f"Completed processing polls for user {user_id}")
 
 
 async def process_user(record, session_for_thread):
@@ -112,11 +128,13 @@ async def process_user(record, session_for_thread):
         logger.info(f"Processing user: {record.get('email')} (Thread: {threading.current_thread().name})")
 
         # Run Gradescope agent
+        logger.info(f"Starting Gradescope polling for user {record.get('email')}")
         poll_out_gradescope = await run_gradescope_agent(gradescope_credentials)
         input(poll_out_gradescope)
         await process_polls(poll_out_gradescope, record["user_id"])
 
         # Run Canvas agent (use the thread's session)
+        logger.info(f"Starting Canvas polling for user {record.get('email')}")
         poll_out_canvas = await run_canvas_agent(canvas_domain, canvas_token_str, session_for_thread)
         await process_polls(poll_out_canvas, record["user_id"])
 
@@ -152,6 +170,7 @@ async def process_user(record, session_for_thread):
         #     )
 
         # Update last_synced timestamp
+        logger.info(f"Updating last_synced timestamp for user {record.get('email')}")
         url: str = os.environ.get("SUPABASE_URL")
         key: str = os.environ.get("SUPABASE_KEY")
         async_client = await create_client(url, key)
