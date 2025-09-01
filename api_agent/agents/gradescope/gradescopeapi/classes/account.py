@@ -53,24 +53,20 @@ class Account:
         soup = BeautifulSoup(response_text, "html.parser")
 
         # Determine if the user is solely a student or instructor.
-        user_courses, is_instructor = get_courses_info(soup, "Your Courses")
-
-        if user_courses:
-            if is_instructor:
-                return {"instructor": user_courses, "student": {}}
+        # 1) Try parsing everything (works for single-block & empty-heading pages)
+        all_courses, inferred_is_instructor = get_courses_info(soup, None)
+        if all_courses and not soup.find(string="Instructor Courses"):
+            # single-section page; decide bucket
+            if inferred_is_instructor:
+                return {"instructor": all_courses, "student": {}}
             else:
-                return {"instructor": {}, "student": user_courses}
+                return {"instructor": {}, "student": all_courses}
 
-        # If the user is both a student and instructor, get both sets of courses.
-        courses = {"instructor": {}, "student": {}}
-
+        # 2) Split-page: parse each section explicitly
         instructor_courses, _ = get_courses_info(soup, "Instructor Courses")
-        courses["instructor"] = instructor_courses
-
         student_courses, _ = get_courses_info(soup, "Student Courses")
-        courses["student"] = student_courses
+        return {"instructor": instructor_courses, "student": student_courses}
 
-        return courses
 
     async def get_course_users(self, course_id: str) -> list:
         """

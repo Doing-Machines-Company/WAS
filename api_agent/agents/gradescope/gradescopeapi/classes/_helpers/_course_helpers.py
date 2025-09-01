@@ -5,116 +5,84 @@ from bs4 import BeautifulSoup
 from agents.gradescope.gradescopeapi.classes.courses import Course
 from agents.gradescope.gradescopeapi.classes.member import Member
 
-
-def get_courses_info(
-    soup: BeautifulSoup, user_type: str
-) -> tuple[dict[str, Course], bool]:
-    """
-    Scrape all course info from the main page of Gradescope.
-
-    Args:
-        soup (BeautifulSoup): BeautifulSoup object with parsed HTML.
-        user_type (str): The user type to scrape courses for (Instructor or Student courses).
-
-    Returns:
-        tuple:
-            dict: A dictionary mapping course IDs to Course objects containing all course info.
-            bool: Flag indicating if the user is an instructor or not.
-
-        For example:
-        {
-            "123456": Course(
-                name="CS 1134",
-                full_name="Data Structures and Algorithms",
-                semester="Fall",
-                year="2021",
-                num_grades_published="0",
-                num_assignments="5"
-            )
+def _parse_course_list_block(cl_block, semester, year):
+    out = {}
+    # iterate all course anchors within this block
+    for a in cl_block.select("div.courseList--coursesForTerm > a.courseBox[href]"):
+        href = (a.get("href") or "").rstrip("/")
+        if not href.startswith("/courses/"):
+            continue
+        cid = href.split("/")[-1]
+        short_el = a.select_one("h3.courseBox--shortname")
+        full_el  = a.select_one("div.courseBox--name")
+        assign_el = a.select_one("div.courseBox--assignments")
+        grades_el = a.select_one("div.courseBox--noGradesPublished, div.courseBox--gradesPublished")
+        out[cid] = {
+            "name": short_el.get_text(strip=True) if short_el else "",
+            "full_name": full_el.get_text(strip=True) if full_el else "",
+            "semester": semester,
+            "year": year,
+            "num_assignments": assign_el.get_text(strip=True) if assign_el else None,
+            "num_grades_published": grades_el.get_text(strip=True) if grades_el else None,
         }
+    return out
+
+def get_courses_info(soup: BeautifulSoup, section_title: str | None = None) -> tuple[dict[str, Course], bool]:
     """
+    Parse the Gradescope account page.
+    If section_title is given, it must be exactly 'Instructor Courses' or 'Student Courses'.
+    Returns (courses_by_id, is_instructor_for_this_parse)
+    """
+    all_courses: dict[str, Course] = {}
+    root = soup.select_one("#account-show") or soup
 
-    # initalize dictionary to store all courses
-    all_courses = {}
+    # Map each courseList to its nearest previous h2.pageHeading
+    blocks = []
+    for cl in root.select("div.courseList"):
+        prev_h2 = cl.find_previous("h2", class_="pageHeading")
+        title = prev_h2.get_text(strip=True) if prev_h2 else ""
+        blocks.append((title, cl))
 
-    # find heading for defined user_type's courses
-    courses = soup.find("h2", class_="pageHeading", string=user_type)
+    # Fallback: single block pages with empty/absent heading
+    if not blocks:
+        cl = root.select_one("div.courseList")
+        if not cl:
+            return {}, False
+        blocks = [("", cl)]
 
-    # if no courses found, return empty dictionary
-    if courses is None:
-        return all_courses, False
+    # Filter by requested section, if provided
+    if section_title:
+        blocks = [(t, cl) for (t, cl) in blocks if t == section_title]
+        if not blocks:
+            return {}, (section_title.lower().startswith("instructor") if section_title else False)
 
-    # use button to check if user is an instructor or not
-    button = courses.find_next("button")
-    if button.text == " Create a new course":  # intentional space before Create
-        is_instructor = True
-    else:
-        is_instructor = False
+    is_instructor = False
+    for title, cl in blocks:
+        this_is_instructor = title.lower().startswith("instructor")
+        is_instructor = is_instructor or this_is_instructor
 
-    # find next div with class courseList
-    course_list = courses.find_next("div", class_="courseList")
+        # iterate each term within this block
+        for term_div in cl.select("div.courseList--term"):
+            term_txt = term_div.get_text(strip=True)
+            parts = term_txt.split()
+            semester, year = (parts[0], parts[1]) if len(parts) >= 2 else (term_txt, "")
 
-    for term in course_list.find_all("div", class_="courseList--term"):
-        # find first "a" -> course
-        course = term.find_next("a")
-        while course is not None:
-            # fetch course id and create new dictionary for each course
-            course_id = course["href"].split("/")[-1]
+            courses_for_term = term_div.find_next_sibling("div", class_="courseList--coursesForTerm")
+            if not courses_for_term:
+                continue
 
-            # fetch short name
-            course_name = course.find("h3", class_="courseBox--shortname")
-            short_name = course_name.text
-
-            # fetch full name
-            course_full_name = course.find("div", class_="courseBox--name")
-            full_name = course_full_name.text
-
-            # fetch semester and year
-            time_of_year = term.text.split(" ")
-            semester = time_of_year[0]
-            year = time_of_year[1]
-
-            # fetch number of grades published and number of assignments
-            if user_type == "Instructor Courses" or is_instructor:
-                # find number of grades published and number of assignments
-                # if they exist
-                num_grades_published = course.find(
-                    "div", class_="courseBox--noGradesPublised"
+            parsed = _parse_course_list_block(courses_for_term, semester, year)
+            for cid, ci in parsed.items():
+                all_courses[cid] = Course(
+                    name=ci["name"],
+                    full_name=ci["full_name"],
+                    semester=ci["semester"],
+                    year=ci["year"],
+                    num_assignments=ci["num_assignments"],
+                    num_grades_published=ci["num_grades_published"] if this_is_instructor else None,
                 )
-                if num_grades_published is not None:
-                    num_grades_published = num_grades_published.text
-
-                num_assignments = course.find(
-                    "div",
-                    class_="courseBox--assignments courseBox--assignments-unpublished",
-                )
-                if num_assignments is not None:
-                    num_assignments = num_assignments.text
-
-            else:
-                # students do not have number of grades published, so set to None
-                num_grades_published = None
-                num_assignments = course.find("div", class_="courseBox--assignments")
-                num_assignments = num_assignments.text
-
-            # create Course object with all relevant info
-            course_info = Course(
-                name=short_name,
-                full_name=full_name,
-                semester=semester,
-                year=year,
-                num_grades_published=num_grades_published,
-                num_assignments=num_assignments,
-            )
-
-            # store info for this course
-            all_courses[course_id] = course_info
-
-            # find next course, or "a" tag
-            course = course.find_next_sibling("a")
 
     return all_courses, is_instructor
-
 
 def get_course_members(soup: BeautifulSoup, course_id: str) -> list[Member]:
     """
