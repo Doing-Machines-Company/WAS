@@ -3,6 +3,8 @@ import os
 import asyncio
 import logging
 import dotenv
+import sys
+from typing import Optional
 dotenv.load_dotenv()
 import supabase
 import concurrent.futures
@@ -298,7 +300,6 @@ async def main():
     global canvas_session
     canvas_session = aiohttp.ClientSession()
     
-    valid_emails = {'jamesc3@andrew.cmu.edu'}
     url: str = os.environ.get("SUPABASE_URL")
     key: str = os.environ.get("SUPABASE_KEY")
     client: supabase.Client = supabase.create_client(url, key)
@@ -306,8 +307,6 @@ async def main():
     
     if users.data:
         valid_users = [record for record in users.data]
-        # Filter valid users
-        input(valid_users)
         # Process all users in parallel
         await asyncio.gather(*[process_user(record, canvas_session) for record in valid_users])
 
@@ -316,6 +315,34 @@ async def main():
 
 # Global canvas_session that will be used in the original async mode
 canvas_session = None
+
+async def main_single(user_id: str):
+    """Process exactly one user by user_id, used by the webhook path."""
+    logger.info(f"[single] starting sync for user_id={user_id}")
+
+    # sync (blocking) client for fetching the user row
+    url: str = os.environ.get("SUPABASE_URL")
+    key: str = os.environ.get("SUPABASE_KEY")
+    client: supabase.Client = supabase.create_client(url, key)
+
+    # fetch this one user; use your preferred method (RPC or table filter)
+    # Option A: filter table directly
+    user = client.rpc("get_user", {"user_id_param": user_id}).execute()
+    if not user.data:
+        logger.warning(f"[single] no user found with user_id={user_id}, exiting")
+        return
+
+    record = user.data[0]
+
+    # create dedicated aiohttp session
+    session_for_thread = None
+    try:
+        session_for_thread = aiohttp.ClientSession()
+        await process_user(record, session_for_thread)
+        logger.info(f"[single] completed sync for user_id={user_id}")
+    finally:
+        if session_for_thread:
+            await session_for_thread.close()
 
 
 async def log_error_to_supabase(user_id, error_type, error_message, error_details=None):
@@ -338,4 +365,8 @@ async def log_error_to_supabase(user_id, error_type, error_message, error_detail
 
 if __name__ == "__main__":
     # Use the threaded version
-    asyncio.run(main())
+    if len(sys.argv) >= 2 and sys.argv[1] not in ("-h", "--help"):
+        target_user = sys.argv[1]
+        asyncio.run(main_single(target_user))
+    else:
+        asyncio.run(main())
