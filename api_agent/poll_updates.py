@@ -20,6 +20,7 @@ from supabase._async.client import create_client
 import time 
 import aiohttp
 import traceback
+import functools
 
 # Import sync functions (for backwards compatibility, these may still be used elsewhere)
 from google_sync_utils import (
@@ -47,53 +48,128 @@ logger = logging.getLogger(__name__)
 
 
 
+def async_retry(max_attempts=3, delay=1.0, backoff=2.0):
+    """
+    Async retry decorator with exponential backoff and detailed logging.
+    
+    Args:
+        max_attempts: Maximum number of retry attempts (default 3)
+        delay: Initial delay between retries in seconds (default 1.0)
+        backoff: Backoff multiplier for exponential delay (default 2.0)
+    """
+    def decorator(func):
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs):
+            current_delay = delay
+            last_exception = None
+            
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    logger.info(f"Attempt {attempt}/{max_attempts} for {func.__name__}")
+                    result = await func(*args, **kwargs)
+                    if attempt > 1:
+                        logger.info(f"{func.__name__} succeeded on attempt {attempt}")
+                    return result
+                except Exception as e:
+                    last_exception = e
+                    error_msg = f"{func.__name__} failed on attempt {attempt}/{max_attempts}: {str(e)}"
+                    logger.error(error_msg)
+                    
+                    # Log to Supabase for tracking
+                    user_id = None
+                    if 'user_id' in kwargs:
+                        user_id = kwargs['user_id']
+                    elif len(args) > 0 and isinstance(args[0], dict) and 'user_id' in args[0]:
+                        user_id = args[0]['user_id']
+                    elif len(args) > 1 and isinstance(args[1], str):
+                        user_id = args[1]  # For process_polls where user_id is second argument
+                    
+                    await log_error_to_supabase(
+                        user_id=user_id,
+                        error_type=f"{func.__name__}_retry_attempt",
+                        error_message=error_msg,
+                        error_details={
+                            "attempt": attempt,
+                            "max_attempts": max_attempts,
+                            "exception_type": type(e).__name__,
+                            "exception_message": str(e),
+                            "traceback": traceback.format_exc()
+                        }
+                    )
+                    
+                    if attempt < max_attempts:
+                        logger.info(f"Retrying {func.__name__} in {current_delay:.1f} seconds...")
+                        await asyncio.sleep(current_delay)
+                        current_delay *= backoff
+                    else:
+                        logger.error(f"{func.__name__} failed after {max_attempts} attempts")
+                        
+            # Re-raise the last exception after all attempts failed
+            raise last_exception
+            
+        return wrapper
+    return decorator
+
+
 async def run_gradescope_agent(credentials):
     """Run the Gradescope agent deterministically without LLM involvement."""
+    # Check credentials first to avoid unnecessary retries
+    if not credentials or not credentials.get('email') or not credentials.get('password'):
+        logger.warning("Gradescope credentials missing or incomplete")
+        return []
+    
+    @async_retry(max_attempts=3, delay=1.0, backoff=2.0)
+    async def _run_gradescope_with_retry(creds):
+        logger.info(f"Starting Gradescope agent for {creds.get('email')}")
+        gradescope_agent = GradescopeAPIAgent(credentials=creds)
+        logger.info("Running Gradescope agent deterministically")
+        poll_output = await gradescope_agent.get_all_assignments_deterministic()
+        await gradescope_agent.cleanup()
+        logger.info(f"Gradescope agent completed, found {len(poll_output)} assignments")
+        return poll_output
+    
     try:
-        if credentials and credentials.get('email') and credentials.get('password'):
-            logger.info(f"Starting Gradescope agent for {credentials.get('email')}")
-            gradescope_agent = GradescopeAPIAgent(credentials=credentials)
-            logger.info("Running Gradescope agent deterministically")
-            poll_output = await gradescope_agent.get_all_assignments_deterministic()
-            await gradescope_agent.cleanup()
-            logger.info(f"Gradescope agent completed, found {len(poll_output)} assignments")
-            return poll_output
-        else:
-            logger.warning("Gradescope credentials missing or incomplete")
+        return await _run_gradescope_with_retry(credentials)
     except Exception as e:
-        logger.error(f"Error running gradescope agent: {e}")
+        logger.error(f"Error running gradescope agent after all retries: {e}")
         await log_error_to_supabase(
             user_id=credentials.get('user_id') if credentials else None,
-            error_type="gradescope_agent_error",
+            error_type="gradescope_agent_final_error",
             error_message=str(e)
         )
-    return []
+        return []
 
 
 async def run_canvas_agent(domain, token, session):
     """Run the Canvas agent deterministically without LLM involvement."""
+    # Check credentials first to avoid unnecessary retries
+    if not domain or not token:
+        logger.warning("Canvas domain or token missing")
+        return []
+    
+    @async_retry(max_attempts=3, delay=1.0, backoff=2.0)
+    async def _run_canvas_with_retry(dom, tok, sess):
+        logger.info(f"Starting Canvas agent for domain {dom}")
+        canvas_agent = CanvasAPIAgent(
+            credentials={'url': 'https://' + dom, 'token': tok},
+            session=sess
+        )
+        logger.info("Running Canvas agent deterministically")
+        poll_output = await canvas_agent.get_all_assignments_deterministic()
+        logger.info(f"Canvas agent completed, found {len(poll_output)} assignments")
+        return poll_output
+    
     try:
-        if domain and token:
-            logger.info(f"Starting Canvas agent for domain {domain}")
-            canvas_agent = CanvasAPIAgent(
-                credentials={'url': 'https://' + domain, 'token': token},
-                session=session
-            )
-            logger.info("Running Canvas agent deterministically")
-            poll_output = await canvas_agent.get_all_assignments_deterministic()
-            logger.info(f"Canvas agent completed, found {len(poll_output)} assignments")
-            return poll_output
-        else:
-            logger.warning("Canvas domain or token missing")
+        return await _run_canvas_with_retry(domain, token, session)
     except Exception as e:
-        logger.error(f"Error running canvas agent: {e}")
+        logger.error(f"Error running canvas agent after all retries: {e}")
         await log_error_to_supabase(
             user_id=None,  # Canvas doesn't have user_id in this context
-            error_type="canvas_agent_error",
+            error_type="canvas_agent_final_error",
             error_message=str(e),
             error_details={"domain": domain}
         )
-    return []
+        return []
 
 
 async def run_supabase_agent(task_string, user_id):
@@ -115,6 +191,7 @@ async def run_supabase_agent(task_string, user_id):
         )
 
 
+@async_retry(max_attempts=3, delay=1.0, backoff=2.0)
 async def process_polls(poll_data, user_id, step_size=1):
     """Process poll outputs and run the Supabase agent in parallel."""
     if not poll_data:
