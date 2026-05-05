@@ -1,13 +1,17 @@
 __pycache__
 .env
+.venv
 .python-version
 .DS_Store
+.idea
 scrape_trials
 poop.py
 poopoo.txt
 poopoo1.txt
 dominos*
 **/*.pkl
+*.mp4
+*.zip
 WAS
 nohup.out
 uvicorn.log
