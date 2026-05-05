@@ -16,7 +16,7 @@ The payoff was a meaningful speedup and reliability boost on long, multi-page fl
 
 End-to-end run on Domino's: the agent takes a natural-language order and drives the site through item selection and checkout.
 
-[▶ spliced_dom.mp4](spliced_dom.mp4)
+https://github.com/user-attachments/assets/b6f160d1-971e-48c1-a083-6cd7c1241604
 
 ## Phase 2 — Assignment tracker (inbound.fyi)
 
